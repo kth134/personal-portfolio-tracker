@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { supabaseClient } from "@/lib/supabase/client";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,13 +23,19 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
-    </html>
-  );
+return (
+  <html lang="en">
+    <body
+      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+    >
+      <nav className="bg-gray-800 text-white p-4">
+        <div className="max-w-7xl mx-auto flex justify-between">
+          <h2 className="text-xl">Portfolio Tracker</h2>
+          {/* Nav links later */}
+        </div>
+      </nav>
+      {children}
+    </body>
+  </html>
+);
 }
