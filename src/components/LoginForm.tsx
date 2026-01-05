@@ -14,17 +14,27 @@ export default function LoginForm() {
   const [error, setError] = useState('')
   const router = useRouter()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  setError('')
 
-    const { error } = isSignUp
-      ? await supabaseClient.auth.signUp({ email, password })
-      : await supabaseClient.auth.signInWithPassword({ email, password })
-
+  if (isSignUp) {
+    const { data, error } = await supabaseClient.auth.signUp({ email, password })
+    if (error) {
+      setError(error.message)
+    } else if (data.session) {
+      // Auto-logged in if no confirmation needed
+      router.push('/dashboard')
+    } else {
+      // Confirmation required—show message (we'll improve with redirect below)
+      setError('Check email for confirmation link. Then log in.')
+    }
+  } else {
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password })
     if (error) setError(error.message)
     else router.push('/dashboard')
   }
+}
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 w-80">
