@@ -67,6 +67,11 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const [fees, setFees] = useState('')
   const [notes, setNotes] = useState('')
 
+  // Derived
+  const isBuyOrSellEdit = !!editingTx && (editingTx.type === 'Buy' || editingTx.type === 'Sell')
+  const disableSelects = !!editingTx
+  const disableCriticalFields = isBuyOrSellEdit
+
   // Fetch accounts & assets
   useEffect(() => {
     const fetchData = async () => {
@@ -104,18 +109,26 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     }
 
     list.sort((a, b) => {
-      let aVal: any = sortKey === 'account_name' ? a.account?.name ?? '' :
-                     sortKey === 'asset_ticker' ? a.asset?.ticker ?? '' :
-                     a[sortKey as keyof Transaction] ?? ''
-      let bVal: any = sortKey === 'account_name' ? b.account?.name ?? '' :
-                     sortKey === 'asset_ticker' ? b.asset?.ticker ?? '' :
-                     b[sortKey as keyof Transaction] ?? ''
+      let aVal: any = sortKey === 'account_name' ? a.account?.name ?? null :
+                     sortKey === 'asset_ticker' ? a.asset?.ticker ?? null :
+                     a[sortKey as keyof Transaction] ?? null
+      let bVal: any = sortKey === 'account_name' ? b.account?.name ?? null :
+                     sortKey === 'asset_ticker' ? b.asset?.ticker ?? null :
+                     b[sortKey as keyof Transaction] ?? null
 
-      if (typeof aVal === 'string') aVal = aVal.toLowerCase()
-      if (typeof bVal === 'string') bVal = bVal.toLowerCase()
-      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1
-      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
-      return 0
+      // Nulls last
+      if (aVal === null) return 1
+      if (bVal === null) return -1
+
+      // Numeric comparison if both numbers
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+      }
+
+      // String comparison
+      const aStr = String(aVal).toLowerCase()
+      const bStr = String(bVal).toLowerCase()
+      return sortDir === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr)
     })
 
     setDisplayTransactions(list)
@@ -160,7 +173,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedAccount || !selectedAsset || !type || !date) {
-      alert('Please fill all required fields (Account, Asset, Type, Date)')
+      alert('Please fill all required fields')
       return
     }
 
@@ -172,14 +185,14 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     if (type === 'Dividend') {
       amt = Number(dividendAmount)
       if (isNaN(amt) || amt <= 0) {
-        alert('Please enter a positive dividend amount')
+        alert('Positive dividend amount required')
         return
       }
     } else {
       qty = Number(quantity)
       prc = Number(price)
       if (isNaN(qty) || qty <= 0 || isNaN(prc) || prc <= 0) {
-        alert('Quantity and price must be positive numbers for Buy/Sell')
+        alert('Positive quantity and price required for Buy/Sell')
         return
       }
       const gross = qty * prc
@@ -215,6 +228,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         if (error) throw error
         updatedTx = data
       } else {
+        // Existing insert + lot logic unchanged...
         const { data, error } = await supabaseClient
           .from('transactions')
           .insert(txData)
@@ -226,10 +240,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
           .single()
         if (error) throw error
         updatedTx = data
-      }
 
-      // Handle tax lots for new Buy/Sell (edit does NOT adjust lots – manual fix needed)
-      if (!editingTx) {
         if (type === 'Buy' && qty && prc) {
           const basis_per_unit = Math.abs(amt) / qty
           await supabaseClient.from('tax_lots').insert({
@@ -241,7 +252,6 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
             remaining_quantity: qty,
           })
         } else if (type === 'Sell' && qty && prc) {
-          // FIFO depletion logic (same as your original)
           const { data: lots } = await supabaseClient
             .from('tax_lots')
             .select('*')
@@ -250,7 +260,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
             .gt('remaining_quantity', 0)
             .order('purchase_date', { ascending: true })
 
-          if (!lots || lots.length === 0) throw new Error('No open lots to sell from')
+          if (!lots || lots.length === 0) throw new Error('No open lots')
 
           let remaining = qty
           let basis_sold = 0
@@ -271,7 +281,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
             }
           }
 
-          if (remaining > 0) throw new Error('Insufficient shares in open lots')
+          if (remaining > 0) throw new Error('Insufficient shares')
 
           const proceeds = qty * prc - fs
           const realized_gain = proceeds - basis_sold
@@ -292,8 +302,6 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
       }
 
       router.refresh()
-
-      // Optimistic UI update
       if (editingTx) {
         setTransactions(transactions.map(t => t.id === updatedTx.id ? updatedTx : t))
       } else {
@@ -304,7 +312,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
       resetForm()
     } catch (err: any) {
       console.error(err)
-      alert('Error: ' + err.message + '. Editing or deleting sells may require manual tax-lot fixes.')
+      alert('Error: ' + err.message)
     }
   }
 
@@ -316,7 +324,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
       router.refresh()
       setDeleteConfirmId(null)
     } catch (err) {
-      alert('Delete failed – you may need to manually adjust tax lots.')
+      alert('Delete failed – manual tax lot adjustment may be needed.')
     }
   }
 
@@ -342,14 +350,21 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
               <DialogHeader>
                 <DialogTitle>{editingTx ? 'Edit' : 'Add'} Transaction</DialogTitle>
               </DialogHeader>
+
+              {isBuyOrSellEdit && (
+                <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-900 p-4 mb-6 rounded">
+                  <p className="font-medium">Important</p>
+                  <p className="text-sm">Editing quantity, price, fees, date, account, asset, or type on Buy/Sell transactions is disabled to maintain accurate tax lot tracking and realized gains. To make changes, delete the transaction and add a new one.</p>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Account Combobox */}
                   <div className="space-y-2">
                     <Label>Account <span className="text-red-500">*</span></Label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" role="combobox" className="w-full justify-between">
+                        <Button variant="outline" role="combobox" className="w-full justify-between" disabled={disableSelects}>
                           {selectedAccount ? `${selectedAccount.name} (${selectedAccount.type})` : 'Select account...'}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
@@ -376,12 +391,11 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                     </Popover>
                   </div>
 
-                  {/* Asset Combobox */}
                   <div className="space-y-2">
                     <Label>Asset <span className="text-red-500">*</span></Label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" role="combobox" className="w-full justify-between">
+                        <Button variant="outline" role="combobox" className="w-full justify-between" disabled={disableSelects}>
                           {selectedAsset
                             ? `${selectedAsset.ticker}${selectedAsset.name ? ` - ${selectedAsset.name}` : ''}`
                             : 'Select asset...'}
@@ -414,7 +428,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Type <span className="text-red-500">*</span></Label>
-                    <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
+                    <Select value={type} onValueChange={(v) => setType(v as typeof type)} disabled={disableSelects}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -433,6 +447,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                         <Button
                           variant="outline"
                           className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
+                          disabled={disableCriticalFields}
                         >
                           {date ? format(date, "PPP") : "Pick a date"}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
@@ -454,8 +469,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                         step="any"
                         value={quantity}
                         onChange={(e) => setQuantity(e.target.value)}
-                        placeholder="e.g. 0.12345678"
-                        required
+                        disabled={disableCriticalFields}
                       />
                     </div>
                     <div className="space-y-2">
@@ -465,8 +479,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                         step="any"
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
-                        placeholder="$"
-                        required
+                        disabled={disableCriticalFields}
                       />
                     </div>
                   </div>
@@ -480,8 +493,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                       step="any"
                       value={dividendAmount}
                       onChange={(e) => setDividendAmount(e.target.value)}
-                      placeholder="$"
-                      required
+                      disabled={disableCriticalFields} // false for dividend edits
                     />
                   </div>
                 )}
@@ -494,7 +506,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                       step="any"
                       value={fees}
                       onChange={(e) => setFees(e.target.value)}
-                      placeholder="$"
+                      disabled={disableCriticalFields}
                     />
                   </div>
                 </div>
@@ -503,9 +515,8 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                   <Label>Notes (optional)</Label>
                   <Textarea
                     value={notes}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value)}
+                    onChange={(e) => setNotes(e.target.value)}
                     rows={3}
-                    placeholder="Any additional details..."
                   />
                 </div>
 
@@ -514,7 +525,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                     Cancel
                   </Button>
                   <Button type="submit">
-                    {editingTx ? 'Update' : 'Add'} Transaction
+                    {editingTx ? 'Save Changes' : 'Add'} Transaction
                   </Button>
                 </div>
               </form>
@@ -527,23 +538,33 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead onClick={() => toggleSort('date')} className="cursor-pointer">
+              <TableHead className="cursor-pointer" onClick={() => toggleSort('date')}>
                 Date <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead onClick={() => toggleSort('account_name')} className="cursor-pointer">
+              <TableHead className="cursor-pointer" onClick={() => toggleSort('account_name')}>
                 Account <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead onClick={() => toggleSort('asset_ticker')} className="cursor-pointer">
+              <TableHead className="cursor-pointer" onClick={() => toggleSort('asset_ticker')}>
                 Asset <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead onClick={() => toggleSort('type')} className="cursor-pointer">
+              <TableHead className="cursor-pointer" onClick={() => toggleSort('type')}>
                 Type <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="text-right">Quantity</TableHead>
-              <TableHead className="text-right">Price/Unit</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="text-right">Fees</TableHead>
-              <TableHead className="text-right">Realized G/L</TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('quantity')}>
+                Quantity <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('price_per_unit')}>
+                Price/Unit <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('amount')}>
+                Amount <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('fees')}>
+                Fees <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('realized_gain')}>
+                Realized G/L <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
               <TableHead>Notes</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -594,14 +615,12 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         <p className="text-muted-foreground">No transactions yet. Add one to get started!</p>
       )}
 
-      {/* Single delete confirmation dialog */}
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this transaction?</AlertDialogTitle>
             <AlertDialogDescription>
-              This cannot be undone and may affect FIFO tax-lot calculations and realized gains on related sells.
-              You may need to manually adjust tax lots afterward.
+              This cannot be undone and will affect tax lot calculations and realized gains.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
