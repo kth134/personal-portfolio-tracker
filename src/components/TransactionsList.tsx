@@ -292,19 +292,36 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                 </Popover>
               </div>
 
-              {/* Quantity, Price, Fees */}
+              {/* Quantity, Price, Fees - Updated with precise step values */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label>Quantity *</Label>
-                  <Input type="number" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} required />
+                  <Input 
+                    type="number" 
+                    step="0.00000001"  // Allows up to 8 decimal places
+                    value={quantity} 
+                    onChange={(e) => setQuantity(e.target.value)} 
+                    required 
+                  />
                 </div>
                 <div>
                   <Label>Price per Unit *</Label>
-                  <Input type="number" step="any" value={price} onChange={(e) => setPrice(e.target.value)} required />
+                  <Input 
+                    type="number" 
+                    step="0.00000001"  // Flexible, allows high precision
+                    value={price} 
+                    onChange={(e) => setPrice(e.target.value)} 
+                    required 
+                  />
                 </div>
                 <div>
                   <Label>Fees</Label>
-                  <Input type="number" step="any" value={fees} onChange={(e) => setFees(e.target.value)} />
+                  <Input 
+                    type="number" 
+                    step="0.00001"  // Allows up to 5 decimal places
+                    value={fees} 
+                    onChange={(e) => setFees(e.target.value)} 
+                  />
                 </div>
               </div>
 
@@ -320,7 +337,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         </Dialog>
       </div>
 
-      {/* Transactions Table */}
+      {/* Transactions Table - Updated display precision */}
       {transactions.length > 0 ? (
         <Table>
           <TableHeader>
@@ -348,22 +365,22 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                 </TableCell>
                 <TableCell>{tx.type}</TableCell>
                 <TableCell className="text-right">
-                  {tx.quantity ? Number(tx.quantity).toFixed(4) : '-'}
+                  {tx.quantity != null ? Number(tx.quantity).toFixed(8) : '-'}
                 </TableCell>
                 <TableCell className="text-right">
-                  {tx.price_per_unit ? `$${Number(tx.price_per_unit).toFixed(2)}` : '-'}
+                  {tx.price_per_unit != null ? `$${Number(tx.price_per_unit).toFixed(2)}` : '-'}
                 </TableCell>
                 <TableCell className="text-right">
-                  {tx.amount ? `$${Number(tx.amount).toFixed(2)}` : '-'}
+                  {tx.amount != null ? `$${Number(tx.amount).toFixed(5)}` : '-'}
                 </TableCell>
                 <TableCell className="text-right">
-                  {tx.fees ? `$${Number(tx.fees).toFixed(2)}` : '-'}
+                  {tx.fees != null ? `$${Number(tx.fees).toFixed(5)}` : '-'}
                 </TableCell>
                 <TableCell className={cn(
                   "text-right font-medium",
                   (tx.realized_gain ?? 0) > 0 ? 'text-green-600' : (tx.realized_gain ?? 0) < 0 ? 'text-red-600' : ''
                 )}>
-                  {tx.realized_gain != null ? `$${Number(tx.realized_gain).toFixed(2)}` : '-'}
+                  {tx.realized_gain != null ? `$${Number(tx.realized_gain).toFixed(5)}` : '-'}
                 </TableCell>
                 <TableCell>{tx.notes || '-'}</TableCell>
               </TableRow>

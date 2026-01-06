@@ -1,39 +1,49 @@
-import { supabaseServer } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-export default async function Dashboard() {
-  const supabase = await supabaseServer()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/')
-
-  const handleLogout = async () => {
-    'use server'
-    const supabase = await supabaseServer()
-    await supabase.auth.signOut()
-    redirect('/')
-  }
-
+export default function DashboardHome() {
   return (
     <main className="p-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <form action={handleLogout}>
-          <Button type="submit" variant="outline">Logout</Button>
-        </form>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Link href="/dashboard/accounts">
-          <Button variant="secondary" className="w-full h-32 text-xl">Manage Accounts</Button>
-        </Link>
-        <Link href="/dashboard/assets">
-          <Button variant="secondary" className="w-full h-32 text-xl">Manage Assets</Button>
-        </Link>
-        <Link href="/dashboard/transactions">
-          <Button variant="secondary" className="w-full h-32 text-xl">Manage Transactions</Button>
-        </Link>
-        {/* Add more tiles here as we build (e.g., Holdings, Rebalance) */}
+      <h1 className="text-3xl font-bold mb-8">Portfolio Dashboard</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader><CardTitle>Accounts</CardTitle></CardHeader>
+          <CardContent>
+            <Link href="/dashboard/accounts">
+              <Button variant="outline" className="w-full">Manage Accounts</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Assets</CardTitle></CardHeader>
+          <CardContent>
+            <Link href="/dashboard/assets">
+              <Button variant="outline" className="w-full">Manage Assets</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Transactions</CardTitle></CardHeader>
+          <CardContent>
+            <Link href="/dashboard/transactions">
+              <Button variant="outline" className="w-full">View & Add Transactions</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Holdings</CardTitle></CardHeader>
+          <CardContent>
+            <Link href="/dashboard/holdings">
+              <Button variant="outline" className="w-full">Current Positions & Basis</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* Add more cards for future: Allocation, Performance, etc. */}
       </div>
     </main>
   )
