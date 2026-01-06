@@ -47,10 +47,11 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const [assets, setAssets] = useState<Asset[]>([])
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
-  const [type, setType] = useState<'Buy' | 'Sell'>()
-  const [date, setDate] = useState<Date>()
+  const [type, setType] = useState<'Buy' | 'Sell' | 'Dividend'>('Buy')
+  const [date, setDate] = useState<Date | undefined>(undefined)
   const [quantity, setQuantity] = useState('')
   const [price, setPrice] = useState('')
+  const [dividendAmount, setDividendAmount] = useState('') // Manual amount for Dividend
   const [fees, setFees] = useState('')
   const [notes, setNotes] = useState('')
 
@@ -65,19 +66,48 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     fetchData()
   }, [])
 
+  const resetForm = () => {
+    setSelectedAccount(null)
+    setSelectedAsset(null)
+    setType('Buy')
+    setDate(undefined)
+    setQuantity('')
+    setPrice('')
+    setDividendAmount('')
+    setFees('')
+    setNotes('')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedAccount || !selectedAsset || !type || !date || !quantity || !price) {
+    if (!selectedAccount || !selectedAsset || !type || !date) {
       alert('Please fill all required fields')
       return
     }
 
-    const qty = Number(quantity)
-    const prc = Number(price)
-    const fs = Number(fees || 0)
-    const gross = qty * prc
-    const total = type === 'Buy' ? gross + fs : gross - fs
-    const amount = type === 'Buy' ? -total : total
+    let qty: number | null = null
+    let prc: number | null = null
+    let amt: number = 0
+    let fs = Number(fees || 0)
+
+    if (type === 'Dividend') {
+      amt = Number(dividendAmount)
+      if (isNaN(amt) || amt <= 0) {
+        alert('Please enter a positive dividend amount')
+        return
+      }
+    } else {
+      // Buy or Sell
+      qty = Number(quantity)
+      prc = Number(price)
+      if (isNaN(qty) || qty <= 0 || isNaN(prc) || prc <= 0) {
+        alert('Quantity and price must be positive for Buy/Sell')
+        return
+      }
+      const gross = qty * prc
+      const total = type === 'Buy' ? gross + fs : gross - fs
+      amt = type === 'Buy' ? -total : total
+    }
 
     try {
       // Insert transaction
@@ -90,7 +120,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
           type,
           quantity: qty,
           price_per_unit: prc,
-          amount,
+          amount: amt,
           fees: fs || null,
           notes: notes || null,
           realized_gain: null,
@@ -107,14 +137,14 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
       let updatedTx = tx
 
       if (type === 'Buy') {
-        const basis_per_unit = total / qty
+        const basis_per_unit = Math.abs(amt) / qty!
         const { error: lotErr } = await supabaseClient.from('tax_lots').insert({
           account_id: selectedAccount.id,
           asset_id: selectedAsset.id,
           purchase_date: format(date, 'yyyy-MM-dd'),
-          quantity: qty,
+          quantity: qty!,
           cost_basis_per_unit: basis_per_unit,
-          remaining_quantity: qty,
+          remaining_quantity: qty!,
         })
         if (lotErr) throw lotErr
       } else if (type === 'Sell') {
@@ -129,7 +159,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         if (lotsErr) throw lotsErr
         if (!lots || lots.length === 0) throw new Error('No open lots to sell from')
 
-        let remaining = qty
+        let remaining = qty!
         let basis_sold = 0
 
         for (const lot of lots) {
@@ -150,7 +180,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
 
         if (remaining > 0) throw new Error('Insufficient shares in open lots')
 
-        const proceeds = gross - fs
+        const proceeds = qty! * prc! - fs
         const realized_gain = proceeds - basis_sold
 
         const { data: updated, error: updateErr } = await supabaseClient
@@ -167,20 +197,12 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         if (updateErr) throw updateErr
         updatedTx = updated
       }
+      // Dividend: no lot handling
 
       // Optimistic update: prepend new transaction
       setTransactions([updatedTx, ...transactions])
       setOpen(false)
-
-      // Reset form
-      setSelectedAccount(null)
-      setSelectedAsset(null)
-      setType(undefined)
-      setDate(undefined)
-      setQuantity('')
-      setPrice('')
-      setFees('')
-      setNotes('')
+      resetForm()
     } catch (err: any) {
       console.error(err)
       alert('Error: ' + err.message)
@@ -191,7 +213,10 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     <main className="p-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Transactions</h1>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(isOpen) => {
+          setOpen(isOpen)
+          if (!isOpen) resetForm()
+        }}>
           <DialogTrigger asChild>
             <Button>Add Transaction</Button>
           </DialogTrigger>
@@ -267,11 +292,12 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
               {/* Type */}
               <div>
                 <Label>Type *</Label>
-                <Select onValueChange={(v) => setType(v as 'Buy' | 'Sell')} required>
+                <Select onValueChange={(v) => setType(v as 'Buy' | 'Sell' | 'Dividend')} value={type} required>
                   <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Buy">Buy</SelectItem>
                     <SelectItem value="Sell">Sell</SelectItem>
+                    <SelectItem value="Dividend">Dividend</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -292,38 +318,62 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                 </Popover>
               </div>
 
-              {/* Quantity, Price, Fees - Updated with precise step values */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label>Quantity *</Label>
-                  <Input 
-                    type="number" 
-                    step="0.00000001"  // Allows up to 8 decimal places
-                    value={quantity} 
-                    onChange={(e) => setQuantity(e.target.value)} 
-                    required 
-                  />
+              {/* Conditional fields based on type */}
+              {type === 'Dividend' ? (
+                <>
+                  <div>
+                    <Label>Dividend Amount (positive) *</Label>
+                    <Input 
+                      type="number" 
+                      step="0.00001" 
+                      value={dividendAmount} 
+                      onChange={(e) => setDividendAmount(e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div>
+                    <Label>Fees (optional)</Label>
+                    <Input 
+                      type="number" 
+                      step="0.00001" 
+                      value={fees} 
+                      onChange={(e) => setFees(e.target.value)} 
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label>Quantity *</Label>
+                    <Input 
+                      type="number" 
+                      step="0.00000001" 
+                      value={quantity} 
+                      onChange={(e) => setQuantity(e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div>
+                    <Label>Price per Unit *</Label>
+                    <Input 
+                      type="number" 
+                      step="0.00000001" 
+                      value={price} 
+                      onChange={(e) => setPrice(e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div>
+                    <Label>Fees (optional)</Label>
+                    <Input 
+                      type="number" 
+                      step="0.00001" 
+                      value={fees} 
+                      onChange={(e) => setFees(e.target.value)} 
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label>Price per Unit *</Label>
-                  <Input 
-                    type="number" 
-                    step="0.00000001"  // Flexible, allows high precision
-                    value={price} 
-                    onChange={(e) => setPrice(e.target.value)} 
-                    required 
-                  />
-                </div>
-                <div>
-                  <Label>Fees</Label>
-                  <Input 
-                    type="number" 
-                    step="0.00001"  // Allows up to 5 decimal places
-                    value={fees} 
-                    onChange={(e) => setFees(e.target.value)} 
-                  />
-                </div>
-              </div>
+              )}
 
               {/* Notes */}
               <div>
@@ -337,7 +387,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         </Dialog>
       </div>
 
-      {/* Transactions Table - Updated display precision */}
+      {/* Transactions Table */}
       {transactions.length > 0 ? (
         <Table>
           <TableHeader>
