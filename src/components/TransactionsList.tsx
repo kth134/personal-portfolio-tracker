@@ -47,7 +47,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const [displayTransactions, setDisplayTransactions] = useState(initialTransactions)
   const [open, setOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [deletingTx, setDeletingTx] = useState<Transaction | null>(null)
 
   // Search & sort
   const [search, setSearch] = useState('')
@@ -67,7 +67,6 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const [fees, setFees] = useState('')
   const [notes, setNotes] = useState('')
 
-  // Derived
   const isBuyOrSellEdit = !!editingTx && (editingTx.type === 'Buy' || editingTx.type === 'Sell')
   const disableSelects = !!editingTx
   const disableCriticalFields = isBuyOrSellEdit
@@ -116,16 +115,13 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                      sortKey === 'asset_ticker' ? b.asset?.ticker ?? null :
                      b[sortKey as keyof Transaction] ?? null
 
-      // Nulls last
       if (aVal === null) return 1
       if (bVal === null) return -1
 
-      // Numeric comparison if both numbers
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return sortDir === 'asc' ? aVal - bVal : bVal - aVal
       }
 
-      // String comparison
       const aStr = String(aVal).toLowerCase()
       const bStr = String(bVal).toLowerCase()
       return sortDir === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr)
@@ -158,8 +154,8 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
 
   const openEdit = (tx: Transaction) => {
     setEditingTx(tx)
-    setSelectedAccount({ id: tx.account_id, name: tx.account?.name || '', type: tx.account?.type || '' } as Account)
-    setSelectedAsset({ id: tx.asset_id, ticker: tx.asset?.ticker || '', name: tx.asset?.name } as Asset)
+    setSelectedAccount(accounts.find(a => a.id === tx.account_id) || null)
+    setSelectedAsset(assets.find(a => a.id === tx.asset_id) || null)
     setType(tx.type as 'Buy' | 'Sell' | 'Dividend')
     setDate(parseISO(tx.date))
     setQuantity(tx.type !== 'Dividend' ? (tx.quantity?.toString() || '') : '')
@@ -228,7 +224,6 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         if (error) throw error
         updatedTx = data
       } else {
-        // Existing insert + lot logic unchanged...
         const { data, error } = await supabaseClient
           .from('transactions')
           .insert(txData)
@@ -317,14 +312,44 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   }
 
   const handleDelete = async () => {
-    if (!deleteConfirmId) return
+    if (!deletingTx) return
+
     try {
-      await supabaseClient.from('transactions').delete().eq('id', deleteConfirmId)
-      setTransactions(transactions.filter(t => t.id !== deleteConfirmId))
+      if (deletingTx.type === 'Buy') {
+        const expected_basis = Math.abs(deletingTx.amount ?? 0) / (deletingTx.quantity ?? 1)
+
+        const { data: candidateLots } = await supabaseClient
+          .from('tax_lots')
+          .select('*')
+          .eq('account_id', deletingTx.account_id)
+          .eq('asset_id', deletingTx.asset_id)
+          .eq('purchase_date', deletingTx.date)
+
+        if (candidateLots && candidateLots.length > 0) {
+          const matchingLot = candidateLots.find(lot =>
+            Math.abs(lot.cost_basis_per_unit - expected_basis) < 0.01 &&
+            Math.abs(lot.quantity - (deletingTx.quantity ?? 0)) < 0.00000001
+          )
+
+          if (matchingLot && matchingLot.remaining_quantity === matchingLot.quantity) {
+            await supabaseClient.from('tax_lots').delete().eq('id', matchingLot.id)
+          } else {
+            alert('Buy deleted, but the tax lot was partially sold or doesn\'t exactly match — please review/clean up manually on the Tax Lots page.')
+          }
+        }
+      } else if (deletingTx.type === 'Sell') {
+        alert('Sell deleted. To restore the sold shares, manually increase remaining_quantity on the oldest tax lots (FIFO order) on the Tax Lots page.')
+      }
+      // Dividend: no lot action
+
+      await supabaseClient.from('transactions').delete().eq('id', deletingTx.id)
+
+      setTransactions(transactions.filter(t => t.id !== deletingTx.id))
       router.refresh()
-      setDeleteConfirmId(null)
-    } catch (err) {
-      alert('Delete failed – manual tax lot adjustment may be needed.')
+      setDeletingTx(null)
+    } catch (err: any) {
+      console.error(err)
+      alert('Delete failed: ' + err.message)
     }
   }
 
@@ -354,7 +379,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
               {isBuyOrSellEdit && (
                 <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-900 p-4 mb-6 rounded">
                   <p className="font-medium">Important</p>
-                  <p className="text-sm">Editing quantity, price, fees, date, account, asset, or type on Buy/Sell transactions is disabled to maintain accurate tax lot tracking and realized gains. To make changes, delete the transaction and add a new one.</p>
+                  <p className="text-sm">Editing quantity, price, fees, date, account, asset, or type on Buy/Sell transactions is disabled to preserve tax lot accuracy. Delete and re-add if needed.</p>
                 </div>
               )}
 
@@ -493,7 +518,6 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                       step="any"
                       value={dividendAmount}
                       onChange={(e) => setDividendAmount(e.target.value)}
-                      disabled={disableCriticalFields} // false for dividend edits
                     />
                   </div>
                 )}
@@ -603,7 +627,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                   <Button variant="ghost" size="sm" onClick={() => openEdit(tx)}>
                     <Edit2 className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmId(tx.id)}>
+                  <Button variant="ghost" size="sm" onClick={() => setDeletingTx(tx)}>
                     <Trash2 className="h-4 w-4 text-red-600" />
                   </Button>
                 </TableCell>
@@ -615,12 +639,20 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         <p className="text-muted-foreground">No transactions yet. Add one to get started!</p>
       )}
 
-      <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
+      <AlertDialog open={!!deletingTx} onOpenChange={(o) => !o && setDeletingTx(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this transaction?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this {deletingTx?.type} transaction?</AlertDialogTitle>
             <AlertDialogDescription>
-              This cannot be undone and will affect tax lot calculations and realized gains.
+              {deletingTx?.type === 'Buy' && (
+                <>The matching tax lot will be <strong>automatically removed only if no shares have been sold from it</strong>. If any shares were sold, please review/clean up manually on the Tax Lots page.</>
+              )}
+              {deletingTx?.type === 'Sell' && (
+                <>Sold shares will <strong>not</strong> be automatically restored. After deletion, manually increase remaining_quantity on the oldest tax lots (FIFO order) on the Tax Lots page.</>
+              )}
+              {deletingTx?.type === 'Dividend' && <>This has no impact on tax lots.</>}
+              <br /><br />
+              This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
