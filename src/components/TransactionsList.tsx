@@ -43,13 +43,15 @@ type TransactionsListProps = {
 export default function TransactionsList({ initialTransactions }: TransactionsListProps) {
   const router = useRouter()
   const [transactions, setTransactions] = useState(initialTransactions)
-  const [filteredTransactions, setFilteredTransactions] = useState(initialTransactions)
+  const [displayTransactions, setDisplayTransactions] = useState(initialTransactions)
   const [open, setOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
+  // Search & sort
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<keyof Transaction | 'account_name' | 'asset_ticker'>('date')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   // Form state
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -75,23 +77,23 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     fetchData()
   }, [])
 
-  // Filter & sort
+  // Search + sort effect
   useEffect(() => {
-    let filtered = [...transactions]
+    let list = [...transactions]
 
     if (search) {
-      const lowerSearch = search.toLowerCase()
-      filtered = filtered.filter(tx => 
-        tx.asset?.ticker.toLowerCase().includes(lowerSearch) ||
-        tx.account?.name.toLowerCase().includes(lowerSearch) ||
-        tx.notes?.toLowerCase().includes(lowerSearch) ||
-        tx.type.toLowerCase().includes(lowerSearch)
+      const low = search.toLowerCase()
+      list = list.filter(tx =>
+        tx.asset?.ticker.toLowerCase().includes(low) ||
+        tx.account?.name.toLowerCase().includes(low) ||
+        tx.notes?.toLowerCase().includes(low) ||
+        tx.type.toLowerCase().includes(low)
       )
     }
 
-    filtered.sort((a, b) => {
-      let aVal: any = a[sortKey as keyof Transaction] ?? ''
-      let bVal: any = b[sortKey as keyof Transaction] ?? ''
+    list.sort((a, b) => {
+      let aVal: any
+      let bVal: any
 
       if (sortKey === 'account_name') {
         aVal = a.account?.name ?? ''
@@ -99,25 +101,27 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
       } else if (sortKey === 'asset_ticker') {
         aVal = a.asset?.ticker ?? ''
         bVal = b.asset?.ticker ?? ''
+      } else {
+        aVal = a[sortKey as keyof Transaction] ?? ''
+        bVal = b[sortKey as keyof Transaction] ?? ''
       }
 
       if (typeof aVal === 'string') aVal = aVal.toLowerCase()
       if (typeof bVal === 'string') bVal = bVal.toLowerCase()
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
       return 0
     })
 
-    setFilteredTransactions(filtered)
-  }, [transactions, search, sortKey, sortDirection])
+    setDisplayTransactions(list)
+  }, [transactions, search, sortKey, sortDir])
 
-  const handleSort = (key: typeof sortKey) => {
+  const toggleSort = (key: typeof sortKey) => {
     if (sortKey === key) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
     } else {
       setSortKey(key)
-      setSortDirection('asc')
+      setSortDir('desc')
     }
   }
 
@@ -191,7 +195,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         amount: amt,
         fees: fs || null,
         notes: notes || null,
-        realized_gain: type === 'Sell' ? null : undefined, // Reset for re-calc if sell
+        realized_gain: type === 'Sell' ? null : editingTx?.realized_gain ?? null,
       }
 
       if (editingTx) {
@@ -221,7 +225,6 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         updatedTx = data
       }
 
-      // Lot handling for Buy (insert new lot)
       if (type === 'Buy') {
         const basis_per_unit = Math.abs(amt) / qty!
         await supabaseClient.from('tax_lots').insert({
@@ -232,35 +235,84 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
           cost_basis_per_unit: basis_per_unit,
           remaining_quantity: qty!,
         })
+      } else if (type === 'Sell') {
+        const { data: lots, error: lotsErr } = await supabaseClient
+          .from('tax_lots')
+          .select('*')
+          .eq('account_id', selectedAccount.id)
+          .eq('asset_id', selectedAsset.id)
+          .gt('remaining_quantity', 0)
+          .order('purchase_date', { ascending: true })
+
+        if (lotsErr) throw lotsErr
+        if (!lots || lots.length === 0) throw new Error('No open lots to sell from')
+
+        let remaining = qty!
+        let basis_sold = 0
+
+        for (const lot of lots) {
+          if (remaining <= 0) break
+          const deplete = Math.min(remaining, lot.remaining_quantity)
+          basis_sold += deplete * lot.cost_basis_per_unit
+          remaining -= deplete
+
+          if (lot.remaining_quantity - deplete > 0) {
+            await supabaseClient
+              .from('tax_lots')
+              .update({ remaining_quantity: lot.remaining_quantity - deplete })
+              .eq('id', lot.id)
+          } else {
+            await supabaseClient.from('tax_lots').delete().eq('id', lot.id)
+          }
+        }
+
+        if (remaining > 0) throw new Error('Insufficient shares in open lots')
+
+        const proceeds = qty! * prc! - fs
+        const realized_gain = proceeds - basis_sold
+
+        const { data: updated, error: updateErr } = await supabaseClient
+          .from('transactions')
+          .update({ realized_gain })
+          .eq('id', updatedTx.id)
+          .select(`
+            *,
+            account:accounts (name, type),
+            asset:assets (ticker, name)
+          `)
+          .single()
+
+        if (updateErr) throw updateErr
+        updatedTx = updated
       }
 
-      // For Sell (new or edit): Re-run FIFO depletion and update gain
-      if (type === 'Sell') {
-        // Same FIFO loop as before...
-        // (Copy your existing Sell FIFO code here, then update realized_gain on updatedTx.id)
-        // For brevity in this response, note: You'll need to paste the FIFO block, then update the tx with gain
-      }
-
-      // Refetch everything for accuracy (lots/gains may change)
+      // Refetch for full sync (lots/gains/Holdings)
       router.refresh()
+
+      // Optimistic local update
+      if (editingTx) {
+        setTransactions(transactions.map(t => t.id === updatedTx.id ? updatedTx : t))
+      } else {
+        setTransactions([updatedTx, ...transactions])
+      }
 
       setOpen(false)
       resetForm()
     } catch (err: any) {
       console.error(err)
-      alert('Error: ' + err.message + '. Editing/deleting sells may require manual lot fixes.')
+      alert('Error: ' + err.message + '. Editing/deleting sells may require manual lot fixes in Tax Lots page.')
     }
   }
 
   const handleDelete = async () => {
-    if (!deleteId) return
+    if (!deleteConfirmId) return
     try {
-      await supabaseClient.from('transactions').delete().eq('id', deleteId)
-      setTransactions(transactions.filter(t => t.id !== deleteId))
-      router.refresh() // Re-sync lots/gains
-      setDeleteId(null)
+      await supabaseClient.from('transactions').delete().eq('id', deleteConfirmId)
+      setTransactions(transactions.filter(t => t.id !== deleteConfirmId))
+      router.refresh() // Sync lots/Holdings
+      setDeleteConfirmId(null)
     } catch (err) {
-      alert('Delete failed. Manual lot fix may be needed.')
+      alert('Delete failed. Manual lot fix in Tax Lots page recommended.')
     }
   }
 
@@ -268,11 +320,11 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     <main className="p-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Transactions</h1>
-        <div className="flex gap-4">
-          <Input 
-            placeholder="Search..." 
-            value={search} 
-            onChange={(e) => setSearch(e.target.value)} 
+        <div className="flex gap-4 items-center">
+          <Input
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             className="w-64"
           />
           <Dialog open={open} onOpenChange={(isOpen) => {
@@ -286,37 +338,79 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
               <DialogHeader>
                 <DialogTitle>{editingTx ? 'Edit' : 'Add'} Transaction</DialogTitle>
               </DialogHeader>
-              {/* Form same as before, with conditional fields */}
-              {/* ... (keep your form code) */}
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Full form as in your original (Account, Asset, Type, Date, conditional fields, Notes) */}
+                {/* ... (copy your existing form JSX here - unchanged) */}
+              </form>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      {filteredTransactions.length > 0 ? (
+      {displayTransactions.length > 0 ? (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead onClick={() => handleSort('date')} className="cursor-pointer">
+              <TableHead onClick={() => toggleSort('date')} className="cursor-pointer">
                 Date <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead onClick={() => handleSort('account_name')} className="cursor-pointer">
+              <TableHead onClick={() => toggleSort('account_name')} className="cursor-pointer">
                 Account <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead onClick={() => handleSort('asset_ticker')} className="cursor-pointer">
+              <TableHead onClick={() => toggleSort('asset_ticker')} className="cursor-pointer">
                 Asset <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead onClick={() => handleSort('type')} className="cursor-pointer">
+              <TableHead onClick={() => toggleSort('type')} className="cursor-pointer">
                 Type <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              {/* Other headers with sort */}
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('quantity')}>
+                Quantity <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('price_per_unit')}>
+                Price/Unit <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('amount')}>
+                Amount <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('fees')}>
+                Fees <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('realized_gain')}>
+                Realized Gain/Loss <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead>Notes</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTransactions.map((tx) => (
+            {displayTransactions.map((tx) => (
               <TableRow key={tx.id}>
-                {/* Cells as before */}
+                <TableCell>{tx.date}</TableCell>
+                <TableCell>{tx.account?.name || '-'}</TableCell>
+                <TableCell>
+                  {tx.asset?.ticker || '-'}
+                  {tx.asset?.name && ` - ${tx.asset.name}`}
+                </TableCell>
+                <TableCell>{tx.type}</TableCell>
+                <TableCell className="text-right">
+                  {tx.quantity != null ? Number(tx.quantity).toFixed(8) : '-'}
+                </TableCell>
+                <TableCell className="text-right">
+                  {tx.price_per_unit != null ? `$${Number(tx.price_per_unit).toFixed(2)}` : '-'}
+                </TableCell>
+                <TableCell className="text-right">
+                  {tx.amount != null ? `$${Number(tx.amount).toFixed(5)}` : '-'}
+                </TableCell>
+                <TableCell className="text-right">
+                  {tx.fees != null ? `$${Number(tx.fees).toFixed(5)}` : '-'}
+                </TableCell>
+                <TableCell className={cn(
+                  "text-right font-medium",
+                  (tx.realized_gain ?? 0) > 0 ? 'text-green-600' : (tx.realized_gain ?? 0) < 0 ? 'text-red-600' : ''
+                )}>
+                  {tx.realized_gain != null ? `$${Number(tx.realized_gain).toFixed(5)}` : '-'}
+                </TableCell>
+                <TableCell>{tx.notes || '-'}</TableCell>
                 <TableCell className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={() => openEdit(tx)}>
                     <Edit2 className="h-4 w-4" />
@@ -331,12 +425,12 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This may affect FIFO gains on later sells. Manual fix in Tax Lots recommended.
+                          This may affect FIFO gains on later sells. Use Tax Lots page to fix manually.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => setDeleteId(tx.id)}>Delete</AlertDialogAction>
+                        <AlertDialogAction onClick={() => setDeleteConfirmId(tx.id)}>Delete</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
@@ -346,11 +440,11 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
           </TableBody>
         </Table>
       ) : (
-        <p>No transactions.</p>
+        <p className="text-muted-foreground">No transactions yet. Add one to get started!</p>
       )}
 
-      {/* Confirm delete dialog */}
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+      {/* Delete confirm */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Delete</AlertDialogTitle>

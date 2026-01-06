@@ -42,6 +42,14 @@ export default function DashboardHome() {
             </Link>
           </CardContent>
         </Card>
+        <Card>
+  <CardHeader><CardTitle>Tax Lots</CardTitle></CardHeader>
+  <CardContent>
+    <Link href="/dashboard/tax-lots">
+      <Button variant="outline" className="w-full">Manual Tax Lots</Button>
+    </Link>
+  </CardContent>
+</Card>
 
         {/* Add more cards for future: Allocation, Performance, etc. */}
       </div>
