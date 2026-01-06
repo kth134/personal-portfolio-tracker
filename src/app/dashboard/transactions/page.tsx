@@ -17,5 +17,6 @@ export default async function TransactionsPage() {
     .eq('user_id', user.id)
     .order('date', { ascending: false })
 
+  // Pass initial data to the client component
   return <TransactionsList initialTransactions={transactions || []} />
 }
