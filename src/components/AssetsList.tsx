@@ -8,8 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
-import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -17,7 +17,6 @@ type Asset = {
   id: string; 
   ticker: string; 
   name?: string; 
-  asset_class: string; 
   sub_portfolio: string; 
   notes?: string;
   asset_type?: string;
@@ -33,7 +32,6 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
   const [form, setForm] = useState({ 
     ticker: '', 
     name: '', 
-    asset_class: '', 
     sub_portfolio: '', 
     notes: '',
     asset_type: '',
@@ -43,19 +41,15 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
     size_tag: ''
   })
 
-  // Keep existing creatable logic for asset_class and sub_portfolio
-  const [assetClasses, setAssetClasses] = useState<string[]>([])
+  // Keep creatable logic only for sub_portfolio
   const [subPortfolios, setSubPortfolios] = useState<string[]>([])
-  const [assetClassPopoverOpen, setAssetClassPopoverOpen] = useState(false)
   const [subPortfolioPopoverOpen, setSubPortfolioPopoverOpen] = useState(false)
 
-  // Fetch unique existing asset classes and sub-portfolios on mount
+  // Fetch unique existing sub-portfolios on mount
   useEffect(() => {
     const fetchOptions = async () => {
-      const { data } = await supabaseClient.from('assets').select('asset_class, sub_portfolio')
-      const uniqueClasses = [...new Set(data?.map((a: any) => a.asset_class).filter(Boolean))] as string[]
+      const { data } = await supabaseClient.from('assets').select('sub_portfolio')
       const uniqueSubPortfolios = [...new Set(data?.map((a: any) => a.sub_portfolio).filter(Boolean))] as string[]
-      setAssetClasses(uniqueClasses)
       setSubPortfolios(uniqueSubPortfolios)
     }
     fetchOptions()
@@ -66,10 +60,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
     const { data, error } = await supabaseClient.from('assets').insert({ ...form }).select()
     if (!error && data) {
       setAssets([...assets, data[0]])
-      // Refresh lists if new values added for creatable fields
-      if (form.asset_class && !assetClasses.includes(form.asset_class)) {
-        setAssetClasses([...assetClasses, form.asset_class])
-      }
+      // Refresh sub_portfolio list if new value added
       if (form.sub_portfolio && !subPortfolios.includes(form.sub_portfolio)) {
         setSubPortfolios([...subPortfolios, form.sub_portfolio])
       }
@@ -77,7 +68,6 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
       setForm({ 
         ticker: '', 
         name: '', 
-        asset_class: '', 
         sub_portfolio: '', 
         notes: '',
         asset_type: '',
@@ -113,53 +103,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
               <Label>Name</Label>
               <Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
             </div>
-            <div>
-              <Label>Asset Class</Label>
-              <Popover open={assetClassPopoverOpen} onOpenChange={setAssetClassPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" className="w-full justify-between">
-                    {form.asset_class || "Select or add asset class"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
-                  <Command>
-                    <CommandInput 
-                      placeholder="Search or add asset class..." 
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                          const newClass = e.currentTarget.value.trim()
-                          if (!assetClasses.includes(newClass)) {
-                            setAssetClasses([...assetClasses, newClass])
-                          }
-                          setForm({ ...form, asset_class: newClass })
-                          setAssetClassPopoverOpen(false)
-                        }
-                      }}
-                    />
-                    <CommandList>
-                      <CommandEmpty>
-                        {assetClasses.length === 0 ? "Type to create new" : "No match — press Enter to create"}
-                      </CommandEmpty>
-                      <CommandGroup>
-                        {assetClasses.map(cls => (
-                          <CommandItem 
-                            key={cls} 
-                            onSelect={() => {
-                              setForm({ ...form, asset_class: cls })
-                              setAssetClassPopoverOpen(false)
-                            }}
-                          >
-                            <Check className={cn("mr-2 h-4 w-4", form.asset_class === cls ? "opacity-100" : "opacity-0")} />
-                            {cls}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
+
             <div>
               <Label>Sub-Portfolio</Label>
               <Popover open={subPortfolioPopoverOpen} onOpenChange={setSubPortfolioPopoverOpen}>
@@ -208,7 +152,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
               </Popover>
             </div>
 
-            {/* New structured tags - fixed selects for consistency */}
+            {/* Structured tags - fixed selects */}
             <div>
               <Label>Asset Type</Label>
               <Select onValueChange={v => setForm({...form, asset_type: v})}>
@@ -289,7 +233,6 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
           <TableRow>
             <TableHead>Ticker</TableHead>
             <TableHead>Name</TableHead>
-            <TableHead>Asset Class</TableHead>
             <TableHead>Sub-Portfolio</TableHead>
             <TableHead>Asset Type</TableHead>
             <TableHead>Sub-Type</TableHead>
@@ -305,7 +248,6 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
             <TableRow key={asset.id}>
               <TableCell>{asset.ticker}</TableCell>
               <TableCell>{asset.name || '-'}</TableCell>
-              <TableCell>{asset.asset_class}</TableCell>
               <TableCell>{asset.sub_portfolio}</TableCell>
               <TableCell>{asset.asset_type || '-'}</TableCell>
               <TableCell>{asset.asset_subtype || '-'}</TableCell>
