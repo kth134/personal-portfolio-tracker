@@ -29,6 +29,8 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
   // Dynamic options
   const [assetClasses, setAssetClasses] = useState<string[]>([])
   const [subPortfolios, setSubPortfolios] = useState<string[]>([])
+  const [assetClassPopoverOpen, setAssetClassPopoverOpen] = useState(false)
+  const [subPortfolioPopoverOpen, setSubPortfolioPopoverOpen] = useState(false)
 
   // Fetch unique existing asset classes and sub-portfolios on mount
   useEffect(() => {
@@ -85,7 +87,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
             </div>
             <div>
               <Label>Asset Class</Label>
-              <Popover>
+              <Popover open={assetClassPopoverOpen} onOpenChange={setAssetClassPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" role="combobox" className="w-full justify-between">
                     {form.asset_class || "Select or add asset class"}
@@ -94,12 +96,32 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0">
                   <Command>
-                    <CommandInput placeholder="Search or add asset class..." />
+                    <CommandInput 
+                      placeholder="Search or add asset class..." 
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                          const newClass = e.currentTarget.value.trim()
+                          if (!assetClasses.includes(newClass)) {
+                            setAssetClasses([...assetClasses, newClass])
+                          }
+                          setForm({ ...form, asset_class: newClass })
+                          setAssetClassPopoverOpen(false)
+                        }
+                      }}
+                    />
                     <CommandList>
-                      <CommandEmpty>No class found. Type to create.</CommandEmpty>
+                      <CommandEmpty>
+                        {assetClasses.length === 0 ? "Type to create new" : "No match — press Enter to create"}
+                      </CommandEmpty>
                       <CommandGroup>
                         {assetClasses.map(cls => (
-                          <CommandItem key={cls} onSelect={() => setForm({...form, asset_class: cls})}>
+                          <CommandItem 
+                            key={cls} 
+                            onSelect={() => {
+                              setForm({ ...form, asset_class: cls })
+                              setAssetClassPopoverOpen(false)
+                            }}
+                          >
                             <Check className={cn("mr-2 h-4 w-4", form.asset_class === cls ? "opacity-100" : "opacity-0")} />
                             {cls}
                           </CommandItem>
@@ -112,7 +134,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
             </div>
             <div>
               <Label>Sub-Portfolio</Label>
-              <Popover>
+              <Popover open={subPortfolioPopoverOpen} onOpenChange={setSubPortfolioPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" role="combobox" className="w-full justify-between">
                     {form.sub_portfolio || "Select or add sub-portfolio"}
@@ -121,12 +143,32 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0">
                   <Command>
-                    <CommandInput placeholder="Search or add sub-portfolio..." />
+                    <CommandInput 
+                      placeholder="Search or add sub-portfolio..." 
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                          const newSub = e.currentTarget.value.trim()
+                          if (!subPortfolios.includes(newSub)) {
+                            setSubPortfolios([...subPortfolios, newSub])
+                          }
+                          setForm({ ...form, sub_portfolio: newSub })
+                          setSubPortfolioPopoverOpen(false)
+                        }
+                      }}
+                    />
                     <CommandList>
-                      <CommandEmpty>No sub-portfolio found. Type to create.</CommandEmpty>
+                      <CommandEmpty>
+                        {subPortfolios.length === 0 ? "Type to create new" : "No match — press Enter to create"}
+                      </CommandEmpty>
                       <CommandGroup>
                         {subPortfolios.map(sub => (
-                          <CommandItem key={sub} onSelect={() => setForm({...form, sub_portfolio: sub})}>
+                          <CommandItem 
+                            key={sub} 
+                            onSelect={() => {
+                              setForm({ ...form, sub_portfolio: sub })
+                              setSubPortfolioPopoverOpen(false)
+                            }}
+                          >
                             <Check className={cn("mr-2 h-4 w-4", form.sub_portfolio === sub ? "opacity-100" : "opacity-0")} />
                             {sub}
                           </CommandItem>

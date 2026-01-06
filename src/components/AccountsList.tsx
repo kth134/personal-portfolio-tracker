@@ -22,6 +22,7 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
 
   // Dynamic options
   const [institutions, setInstitutions] = useState<string[]>([])
+  const [popoverOpen, setPopoverOpen] = useState(false)
 
   // Fetch unique existing institutions on mount
   useEffect(() => {
@@ -83,7 +84,7 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
             </div>
             <div>
               <Label>Institution</Label>
-              <Popover>
+              <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" role="combobox" className="w-full justify-between">
                     {form.institution || "Select or add institution"}
@@ -92,12 +93,32 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0">
                   <Command>
-                    <CommandInput placeholder="Search or add institution..." />
+                    <CommandInput 
+                      placeholder="Search or add institution..." 
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                          const newInst = e.currentTarget.value.trim()
+                          if (!institutions.includes(newInst)) {
+                            setInstitutions([...institutions, newInst])
+                          }
+                          setForm({ ...form, institution: newInst })
+                          setPopoverOpen(false)
+                        }
+                      }}
+                    />
                     <CommandList>
-                      <CommandEmpty>No institution found. Type to create.</CommandEmpty>
+                      <CommandEmpty>
+                        {institutions.length === 0 ? "Type to create new" : "No match — press Enter to create"}
+                      </CommandEmpty>
                       <CommandGroup>
                         {institutions.map(inst => (
-                          <CommandItem key={inst} onSelect={() => setForm({...form, institution: inst})}>
+                          <CommandItem 
+                            key={inst} 
+                            onSelect={() => {
+                              setForm({ ...form, institution: inst })
+                              setPopoverOpen(false)
+                            }}
+                          >
                             <Check className={cn("mr-2 h-4 w-4", form.institution === inst ? "opacity-100" : "opacity-0")} />
                             {inst}
                           </CommandItem>
@@ -107,8 +128,6 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
                   </Command>
                 </PopoverContent>
               </Popover>
-              {/* Hidden input to capture new value on submit */}
-              <Input type="hidden" value={form.institution} />
             </div>
             <div>
               <Label>Tax Status</Label>
