@@ -174,7 +174,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
                   <SelectItem value="Public Stock">Public Stock</SelectItem>
                   <SelectItem value="Private Stock">Private Stock</SelectItem>
                   <SelectItem value="Gold">Gold</SelectItem>
-                  <SelectItem value="Bitcoin">Bitcoin</SelectItem>
+                  <SelectItem value="Crypto">Crypto</SelectItem>
                   <SelectItem value="Bond">Bond</SelectItem>
                   <SelectItem value="Preferred Stock">Preferred Stock</SelectItem>
                 </SelectContent>
