@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -60,66 +60,60 @@ export default function PortfolioHoldingsClient({
   )
 
   return (
-    <div>
-      <div className="mb-4">
-        <Label className="mr-2">Group by:</Label>
-        <Select value={viewBy} onValueChange={(v: typeof viewBy) => setViewBy(v)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="subportfolio">Sub-Portfolio</SelectItem>
-            <SelectItem value="account">Account</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Asset / Group</TableHead>
-            <TableHead className="text-right">Quantity</TableHead>
-            <TableHead className="text-right">Avg Basis</TableHead>
-            <TableHead className="text-right">Total Basis</TableHead>
-            <TableHead className="text-right">Curr Price</TableHead>
-            <TableHead className="text-right">Curr Value</TableHead>
-            <TableHead className="text-right">Unreal Gain/Loss</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <Accordion type="multiple">
-            {(viewBy === 'account' ? groupedAccounts : groupedSubs).map(group => (
-              <AccordionItem key={group.key} value={group.key}>
-                <AccordionTrigger className="font-bold">
-                  {group.key} - Value: ${group.total_value.toFixed(2)} (Gain: ${group.unrealized_gain.toFixed(2)})
-                </AccordionTrigger>
-                <AccordionContent>
-                  <Table>
-                    <TableBody>
-                      {group.holdings.map(renderTable)}
-                    </TableBody>
-                  </Table>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-          <TableRow className="font-bold bg-muted/50">
-            <TableCell>Cash Balance</TableCell>
-            <TableCell className="text-right" colSpan={3} />
-            <TableCell className="text-right">${cash.toFixed(2)}</TableCell>
-            <TableCell className="text-right">${cash.toFixed(2)}</TableCell>
-            <TableCell className="text-right">$0.00</TableCell>
-          </TableRow>
-          <TableRow className="font-bold text-lg">
-            <TableCell>Portfolio Total</TableCell>
-            <TableCell className="text-right" colSpan={3} />
-            <TableCell className="text-right">${grandTotalBasis.toFixed(2)}</TableCell>
-            <TableCell className="text-right">${grandTotalValue.toFixed(2)}</TableCell>
-            <TableCell className={cn("text-right", overallUnrealized > 0 ? "text-green-600" : "text-red-600")}>
-              ${overallUnrealized.toFixed(2)}
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
+  <div>
+    <div className="mb-4">
+      <Label className="mr-2">Group by:</Label>
+      <Select value={viewBy} onValueChange={(v: typeof viewBy) => setViewBy(v)}>
+        <SelectTrigger className="w-[180px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="subportfolio">Sub-Portfolio</SelectItem>
+          <SelectItem value="account">Account</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Asset / Group</TableHead>
+          <TableHead className="text-right">Quantity</TableHead>
+          <TableHead className="text-right">Avg Basis</TableHead>
+          <TableHead className="text-right">Total Basis</TableHead>
+          <TableHead className="text-right">Curr Price</TableHead>
+          <TableHead className="text-right">Curr Value</TableHead>
+          <TableHead className="text-right">Unreal Gain/Loss</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {(viewBy === 'account' ? groupedAccounts : groupedSubs).map(group => (
+          <React.Fragment key={group.key}>
+            <TableRow className="font-bold bg-muted/50">
+              <TableCell colSpan={7}>
+                {group.key} - Value: ${group.total_value.toFixed(2)} (Gain: ${group.unrealized_gain.toFixed(2)})
+              </TableCell>
+            </TableRow>
+            {group.holdings.map(renderTable)}
+          </React.Fragment>
+        ))}
+        <TableRow className="font-bold bg-muted/50">
+          <TableCell>Cash Balance</TableCell>
+          <TableCell className="text-right" colSpan={3}></TableCell>
+          <TableCell className="text-right">${cash.toFixed(2)}</TableCell>
+          <TableCell className="text-right">${cash.toFixed(2)}</TableCell>
+          <TableCell className="text-right">$0.00</TableCell>
+        </TableRow>
+        <TableRow className="font-bold text-lg">
+          <TableCell>Portfolio Total</TableCell>
+          <TableCell className="text-right" colSpan={3}></TableCell>
+          <TableCell className="text-right">${grandTotalBasis.toFixed(2)}</TableCell>
+          <TableCell className="text-right">${grandTotalValue.toFixed(2)}</TableCell>
+          <TableCell className={cn("text-right", overallUnrealized > 0 ? "text-green-600" : "text-red-600")}>
+            ${overallUnrealized.toFixed(2)}
+          </TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  </div>
   )
 }
