@@ -28,31 +28,38 @@ export async function refreshAssetPrices() {
   let pricesData: Record<string, { usd?: number }> = {};
   if (cryptoTickers.length > 0) {
     const cryptoIds = cryptoTickers.map(t => t === 'BITCOIN' ? 'bitcoin' : t.toLowerCase()).join(',');
-    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoIds}&vs_currencies=usd`)
+    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoIds}&vs_currencies=usd`);
     if (!res.ok) {
       console.error('CoinGecko fetch failed:', await res.text());
     } else {
-      pricesData = await res.json()
+      pricesData = await res.json();
     }
   }
 
-  // Step 4: Finnhub for stocks (batch quote)
+  // Step 4: Finnhub for stocks – fetch one by one
   let stockPricesData: Record<string, number | null> = {};
   if (stockTickers.length > 0) {
     const finnhubKey = process.env.FINNHUB_API_KEY;
     if (!finnhubKey) {
       throw new Error('FINNHUB_API_KEY not set');
     }
-    const tickerParam = stockTickers.join(',');
-    const finnhubRes = await fetch(`https://finnhub.io/api/v1/quote?symbol=${tickerParam}&token=${finnhubKey}`);
-    if (!finnhubRes.ok) {
-      console.error('Finnhub fetch failed:', await finnhubRes.text());
-    } else {
-      const data = await finnhubRes.json();
-      // Finnhub batch returns object with each ticker as key (c = current price)
-      Object.keys(data).forEach(ticker => {
-        stockPricesData[ticker] = data[ticker]?.c || null; // 'c' is current price
-      });
+
+    for (const ticker of stockTickers) {
+      try {
+        const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${finnhubKey}`);
+        if (!res.ok) {
+          console.error(`Finnhub failed for ${ticker}: ${res.status} ${await res.text()}`);
+          stockPricesData[ticker] = null;
+          continue;
+        }
+        const data = await res.json();
+        // 'c' = current price; fallback to previous close if market closed
+        const price = data.c !== 0 ? data.c : data.pc || null;
+        stockPricesData[ticker] = price;
+      } catch (err) {
+        console.error(`Error fetching ${ticker} from Finnhub:`, err);
+        stockPricesData[ticker] = null;
+      }
     }
   }
 
@@ -77,11 +84,11 @@ export async function refreshAssetPrices() {
   });
 
   if (inserts.length > 0) {
-    const { error } = await supabase.from('asset_prices').insert(inserts)
-    if (error) throw error
+    const { error } = await supabase.from('asset_prices').insert(inserts);
+    if (error) throw error;
   }
 
-  revalidatePath('/portfolio')
+  revalidatePath('/portfolio');
 
-  return { success: true, message: `Refreshed prices for ${inserts.length} assets.` }
+  return { success: true, message: `Refreshed prices for ${inserts.length} assets.` };
 }
