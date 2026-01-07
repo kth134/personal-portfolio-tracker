@@ -26,8 +26,10 @@ type TaxLot = {
   quantity: number
   cost_basis_per_unit: number
   remaining_quantity: number
-  account: { name: string } | null
-  asset: { ticker: string; name?: string } | null
+  account_id: string | null
+  asset_id: string | null
+  account: { id: string; name: string } | null
+  asset: { id: string; ticker: string; name?: string } | null
 }
 
 type TaxLotsListProps = {
@@ -49,7 +51,9 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
   const [quantity, setQuantity] = useState('')
   const [basisPerUnit, setBasisPerUnit] = useState('')
   const [remainingQuantity, setRemainingQuantity] = useState('')
-
+  type SortKey = 'account' | 'asset' | 'date' | 'origQty' | 'basisUnit' | 'remainQty' | 'totalBasis'
+  const [sortKey, setSortKey] = useState<SortKey>('date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   // Fetch accounts & assets
   useEffect(() => {
     const fetchData = async () => {
@@ -71,16 +75,17 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
     setEditingLot(null)
   }
 
-  const openEdit = (lot: TaxLot) => {
-    setEditingLot(lot)
-    // Approximate account/asset from joined data (id not directly available, but we can refetch or store)
-    // For simplicity, we'll require re-select on edit
-    setPurchaseDate(parseISO(lot.purchase_date))
-    setQuantity(lot.quantity.toString())
-    setBasisPerUnit(lot.cost_basis_per_unit.toString())
-    setRemainingQuantity(lot.remaining_quantity.toString())
-    setOpen(true)
-  }
+ const openEdit = (lot: TaxLot) => {
+  setEditingLot(lot)
+  // Prepopulate account and asset using the IDs
+  if (lot.account) setSelectedAccount({ id: lot.account.id, name: lot.account.name, type: '' })
+  if (lot.asset) setSelectedAsset({ id: lot.asset.id, ticker: lot.asset.ticker, name: lot.asset.name })
+  setPurchaseDate(parseISO(lot.purchase_date))
+  setQuantity(lot.quantity.toString())
+  setBasisPerUnit(lot.cost_basis_per_unit.toString())
+  setRemainingQuantity(lot.remaining_quantity.toString())
+  setOpen(true)
+}
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -149,7 +154,51 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
       alert('Delete failed')
     }
   }
+const handleSort = (key: SortKey) => {
+  if (key === sortKey) {
+    setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+  } else {
+    setSortKey(key)
+    setSortDir('desc')
+  }
+}
 
+const sortedLots = [...taxLots].sort((a, b) => {
+  let va: any, vb: any
+  switch (sortKey) {
+    case 'account':
+      va = a.account?.name || ''
+      vb = b.account?.name || ''
+      break
+    case 'asset':
+      va = a.asset?.ticker || ''
+      vb = b.asset?.ticker || ''
+      break
+    case 'date':
+      va = a.purchase_date
+      vb = b.purchase_date
+      break
+    case 'origQty':
+      va = a.quantity
+      vb = b.quantity
+      break
+    case 'basisUnit':
+      va = a.cost_basis_per_unit
+      vb = b.cost_basis_per_unit
+      break
+    case 'remainQty':
+      va = a.remaining_quantity
+      vb = b.remaining_quantity
+      break
+    case 'totalBasis':
+      va = a.remaining_quantity * a.cost_basis_per_unit
+      vb = b.remaining_quantity * b.cost_basis_per_unit
+      break
+  }
+  if (va < vb) return sortDir === 'asc' ? -1 : 1
+  if (va > vb) return sortDir === 'asc' ? 1 : -1
+  return 0
+})
   return (
     <main className="p-8">
       <div className="flex justify-between items-center mb-8">
@@ -267,18 +316,18 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Account</TableHead>
-              <TableHead>Asset</TableHead>
-              <TableHead>Purchase Date</TableHead>
-              <TableHead className="text-right">Original Qty</TableHead>
-              <TableHead className="text-right">Basis/Unit</TableHead>
-              <TableHead className="text-right">Remaining Qty</TableHead>
-              <TableHead className="text-right">Total Remaining Basis</TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('account')}>Account</TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('asset')}>Asset</TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('date')}>Purchase Date</TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => handleSort('origQty')}>Original Qty</TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => handleSort('basisUnit')}>Basis/Unit</TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => handleSort('remainQty')}>Remaining Qty</TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Remaining Basis</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {taxLots.map((lot) => (
+            {sortedLots.map((lot) => (
               <TableRow key={lot.id}>
                 <TableCell>{lot.account?.name || '-'}</TableCell>
                 <TableCell>

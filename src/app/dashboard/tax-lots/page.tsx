@@ -9,15 +9,17 @@ export default async function TaxLotsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
 
-  const { data: taxLots } = await supabase
-    .from('tax_lots')
-    .select(`
-      *,
-      account:accounts (name),
-      asset:assets (ticker, name)
-    `)
-    .eq('user_id', user.id)
-    .order('purchase_date', { ascending: true })
+const { data: taxLots } = await supabase
+  .from('tax_lots')
+  .select(`
+    *,
+    account:accounts (id, name),
+    asset:assets (id, ticker, name),
+    account_id,
+    asset_id
+  `)
+  .eq('user_id', user.id)
+  .order('purchase_date', { ascending: false })  // Better default: newest first
 
   return <TaxLotsList initialTaxLots={taxLots || []} />
 }
