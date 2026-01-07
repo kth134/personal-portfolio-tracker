@@ -5,11 +5,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
-import { useState } from 'react'
 import AccountsList from '@/components/AccountsList'
 import AssetsList from '@/components/AssetsList'
-import HoldingsView from '@/components/HoldingsView'
+import { cn } from '@/lib/utils'
+import { useState } from 'react'
 
 // Reuse types, but extend AssetDetail with sub_portfolio and account_id on TaxLot
 type AssetDetail = {
@@ -43,9 +42,10 @@ type GroupedHolding = {
   unrealized_gain: number
 }
 
+// Helper function to get asset price (customize based on your data source)
 async function getAssetPrice(ticker: string, assetSubtype: string | null): Promise<number> {
-  // TODO: Implement actual price fetching logic (e.g., from an API)
-  // For now, return a placeholder price
+  // TODO: Implement actual price fetching logic (e.g., from an API or database)
+  // For now, return a placeholder value
   return 0
 }
 
