@@ -39,25 +39,29 @@ export async function refreshAssetPrices() {
     pricesData = await res.json()
   }
 
-  // Step 4: Fetch stock prices from Polygon
-  let stockPricesData: Record<string, number | null> = {};
-  if (stockTickers.length > 0) {
-    const polygonApiKey = process.env.POLYGON_API_KEY;
-    if (!polygonApiKey) {
-      throw new Error('POLYGON_API_KEY is not set in environment variables');
-    }
-    const stockTickerParam = stockTickers.join(',');
-    const polyRes = await fetch(`https://api.polygon.io/v3/snapshot?ticker=${stockTickerParam}&apiKey=${polygonApiKey}`);
-    if (!polyRes.ok) {
-      throw new Error(`Failed to fetch prices from Polygon: ${polyRes.statusText}`);
-    }
-    const polyData = await polyRes.json();
-    polyData.results.forEach((item: { ticker: string; session?: { close?: number }; prev_day?: { close?: number } }) => {
-      // Use session.close for current day's last price (updates live); fallback to prev_day.close if market not open
-      const price = item.session?.close || item.prev_day?.close || null;
-      stockPricesData[item.ticker] = price;
+// Step 4: Fetch stock prices from Yahoo Finance (free alternative)
+let stockPricesData: Record<string, number | null> = {};
+if (stockTickers.length > 0) {
+  // Dynamically import yfinance only on server (no client bundle impact)
+  const yfinance = (await import('yfinance')).default;
+  try {
+    const tickerString = stockTickers.join(' ');
+    const data = await yfinance.download(tickerString, { period: '1d', interval: '1m' });
+    stockTickers.forEach(ticker => {
+      if (data[ticker] && data[ticker]['Close']) {
+        const closes = data[ticker]['Close'];
+        const latestClose = closes[closes.length - 1]; // Most recent price
+        stockPricesData[ticker] = latestClose || null;
+      } else {
+        stockPricesData[ticker] = null;
+      }
     });
+  } catch (err) {
+    console.error('yfinance fetch failed:', err);
+    // Fallback: set to null so warn/default to 1.00 applies
+    stockTickers.forEach(t => stockPricesData[t] = null);
   }
+}
 
   // Step 5: Prepare inserts (not upsert)
   const inserts: { ticker: string; price: number; timestamp: string; source: string }[] = [];
