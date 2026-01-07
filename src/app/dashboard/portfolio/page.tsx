@@ -1,15 +1,9 @@
-"use client";
 import { supabaseServer } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
 import AccountsList from '@/components/AccountsList'
 import AssetsList from '@/components/AssetsList'
-import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import PortfolioHoldingsClient from './PortfolioHoldingsClient'
 
 // Reuse types, but extend AssetDetail with sub_portfolio and account_id on TaxLot
 type AssetDetail = {
@@ -43,13 +37,6 @@ type GroupedHolding = {
   unrealized_gain: number
 }
 
-// Helper function to get asset price (customize based on your data source)
-async function getAssetPrice(ticker: string, assetSubtype: string | null): Promise<number> {
-  // TODO: Implement actual price fetching logic (e.g., from an API or database)
-  // For now, return a placeholder value
-  return 0
-}
-
 export default async function PortfolioPage() {
   const supabase = await supabaseServer()
   const { data: { user } } = await supabase.auth.getUser()
@@ -68,7 +55,23 @@ export default async function PortfolioPage() {
   const initialAssets = assetsRes.data || []
   const cashBalance = cashRes.data?.reduce((sum, tx) => sum + Number(tx.amount || 0), 0) || 0
 
-  // Process flat holdings (for asset-centric)
+// Fetch latest prices for all unique tickers at once (optimized)
+const uniqueTickers = new Set(lots?.map(lot => lot.asset.ticker) || []);
+const { data: pricesList } = await supabase
+  .from('asset_prices')
+  .select('ticker, price, timestamp')
+  .in('ticker', Array.from(uniqueTickers))
+  .order('timestamp', { ascending: false });  // New: Sort DESC for latest first
+
+// Map to latest price per ticker (take first after sort)
+const latestPrices = new Map<string, number>();
+pricesList?.forEach(p => {
+  if (!latestPrices.has(p.ticker)) {
+    latestPrices.set(p.ticker, p.price);  // Only set if not already (since sorted DESC)
+  }
+});
+
+  // Process flat holdings (for reference, though not used in view anymore)
   const holdingsMap = new Map<string, Holding>()
   let investedTotalBasis = 0
   let investedCurrentValue = 0
@@ -81,7 +84,7 @@ export default async function PortfolioPage() {
       investedTotalBasis += basisThisLot
 
       const assetDetail = lot.asset
-      const currentPrice = await getAssetPrice(assetDetail.ticker, assetDetail.asset_subtype)
+      const currentPrice = latestPrices.get(assetDetail.ticker) || 0 // Use fetched price or 0
       const valueThisLot = qty * currentPrice
 
       if (holdingsMap.has(key)) {
@@ -124,7 +127,8 @@ export default async function PortfolioPage() {
       const subKey = lot.asset.sub_portfolio || 'Untagged'
       const qty = Number(lot.remaining_quantity)
       const basisThis = qty * Number(lot.cost_basis_per_unit)
-      const valueThis = qty * (investedHoldings.find(h => h.asset_id === assetKey)?.current_price || 0)
+      const currentPrice = latestPrices.get(lot.asset.ticker) || 0
+      const valueThis = qty * currentPrice
 
       // Group by account
       if (!accHoldings.has(accKey)) accHoldings.set(accKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
@@ -136,6 +140,7 @@ export default async function PortfolioPage() {
           name: lot.asset.name,
           total_quantity: 0,
           total_basis: 0,
+          current_price: currentPrice,
           current_value: 0,
           unrealized_gain: 0,
         })
@@ -152,7 +157,16 @@ export default async function PortfolioPage() {
       if (!subHoldings.has(subKey)) subHoldings.set(subKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
       const subGroup = subHoldings.get(subKey)!
       if (!subGroup.holdings.has(assetKey)) {
-        subGroup.holdings.set(assetKey, { ...accAsset }) // Copy structure
+        subGroup.holdings.set(assetKey, {
+          asset_id: assetKey,
+          ticker: lot.asset.ticker,
+          name: lot.asset.name,
+          total_quantity: 0,
+          total_basis: 0,
+          current_price: currentPrice,
+          current_value: 0,
+          unrealized_gain: 0,
+        })
       }
       const subAsset = subGroup.holdings.get(assetKey)!
       subAsset.total_quantity += qty
@@ -180,96 +194,31 @@ export default async function PortfolioPage() {
     })))
   }
 
-  // Client component
-  function HoldingsView({ flatHoldings, groupedAccounts, groupedSubs, cash }: { flatHoldings: Holding[], groupedAccounts: GroupedHolding[], groupedSubs: GroupedHolding[], cash: number }) {
-    const [viewBy, setViewBy] = useState<'asset' | 'account' | 'subportfolio'>('asset')
-
-    const renderTable = (holding: Holding) => (
-      <TableRow key={holding.asset_id}>
-        <TableCell className="font-medium">{holding.ticker} {holding.name && `- ${holding.name}`}</TableCell>
-        <TableCell className="text-right">{holding.total_quantity.toFixed(8)}</TableCell>
-        <TableCell className="text-right">${(holding.total_basis / holding.total_quantity || 0).toFixed(2)}</TableCell>
-        <TableCell className="text-right">${holding.total_basis.toFixed(2)}</TableCell>
-        <TableCell className="text-right">${(holding.current_price || 0).toFixed(2)}</TableCell>
-        <TableCell className="text-right">${(holding.current_value || 0).toFixed(2)}</TableCell>
-        <TableCell className={cn("text-right", (holding.unrealized_gain ?? 0) > 0 ? "text-green-600" : "text-red-600")}>
-          ${(holding.unrealized_gain ?? 0).toFixed(2)}
-        </TableCell>
-      </TableRow>
-    )
-
-    return (
-      <div>
-        <div className="mb-4">
-          <Label className="mr-2">Group by:</Label>
-          <Select value={viewBy} onValueChange={(v: typeof viewBy) => setViewBy(v)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="asset">Asset (Flat)</SelectItem>
-              <SelectItem value="account">Account</SelectItem>
-              <SelectItem value="subportfolio">Sub-Portfolio</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Asset / Group</TableHead>
-              <TableHead className="text-right">Quantity</TableHead>
-              <TableHead className="text-right">Avg Basis</TableHead>
-              <TableHead className="text-right">Total Basis</TableHead>
-              <TableHead className="text-right">Curr Price</TableHead>
-              <TableHead className="text-right">Curr Value</TableHead>
-              <TableHead className="text-right">Unreal Gain/Loss</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {viewBy === 'asset' ? (
-              flatHoldings.map(renderTable)
-            ) : (
-              <Accordion type="multiple">
-                {(viewBy === 'account' ? groupedAccounts : groupedSubs).map(group => (
-                  <AccordionItem key={group.key} value={group.key}>
-                    <AccordionTrigger className="font-bold">
-                      {group.key} - Value: ${group.total_value.toFixed(2)} (Gain: ${group.unrealized_gain.toFixed(2)})
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <Table>
-                        <TableBody>
-                          {group.holdings.map(renderTable)}
-                        </TableBody>
-                      </Table>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            )}
-            {/* Cash and totals rows - copy from before */}
-            <TableRow className="font-bold bg-muted/50">
-              <TableCell>Cash Balance</TableCell>
-              {/* ... */}
-            </TableRow>
-            <TableRow className="font-bold text-lg">
-              <TableCell>Portfolio Total</TableCell>
-              {/* ... */}
-            </TableRow>
-          </TableBody>
-        </Table>
-      </div>
-    )
-  }
-
   return (
     <main className="p-8">
       <h1 className="text-3xl font-bold mb-8">Portfolio</h1>
       <Tabs defaultValue="holdings">
-        {/* Same as before */}
+        <TabsList>
+          <TabsTrigger value="holdings">Holdings</TabsTrigger>
+          <TabsTrigger value="accounts">Accounts</TabsTrigger>
+          <TabsTrigger value="assets">Assets</TabsTrigger>
+        </TabsList>
         <TabsContent value="holdings">
-          <HoldingsView flatHoldings={investedHoldings} groupedAccounts={groupedByAccount} groupedSubs={groupedBySubPortfolio} cash={cashBalance} />
+          <PortfolioHoldingsClient
+            groupedAccounts={groupedByAccount}
+            groupedSubs={groupedBySubPortfolio}
+            cash={cashBalance}
+            grandTotalBasis={grandTotalBasis}
+            grandTotalValue={grandTotalValue}
+            overallUnrealized={overallUnrealized}
+          />
         </TabsContent>
-        {/* Accounts and Assets tabs unchanged */}
+        <TabsContent value="accounts">
+          <AccountsList initialAccounts={initialAccounts} />
+        </TabsContent>
+        <TabsContent value="assets">
+          <AssetsList initialAssets={initialAssets} />
+        </TabsContent>
       </Tabs>
     </main>
   )

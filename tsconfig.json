@@ -30,6 +30,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-  ],
+, "src/app/dashboard/portfolio/PortfolioHoldingsClient.tsx"  ],
   "exclude": ["node_modules"]
 }
