@@ -6,6 +6,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { formatUSD } from '@/lib/formatters';
 
 // Reuse types from page.tsx (or move to a shared types file)
 type SortKey = 'ticker' | 'quantity' | 'avgBasis' | 'totalBasis' | 'currPrice' | 'currValue' | 'unrealGain'
@@ -52,13 +53,12 @@ export default function PortfolioHoldingsClient({
   const renderTable = (holding: Holding) => (
     <TableRow key={holding.asset_id}>
       <TableCell className="font-medium">{holding.ticker} {holding.name && `- ${holding.name}`}</TableCell>
-      <TableCell className="text-right">{holding.total_quantity.toFixed(8)}</TableCell>
-      <TableCell className="text-right">${(holding.total_basis / holding.total_quantity || 0).toFixed(2)}</TableCell>
-      <TableCell className="text-right">${holding.total_basis.toFixed(2)}</TableCell>
-      <TableCell className="text-right">${(holding.current_price || 0).toFixed(2)}</TableCell>
-      <TableCell className="text-right">${(holding.current_value || 0).toFixed(2)}</TableCell>
+    <TableCell className="text-right">{formatUSD(holding.total_basis / (holding.total_quantity || 1))}</TableCell>      <TableCell className="text-right">{formatUSD(holding.total_basis / (holding.total_quantity || 1))}</TableCell>
+      <TableCell className="text-right">{formatUSD(holding.total_basis)}</TableCell>
+      <TableCell className="text-right">{formatUSD(holding.current_price || 0)}</TableCell>
+      <TableCell className="text-right">{formatUSD(holding.current_value || 0)}</TableCell>
       <TableCell className={cn("text-right", (holding.unrealized_gain ?? 0) > 0 ? "text-green-600" : "text-red-600")}>
-        ${(holding.unrealized_gain ?? 0).toFixed(2)}
+        {formatUSD(holding.unrealized_gain ?? 0)}
       </TableCell>
     </TableRow>
   )
@@ -153,11 +153,11 @@ return (
                       {sortedHoldings.reduce((sum, h) => sum + h.total_quantity, 0).toFixed(8)}
                     </TableCell>
                     <TableCell className="text-right" /> {/* Blank for Avg Basis */}
-                    <TableCell className="text-right">${group.total_basis.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{formatUSD(group.total_basis)}</TableCell>
                     <TableCell className="text-right" /> {/* Blank for Curr Price */}
-                    <TableCell className="text-right">${group.total_value.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{formatUSD(group.total_value)}</TableCell>
                     <TableCell className={cn("text-right", group.unrealized_gain > 0 ? "text-green-600" : "text-red-600")}>
-                      ${group.unrealized_gain.toFixed(2)}
+                      {formatUSD(group.unrealized_gain)}
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -173,8 +173,8 @@ return (
         <TableRow className="font-bold bg-muted/50">
           <TableCell>Cash Balance</TableCell>
           <TableCell className="text-right" colSpan={3}></TableCell>
-          <TableCell className="text-right">${cash.toFixed(2)}</TableCell>
-          <TableCell className="text-right">${cash.toFixed(2)}</TableCell>
+          <TableCell className="text-right">{formatUSD(cash)}</TableCell>
+          <TableCell className="text-right">{formatUSD(cash)}</TableCell>
           <TableCell className="text-right">$0.00</TableCell>
         </TableRow>
         <TableRow className="font-bold text-lg">
@@ -183,7 +183,7 @@ return (
           <TableCell className="text-right">${grandTotalBasis.toFixed(2)}</TableCell>
           <TableCell className="text-right">${grandTotalValue.toFixed(2)}</TableCell>
           <TableCell className={cn("text-right", overallUnrealized > 0 ? "text-green-600" : "text-red-600")}>
-            ${overallUnrealized.toFixed(2)}
+           {formatUSD(overallUnrealized)}
           </TableCell>
         </TableRow>
       </TableBody>
