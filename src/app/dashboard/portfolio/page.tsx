@@ -1,3 +1,4 @@
+"use client";
 import { supabaseServer } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
