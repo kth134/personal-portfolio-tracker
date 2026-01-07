@@ -180,8 +180,8 @@ return (
         <TableRow className="font-bold text-lg">
           <TableCell>Portfolio Total</TableCell>
           <TableCell className="text-right" colSpan={3}></TableCell>
-          <TableCell className="text-right">${grandTotalBasis.toFixed(2)}</TableCell>
-          <TableCell className="text-right">${grandTotalValue.toFixed(2)}</TableCell>
+          <TableCell className="text-right">{formatUSD(grandTotalBasis)}</TableCell>
+          <TableCell className="text-right">{formatUSD(grandTotalValue)}</TableCell>
           <TableCell className={cn("text-right", overallUnrealized > 0 ? "text-green-600" : "text-red-600")}>
            {formatUSD(overallUnrealized)}
           </TableCell>
