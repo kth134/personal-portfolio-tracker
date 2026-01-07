@@ -3,6 +3,8 @@
 import { supabaseServer } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
+const CRYPTO_TICKERS = ['BITCOIN']; // Expand if more cryptos are added (e.g., 'FBTC')
+
 export async function refreshAssetPrices() {
   const supabase = await supabaseServer()
 
@@ -18,32 +20,77 @@ export async function refreshAssetPrices() {
 
   const uniqueTickers = [...new Set(lots.map(l => (l.asset as any).ticker))]
 
-  // Step 2: Fetch latest prices
-  // Adapt to your providers: CoinGecko for crypto, yfinance/Polygon for stocks (free tiers).
-  // For demo, using CoinGecko—replace/extend with your cron logic for stocks (e.g., via fetch to yfinance API).
-  const tickerIds = uniqueTickers.map(t => t.toLowerCase()).join(',')
-  if (!tickerIds) {
-    return { success: true, message: 'No supported tickers found.' }
+  // Step 2: Split tickers by type
+  const cryptoTickers = uniqueTickers.filter(t => CRYPTO_TICKERS.includes(t));
+  const stockTickers = uniqueTickers.filter(t => !CRYPTO_TICKERS.includes(t));
+
+  // Step 3: Fetch crypto prices from CoinGecko
+  let pricesData: Record<string, { usd?: number }> = {};
+  if (cryptoTickers.length > 0) {
+    const cryptoIds = cryptoTickers.map(t => t === 'BITCOIN' ? 'bitcoin' : t.toLowerCase()).join(',');
+    if (!cryptoIds) {
+      return { success: true, message: 'No supported crypto tickers found.' }
+    }
+
+    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoIds}&vs_currencies=usd`)
+    if (!res.ok) {
+      throw new Error('Failed to fetch prices from CoinGecko')
+    }
+    pricesData = await res.json()
   }
 
-  const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${tickerIds}&vs_currencies=usd`)
-  if (!res.ok) {
-    throw new Error('Failed to fetch prices from CoinGecko')
+  // Step 4: Fetch stock prices from Polygon
+  let stockPricesData: Record<string, number | null> = {};
+  if (stockTickers.length > 0) {
+    const polygonApiKey = process.env.POLYGON_API_KEY;
+    if (!polygonApiKey) {
+      throw new Error('POLYGON_API_KEY is not set in environment variables');
+    }
+    const stockTickerParam = stockTickers.join(',');
+    const polyRes = await fetch(`https://api.polygon.io/v3/snapshot?ticker=${stockTickerParam}&apiKey=${polygonApiKey}`);
+    if (!polyRes.ok) {
+      throw new Error(`Failed to fetch prices from Polygon: ${polyRes.statusText}`);
+    }
+    const polyData = await polyRes.json();
+    polyData.results.forEach((item: { ticker: string; session?: { close?: number }; prev_day?: { close?: number } }) => {
+      // Use session.close for current day's last price (updates live); fallback to prev_day.close if market not open
+      const price = item.session?.close || item.prev_day?.close || null;
+      stockPricesData[item.ticker] = price;
+    });
   }
-  const pricesData = await res.json()
 
-  // For stocks, add similar fetch (e.g., to yfinance proxy if needed)
+  // Step 5: Prepare inserts (not upsert)
+  const inserts: { ticker: string; price: number; timestamp: string; source: string }[] = [];
 
-  // Step 3: Prepare inserts (not upsert)
-  const inserts = uniqueTickers.map(ticker => {
-    const geckoId = ticker.toLowerCase() // Improve mapping as needed
-    const price = pricesData[geckoId]?.usd || null
-    return {
+  // Crypto from CoinGecko
+  cryptoTickers.forEach(ticker => {
+    const geckoId = ticker === 'BITCOIN' ? 'bitcoin' : ticker.toLowerCase();
+    const price = pricesData?.[geckoId]?.usd || null;
+    if (price !== null) {
+      inserts.push({
+        ticker,
+        price,
+        timestamp: new Date().toISOString(),
+        source: 'coingecko',
+      });
+    }
+  });
+
+  // Stocks from Polygon (with fallback for invalid tickers like CASH)
+  stockTickers.forEach(ticker => {
+    let price = stockPricesData[ticker];
+    if (price === null || price === undefined) {
+      // Fallback for cash or invalid: assume $1.00; log for debugging
+      console.warn(`No price found for ${ticker}; defaulting to 1.00`);
+      price = 1.00;
+    }
+    inserts.push({
       ticker,
       price,
       timestamp: new Date().toISOString(),
-    }
-  }).filter(p => p.price !== null)
+      source: 'polygon',
+    });
+  });
 
   if (inserts.length > 0) {
     const { error } = await supabase.from('asset_prices').insert(inserts)
