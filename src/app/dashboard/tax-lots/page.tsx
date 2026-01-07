@@ -1,6 +1,8 @@
 import { supabaseServer } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import TaxLotsList from '@/components/TaxLotsList'
+import { formatUSD } from '@/lib/formatters';
+
 
 export default async function TaxLotsPage() {
   const supabase = await supabaseServer()

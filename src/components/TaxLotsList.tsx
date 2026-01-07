@@ -5,6 +5,8 @@ import { supabaseClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { formatUSD } from '@/lib/formatters';
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -285,10 +287,10 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
                 </TableCell>
                 <TableCell>{lot.purchase_date}</TableCell>
                 <TableCell className="text-right">{Number(lot.quantity).toFixed(8)}</TableCell>
-                <TableCell className="text-right">${Number(lot.cost_basis_per_unit).toFixed(2)}</TableCell>
+                <TableCell className="text-right">{formatUSD(Number(lot.cost_basis_per_unit))}</TableCell>
                 <TableCell className="text-right">{Number(lot.remaining_quantity).toFixed(8)}</TableCell>
                 <TableCell className="text-right">
-                  ${(Number(lot.remaining_quantity) * Number(lot.cost_basis_per_unit)).toFixed(2)}
+                  {formatUSD(Number(lot.remaining_quantity) * Number(lot.cost_basis_per_unit))}
                 </TableCell>
                 <TableCell className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={() => openEdit(lot)}>

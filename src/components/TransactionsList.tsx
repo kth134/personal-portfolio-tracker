@@ -17,6 +17,8 @@ import { format, parseISO } from 'date-fns'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { formatUSD } from '@/lib/formatters';
+
 
 type Account = { id: string; name: string; type: string }
 type Asset = { id: string; ticker: string; name?: string }
@@ -607,20 +609,20 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                   {tx.quantity != null ? Number(tx.quantity).toFixed(8) : '-'}
                 </TableCell>
                 <TableCell className="text-right">
-                  {tx.price_per_unit != null ? `$${Number(tx.price_per_unit).toFixed(2)}` : '-'}
+                  {tx.price_per_unit != null ? `$${formatUSD(tx.price_per_unit)}` : '-'}
                 </TableCell>
                 <TableCell className="text-right">
-                  {tx.amount != null ? `$${Number(tx.amount).toFixed(2)}` : '-'}
+                  {tx.amount != null ? `$${formatUSD(tx.amount)}` : '-'}
                 </TableCell>
                 <TableCell className="text-right">
-                  {tx.fees != null ? `$${Number(tx.fees).toFixed(2)}` : '-'}
+                  {tx.fees != null ? `$${formatUSD(tx.fees)}` : '-'}
                 </TableCell>
                 <TableCell className={cn(
                   "text-right font-medium",
                   tx.realized_gain != null && tx.realized_gain > 0 ? 'text-green-600' :
                   tx.realized_gain != null && tx.realized_gain < 0 ? 'text-red-600' : ''
                 )}>
-                  {tx.realized_gain != null ? `$${Number(tx.realized_gain).toFixed(2)}` : '-'}
+                  {tx.realized_gain != null ? `$${formatUSD(tx.realized_gain)}` : '-'}
                 </TableCell>
                 <TableCell className="max-w-xs truncate">{tx.notes || '-'}</TableCell>
                 <TableCell className="flex gap-2">
