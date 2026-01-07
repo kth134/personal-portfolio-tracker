@@ -7,24 +7,14 @@ export default function DashboardHome() {
     <main className="p-8">
       <h1 className="text-3xl font-bold mb-8">Portfolio Dashboard</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader><CardTitle>Accounts</CardTitle></CardHeader>
-          <CardContent>
-            <Link href="/dashboard/accounts">
-              <Button variant="outline" className="w-full">Manage Accounts</Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle>Assets</CardTitle></CardHeader>
-          <CardContent>
-            <Link href="/dashboard/assets">
-              <Button variant="outline" className="w-full">Manage Assets</Button>
-            </Link>
-          </CardContent>
-        </Card>
-
+         <Card>
+  <CardHeader><CardTitle>Portfolio</CardTitle></CardHeader>
+  <CardContent>
+    <Link href="/dashboard/portfolio">
+      <Button variant="outline" className="w-full">View & Manage Portfolio</Button>
+    </Link>
+  </CardContent>
+</Card>
         <Card>
           <CardHeader><CardTitle>Transactions</CardTitle></CardHeader>
           <CardContent>
@@ -34,14 +24,7 @@ export default function DashboardHome() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle>Holdings</CardTitle></CardHeader>
-          <CardContent>
-            <Link href="/dashboard/holdings">
-              <Button variant="outline" className="w-full">Current Positions & Basis</Button>
-            </Link>
-          </CardContent>
-        </Card>
+      
         <Card>
   <CardHeader><CardTitle>Tax Lots</CardTitle></CardHeader>
   <CardContent>
