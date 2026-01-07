@@ -27,7 +27,7 @@ type Holding = {
   total_basis: number
   current_price?: number
   current_value?: number
-  unrealized_gain?: number
+  unrealized_gain: number // Changed to required
 }
 type GroupedHolding = {
   key: string // account name or sub_portfolio
@@ -101,15 +101,16 @@ pricesList?.forEach(p => {
           total_basis: basisThisLot,
           current_price: currentPrice,
           current_value: valueThisLot,
+          unrealized_gain: valueThisLot - basisThisLot,
         })
       }
       investedCurrentValue += valueThisLot
     }
   }
-  const investedHoldings: Holding[] = Array.from(holdingsMap.values()).map(h => ({
-    ...h,
-    unrealized_gain: (h.current_value || 0) - h.total_basis,
-  }))
+ const investedHoldings: Holding[] = Array.from(holdingsMap.values()).map(h => ({
+  ...h,
+  unrealized_gain: (h.current_value || 0) - h.total_basis,
+}))
   const grandTotalBasis = investedTotalBasis + cashBalance
   const grandTotalValue = investedCurrentValue + cashBalance
   const overallUnrealized = grandTotalValue - grandTotalBasis
@@ -149,7 +150,7 @@ pricesList?.forEach(p => {
       accAsset.total_quantity += qty
       accAsset.total_basis += basisThis
       accAsset.current_value! += valueThis
-      accAsset.unrealized_gain = accAsset.current_value! - accAsset.total_basis
+      accAsset.unrealized_gain = (accAsset.current_value || 0) - accAsset.total_basis
       accGroup.total_basis += basisThis
       accGroup.total_value += valueThis
 
@@ -172,8 +173,7 @@ pricesList?.forEach(p => {
       subAsset.total_quantity += qty
       subAsset.total_basis += basisThis
       subAsset.current_value! += valueThis
-      subAsset.unrealized_gain = subAsset.current_value! - subAsset.total_basis
-      subGroup.total_basis += basisThis
+      subAsset.unrealized_gain = (subAsset.current_value || 0) - subAsset.total_basis
       subGroup.total_value += valueThis
     }
 

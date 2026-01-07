@@ -2,12 +2,14 @@
 
 import React, { useState } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
 // Reuse types from page.tsx (or move to a shared types file)
+type SortKey = 'ticker' | 'quantity' | 'avgBasis' | 'totalBasis' | 'currPrice' | 'currValue' | 'unrealGain'
+
 type Holding = {
   asset_id: string
   ticker: string
@@ -44,7 +46,9 @@ export default function PortfolioHoldingsClient({
   overallUnrealized,
 }: PortfolioHoldingsClientProps) {
   const [viewBy, setViewBy] = useState<'account' | 'subportfolio'>('subportfolio')
-
+  const [sortKey, setSortKey] = useState<SortKey>('currValue')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const allGroupKeys = (viewBy === 'account' ? groupedAccounts : groupedSubs).map(g => g.key)
   const renderTable = (holding: Holding) => (
     <TableRow key={holding.asset_id}>
       <TableCell className="font-medium">{holding.ticker} {holding.name && `- ${holding.name}`}</TableCell>
@@ -58,8 +62,54 @@ export default function PortfolioHoldingsClient({
       </TableCell>
     </TableRow>
   )
-
-  return (
+const handleSort = (newKey: SortKey) => {
+  if (newKey === sortKey) {
+    setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+  } else {
+    setSortKey(newKey)
+    setSortDir('desc') // Default to desc for most (e.g., largest first)
+  }
+}
+const sortHoldings = (holdings: Holding[]) => {
+  return [...holdings].sort((a, b) => {
+    let va: number | string = 0
+    let vb: number | string = 0
+    switch (sortKey) {
+      case 'ticker':
+        va = a.ticker.toLowerCase()
+        vb = b.ticker.toLowerCase()
+        break
+      case 'quantity':
+        va = a.total_quantity
+        vb = b.total_quantity
+        break
+      case 'avgBasis':
+        va = a.total_basis / (a.total_quantity || 1)
+        vb = b.total_basis / (b.total_quantity || 1)
+        break
+      case 'totalBasis':
+        va = a.total_basis
+        vb = b.total_basis
+        break
+      case 'currPrice':
+        va = a.current_price || 0
+        vb = b.current_price || 0
+        break
+      case 'currValue':
+        va = a.current_value || 0
+        vb = b.current_value || 0
+        break
+      case 'unrealGain':
+        va = a.unrealized_gain || 0
+        vb = b.unrealized_gain || 0
+        break
+    }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1
+    if (va > vb) return sortDir === 'asc' ? 1 : -1
+    return 0
+  })
+}
+return (
   <div>
     <div className="mb-4">
       <Label className="mr-2">Group by:</Label>
@@ -73,29 +123,53 @@ export default function PortfolioHoldingsClient({
         </SelectContent>
       </Select>
     </div>
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Asset / Group</TableHead>
-          <TableHead className="text-right">Quantity</TableHead>
-          <TableHead className="text-right">Avg Basis</TableHead>
-          <TableHead className="text-right">Total Basis</TableHead>
-          <TableHead className="text-right">Curr Price</TableHead>
-          <TableHead className="text-right">Curr Value</TableHead>
-          <TableHead className="text-right">Unreal Gain/Loss</TableHead>
-        </TableRow>
-      </TableHeader>
+    <Accordion type="multiple" defaultValue={allGroupKeys} className="w-full">
+      {(viewBy === 'account' ? groupedAccounts : groupedSubs).map(group => {
+        const sortedHoldings = sortHoldings(group.holdings);
+        if (sortedHoldings.length === 0) return null;
+        return (
+          <AccordionItem key={group.key} value={group.key}>
+            <AccordionTrigger className="font-bold bg-muted/50 px-4 py-2">
+              {group.key}
+            </AccordionTrigger>
+            <AccordionContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Asset</TableHead>
+                    <TableHead className="text-right cursor-pointer" onClick={() => handleSort('quantity')}>Quantity</TableHead>
+                    <TableHead className="text-right cursor-pointer" onClick={() => handleSort('avgBasis')}>Avg Basis</TableHead>
+                    <TableHead className="text-right cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Basis</TableHead>
+                    <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currPrice')}>Curr Price</TableHead>
+                    <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currValue')}>Curr Value</TableHead>
+                    <TableHead className="text-right cursor-pointer" onClick={() => handleSort('unrealGain')}>Unreal Gain/Loss</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedHoldings.map(renderTable)}
+                  <TableRow className="font-bold border-t">
+                    <TableCell>Subtotal for {group.key}</TableCell>
+                    <TableCell className="text-right">
+                      {sortedHoldings.reduce((sum, h) => sum + h.total_quantity, 0).toFixed(8)}
+                    </TableCell>
+                    <TableCell className="text-right" /> {/* Blank for Avg Basis */}
+                    <TableCell className="text-right">${group.total_basis.toFixed(2)}</TableCell>
+                    <TableCell className="text-right" /> {/* Blank for Curr Price */}
+                    <TableCell className="text-right">${group.total_value.toFixed(2)}</TableCell>
+                    <TableCell className={cn("text-right", group.unrealized_gain > 0 ? "text-green-600" : "text-red-600")}>
+                      ${group.unrealized_gain.toFixed(2)}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </AccordionContent>
+          </AccordionItem>
+        );
+      })}
+    </Accordion>
+    {/* Footer for cash and grand total */}
+    <Table className="mt-4">
       <TableBody>
-        {(viewBy === 'account' ? groupedAccounts : groupedSubs).map(group => (
-          <React.Fragment key={group.key}>
-            <TableRow className="font-bold bg-muted/50">
-              <TableCell colSpan={7}>
-                {group.key} - Value: ${group.total_value.toFixed(2)} (Gain: ${group.unrealized_gain.toFixed(2)})
-              </TableCell>
-            </TableRow>
-            {group.holdings.map(renderTable)}
-          </React.Fragment>
-        ))}
         <TableRow className="font-bold bg-muted/50">
           <TableCell>Cash Balance</TableCell>
           <TableCell className="text-right" colSpan={3}></TableCell>
@@ -115,5 +189,5 @@ export default function PortfolioHoldingsClient({
       </TableBody>
     </Table>
   </div>
-  )
+)
 }
