@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, ArrowUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type Account = { id: string; name: string; type: string; institution?: string; tax_status?: string }
@@ -18,7 +18,12 @@ type Account = { id: string; name: string; type: string; institution?: string; t
 export default function AccountsList({ initialAccounts }: { initialAccounts: Account[] }) {
   const [accounts, setAccounts] = useState(initialAccounts)
   const [open, setOpen] = useState(false)
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null)
   const [form, setForm] = useState({ name: '', type: '', institution: '', tax_status: '' })
+
+  // Sorting states
+  const [sortColumn, setSortColumn] = useState<keyof Account | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   // Dynamic options
   const [institutions, setInstitutions] = useState<string[]>([])
@@ -34,16 +39,60 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
     fetchInstitutions()
   }, [])
 
+  // Set form values when editing
+  useEffect(() => {
+    if (editingAccount) {
+      setForm({
+        name: editingAccount.name,
+        type: editingAccount.type,
+        institution: editingAccount.institution || '',
+        tax_status: editingAccount.tax_status || ''
+      })
+      setOpen(true)
+    }
+  }, [editingAccount])
+
+  const handleSort = (column: keyof Account) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedAccounts = [...accounts].sort((a, b) => {
+    if (!sortColumn) return 0
+    const aVal = a[sortColumn] ?? ''
+    const bVal = b[sortColumn] ?? ''
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+      return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+    }
+    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+    return 0
+  })
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const { data, error } = await supabaseClient.from('accounts').insert({ ...form }).select()
+    let data, error
+    if (editingAccount) {
+      ({ data, error } = await supabaseClient.from('accounts').update({ ...form }).eq('id', editingAccount.id).select())
+    } else {
+      ({ data, error } = await supabaseClient.from('accounts').insert({ ...form }).select())
+    }
     if (!error && data) {
-      setAccounts([...accounts, data[0]])
+      if (editingAccount) {
+        setAccounts(accounts.map(a => a.id === editingAccount.id ? data[0] : a))
+      } else {
+        setAccounts([...accounts, data[0]])
+      }
       // Refresh institutions if new one added
       if (form.institution && !institutions.includes(form.institution)) {
         setInstitutions([...institutions, form.institution])
       }
       setOpen(false)
+      setEditingAccount(null)
       setForm({ name: '', type: '', institution: '', tax_status: '' })
     } else {
       console.error(error)
@@ -55,14 +104,21 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
     setAccounts(accounts.filter(a => a.id !== id))
   }
 
+  const handleEdit = (account: Account) => {
+    setEditingAccount(account)
+  }
+
   return (
     <>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(isOpen) => {
+        setOpen(isOpen)
+        if (!isOpen) setEditingAccount(null)
+      }}>
         <DialogTrigger asChild>
           <Button className="mb-4">Add Account</Button>
         </DialogTrigger>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Account</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingAccount ? 'Edit Account' : 'Add Account'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label>Name</Label>
@@ -70,7 +126,7 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
             </div>
             <div>
               <Label>Type</Label>
-              <Select onValueChange={v => setForm({...form, type: v})} required>
+              <Select value={form.type} onValueChange={v => setForm({...form, type: v})} required>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Roth IRA">Roth IRA</SelectItem>
@@ -131,7 +187,7 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
             </div>
             <div>
               <Label>Tax Status</Label>
-              <Select onValueChange={v => setForm({...form, tax_status: v})}>
+              <Select value={form.tax_status} onValueChange={v => setForm({...form, tax_status: v})}>
                 <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Tax-Advantaged">Tax-Advantaged</SelectItem>
@@ -147,22 +203,33 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Institution</TableHead>
-            <TableHead>Tax Status</TableHead>
+            <TableHead className="cursor-pointer" onClick={() => handleSort('name')}>
+              Name <ArrowUpDown className="ml-2 h-4 w-4 inline" />
+            </TableHead>
+            <TableHead className="cursor-pointer" onClick={() => handleSort('type')}>
+              Type <ArrowUpDown className="ml-2 h-4 w-4 inline" />
+            </TableHead>
+            <TableHead className="cursor-pointer" onClick={() => handleSort('institution')}>
+              Institution <ArrowUpDown className="ml-2 h-4 w-4 inline" />
+            </TableHead>
+            <TableHead className="cursor-pointer" onClick={() => handleSort('tax_status')}>
+              Tax Status <ArrowUpDown className="ml-2 h-4 w-4 inline" />
+            </TableHead>
             <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {accounts.map(acc => (
+          {sortedAccounts.map(acc => (
             <TableRow key={acc.id}>
               <TableCell>{acc.name}</TableCell>
               <TableCell>{acc.type}</TableCell>
               <TableCell>{acc.institution || '-'}</TableCell>
               <TableCell>{acc.tax_status || '-'}</TableCell>
-              <TableCell>
-                <Button variant="outline" className="text-sm text-red-600 border-red-600 hover:bg-red-50" onClick={() => handleDelete(acc.id)}>
+              <TableCell className="space-x-2">
+                <Button variant="outline" className="text-blue-600 border-blue-600 hover:bg-blue-50 h-8 px-3 text-xs" onClick={() => handleEdit(acc)}>
+                  Edit
+                </Button>
+                <Button variant="outline" className="text-red-600 border-red-600 hover:bg-red-50 h-8 px-3 text-xs" onClick={() => handleDelete(acc.id)}>
                   Delete
                 </Button>
               </TableCell>
