@@ -5,6 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import { refreshAssetPrices } from './actions'  // Relative path from client component
 import { cn } from '@/lib/utils'
 import { formatUSD } from '@/lib/formatters';
 
@@ -46,6 +48,23 @@ export default function PortfolioHoldingsClient({
   grandTotalValue,
   overallUnrealized,
 }: PortfolioHoldingsClientProps) {
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
+
+  const handleRefreshPrices = async () => {
+    setRefreshing(true)
+    setRefreshMessage(null)
+    try {
+      const result = await refreshAssetPrices()
+      setRefreshMessage(result.message || 'Prices refreshed successfully!')
+      // Page will auto-refresh via revalidatePath
+    } catch (err) {
+      setRefreshMessage('Error refreshing prices. Check console.')
+      console.error(err)
+    } finally {
+      setRefreshing(false)
+    }
+  }
   const [viewBy, setViewBy] = useState<'account' | 'subportfolio'>('subportfolio')
   const [sortKey, setSortKey] = useState<SortKey>('currValue')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -123,6 +142,20 @@ return (
           <SelectItem value="account">Account</SelectItem>
         </SelectContent>
       </Select>
+    </div>
+    <div className="mb-4 flex items-center gap-4">
+      <div>
+        <Label className="mr-2">Group by:</Label>
+        {/* your existing Select */}
+      </div>
+      <Button 
+        onClick={handleRefreshPrices} 
+        disabled={refreshing}
+        variant="secondary"
+      >
+        {refreshing ? 'Refreshing...' : 'Refresh Asset Prices'}
+      </Button>
+      {refreshMessage && <span className="text-sm text-green-600">{refreshMessage}</span>}
     </div>
         <Accordion type="multiple" defaultValue={[]} className="w-full">
       {(viewBy === 'account' ? groupedAccounts : groupedSubs).map(group => {
