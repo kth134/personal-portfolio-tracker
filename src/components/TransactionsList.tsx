@@ -609,20 +609,20 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                   {tx.quantity != null ? Number(tx.quantity).toFixed(8) : '-'}
                 </TableCell>
                 <TableCell className="text-right">
-                  {tx.price_per_unit != null ? `$${formatUSD(tx.price_per_unit)}` : '-'}
+                  {tx.price_per_unit != null ? `${formatUSD(tx.price_per_unit)}` : '-'}
                 </TableCell>
                 <TableCell className="text-right">
-                  {tx.amount != null ? `$${formatUSD(tx.amount)}` : '-'}
+                  {tx.amount != null ? `${formatUSD(tx.amount)}` : '-'}
                 </TableCell>
                 <TableCell className="text-right">
-                  {tx.fees != null ? `$${formatUSD(tx.fees)}` : '-'}
+                  {tx.fees != null ? `${formatUSD(tx.fees)}` : '-'}
                 </TableCell>
                 <TableCell className={cn(
                   "text-right font-medium",
                   tx.realized_gain != null && tx.realized_gain > 0 ? 'text-green-600' :
                   tx.realized_gain != null && tx.realized_gain < 0 ? 'text-red-600' : ''
                 )}>
-                  {tx.realized_gain != null ? `$${formatUSD(tx.realized_gain)}` : '-'}
+                  {tx.realized_gain != null ? `${formatUSD(tx.realized_gain)}` : '-'}
                 </TableCell>
                 <TableCell className="max-w-xs truncate">{tx.notes || '-'}</TableCell>
                 <TableCell className="flex gap-2">
