@@ -6,7 +6,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { refreshAssetPrices } from './actions'  // Relative path from client component
+import { refreshAssetPrices } from './actions'
 import { cn } from '@/lib/utils'
 import { formatUSD } from '@/lib/formatters';
 
@@ -48,6 +48,9 @@ export default function PortfolioHoldingsClient({
   grandTotalValue,
   overallUnrealized,
 }: PortfolioHoldingsClientProps) {
+  const [viewBy, setViewBy] = useState<'account' | 'subportfolio'>('subportfolio')
+  const [sortKey, setSortKey] = useState<SortKey>('currValue')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
 
@@ -65,172 +68,168 @@ export default function PortfolioHoldingsClient({
       setRefreshing(false)
     }
   }
-  const [viewBy, setViewBy] = useState<'account' | 'subportfolio'>('subportfolio')
-  const [sortKey, setSortKey] = useState<SortKey>('currValue')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-  const allGroupKeys = (viewBy === 'account' ? groupedAccounts : groupedSubs).map(g => g.key)
-const renderTable = (holding: Holding) => (
-  <TableRow key={holding.asset_id}>
-    <TableCell className="font-medium">{holding.ticker} {holding.name && `- ${holding.name}`}</TableCell>
-    <TableCell className="text-right">{holding.total_quantity.toFixed(8)}</TableCell>
-    <TableCell className="text-right">{formatUSD(holding.total_basis / (holding.total_quantity || 1))}</TableCell>
-    <TableCell className="text-right">{formatUSD(holding.total_basis)}</TableCell>
-    <TableCell className="text-right">{formatUSD(holding.current_price || 0)}</TableCell>
-    <TableCell className="text-right">{formatUSD(holding.current_value || 0)}</TableCell>
-    <TableCell className={cn("text-right", (holding.unrealized_gain ?? 0) > 0 ? "text-green-600" : "text-red-600")}>
-      {formatUSD(holding.unrealized_gain ?? 0)}
-    </TableCell>
-  </TableRow>
-)
-const handleSort = (newKey: SortKey) => {
-  if (newKey === sortKey) {
-    setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-  } else {
-    setSortKey(newKey)
-    setSortDir('desc') // Default to desc for most (e.g., largest first)
-  }
-}
-const sortHoldings = (holdings: Holding[]) => {
-  return [...holdings].sort((a, b) => {
-    let va: number | string = 0
-    let vb: number | string = 0
-    switch (sortKey) {
-      case 'ticker':
-        va = a.ticker.toLowerCase()
-        vb = b.ticker.toLowerCase()
-        break
-      case 'quantity':
-        va = a.total_quantity
-        vb = b.total_quantity
-        break
-      case 'avgBasis':
-        va = a.total_basis / (a.total_quantity || 1)
-        vb = b.total_basis / (b.total_quantity || 1)
-        break
-      case 'totalBasis':
-        va = a.total_basis
-        vb = b.total_basis
-        break
-      case 'currPrice':
-        va = a.current_price || 0
-        vb = b.current_price || 0
-        break
-      case 'currValue':
-        va = a.current_value || 0
-        vb = b.current_value || 0
-        break
-      case 'unrealGain':
-        va = a.unrealized_gain || 0
-        vb = b.unrealized_gain || 0
-        break
+
+  const renderTable = (holding: Holding) => (
+    <TableRow key={holding.asset_id}>
+      <TableCell className="font-medium">{holding.ticker} {holding.name && `- ${holding.name}`}</TableCell>
+      <TableCell className="text-right">{holding.total_quantity.toFixed(8)}</TableCell>
+      <TableCell className="text-right">{formatUSD(holding.total_basis / (holding.total_quantity || 1))}</TableCell>
+      <TableCell className="text-right">{formatUSD(holding.total_basis)}</TableCell>
+      <TableCell className="text-right">{formatUSD(holding.current_price || 0)}</TableCell>
+      <TableCell className="text-right">{formatUSD(holding.current_value || 0)}</TableCell>
+      <TableCell className={cn("text-right", (holding.unrealized_gain ?? 0) > 0 ? "text-green-600" : "text-red-600")}>
+        {formatUSD(holding.unrealized_gain ?? 0)}
+      </TableCell>
+    </TableRow>
+  )
+
+  const handleSort = (newKey: SortKey) => {
+    if (newKey === sortKey) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(newKey)
+      setSortDir('desc') // Default to desc for most (e.g., largest first)
     }
-    if (va < vb) return sortDir === 'asc' ? -1 : 1
-    if (va > vb) return sortDir === 'asc' ? 1 : -1
-    return 0
-  })
-}
-return (
-  <div>
-    <div className="mb-4">
-      <Label className="mr-2">Group by:</Label>
-      <Select value={viewBy} onValueChange={(v: typeof viewBy) => setViewBy(v)}>
-        <SelectTrigger className="w-[180px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="subportfolio">Sub-Portfolio</SelectItem>
-          <SelectItem value="account">Account</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-    <div className="mb-4 flex items-center gap-4">
-      <div>
-        <Label className="mr-2">Group by:</Label>
-        {/* your existing Select */}
+  }
+
+  const sortHoldings = (holdings: Holding[]) => {
+    return [...holdings].sort((a, b) => {
+      let va: number | string = 0
+      let vb: number | string = 0
+      switch (sortKey) {
+        case 'ticker':
+          va = a.ticker.toLowerCase()
+          vb = b.ticker.toLowerCase()
+          break
+        case 'quantity':
+          va = a.total_quantity
+          vb = b.total_quantity
+          break
+        case 'avgBasis':
+          va = a.total_basis / (a.total_quantity || 1)
+          vb = b.total_basis / (b.total_quantity || 1)
+          break
+        case 'totalBasis':
+          va = a.total_basis
+          vb = b.total_basis
+          break
+        case 'currPrice':
+          va = a.current_price || 0
+          vb = b.current_price || 0
+          break
+        case 'currValue':
+          va = a.current_value || 0
+          vb = b.current_value || 0
+          break
+        case 'unrealGain':
+          va = a.unrealized_gain || 0
+          vb = b.unrealized_gain || 0
+          break
+      }
+      if (va < vb) return sortDir === 'asc' ? -1 : 1
+      if (va > vb) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Label>Group by:</Label>
+          <Select value={viewBy} onValueChange={(v: typeof viewBy) => setViewBy(v)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="subportfolio">Sub-Portfolio</SelectItem>
+              <SelectItem value="account">Account</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button 
+          onClick={handleRefreshPrices} 
+          disabled={refreshing}
+          variant="default"
+        >
+          {refreshing ? 'Refreshing...' : 'Refresh Asset Prices'}
+        </Button>
+        {refreshMessage && <span className="text-sm text-green-600">{refreshMessage}</span>}
       </div>
-      <Button 
-        onClick={handleRefreshPrices} 
-        disabled={refreshing}
-        variant="secondary"
-      >
-        {refreshing ? 'Refreshing...' : 'Refresh Asset Prices'}
-      </Button>
-      {refreshMessage && <span className="text-sm text-green-600">{refreshMessage}</span>}
-    </div>
-        <Accordion type="multiple" defaultValue={[]} className="w-full">
-      {(viewBy === 'account' ? groupedAccounts : groupedSubs).map(group => {
-        const sortedHoldings = sortHoldings(group.holdings);
-        if (sortedHoldings.length === 0) return null;
-        return (
-          <AccordionItem key={group.key} value={group.key}>
-            <AccordionTrigger className="font-bold bg-muted/50 px-4 py-2">
-              {group.key}
-              <span className="ml-auto flex space-x-4 text-sm">
-                <span>Total Basis: {formatUSD(group.total_basis)}</span>
-                <span>Total Value: {formatUSD(group.total_value)}</span>
-                <span className={cn(group.unrealized_gain > 0 ? "text-green-600" : "text-red-600")}>
-                  Unreal Gain/Loss: {formatUSD(group.unrealized_gain)}
+      <Accordion type="multiple" defaultValue={[]} className="w-full">
+        {(viewBy === 'account' ? groupedAccounts : groupedSubs).map(group => {
+          const sortedHoldings = sortHoldings(group.holdings);
+          if (sortedHoldings.length === 0) return null;
+          return (
+            <AccordionItem key={group.key} value={group.key}>
+              <AccordionTrigger className="font-bold bg-muted/50 px-4 py-2">
+                {group.key}
+                <span className="ml-auto flex space-x-4 text-sm">
+                  <span>Total Basis: {formatUSD(group.total_basis)}</span>
+                  <span>Total Value: {formatUSD(group.total_value)}</span>
+                  <span className={cn(group.unrealized_gain > 0 ? "text-green-600" : "text-red-600")}>
+                    Unreal Gain/Loss: {formatUSD(group.unrealized_gain)}
+                  </span>
                 </span>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent>
-              <Table className="table-fixed">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-40">Asset</TableHead>
-                    <TableHead className="w-24 text-right cursor-pointer" onClick={() => handleSort('quantity')}>Quantity</TableHead>
-                    <TableHead className="w-24 text-right cursor-pointer" onClick={() => handleSort('avgBasis')}>Avg Basis</TableHead>
-                    <TableHead className="w-24 text-right cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Basis</TableHead>
-                    <TableHead className="w-24 text-right cursor-pointer" onClick={() => handleSort('currPrice')}>Curr Price</TableHead>
-                    <TableHead className="w-24 text-right cursor-pointer" onClick={() => handleSort('currValue')}>Curr Value</TableHead>
-                    <TableHead className="w-28 text-right cursor-pointer" onClick={() => handleSort('unrealGain')}>Unreal Gain/Loss</TableHead>
-                  </TableRow>
-                </TableHeader>
-              <TableBody>
-                {sortedHoldings.map(renderTable)}
-                <TableRow className="font-bold border-t">
-                  <TableCell>Subtotal for {group.key}</TableCell>
-                  <TableCell className="text-right" /> {/* Blank for Quantity */}
-                  <TableCell className="text-right" /> {/* Blank for Avg Basis */}
-                  <TableCell className="text-right">{formatUSD(group.total_basis)}</TableCell>
-                  <TableCell className="text-right" /> {/* Blank for Curr Price */}
-                  <TableCell className="text-right">{formatUSD(group.total_value)}</TableCell>
-                  <TableCell className={cn("text-right", group.unrealized_gain > 0 ? "text-green-600" : "text-red-600")}>
-                    {formatUSD(group.unrealized_gain)}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-            </AccordionContent>
-          </AccordionItem>
-        );
-      })}
-    </Accordion>
-    {/* Footer for cash and grand total */}
-    <Table className="mt-4 table-fixed">
-      <TableBody>
-        <TableRow className="font-bold bg-muted/50">
-          <TableCell className="w-40">Cash Balance</TableCell>
-          <TableCell className="w-24 text-right" />
-          <TableCell className="w-24 text-right" />
-          <TableCell className="w-24 text-right" /> {/* Adjusted from colSpan */}
-          <TableCell className="w-24 text-right">{formatUSD(cash)}</TableCell>
-          <TableCell className="w-24 text-right">{formatUSD(cash)}</TableCell>
-          <TableCell className="w-28 text-right">$0.00</TableCell>
-        </TableRow>
-        <TableRow className="font-bold text-lg">
-          <TableCell className="w-40">Portfolio Total</TableCell>
-          <TableCell className="w-24 text-right" />
-          <TableCell className="w-24 text-right" />
-          <TableCell className="w-24 text-right">{formatUSD(grandTotalBasis)}</TableCell>
-          <TableCell className="w-24 text-right" />
-          <TableCell className="w-24 text-right">{formatUSD(grandTotalValue)}</TableCell>
-          <TableCell className={cn("w-28 text-right", overallUnrealized > 0 ? "text-green-600" : "text-red-600")}>
-            {formatUSD(overallUnrealized)}
-          </TableCell>
-        </TableRow>
-      </TableBody>
-    </Table>
-  </div>
-)
+              </AccordionTrigger>
+              <AccordionContent>
+                <Table className="table-fixed">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-40">Asset</TableHead>
+                      <TableHead className="w-24 text-right cursor-pointer" onClick={() => handleSort('quantity')}>Quantity</TableHead>
+                      <TableHead className="w-24 text-right cursor-pointer" onClick={() => handleSort('avgBasis')}>Avg Basis</TableHead>
+                      <TableHead className="w-24 text-right cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Basis</TableHead>
+                      <TableHead className="w-24 text-right cursor-pointer" onClick={() => handleSort('currPrice')}>Curr Price</TableHead>
+                      <TableHead className="w-24 text-right cursor-pointer" onClick={() => handleSort('currValue')}>Curr Value</TableHead>
+                      <TableHead className="w-28 text-right cursor-pointer" onClick={() => handleSort('unrealGain')}>Unreal Gain/Loss</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedHoldings.map(renderTable)}
+                    <TableRow className="font-bold border-t">
+                      <TableCell>Subtotal for {group.key}</TableCell>
+                      <TableCell className="text-right" /> {/* Blank for Quantity */}
+                      <TableCell className="text-right" /> {/* Blank for Avg Basis */}
+                      <TableCell className="text-right">{formatUSD(group.total_basis)}</TableCell>
+                      <TableCell className="text-right" /> {/* Blank for Curr Price */}
+                      <TableCell className="text-right">{formatUSD(group.total_value)}</TableCell>
+                      <TableCell className={cn("text-right", group.unrealized_gain > 0 ? "text-green-600" : "text-red-600")}>
+                        {formatUSD(group.unrealized_gain)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </AccordionContent>
+            </AccordionItem>
+          );
+        })}
+      </Accordion>
+      {/* Footer for cash and grand total */}
+      <Table className="mt-4 table-fixed">
+        <TableBody>
+          <TableRow className="font-bold bg-muted/50">
+            <TableCell className="w-40">Cash Balance</TableCell>
+            <TableCell className="w-24 text-right" />
+            <TableCell className="w-24 text-right" />
+            <TableCell className="w-24 text-right" /> {/* Adjusted from colSpan */}
+            <TableCell className="w-24 text-right">{formatUSD(cash)}</TableCell>
+            <TableCell className="w-24 text-right">{formatUSD(cash)}</TableCell>
+            <TableCell className="w-28 text-right">$0.00</TableCell>
+          </TableRow>
+          <TableRow className="font-bold text-lg">
+            <TableCell className="w-40">Portfolio Total</TableCell>
+            <TableCell className="w-24 text-right" />
+            <TableCell className="w-24 text-right" />
+            <TableCell className="w-24 text-right">{formatUSD(grandTotalBasis)}</TableCell>
+            <TableCell className="w-24 text-right" />
+            <TableCell className="w-24 text-right">{formatUSD(grandTotalValue)}</TableCell>
+            <TableCell className={cn("w-28 text-right", overallUnrealized > 0 ? "text-green-600" : "text-red-600")}>
+              {formatUSD(overallUnrealized)}
+            </TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </div>
+  )
 }
