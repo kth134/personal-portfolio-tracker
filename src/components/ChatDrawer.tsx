@@ -8,6 +8,8 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useChatStore } from '@/app/store/chatStore';
 import { askGrok, getPortfolioSummary } from '@/app/actions/grok';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export function ChatDrawer() {
   const { 
@@ -61,13 +63,8 @@ export function ChatDrawer() {
     }
     setLoading(false);
     setInput('');
-  };
-useEffect(() => {
-  if (isOpen && messages[0]?.content.includes('Loading')) { // Only fetch once
-    useChatStore.getState().setWelcomeWithTotal();
-  }
-}, [isOpen, messages]);
-  return (
+};
+return (
     <>
       <Drawer open={isOpen} onOpenChange={toggleOpen}>
         <DrawerContent data-vaul-drawer-direction="right" className="w-[400px] h-full">
@@ -80,13 +77,49 @@ useEffect(() => {
             </div>
           </DrawerHeader>
           <div className="p-4 overflow-y-auto flex-1">
-            {messages.map((msg, i) => (
-              <div key={i} className={`mb-2 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                <span className="inline-block p-2 rounded bg-muted">{msg.content}</span>
+            {messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`mb-6 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}
+              >
+                <div className="font-semibold text-sm mb-1">
+                  {msg.role === 'user' ? 'You' : 'Grok'}
+                </div>
+                <div
+                  className={`inline-block max-w-full rounded-lg px-4 py-3 ${
+                    msg.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted'
+                  }`}
+                >
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      // Optional: nicer styling for tables, code, etc.
+                      table: ({ children }) => (
+                        <table className="min-w-full divide-y divide-border my-4">{children}</table>
+                      ),
+                      thead: ({ children }) => (
+                        <thead className="bg-muted">{children}</thead>
+                      ),
+                      th: ({ children }) => (
+                        <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider">
+                          {children}
+                        </th>
+                      ),
+                      td: ({ children }) => (
+                        <td className="px-3 py-2 text-sm">{children}</td>
+                      ),
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
               </div>
             ))}
-            {isLoading && <div>Loading...</div>}
+
           </div>
+
           <DrawerFooter>
             <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type your question..." />
             <Button onClick={handleSend} disabled={isLoading || (isMounted && !localStorage.getItem('grokConsent'))}>Send</Button>

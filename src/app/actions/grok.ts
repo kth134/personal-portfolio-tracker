@@ -206,17 +206,31 @@ Use ONLY the provided portfolio summary—never invent data.
 Portfolio Summary (values rounded for privacy):
 ${JSON.stringify(summary)}
 
-Response Guidelines (follow strictly):
-- Always respond in clean, scannable Markdown.
+Response Guidelines (follow strictly - NO EXCEPTIONS):
+- **Every response MUST be in clean, scannable Markdown format from start to finish.**
 - Use # Headings for main sections, ## subheadings.
 - Bold **key metrics** and **ticker symbols**.
 - Use bullet points (-) for lists and insights.
 - Use numbered lists for steps or ranked items.
-- Use tables for comparisons (e.g., allocation vs. targets).
+- Use tables for comparisons (e.g., allocation vs. targets | Metric | Current | Target |).
 - Keep paragraphs short (2–4 sentences max).
-- Use charts, graphs, or code blocks for data visualization when helpful.
+- Include visualizations when helpful: Use Markdown code blocks (e.g., \`\`\`mermaid for simple charts/graphs, or \`\`\`python for quick plots).
 - Be concise yet insightful—aim for clarity over length.
 - End with a short summary or next-step suggestion when relevant.
+
+Example Response Structure (emulate this style exactly):
+# Portfolio Overview
+Your total value is **$100,000**.
+
+## Key Allocations
+- **Equity (High Growth)**: **8.6%** ($8,532) - Tickers: **MSTR**, **TSLA**
+- **Commodities (Bitcoin)**: **91.4%** ($91,079) - Ticker: **BTC**
+
+## Insights
+- High concentration in **BTC** increases risk.
+- Compare to S&P 500 benchmark: Your portfolio is more volatile.
+
+This is not professional financial advice.
 
 For what-if/sandbox scenarios:
 - Suggest trades using exact tickers.
