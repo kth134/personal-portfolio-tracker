@@ -200,13 +200,13 @@ const sortedLots = [...taxLots].sort((a, b) => {
   return 0
 })
   return (
-    <main className="p-8">
+    <main>
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Manual Tax Lots</h1>
-        <Dialog open={open} onOpenChange={(isOpen) => {
-          setOpen(isOpen)
-          if (!isOpen) resetForm()
-        }}>
+            <h1 className="text-3xl font-bold">Tax Lots</h1>
+            <Dialog open={open} onOpenChange={(isOpen) => {
+              setOpen(isOpen)
+              if (!isOpen) resetForm()
+            }}>
           <DialogTrigger asChild>
             <Button>{editingLot ? 'Edit' : 'Add'} Tax Lot</Button>
           </DialogTrigger>

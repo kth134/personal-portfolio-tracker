@@ -356,10 +356,10 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   }
 
   return (
-    <main className="p-8">
+    <main className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Transactions</h1>
-        <div className="flex gap-4 items-center">
+          <h1 className="text-3xl font-bold">Transactions</h1>
+          <div className="flex gap-4 items-center">
           <Input
             placeholder="Search..."
             value={search}
