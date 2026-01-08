@@ -12,8 +12,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/dashboard" className="font-semibold">Dashboard</Link>
               <Link href="/dashboard/portfolio">Portfolio</Link>
               <Link href="/dashboard/transactions">Transactions</Link>
-              <Link href="/dashboard/accounts">Accounts</Link>
-              <Link href="/dashboard/assets">Assets</Link>
             </div>
             <div className="text-sm text-muted-foreground">
               Personal Portfolio Tracker
