@@ -13,12 +13,17 @@ export function ChatDrawer() {
   const { messages, isOpen, addMessage, toggleOpen, isLoading, setLoading, isSandbox, toggleSandbox, updateSandbox, resetSandbox } = useChatStore();
   const [input, setInput] = useState('');
   const [showConsent, setShowConsent] = useState(false);
+  const [isMounted, setIsMounted] = useState(false); // ← New
 
-useEffect(() => {
-  if (typeof window !== 'undefined' && isOpen && !localStorage.getItem('grokConsent')) {
-    setShowConsent(true);
-  }
-}, [isOpen]);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isMounted && isOpen && !localStorage.getItem('grokConsent')) {
+      setShowConsent(true);
+    }
+  }, [isMounted, isOpen]);
 
   const handleConsent = () => {
     localStorage.setItem('grokConsent', 'true');
