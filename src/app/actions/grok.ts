@@ -254,23 +254,23 @@ try {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${grokApiKey}` },
 body: JSON.stringify({
-  model: 'grok-4-1-fast-reasoning',
+  model: "grok-4-1-fast-reasoning",
   messages: [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: query }
+    { role: "system", content: systemPrompt },
+    { role: "user", content: query }
   ],
   temperature: 0.6,
   max_tokens: 1000,
-tools: [
-  {
-    type: "live_search",
-    sources: [
-      { type: "web" },
-      { type: "x" }
-    ]
-  }
-],
-tool_choice: "auto"
+  tools: [
+    {
+      type: "live_search",
+      sources: [
+        { type: "web" },
+        { type: "x" }
+      ]
+    }
+  ],
+  tool_choice: "auto"
 }),
     });
 
