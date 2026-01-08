@@ -3,6 +3,7 @@ import './globals.css';
 import { Button } from '@/components/ui/button';
 import { ChatDrawer } from '@/components/ChatDrawer';
 import { useChatStore } from '@/store/chatStore';
+import { GrokChatTrigger } from '@/components/GrokChatTrigger';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -15,10 +16,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/dashboard/portfolio">Portfolio</Link>
               <Link href="/dashboard/transactions">Transactions</Link>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">Personal Portfolio Tracker</span>
-              <Button variant="outline" onClick={useChatStore.getState().toggleOpen}>Ask Grok</Button>
-            </div>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">Personal Portfolio Tracker</span>
+                  <GrokChatTrigger />
+              </div>
           </div>
         </nav>
         {children}
