@@ -6,19 +6,33 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { useChatStore } from '@/store/chatStore';
+import { useChatStore } from '@/app/store/chatStore';
 import { askGrok, getPortfolioSummary } from '@/app/actions/grok';
 
 export function ChatDrawer() {
-  const { messages, isOpen, addMessage, toggleOpen, isLoading, setLoading, isSandbox, toggleSandbox, updateSandbox, resetSandbox } = useChatStore();
+  const { 
+    messages, 
+    isOpen, 
+    addMessage, 
+    toggleOpen, 
+    isLoading, 
+    setLoading, 
+    isSandbox, 
+    toggleSandbox, 
+    updateSandbox, 
+    resetSandbox 
+  } = useChatStore();
+  
   const [input, setInput] = useState('');
   const [showConsent, setShowConsent] = useState(false);
   const [isMounted, setIsMounted] = useState(false); // ← New
 
+  // Mount effect — runs only in browser
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  // Consent check — only runs after mount and when drawer opens
   useEffect(() => {
     if (isMounted && isOpen && !localStorage.getItem('grokConsent')) {
       setShowConsent(true);
@@ -71,7 +85,7 @@ export function ChatDrawer() {
           </div>
           <DrawerFooter>
             <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type your question..." />
-            <Button onClick={handleSend} disabled={isLoading || !localStorage.getItem('grokConsent')}>Send</Button>
+            <Button onClick={handleSend} disabled={isLoading || (isMounted && !localStorage.getItem('grokConsent'))}>Send</Button>
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
