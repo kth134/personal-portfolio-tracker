@@ -1,6 +1,8 @@
 import Link from 'next/link';
-import './globals.css'
-import { Button } from '@/components/ui/button'
+import './globals.css';
+import { Button } from '@/components/ui/button';
+import { ChatDrawer } from '@/components/ChatDrawer';
+import { useChatStore } from '@/store/chatStore';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -13,21 +15,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/dashboard/portfolio">Portfolio</Link>
               <Link href="/dashboard/transactions">Transactions</Link>
             </div>
-            <div className="text-sm text-muted-foreground">
-              Personal Portfolio Tracker
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">Personal Portfolio Tracker</span>
+              <Button variant="outline" onClick={useChatStore.getState().toggleOpen}>Ask Grok</Button>
             </div>
           </div>
         </nav>
-        <nav className="border-b bg-background p-4">
-          <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <Link href="/dashboard" className="text-2xl font-bold">
-              Portfolio Tracker
-            </Link>
-            {/* Optional: Add user menu/logout here later */}
-          </div>
-        </nav>
         {children}
+        <ChatDrawer />
       </body>
     </html>
-  )
+  );
 }
