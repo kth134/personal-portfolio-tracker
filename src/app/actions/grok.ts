@@ -258,15 +258,14 @@ body: JSON.stringify({
     { role: 'system', content: systemPrompt },
     { role: 'user', content: query }
   ],
-  temperature: 0.6,                    // Slightly lower for more focused tool use
-  max_tokens: 1000,                    // Increased to handle search results
-  tools: [                             // ← NEW: Enables internet/tool access
-    { type: "web_search" },
-    { type: "browse_page" },
-    { type: "x_keyword_search" },
-    { type: "x_semantic_search" }
+  temperature: 0.6,
+  max_tokens: 1000,
+  tools: [
+    {
+      type: "live_search"  // ← Correct tool type for internet + X access
+    }
   ],
-  tool_choice: "auto"                  // Let Grok decide when to use tools
+  tool_choice: "auto"      // Let Grok decide when to search
 }),
     });
 
