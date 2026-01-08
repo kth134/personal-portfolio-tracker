@@ -261,12 +261,13 @@ body: JSON.stringify({
   ],
   temperature: 0.6,
   max_tokens: 1000,
-  tools: [
-    {
-      type: "live_search"  // ← Correct tool type for internet + X access
-    }
-  ],
-  tool_choice: "auto"      // Let Grok decide when to search
+tools: [
+  {
+    type: "live_search",
+    sources: ["web", "x"]  // ← NEW: Required field — enables full web + X search
+  }
+],
+tool_choice: "auto"
 }),
     });
 
