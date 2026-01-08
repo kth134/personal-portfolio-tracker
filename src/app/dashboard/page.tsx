@@ -11,7 +11,7 @@ export default function DashboardHome() {
           <CardHeader><CardTitle>Portfolio</CardTitle></CardHeader>
           <CardContent>
             <Link href="/dashboard/portfolio">
-              <Button variant="outline" className="w-full">View & Manage Portfolio</Button>
+              <Button variant="outline" className="w-full">View & Manage</Button>
             </Link>
           </CardContent>
         </Card>
