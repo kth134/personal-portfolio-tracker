@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -27,14 +27,13 @@ export function ChatDrawer() {
   
   const [input, setInput] = useState('');
   const [showConsent, setShowConsent] = useState(false);
-  const [isMounted, setIsMounted] = useState(false); // ← New
+  const [isMounted, setIsMounted] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Mount effect — runs only in browser
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Consent check — only runs after mount and when drawer opens
   useEffect(() => {
     if (isMounted && isOpen && !localStorage.getItem('grokConsent')) {
       setShowConsent(true);
@@ -44,99 +43,165 @@ export function ChatDrawer() {
   const handleConsent = () => {
     localStorage.setItem('grokConsent', 'true');
     setShowConsent(false);
+    inputRef.current?.focus();
   };
 
   const handleSend = async () => {
-    if (!input || !localStorage.getItem('grokConsent')) return; // Block sends until consented
-    addMessage({ role: 'user', content: input });
+    if (!input.trim() || !localStorage.getItem('grokConsent')) return;
+    
+    const userMessage = input.trim();
+    addMessage({ role: 'user', content: userMessage });
+    setInput('');
     setLoading(true);
+
     try {
       const prevState = useChatStore.getState().sandboxState;
-      const { content, changes } = await askGrok(input, isSandbox, prevState);
+      const { content, changes } = await askGrok(userMessage, isSandbox, prevState);
       addMessage({ role: 'assistant', content });
+
       if (isSandbox && changes) {
-        const newSummary = await getPortfolioSummary(true, changes); // Assuming exported from actions/grok.ts
+        const newSummary = await getPortfolioSummary(true, changes);
         updateSandbox(newSummary);
       }
     } catch (error) {
-      addMessage({ role: 'assistant', content: 'Error: Try again.' });
+      addMessage({ role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' });
+    } finally {
+      setLoading(false);
+      inputRef.current?.focus();
     }
-    setLoading(false);
-    setInput('');
-};
-return (
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // Auto-focus input when drawer opens
+  useEffect(() => {
+    if (isOpen) {
+      inputRef.current?.focus();
+    }
+  }, [isOpen]);
+
+  return (
     <>
       <Drawer open={isOpen} onOpenChange={toggleOpen}>
-        <DrawerContent data-vaul-drawer-direction="right" className="w-[400px] h-full">
-          <DrawerHeader>
+        <DrawerContent 
+          className="w-full max-w-lg h-full ml-auto" // Wider: up to 448px on large screens
+          data-vaul-drawer-direction="right"
+        >
+          <DrawerHeader className="border-b">
             <DrawerTitle>Ask Grok</DrawerTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 mt-3">
               <Switch checked={isSandbox} onCheckedChange={toggleSandbox} />
-              <span>Sandbox Mode (What-If)</span>
-              {isSandbox && <Button variant="ghost" onClick={resetSandbox}>Reset</Button>}
+              <span className="text-sm">Sandbox Mode (What-If)</span>
+              {isSandbox && (
+                <Button variant="ghost" size="sm" onClick={resetSandbox}>
+                  Reset
+                </Button>
+              )}
             </div>
           </DrawerHeader>
-          <div className="p-4 overflow-y-auto flex-1">
+
+          <div className="flex-1 overflow-y-auto p-4 pb-20"> {/* Extra bottom padding */}
             {messages.map((msg, idx) => (
               <div
                 key={idx}
                 className={`mb-6 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}
               >
-                <div className="font-semibold text-sm mb-1">
+                <div className="font-semibold text-sm mb-1 text-muted-foreground">
                   {msg.role === 'user' ? 'You' : 'Grok'}
                 </div>
                 <div
-                  className={`inline-block max-w-full rounded-lg px-4 py-3 ${
-                    msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
+                  className={`
+                    inline-block max-w-full rounded-xl px-4 py-3 shadow-sm
+                    ${msg.role === 'user' 
+                      ? 'bg-primary text-primary-foreground' 
                       : 'bg-muted'
-                  }`}
+                    }
+                  `}
                 >
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      // Optional: nicer styling for tables, code, etc.
-                      table: ({ children }) => (
-                        <table className="min-w-full divide-y divide-border my-4">{children}</table>
-                      ),
-                      thead: ({ children }) => (
-                        <thead className="bg-muted">{children}</thead>
-                      ),
-                      th: ({ children }) => (
-                        <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider">
-                          {children}
-                        </th>
-                      ),
-                      td: ({ children }) => (
-                        <td className="px-3 py-2 text-sm">{children}</td>
-                      ),
-                    }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
+                  <div className="prose prose-sm max-w-none break-words">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        table: ({ children }) => (
+                          <div className="overflow-x-auto -mx-4 px-4 my-3">
+                            <table className="min-w-full divide-y divide-border rounded-lg overflow-hidden">
+                              {children}
+                            </table>
+                          </div>
+                        ),
+                        thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+                        th: ({ children }) => (
+                          <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider">
+                            {children}
+                          </th>
+                        ),
+                        td: ({ children }) => (
+                          <td className="px-3 py-2 text-sm whitespace-normal">
+                            {children}
+                          </td>
+                        ),
+                        code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) =>
+                          inline ? (
+                            <code className="bg-black/10 rounded px-1 text-sm">{children}</code>
+                          ) : (
+                            <code className="block bg-black/5 rounded p-3 overflow-x-auto text-sm">
+                              {children}
+                            </code>
+                          ),
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               </div>
             ))}
-
+            {isLoading && (
+              <div className="text-center text-muted-foreground text-sm">
+                Grok is thinking...
+              </div>
+            )}
           </div>
 
-          <DrawerFooter>
-            <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type your question..." />
-            <Button onClick={handleSend} disabled={isLoading || (isMounted && !localStorage.getItem('grokConsent'))}>Send</Button>
+          <DrawerFooter className="border-t pt-4">
+            <div className="flex gap-2">
+              <Input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask about your portfolio..."
+                disabled={isLoading || !localStorage.getItem('grokConsent')}
+                className="flex-1"
+              />
+              <Button 
+                onClick={handleSend} 
+                disabled={isLoading || !input.trim() || !localStorage.getItem('grokConsent')}
+              >
+                Send
+              </Button>
+            </div>
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+
       <Dialog open={showConsent} onOpenChange={setShowConsent}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Consent for Grok Integration</DialogTitle>
+            <DialogTitle>Grok AI Assistant</DialogTitle>
             <DialogDescription>
-              By using this feature, you agree to send anonymized portfolio summaries (no raw data or PII) to xAI for AI insights. This is for contextual advice only—not financial advice. Proceed?
+              This feature sends anonymized, rounded portfolio data to xAI for contextual insights.
+              No personal identifiers or exact values are shared. This is not financial advice.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowConsent(false)}>Cancel</Button>
-            <Button onClick={handleConsent}>Agree</Button>
+            <Button onClick={handleConsent}>I Agree</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
