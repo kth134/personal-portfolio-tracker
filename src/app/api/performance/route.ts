@@ -2,6 +2,7 @@
 import { supabaseServer } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { subDays, subMonths, subYears, format, differenceInDays } from 'date-fns';
+import { POST as historicalPOST } from '../historical-prices/route';
 
 function calculateIRR(cashFlows: number[], dates: Date[]): number {
   // unchanged from before
@@ -107,13 +108,19 @@ export async function POST(request: Request) {
     const allTickers = [...assetTickers, ...benchmarks];
 
     // Fetch historical prices
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const histRes = await fetch(`${baseUrl}/api/historical-prices`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tickers: allTickers, startDate: startStr, endDate: endStr })
+    const mockRequest = new Request('http://localhost/placeholder', { // URL doesn't matter
+      method: 'POST',
+      body: JSON.stringify({ tickers: allTickers, startDate: startStr, endDate: endStr }),
+      headers: { 'Content-Type': 'application/json' }
     });
-    const { historicalData } = await histRes.json() as { historicalData: Record<string, { date: string; close: number }[]> };
+
+    const histResponse = await historicalPOST(mockRequest);
+    if (!histResponse.ok) {
+      throw new Error(`Historical prices internal call failed: ${histResponse.status}`);
+    }
+    const { historicalData } = await histResponse.json() as { 
+      historicalData: Record<string, { date: string; close: number }[]> 
+    };
 
     // Build portfolio value time series (daily)
     const dates = Object.values(historicalData)[0]?.map((d) => d.date) || [];
