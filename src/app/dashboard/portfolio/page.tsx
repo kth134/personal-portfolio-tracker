@@ -43,33 +43,44 @@ export default async function PortfolioPage() {
   if (!user) redirect('/')
 
   // Fetch with account_id and sub_portfolio
-  const [lotsRes, accountsRes, assetsRes, cashRes] = await Promise.all([
+  const [lotsRes, accountsRes, assetsRes, transactionsRes] = await Promise.all([
     supabase.from('tax_lots').select(`asset_id, account_id, remaining_quantity, cost_basis_per_unit, asset:assets (ticker, name, asset_subtype, sub_portfolio)`).gt('remaining_quantity', 0).eq('user_id', user.id),
     supabase.from('accounts').select('*').eq('user_id', user.id),
     supabase.from('assets').select('*').eq('user_id', user.id),
-    supabase.from('transactions').select('amount').eq('user_id', user.id).eq('type', 'Cash')
+    supabase.from('transactions').select('*').eq('user_id', user.id)
   ])
 
   const lots = lotsRes.data as TaxLot[] | null
   const initialAccounts = accountsRes.data || []
   const initialAssets = assetsRes.data || []
-  const cashBalance = cashRes.data?.reduce((sum, tx) => sum + Number(tx.amount || 0), 0) || 0
+  const transactions = transactionsRes.data || []
 
-// Fetch latest prices for all unique tickers at once (optimized)
-const uniqueTickers = new Set(lots?.map(lot => lot.asset.ticker) || []);
-const { data: pricesList } = await supabase
-  .from('asset_prices')
-  .select('ticker, price, timestamp')
-  .in('ticker', Array.from(uniqueTickers))
-  .order('timestamp', { ascending: false });  // New: Sort DESC for latest first
+  // Compute cash balances per account
+  const cashBalances = new Map<string, number>() // account_id -> balance
+  transactions.forEach(tx => {
+    if (!tx.account_id) return
+    const current = cashBalances.get(tx.account_id) || 0
+    let delta = Number(tx.amount || 0)
+    if (tx.type === 'Buy' && tx.funding_source === 'cash') delta = Number(tx.amount || 0) // Already negative
+    cashBalances.set(tx.account_id, current + delta)
+  })
+  const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
 
-// Map to latest price per ticker (take first after sort)
-const latestPrices = new Map<string, number>();
-pricesList?.forEach(p => {
-  if (!latestPrices.has(p.ticker)) {
-    latestPrices.set(p.ticker, p.price);  // Only set if not already (since sorted DESC)
-  }
-});
+  // Fetch latest prices for all unique tickers at once (optimized)
+  const uniqueTickers = new Set(lots?.map(lot => lot.asset.ticker) || []);
+  const { data: pricesList } = await supabase
+    .from('asset_prices')
+    .select('ticker, price, timestamp')
+    .in('ticker', Array.from(uniqueTickers))
+    .order('timestamp', { ascending: false });  // New: Sort DESC for latest first
+
+  // Map to latest price per ticker (take first after sort)
+  const latestPrices = new Map<string, number>();
+  pricesList?.forEach(p => {
+    if (!latestPrices.has(p.ticker)) {
+      latestPrices.set(p.ticker, p.price);  // Only set if not already (since sorted DESC)
+    }
+  });
 
   // Process flat holdings (for reference, though not used in view anymore)
   const holdingsMap = new Map<string, Holding>()
@@ -107,93 +118,112 @@ pricesList?.forEach(p => {
       investedCurrentValue += valueThisLot
     }
   }
- const investedHoldings: Holding[] = Array.from(holdingsMap.values()).map(h => ({
-  ...h,
-  unrealized_gain: (h.current_value || 0) - h.total_basis,
-}))
-  const grandTotalBasis = investedTotalBasis + cashBalance
-  const grandTotalValue = investedCurrentValue + cashBalance
+  const investedHoldings: Holding[] = Array.from(holdingsMap.values()).map(h => ({
+    ...h,
+    unrealized_gain: (h.current_value || 0) - h.total_basis,
+  }))
+  const grandTotalBasis = investedTotalBasis + totalCash
+  const grandTotalValue = investedCurrentValue + totalCash
   const overallUnrealized = grandTotalValue - grandTotalBasis
 
-// Precompute grouped data for client
-const accountMap = new Map(initialAccounts.map(a => [a.id, a.name]))
-const groupedByAccount: GroupedHolding[] = []
-const groupedBySubPortfolio: GroupedHolding[] = []
-if (lots) {
-  const accHoldings = new Map<string, { holdings: Map<string, Holding>, total_basis: number, total_value: number }>()
-  const subHoldings = new Map<string, { holdings: Map<string, Holding>, total_basis: number, total_value: number }>()
-  for (const lot of lots) {
-    const assetKey = lot.asset_id
-    const accKey = accountMap.get(lot.account_id) || 'Unknown'
-    const subKey = lot.asset.sub_portfolio || 'Untagged'
-    const qty = Number(lot.remaining_quantity)
-    const basisThis = qty * Number(lot.cost_basis_per_unit)
-    const currentPrice = latestPrices.get(lot.asset.ticker) || 0
-    const valueThis = qty * currentPrice
+  // Precompute grouped data for client
+  const accountMap = new Map(initialAccounts.map(a => [a.id, a.name]))
+  const groupedByAccount: GroupedHolding[] = []
+  const groupedBySubPortfolio: GroupedHolding[] = []
+  if (lots) {
+    const accHoldings = new Map<string, { holdings: Map<string, Holding>, total_basis: number, total_value: number }>()
+    const subHoldings = new Map<string, { holdings: Map<string, Holding>, total_basis: number, total_value: number }>()
+    for (const lot of lots) {
+      const assetKey = lot.asset_id
+      const accKey = accountMap.get(lot.account_id) || 'Unknown'
+      const subKey = lot.asset.sub_portfolio || 'Untagged'
+      const qty = Number(lot.remaining_quantity)
+      const basisThis = qty * Number(lot.cost_basis_per_unit)
+      const currentPrice = latestPrices.get(lot.asset.ticker) || 0
+      const valueThis = qty * currentPrice
 
-    // Group by account
-    if (!accHoldings.has(accKey)) accHoldings.set(accKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
-    const accGroup = accHoldings.get(accKey)!
-    if (!accGroup.holdings.has(assetKey)) {
-      accGroup.holdings.set(assetKey, {
-        asset_id: assetKey,
-        ticker: lot.asset.ticker,
-        name: lot.asset.name,
+      // Group by account
+      if (!accHoldings.has(accKey)) accHoldings.set(accKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
+      const accGroup = accHoldings.get(accKey)!
+      if (!accGroup.holdings.has(assetKey)) {
+        accGroup.holdings.set(assetKey, {
+          asset_id: assetKey,
+          ticker: lot.asset.ticker,
+          name: lot.asset.name,
+          total_quantity: 0,
+          total_basis: 0,
+          current_price: currentPrice,
+          current_value: 0,
+          unrealized_gain: 0,
+        })
+      }
+      const accAsset = accGroup.holdings.get(assetKey)!
+      accAsset.total_quantity += qty
+      accAsset.total_basis += basisThis
+      accAsset.current_value! += valueThis
+      accAsset.unrealized_gain = accAsset.current_value! - accAsset.total_basis
+      accGroup.total_basis += basisThis
+      accGroup.total_value += valueThis
+
+      // Group by sub-portfolio (similar)
+      if (!subHoldings.has(subKey)) subHoldings.set(subKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
+      const subGroup = subHoldings.get(subKey)!
+      if (!subGroup.holdings.has(assetKey)) {
+        subGroup.holdings.set(assetKey, {
+          asset_id: assetKey,
+          ticker: lot.asset.ticker,
+          name: lot.asset.name,
+          total_quantity: 0,
+          total_basis: 0,
+          current_price: currentPrice,
+          current_value: 0,
+          unrealized_gain: 0,
+        })
+      }
+      const subAsset = subGroup.holdings.get(assetKey)!
+      subAsset.total_quantity += qty
+      subAsset.total_basis += basisThis
+      subAsset.current_value! += valueThis
+      subAsset.unrealized_gain = subAsset.current_value! - subAsset.total_basis
+      subGroup.total_basis += basisThis
+      subGroup.total_value += valueThis
+    }
+
+    // Add cash to account groups
+    for (const [accId, bal] of cashBalances) {
+      const accKey = accountMap.get(accId) || 'Unknown'
+      if (!accHoldings.has(accKey)) accHoldings.set(accKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
+      const accGroup = accHoldings.get(accKey)!
+      accGroup.holdings.set('cash', {
+        asset_id: 'cash',
+        ticker: 'Cash',
+        name: null,
         total_quantity: 0,
-        total_basis: 0,
-        current_price: currentPrice,
-        current_value: 0,
+        total_basis: bal,
+        current_price: 1,
+        current_value: bal,
         unrealized_gain: 0,
       })
+      accGroup.total_basis += bal
+      accGroup.total_value += bal
     }
-    const accAsset = accGroup.holdings.get(assetKey)!
-    accAsset.total_quantity += qty
-    accAsset.total_basis += basisThis
-    accAsset.current_value! += valueThis
-    accAsset.unrealized_gain = accAsset.current_value! - accAsset.total_basis
-    accGroup.total_basis += basisThis
-    accGroup.total_value += valueThis
 
-    // Group by sub-portfolio (similar)
-    if (!subHoldings.has(subKey)) subHoldings.set(subKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
-    const subGroup = subHoldings.get(subKey)!
-    if (!subGroup.holdings.has(assetKey)) {
-      subGroup.holdings.set(assetKey, {
-        asset_id: assetKey,
-        ticker: lot.asset.ticker,
-        name: lot.asset.name,
-        total_quantity: 0,
-        total_basis: 0,
-        current_price: currentPrice,
-        current_value: 0,
-        unrealized_gain: 0,
-      })
-    }
-    const subAsset = subGroup.holdings.get(assetKey)!
-    subAsset.total_quantity += qty
-    subAsset.total_basis += basisThis
-    subAsset.current_value! += valueThis
-    subAsset.unrealized_gain = subAsset.current_value! - subAsset.total_basis
-    subGroup.total_basis += basisThis  // Added this line
-    subGroup.total_value += valueThis  // Added this line
+    // Convert to arrays
+    groupedByAccount.push(...Array.from(accHoldings, ([key, g]) => ({
+      key,
+      holdings: Array.from(g.holdings.values()),
+      total_basis: g.total_basis,
+      total_value: g.total_value,
+      unrealized_gain: g.total_value - g.total_basis
+    })))
+    groupedBySubPortfolio.push(...Array.from(subHoldings, ([key, g]) => ({
+      key,
+      holdings: Array.from(g.holdings.values()),
+      total_basis: g.total_basis,
+      total_value: g.total_value,
+      unrealized_gain: g.total_value - g.total_basis
+    })))
   }
-
-  // Convert to arrays
-  groupedByAccount.push(...Array.from(accHoldings, ([key, g]) => ({
-    key,
-    holdings: Array.from(g.holdings.values()),
-    total_basis: g.total_basis,
-    total_value: g.total_value,
-    unrealized_gain: g.total_value - g.total_basis
-  })))
-  groupedBySubPortfolio.push(...Array.from(subHoldings, ([key, g]) => ({
-    key,
-    holdings: Array.from(g.holdings.values()),
-    total_basis: g.total_basis,
-    total_value: g.total_value,
-    unrealized_gain: g.total_value - g.total_basis
-  })))
-}
 
   return (
     <main className="p-8">
@@ -208,7 +238,7 @@ if (lots) {
           <PortfolioHoldingsClient
             groupedAccounts={groupedByAccount}
             groupedSubs={groupedBySubPortfolio}
-            cash={cashBalance}
+            cash={totalCash}
             grandTotalBasis={grandTotalBasis}
             grandTotalValue={grandTotalValue}
             overallUnrealized={overallUnrealized}

@@ -26,7 +26,7 @@ type Asset = { id: string; ticker: string; name?: string }
 type Transaction = {
   id: string
   date: string
-  type: 'Buy' | 'Sell' | 'Dividend'
+  type: 'Buy' | 'Sell' | 'Dividend' | 'Deposit' | 'Withdrawal' | 'Interest'
   quantity?: number | null
   price_per_unit?: number | null
   amount?: number | null
@@ -37,6 +37,7 @@ type Transaction = {
   asset_id: string
   account: { name: string; type?: string } | null
   asset: { ticker: string; name?: string } | null
+  funding_source?: 'cash' | 'external' | null
 }
 
 type TransactionsListProps = {
@@ -61,13 +62,14 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const [assets, setAssets] = useState<Asset[]>([])
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
-  const [type, setType] = useState<'Buy' | 'Sell' | 'Dividend'>('Buy')
+  const [type, setType] = useState<Transaction['type']>('Buy')
   const [date, setDate] = useState<Date | undefined>(undefined)
   const [quantity, setQuantity] = useState('')
   const [price, setPrice] = useState('')
   const [dividendAmount, setDividendAmount] = useState('')
   const [fees, setFees] = useState('')
   const [notes, setNotes] = useState('')
+  const [fundingSource, setFundingSource] = useState<'cash' | 'external'>('cash')
 
   const isBuyOrSellEdit = !!editingTx && (editingTx.type === 'Buy' || editingTx.type === 'Sell')
   const disableSelects = !!editingTx
@@ -86,12 +88,17 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
 
   // Clear conditional fields when type changes
   useEffect(() => {
-    if (type === 'Dividend') {
+    if (['Dividend', 'Interest'].includes(type)) {
       setQuantity('')
       setPrice('')
-    } else {
+    } else if (['Buy', 'Sell'].includes(type)) {
       setDividendAmount('')
+    } else {
+      // For Deposit/Withdrawal: Clear all conditional
+      setQuantity('')
+      setPrice('')
     }
+    if (type !== 'Buy') setFundingSource('cash')  // Reset if not Buy
   }, [type])
 
   // Search + sort effect
@@ -151,6 +158,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     setDividendAmount('')
     setFees('')
     setNotes('')
+    setFundingSource('cash')
     setEditingTx(null)
   }
 
@@ -158,20 +166,25 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     setEditingTx(tx)
     setSelectedAccount(accounts.find(a => a.id === tx.account_id) || null)
     setSelectedAsset(assets.find(a => a.id === tx.asset_id) || null)
-    setType(tx.type as 'Buy' | 'Sell' | 'Dividend')
+    setType(tx.type)
     setDate(parseISO(tx.date))
     setQuantity(tx.type !== 'Dividend' ? (tx.quantity?.toString() || '') : '')
     setPrice(tx.type !== 'Dividend' ? (tx.price_per_unit?.toString() || '') : '')
     setDividendAmount(tx.type === 'Dividend' ? (tx.amount?.toString() || '') : '')
     setFees(tx.fees?.toString() || '')
     setNotes(tx.notes || '')
+    setFundingSource(tx.funding_source || 'cash')
     setOpen(true)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedAccount || !selectedAsset || !type || !date) {
+    if (!selectedAccount || !type || !date) {
       alert('Please fill all required fields')
+      return
+    }
+    if (['Buy', 'Sell'].includes(type) && !selectedAsset) {
+      alert('Asset required for Buy/Sell')
       return
     }
 
@@ -180,12 +193,13 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     let amt: number = 0
     const fs = Number(fees || 0)
 
-    if (type === 'Dividend') {
+    if (['Dividend', 'Interest', 'Deposit', 'Withdrawal'].includes(type)) {
       amt = Number(dividendAmount)
       if (isNaN(amt) || amt <= 0) {
-        alert('Positive dividend amount required')
+        alert('Positive amount required')
         return
       }
+      if (type === 'Withdrawal') amt = -amt
     } else {
       qty = Number(quantity)
       prc = Number(price)
@@ -200,14 +214,15 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     try {
       const txData = {
         account_id: selectedAccount.id,
-        asset_id: selectedAsset.id,
+        asset_id: selectedAsset?.id || null,
         date: format(date, 'yyyy-MM-dd'),
         type,
         quantity: qty,
         price_per_unit: prc,
-        amount: type === 'Dividend' ? amt : amt,
+        amount: amt,
         fees: fs || null,
         notes: notes || null,
+        funding_source: type === 'Buy' ? fundingSource : null,
       }
 
       let updatedTx: Transaction
@@ -238,7 +253,19 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         if (error) throw error
         updatedTx = data
 
-        if (type === 'Buy' && qty && prc) {
+        if (type === 'Buy' && qty && prc && selectedAsset) {
+          if (fundingSource === 'external') {
+            const depositAmt = Math.abs(amt)
+            const depositData = {
+              account_id: selectedAccount.id,
+              asset_id: null,
+              date: format(date, 'yyyy-MM-dd'),
+              type: 'Deposit' as const,
+              amount: depositAmt,
+              notes: `Auto-deposit for external buy of ${selectedAsset.ticker || 'asset'}`,
+            }
+            await supabaseClient.from('transactions').insert(depositData)
+          }
           const basis_per_unit = Math.abs(amt) / qty
           await supabaseClient.from('tax_lots').insert({
             account_id: selectedAccount.id,
@@ -253,7 +280,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
             .from('tax_lots')
             .select('*')
             .eq('account_id', selectedAccount.id)
-            .eq('asset_id', selectedAsset.id)
+            .eq('asset_id', selectedAsset?.id)
             .gt('remaining_quantity', 0)
             .order('purchase_date', { ascending: true })
 
@@ -342,7 +369,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
       } else if (deletingTx.type === 'Sell') {
         alert('Sell deleted. To restore the sold shares, manually increase remaining_quantity on the oldest tax lots (FIFO order) on the Tax Lots page.')
       }
-      // Dividend: no lot action
+      // Dividend/others: no lot action
 
       await supabaseClient.from('transactions').delete().eq('id', deletingTx.id)
 
@@ -419,7 +446,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Asset <span className="text-red-500">*</span></Label>
+                    <Label>Asset {['Buy', 'Sell', 'Dividend'].includes(type) && <span className="text-red-500">*</span>}</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="outline" role="combobox" className="w-full justify-between" disabled={disableSelects}>
@@ -463,6 +490,9 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                         <SelectItem value="Buy">Buy</SelectItem>
                         <SelectItem value="Sell">Sell</SelectItem>
                         <SelectItem value="Dividend">Dividend</SelectItem>
+                        <SelectItem value="Deposit">Deposit</SelectItem>
+                        <SelectItem value="Withdrawal">Withdrawal</SelectItem>
+                        <SelectItem value="Interest">Interest</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -487,7 +517,22 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                   </div>
                 </div>
 
-                {type !== 'Dividend' && (
+                {type === 'Buy' && (
+                  <div className="space-y-2">
+                    <Label>Funding Source <span className="text-red-500">*</span></Label>
+                    <Select value={fundingSource} onValueChange={(v: 'cash' | 'external') => setFundingSource(v)} disabled={disableCriticalFields}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cash">Cash Balance</SelectItem>
+                        <SelectItem value="external">External (e.g., contribution)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {['Buy', 'Sell'].includes(type) && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Quantity <span className="text-red-500">*</span></Label>
@@ -512,9 +557,9 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                   </div>
                 )}
 
-                {type === 'Dividend' && (
+                {['Dividend', 'Interest', 'Deposit', 'Withdrawal'].includes(type) && (
                   <div className="space-y-2">
-                    <Label>Dividend Amount <span className="text-red-500">*</span></Label>
+                    <Label>Amount <span className="text-red-500">*</span></Label>
                     <Input
                       type="number"
                       step="any"
@@ -576,6 +621,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
               <TableHead className="cursor-pointer" onClick={() => toggleSort('type')}>
                 Type <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
+              <TableHead>Funding Source</TableHead>
               <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('quantity')}>
                 Quantity <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
@@ -605,6 +651,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                   {tx.asset?.name && ` - ${tx.asset.name}`}
                 </TableCell>
                 <TableCell>{tx.type}</TableCell>
+                <TableCell>{tx.funding_source || '-'}</TableCell>
                 <TableCell className="text-right">
                   {tx.quantity != null ? Number(tx.quantity).toFixed(8) : '-'}
                 </TableCell>
@@ -652,7 +699,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
               {deletingTx?.type === 'Sell' && (
                 <>Sold shares will <strong>not</strong> be automatically restored. After deletion, manually increase remaining_quantity on the oldest tax lots (FIFO order) on the Tax Lots page.</>
               )}
-              {deletingTx?.type === 'Dividend' && <>This has no impact on tax lots.</>}
+              {['Dividend', 'Interest', 'Deposit', 'Withdrawal'].includes(deletingTx?.type || '') && <>This has no lot impact.</>}
               <br /><br />
               This action cannot be undone.
             </AlertDialogDescription>
