@@ -31,6 +31,7 @@
     "react-day-picker": "^9.13.0",
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
+    "react-mermaid2": "^0.1.4",
     "recharts": "^3.6.0",
     "remark-gfm": "^4.0.1",
     "shadcn-ui": "^0.9.5",

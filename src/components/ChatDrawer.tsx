@@ -10,6 +10,7 @@ import { useChatStore } from '@/app/store/chatStore';
 import { askGrok, getPortfolioSummary } from '@/app/actions/grok';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Mermaid from 'react-mermaid2'; // ← NEW: for rendering charts
 
 export function ChatDrawer() {
   const { 
@@ -34,14 +35,19 @@ export function ChatDrawer() {
     setIsMounted(true);
   }, []);
 
-useEffect(() => {
-  if (isMounted && isOpen) {
-    // Only run on client after mount
-    if (typeof window !== 'undefined' && !localStorage.getItem('grokConsent')) {
-      setShowConsent(true);
+  useEffect(() => {
+    if (isMounted && isOpen) {
+      if (typeof window !== 'undefined' && !localStorage.getItem('grokConsent')) {
+        setShowConsent(true);
+      }
     }
-  }
-}, [isMounted, isOpen]);
+  }, [isMounted, isOpen]);
+
+  useEffect(() => {
+    if (isOpen && typeof window !== 'undefined') {
+      inputRef.current?.focus();
+    }
+  }, [isOpen]);
 
   const handleConsent = () => {
     localStorage.setItem('grokConsent', 'true');
@@ -50,7 +56,7 @@ useEffect(() => {
   };
 
   const handleSend = async () => {
-    if (!input.trim() || !localStorage.getItem('grokConsent')) return;
+    if (!input.trim() || (typeof window !== 'undefined' && !localStorage.getItem('grokConsent'))) return;
     
     const userMessage = input.trim();
     addMessage({ role: 'user', content: userMessage });
@@ -81,18 +87,21 @@ useEffect(() => {
     }
   };
 
-  // Auto-focus input when drawer opens
- useEffect(() => {
-  if (isOpen && typeof window !== 'undefined') {
-    inputRef.current?.focus();
-  }
-}, [isOpen]);
+  // Render Mermaid diagrams safely
+  const MermaidChart = ({ code }: { code: string }) => {
+    try {
+      return <Mermaid chart={code} />;
+    } catch (err) {
+      return <pre className="bg-muted p-4 rounded overflow-x-auto text-sm">{code}</pre>;
+    }
+  };
 
   return (
     <>
-      <Drawer open={isOpen} onOpenChange={toggleOpen}>
+      {/* ← NEW: modal={false} makes it floating/non-blocking */}
+      <Drawer open={isOpen} onOpenChange={toggleOpen} modal={false}>
         <DrawerContent 
-          className="w-full max-w-lg h-full ml-auto" // Wider: up to 448px on large screens
+          className="w-full max-w-lg h-full ml-auto fixed inset-y-0 right-0" 
           data-vaul-drawer-direction="right"
         >
           <DrawerHeader className="border-b">
@@ -108,7 +117,7 @@ useEffect(() => {
             </div>
           </DrawerHeader>
 
-          <div className="flex-1 overflow-y-auto p-4 pb-20"> {/* Extra bottom padding */}
+          <div className="flex-1 overflow-y-auto p-4 pb-20">
             {messages.map((msg, idx) => (
               <div
                 key={idx}
@@ -148,14 +157,21 @@ useEffect(() => {
                             {children}
                           </td>
                         ),
-                        code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) =>
-                          inline ? (
-                            <code className="bg-black/10 rounded px-1 text-sm">{children}</code>
+                        code: ({ className, children, ...props }) => {
+                          const isInline = !className;
+                          const codeString = String(children).trim();
+                          // Detect Mermaid code blocks
+                          if (!isInline && className === 'language-mermaid') {
+                            return <MermaidChart code={codeString} />;
+                          }
+                          return isInline ? (
+                            <code className="bg-black/10 rounded px-1 text-sm" {...props}>{children}</code>
                           ) : (
-                            <code className="block bg-black/5 rounded p-3 overflow-x-auto text-sm">
+                            <code className="block bg-black/5 rounded p-3 overflow-x-auto text-sm" {...props}>
                               {children}
                             </code>
-                          ),
+                          );
+                        },
                       }}
                     >
                       {msg.content}
@@ -184,7 +200,7 @@ useEffect(() => {
               />
               <Button 
                 onClick={handleSend} 
-                disabled={isLoading || !input.trim() || !localStorage.getItem('grokConsent')}
+                disabled={isLoading || !input.trim() || (typeof window !== 'undefined' && !localStorage.getItem('grokConsent'))}
               >
                 Send
               </Button>
