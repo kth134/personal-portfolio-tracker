@@ -87,7 +87,9 @@ const performanceMap = new Map<string, number>(); // Unrealized gains
 const costMap = new Map<string, number>(); // Total costs for % return
 
 rawHoldings.forEach(h => {
- const key = `${h.assets.asset_type}-${h.assets.sub_portfolio}`;
+  if (!h.assets) return; // Critical guard — skip if no linked asset
+
+  const key = `${h.assets.asset_type}-${h.assets.sub_portfolio}`;
   const currentPrice = latestPrices.get(h.assets.ticker) || 0;
   const currentValue = h.remaining_quantity * currentPrice;
   const totalCost = h.cost_basis_per_unit * h.remaining_quantity;
@@ -174,11 +176,11 @@ allocations: allocations.map(a => ({ ...a, value: Math.round(a.value), pct: Math
             if (fallbackIdx > -1) groupIdx = fallbackIdx;
         }
         if (groupIdx > -1) {
-  const reduction = sandboxChanges.sell.amount * summary.allocations[groupIdx].value;
-  summary.allocations[groupIdx].value -= reduction;
-  summary.allocations[groupIdx].pct = 
-    (summary.allocations[groupIdx].value / (summary.totalValue - reduction)) * 100;
-  summary.totalValue -= reduction;
+               const reduction = sandboxChanges.sell.amount * summary.allocations[groupIdx].value;
+                summary.allocations[groupIdx].value -= reduction;
+                summary.allocations[groupIdx].pct = 
+                (summary.allocations[groupIdx].value / (summary.totalValue - reduction)) * 100;
+                summary.totalValue -= reduction;
 }
     }
     // TODO: Adjust performance for changes if needed
