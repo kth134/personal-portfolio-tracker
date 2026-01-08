@@ -199,30 +199,51 @@ allocations: allocations.map(a => ({ ...a, value: Math.round(a.value), pct: Math
 export async function askGrok(query: string, isSandbox: boolean, prevSandboxState?: any) {
   const summary = await getPortfolioSummary(isSandbox, prevSandboxState?.changes);
 
-const systemPrompt = `You are a financial advisor. Portfolio: ${JSON.stringify(summary)}. For what-if, suggest changes using ticker symbols and simulate outcomes. Remind: Not professional advice. If query is scenario-based, output structured changes like {sell: {ticker: 'FBTC', amount: 0.5}} at end for simulation. Note any missingPrices in your response.`;  
-  const response = await fetch('https://api.x.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${grokApiKey}` },
-    body: JSON.stringify({
-      model: 'grok-beta',
-      messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: query }],
-      temperature: 0.7,
-      max_tokens: 500,
-    }),
-  });
+  const systemPrompt = `You are a financial advisor. Portfolio: ${JSON.stringify(summary)}. For what-if, suggest changes using ticker symbols and simulate outcomes. Remind: Not professional advice. If query is scenario-based, output structured changes like {sell: {ticker: 'FBTC', amount: 0.5}} at end for simulation. Note any missingPrices in your response.`;  
 
-  const data = await response.json();
-  const content = data.choices[0].message.content;
+  try {
+    const response = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${grokApiKey}` },
+      body: JSON.stringify({
+        model: 'grok-beta',
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: query }],
+        temperature: 0.7,
+        max_tokens: 500,
+      }),
+    });
 
-  let changes = null;
-  if (isSandbox) {
-    const changeMatch = content.match(/\{.*\}/s);
-    if (changeMatch) {
-      try {
-        changes = JSON.parse(changeMatch[0]);
-      } catch {}
+    if (!response.ok) {
+      const errorText = await response.text(); // Get raw text for debugging
+      console.error(`Grok API request failed: Status ${response.status}, Response: ${errorText}`);
+      throw new Error(`Grok API error: ${response.status} - ${errorText}`);
     }
-  }
 
-  return { content, changes };
-}
+    const data = await response.json();
+
+    if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+      console.error(`Invalid Grok API response structure: ${JSON.stringify(data)}`);
+      throw new Error('No valid choices in Grok API response');
+    }
+
+    const content = data.choices[0].message.content;
+
+    let changes = null;
+    if (isSandbox) {
+      const changeMatch = content.match(/\{.*\}/s);
+      if (changeMatch) {
+        try {
+          changes = JSON.parse(changeMatch[0]);
+        } catch (parseError) {
+          console.error(`Failed to parse changes from Grok response: ${changeMatch[0]}`, parseError);
+          // Don't throw here—allow response to proceed without changes
+        }
+      }
+    }
+
+    return { content, changes };
+  } catch (error) {
+    console.error('Error in askGrok:', error);
+    throw error; // Re-throw to propagate to caller/UI
+  }
+}    
