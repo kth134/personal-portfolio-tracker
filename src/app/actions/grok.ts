@@ -206,7 +206,7 @@ export async function askGrok(query: string, isSandbox: boolean, prevSandboxStat
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${grokApiKey}` },
       body: JSON.stringify({
-        model: 'grok-beta',
+        model: 'grok-4-1-fast-reasoning',
         messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: query }],
         temperature: 0.7,
         max_tokens: 500,
