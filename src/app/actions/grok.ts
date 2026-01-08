@@ -163,7 +163,6 @@ allocations: allocations.map(a => ({ ...a, value: Math.round(a.value), pct: Math
 
   if (isSandbox && sandboxChanges) {
     summary = JSON.parse(JSON.stringify(summary)); // Deep copy
-    summary.missingPrices = Array.from(missingTickers);   // Apply changes (adjusted for 'type')
         if (sandboxChanges.sell) {
         // Prefer ticker match first
         let groupIdx = summary.allocations.findIndex(a =>
@@ -185,8 +184,15 @@ allocations: allocations.map(a => ({ ...a, value: Math.round(a.value), pct: Math
     // TODO: Adjust performance for changes if needed
   }
 
-  return summary;
-}
+  // Apply consistent privacy rounding to both real and sandbox summaries
+  summary.totalValue = Math.round(summary.totalValue / 1000) * 1000;
+  summary.allocations = summary.allocations.map(a => ({
+    ...a,
+    value: Math.round(a.value),
+    pct: Math.round(a.pct * 10) / 10  // One decimal place
+  }));
+
+  return summary;}
 
 export async function askGrok(query: string, isSandbox: boolean, prevSandboxState?: any) {
   const summary = await getPortfolioSummary(isSandbox, prevSandboxState?.changes);
