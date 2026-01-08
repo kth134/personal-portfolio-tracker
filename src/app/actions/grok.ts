@@ -227,6 +227,7 @@ For what-if/sandbox scenarios:
 
 Important reminders:
 - Note any missingPrices.
+- If you cannot answer a specific question due to lack of data, state that clearly and suggest how the user can add that data to the application or source it externally.
 - Compare to benchmarks or glide path when relevant.
 - Always end with: "This is not professional financial advice."
 
