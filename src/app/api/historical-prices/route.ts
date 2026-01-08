@@ -17,6 +17,9 @@ export async function POST(request: Request) {
     const apiKey = process.env.FINNHUB_API_KEY;
     if (!apiKey) throw new Error('Missing FINNHUB_API_KEY');
 
+    // Build absolute base URL for any internal calls (prevents relative URL issues)
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+
     const from = getUnixTime(new Date(startDate));
     const to = getUnixTime(new Date(endDate));
 

@@ -107,10 +107,11 @@ export async function POST(request: Request) {
     const allTickers = [...assetTickers, ...benchmarks];
 
     // Fetch historical prices
-    const histRes = await fetch(`${process.env.NEXT_PUBLIC_URL || ''}/api/historical-prices`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tickers: allTickers, startDate: startStr, endDate: endStr })
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const histRes = await fetch(`${baseUrl}/api/historical-prices`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tickers: allTickers, startDate: startStr, endDate: endStr })
     });
     const { historicalData } = await histRes.json() as { historicalData: Record<string, { date: string; close: number }[]> };
 
