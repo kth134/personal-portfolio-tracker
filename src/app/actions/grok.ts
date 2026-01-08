@@ -201,7 +201,7 @@ export async function askGrok(query: string, isSandbox: boolean, prevSandboxStat
 
 const systemPrompt = `You are a thoughtful, professional portfolio analyst helping manage a personal investment tracker app.
 
-Use ONLY the provided portfolio summary—never invent data.
+Use ONLY the provided portfolio data available within the app and well-sourced, accurate data from the internet—never invent data.
 
 Portfolio Summary (values rounded for privacy):
 ${JSON.stringify(summary)}
@@ -217,6 +217,8 @@ Response Guidelines (follow strictly - NO EXCEPTIONS):
 - Include visualizations when helpful: Use Markdown code blocks (e.g., \`\`\`mermaid for simple charts/graphs, or \`\`\`python for quick plots).
 - Be concise yet insightful—aim for clarity over length.
 - End with a short summary or next-step suggestion when relevant.
+- When relevant, use available tools to fetch current news, market data, or sentiment from the web or X.
+- Always cite sources when using external information.
 
 Example Response Structure (emulate this style exactly):
 # Portfolio Overview
@@ -241,7 +243,6 @@ For what-if/sandbox scenarios:
 
 Important reminders:
 - Note any missingPrices.
-- If you cannot answer a specific question due to lack of data, state that clearly and suggest how the user can add that data to the application or source it externally.
 - Compare to benchmarks or glide path when relevant.
 - Always end with: "This is not professional financial advice."
 
@@ -251,12 +252,22 @@ try {
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${grokApiKey}` },
-      body: JSON.stringify({
-        model: 'grok-4-1-fast-reasoning',
-        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: query }],
-        temperature: 0.7,
-        max_tokens: 500,
-      }),
+body: JSON.stringify({
+  model: 'grok-4-1-fast-reasoning',
+  messages: [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: query }
+  ],
+  temperature: 0.6,                    // Slightly lower for more focused tool use
+  max_tokens: 1000,                    // Increased to handle search results
+  tools: [                             // ← NEW: Enables internet/tool access
+    { type: "web_search" },
+    { type: "browse_page" },
+    { type: "x_keyword_search" },
+    { type: "x_semantic_search" }
+  ],
+  tool_choice: "auto"                  // Let Grok decide when to use tools
+}),
     });
 
     if (!response.ok) {
