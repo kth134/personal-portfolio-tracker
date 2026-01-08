@@ -34,11 +34,14 @@ export function ChatDrawer() {
     setIsMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (isMounted && isOpen && !localStorage.getItem('grokConsent')) {
+useEffect(() => {
+  if (isMounted && isOpen) {
+    // Only run on client after mount
+    if (typeof window !== 'undefined' && !localStorage.getItem('grokConsent')) {
       setShowConsent(true);
     }
-  }, [isMounted, isOpen]);
+  }
+}, [isMounted, isOpen]);
 
   const handleConsent = () => {
     localStorage.setItem('grokConsent', 'true');
@@ -79,11 +82,11 @@ export function ChatDrawer() {
   };
 
   // Auto-focus input when drawer opens
-  useEffect(() => {
-    if (isOpen) {
-      inputRef.current?.focus();
-    }
-  }, [isOpen]);
+ useEffect(() => {
+  if (isOpen && typeof window !== 'undefined') {
+    inputRef.current?.focus();
+  }
+}, [isOpen]);
 
   return (
     <>
@@ -176,7 +179,7 @@ export function ChatDrawer() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask about your portfolio..."
-                disabled={isLoading || !localStorage.getItem('grokConsent')}
+                disabled={isLoading || (typeof window !== 'undefined' && !localStorage.getItem('grokConsent'))}
                 className="flex-1"
               />
               <Button 
