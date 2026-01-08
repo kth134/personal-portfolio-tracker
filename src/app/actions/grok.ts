@@ -7,6 +7,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const grokApiKey = process.env.GROK_API_KEY!;
 
+
 export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: any) {
   const cookieStore = await cookies();
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
@@ -23,99 +24,153 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   if (!user) throw new Error('Unauthorized');
   const userId = user.id;
 
-  // Query holdings: Fetch raw data and aggregate in JS
-  const { data: rawHoldings, error: holdingsError } = await supabase
+  // Fetch raw tax lots with join to assets for type/sub/ticker
+  const { data: rawHoldingsData, error: holdingsError } = await supabase
     .from('tax_lots')
-    .select('assets!inner(asset_class, sub_portfolio), quantities, price')
+    .select('assets!inner(asset_type, sub_portfolio, ticker), remaining_quantity, cost_basis_per_unit')
     .eq('user_id', userId)
-    .eq('sold', false); // Only unsold lots
+    .gt('remaining_quantity', 0); // Only unsold portions
 
   if (holdingsError) throw holdingsError;
 
-  // Aggregate by asset_class and sub_portfolio
-  const holdingsMap = new Map();
-  rawHoldings.forEach(h => {
-    const key = `${h.assets[0].asset_class}-${h.assets[0].sub_portfolio}`;
-    const value = h.quantities * h.price;
-    if (holdingsMap.has(key)) {
-      holdingsMap.set(key, holdingsMap.get(key) + value);
-    } else {
-      holdingsMap.set(key, value);
+  const rawHoldings = rawHoldingsData as unknown as {
+    assets: { asset_type: string; sub_portfolio: string; ticker: string };
+    remaining_quantity: number;
+    cost_basis_per_unit: number;
+  }[];
+
+  if (rawHoldings.length === 0) {
+    return { totalValue: 0, allocations: [], performance: [], recentTransactions: [], missingPrices: [] }; // Early return if no holdings
+  }
+
+  // Get unique tickers and fetch latest prices
+  const tickers = [...new Set(rawHoldings.map(h => h.assets.ticker))];
+  const { data: rawPrices, error: pricesError } = await supabase
+    .from('asset_prices')
+    .select('ticker, price, timestamp')
+    .in('ticker', tickers)
+    .order('ticker', { ascending: true })
+    .order('timestamp', { ascending: false });
+  if (pricesError) throw pricesError;
+
+  // Map to latest price per ticker (first per group since ordered desc timestamp)
+  const latestPrices = new Map<string, number>();
+  rawPrices.forEach(p => {
+    if (!latestPrices.has(p.ticker)) {
+      latestPrices.set(p.ticker, p.price);
     }
   });
 
-  const holdings = Array.from(holdingsMap.entries()).map(([key, value]) => {
-    const [assetClass, subPortfolio] = key.split('-');
-    return { assets: { asset_class: assetClass, sub_portfolio: subPortfolio }, value };
+  const missingTickers = new Set(tickers.filter(t => !latestPrices.has(t)));
+
+  // Build tickersMap for allocations
+  const tickersMap = new Map<string, Set<string>>();
+  rawHoldings.forEach(h => {
+    const key = `${h.assets.asset_type}-${h.assets.sub_portfolio}`;
+    if (!tickersMap.has(key)) {
+      tickersMap.set(key, new Set());
+    }
+    tickersMap.get(key)!.add(h.assets.ticker);
   });
+
+// Aggregate holdings and performance
+const holdingsMap = new Map<string, number>(); // Current values
+const performanceMap = new Map<string, number>(); // Unrealized gains
+const costMap = new Map<string, number>(); // Total costs for % return
+
+rawHoldings.forEach(h => {
+ const key = `${h.assets.asset_type}-${h.assets.sub_portfolio}`;
+  const currentPrice = latestPrices.get(h.assets.ticker) || 0;
+  const currentValue = h.remaining_quantity * currentPrice;
+  const totalCost = h.cost_basis_per_unit * h.remaining_quantity;
+  const unrealizedGain = currentValue - totalCost;
+
+  holdingsMap.set(key, (holdingsMap.get(key) || 0) + currentValue);
+  performanceMap.set(key, (performanceMap.get(key) || 0) + unrealizedGain);
+  costMap.set(key, (costMap.get(key) || 0) + totalCost);
+});
+
+// Holdings array
+const holdings = Array.from(holdingsMap.entries()).map(([key, value]) => {
+  const [assetType, subPortfolio] = key.split('-');
+  return { asset_type: assetType, sub_portfolio: subPortfolio, value };
+});
 
   const totalValue = holdings.reduce((sum, h) => sum + h.value, 0);
 
   // Allocations
-  const allocations = holdings.map(h => ({
-    class: h.assets.asset_class,
-    sub: h.assets.sub_portfolio,
-    pct: (h.value / totalValue) * 100,
-    value: h.value,
-  }));
+const allocations = holdings.map(h => ({  
+  type: h.asset_type,  
+  sub: h.sub_portfolio,  
+  pct: totalValue > 0 ? (h.value / totalValue) * 100 : 0,  
+  value: h.value,  
+  tickers: Array.from(tickersMap.get(`${h.asset_type}-${h.sub_portfolio}`) || [])  
+}));  
 
-  // Performance: Simple unrealized gains aggregate (expand with time-weighted calc later)
-  const { data: performance, error: perfError } = await supabase
-    .rpc('calculate_unrealized_gains') // Assume you create an RPC for this; fallback to JS calc
-    .single(); // Or query tax_lots for (current_value - basis) sums by class
+  // Performance with % return
+  const performance = Array.from(performanceMap.entries()).map(([key, unrealizedGain]) => {
+    const [assetType, subPortfolio] = key.split('-');
+    const cost = costMap.get(key) || 0;
+const returnPct = cost > 0 ? (unrealizedGain / cost) * 100 : 0; // Or 'N/A' if you prefer string      return { type: assetType, sub: subPortfolio, unrealizedGain, return: returnPct };
+  });
 
-  if (perfError) throw perfError;
+  // Glide path
+  let glidePath: { age: number; target_allocation: any }[] = [];
+  try {
+    const { data, error } = await supabase
+      .from('glide_path')
+      .select('age, target_allocation')
+      .eq('user_id', userId)
+      .order('age');
+    if (!error) glidePath = data || [];
+  } catch (e) {
+    // Table doesn't exist yet — safe to ignore
+    glidePath = [];
+  }
 
-  // Glide path: Assume glide_path table with age/target_allocations
-  //const { data: glidePath, error: glideError } = await supabase
-    //.from('glide_path')
-   // .select('age, target_allocation')
-    //.eq('user_id', userId);
-
-  //if (glideError) throw glideError;
-
-  // Transaction summary: Recent count/types
-  const { data: rawTransactions, error: txError } = await supabase
-    .from('transactions')
-    .select('type')
-    .eq('user_id', userId)
-    .gte('date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()); // Last 30 days
-
+  // Recent transactions (unchanged)
+  const { data: rawTransactions, error: txError } = await supabase  
+  .from('transactions')  
+  .select('type, date') // Add date for context  
+  .eq('user_id', userId)  
+  .gte('date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())  
+  .order('date', { ascending: false })  
+  .limit(10);  
   if (txError) throw txError;
 
-  // Group and count by type
   const transactionCounts = new Map<string, number>();
   rawTransactions.forEach(tx => {
     const count = transactionCounts.get(tx.type) || 0;
     transactionCounts.set(tx.type, count + 1);
   });
-  const transactions = Array.from(transactionCounts.entries()).map(([type, count]) => ({ type, count }));
-
+const transactions = rawTransactions.map(tx => ({ type: tx.type, date: tx.date }));  
   let summary = {
-    totalValue,
-    allocations,
-    performance: performance || [], // e.g., [{ class: 'stocks', unrealizedGain: 1234 }]
-    //glidePath,
+totalValue: Math.round(totalValue / 1000) * 1000, // Nearest $1k  
+allocations: allocations.map(a => ({ ...a, value: Math.round(a.value), pct: Math.round(a.pct * 10) / 10 })), // 1 decimal pct  
+    performance,
+    glidePath,
     recentTransactions: transactions,
+    missingPrices: Array.from(missingTickers),
   };
-
-  // Anonymize further if needed (e.g., round values)
-  summary.totalValue = Math.round(summary.totalValue);
-  summary.allocations = summary.allocations.map(a => ({ ...a, value: Math.round(a.value) }));
 
   if (isSandbox && sandboxChanges) {
     summary = JSON.parse(JSON.stringify(summary)); // Deep copy
-    // Apply changes: e.g., simulate sell
-    if (sandboxChanges.sell) {
-      const assetIdx = summary.allocations.findIndex(a => a.class === sandboxChanges.sell.asset);
-      if (assetIdx > -1) {
-        const reduction = sandboxChanges.sell.amount * summary.allocations[assetIdx].value;
-        summary.allocations[assetIdx].value -= reduction;
-        summary.allocations[assetIdx].pct = (summary.allocations[assetIdx].value / (summary.totalValue - reduction)) * 100;
-        summary.totalValue -= reduction;
+    summary.missingPrices = Array.from(missingTickers);   // Apply changes (adjusted for 'type')
+        if (sandboxChanges.sell) {
+        // Prefer ticker match first
+        let groupIdx = summary.allocations.findIndex(a =>
+            a.tickers.includes(sandboxChanges.sell.ticker)
+        );
+        if (groupIdx === -1 && sandboxChanges.sell.asset) {
+            // Fallback to old type-based (for backward compatibility)
+            const fallbackIdx = summary.allocations.findIndex(a => a.type === sandboxChanges.sell.asset);
+            if (fallbackIdx > -1) groupIdx = fallbackIdx;
+        }
+        if (groupIdx > -1) {
+            const reduction = sandboxChanges.sell.amount * summary.allocations[groupIdx].value;
       }
     }
-    // Add more simulation logic (buys, rebalances) as needed
+    // TODO: Adjust performance for changes if needed
   }
 
   return summary;
@@ -124,8 +179,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
 export async function askGrok(query: string, isSandbox: boolean, prevSandboxState?: any) {
   const summary = await getPortfolioSummary(isSandbox, prevSandboxState?.changes);
 
-  const systemPrompt = `You are a financial advisor. Portfolio: ${JSON.stringify(summary)}. For what-if, suggest changes and simulate outcomes. Remind: Not professional advice. If query is scenario-based, output structured changes like {sell: {asset: 'BTC', amount: 0.5}} at end for simulation.`;
-
+const systemPrompt = `You are a financial advisor. Portfolio: ${JSON.stringify(summary)}. For what-if, suggest changes using ticker symbols and simulate outcomes. Remind: Not professional advice. If query is scenario-based, output structured changes like {sell: {ticker: 'FBTC', amount: 0.5}} at end for simulation. Note any missingPrices in your response.`;  
   const response = await fetch('https://api.x.ai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${grokApiKey}` },

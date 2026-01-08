@@ -62,7 +62,11 @@ export function ChatDrawer() {
     setLoading(false);
     setInput('');
   };
-
+useEffect(() => {
+  if (isOpen && messages[0]?.content.includes('Loading')) { // Only fetch once
+    useChatStore.getState().setWelcomeWithTotal();
+  }
+}, [isOpen, messages]);
   return (
     <>
       <Drawer open={isOpen} onOpenChange={toggleOpen}>
