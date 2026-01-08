@@ -7,6 +7,10 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const grokApiKey = process.env.GROK_API_KEY!;
 
+interface GlidePathItem {
+  age: number;
+  target_allocation: any; // Adjust type as needed based on actual data structure
+}
 
 export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: any) {
   const cookieStore = await cookies();
@@ -27,7 +31,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   // Fetch raw tax lots with join to assets for type/sub/ticker
   const { data: rawHoldingsData, error: holdingsError } = await supabase
     .from('tax_lots')
-    .select('assets!inner(asset_type, sub_portfolio, ticker), remaining_quantity, cost_basis_per_unit')
+    .select('assets(asset_type, sub_portfolio, ticker), remaining_quantity, cost_basis_per_unit')
     .eq('user_id', userId)
     .gt('remaining_quantity', 0); // Only unsold portions
 
@@ -44,7 +48,10 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   }
 
   // Get unique tickers and fetch latest prices
-  const tickers = [...new Set(rawHoldings.map(h => h.assets.ticker))];
+  const tickers = [...new Set(rawHoldings
+  .filter(h => h.assets)
+  .map(h => h.assets.ticker)
+)];
   const { data: rawPrices, error: pricesError } = await supabase
     .from('asset_prices')
     .select('ticker, price, timestamp')
@@ -66,7 +73,8 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   // Build tickersMap for allocations
   const tickersMap = new Map<string, Set<string>>();
   rawHoldings.forEach(h => {
-    const key = `${h.assets.asset_type}-${h.assets.sub_portfolio}`;
+  if (!h.assets) return; // Skip bad rows silently
+  const key = `${h.assets.asset_type}-${h.assets.sub_portfolio}`;
     if (!tickersMap.has(key)) {
       tickersMap.set(key, new Set());
     }
@@ -115,14 +123,14 @@ const returnPct = cost > 0 ? (unrealizedGain / cost) * 100 : 0; // Or 'N/A' if y
   });
 
   // Glide path
-  let glidePath: { age: number; target_allocation: any }[] = [];
+  let glidePath: GlidePathItem[] = [];
   try {
     const { data, error } = await supabase
       .from('glide_path')
       .select('age, target_allocation')
       .eq('user_id', userId)
       .order('age');
-    if (!error) glidePath = data || [];
+    if (!error && data) glidePath = data as GlidePathItem[];
   } catch (e) {
     // Table doesn't exist yet — safe to ignore
     glidePath = [];
@@ -167,8 +175,12 @@ allocations: allocations.map(a => ({ ...a, value: Math.round(a.value), pct: Math
             if (fallbackIdx > -1) groupIdx = fallbackIdx;
         }
         if (groupIdx > -1) {
-            const reduction = sandboxChanges.sell.amount * summary.allocations[groupIdx].value;
-      }
+  const reduction = sandboxChanges.sell.amount * summary.allocations[groupIdx].value;
+  summary.allocations[groupIdx].value -= reduction;
+  summary.allocations[groupIdx].pct = 
+    (summary.allocations[groupIdx].value / (summary.totalValue - reduction)) * 100;
+  summary.totalValue -= reduction;
+}
     }
     // TODO: Adjust performance for changes if needed
   }
