@@ -412,41 +412,61 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Account <span className="text-red-500">*</span></Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" role="combobox" className="w-full justify-between" disabled={disableSelects}>
-                          {selectedAccount ? `${selectedAccount.name} (${selectedAccount.type})` : 'Select account...'}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0">
-                        <Command>
-                          <CommandInput placeholder="Search accounts..." />
-                          <CommandList>
-                            <CommandEmpty>No accounts found.</CommandEmpty>
-                            <CommandGroup>
-                              {accounts.map((acc) => (
-                                <CommandItem
-                                  key={acc.id}
-                                  onSelect={() => setSelectedAccount(acc)}
-                                >
-                                  <Check className={cn("mr-2 h-4 w-4", selectedAccount?.id === acc.id ? "opacity-100" : "opacity-0")} />
-                                  {acc.name} ({acc.type})
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                            <form onSubmit={handleSubmit} className="space-y-6">
+                {/* 1. Type - now first */}
+                <div className="space-y-2">
+                  <Label>Type <span className="text-red-500">*</span></Label>
+                  <Select value={type} onValueChange={(v) => setType(v as typeof type)} disabled={disableSelects}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Buy">Buy</SelectItem>
+                      <SelectItem value="Sell">Sell</SelectItem>
+                      <SelectItem value="Dividend">Dividend</SelectItem>
+                      <SelectItem value="Deposit">Deposit</SelectItem>
+                      <SelectItem value="Withdrawal">Withdrawal</SelectItem>
+                      <SelectItem value="Interest">Interest</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
+                {/* 2. Account */}
+                <div className="space-y-2">
+                  <Label>Account <span className="text-red-500">*</span></Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" className="w-full justify-between" disabled={disableSelects}>
+                        {selectedAccount ? `${selectedAccount.name} (${selectedAccount.type})` : 'Select account...'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Search accounts..." />
+                        <CommandList>
+                          <CommandEmpty>No accounts found.</CommandEmpty>
+                          <CommandGroup>
+                            {accounts.map((acc) => (
+                              <CommandItem
+                                key={acc.id}
+                                onSelect={() => setSelectedAccount(acc)}
+                              >
+                                <Check className={cn("mr-2 h-4 w-4", selectedAccount?.id === acc.id ? "opacity-100" : "opacity-0")} />
+                                {acc.name} ({acc.type})
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* 3. Asset - conditional */}
+                {['Buy', 'Sell', 'Dividend'].includes(type) && (
                   <div className="space-y-2">
-                    <Label>Asset {['Buy', 'Sell', 'Dividend'].includes(type) && <span className="text-red-500">*</span>}</Label>
+                    <Label>Asset <span className="text-red-500">*</span></Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="outline" role="combobox" className="w-full justify-between" disabled={disableSelects}>
@@ -477,44 +497,26 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                       </PopoverContent>
                     </Popover>
                   </div>
-                </div>
+                )}
 
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Type <span className="text-red-500">*</span></Label>
-                    <Select value={type} onValueChange={(v) => setType(v as typeof type)} disabled={disableSelects}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Buy">Buy</SelectItem>
-                        <SelectItem value="Sell">Sell</SelectItem>
-                        <SelectItem value="Dividend">Dividend</SelectItem>
-                        <SelectItem value="Deposit">Deposit</SelectItem>
-                        <SelectItem value="Withdrawal">Withdrawal</SelectItem>
-                        <SelectItem value="Interest">Interest</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2 col-span-2">
-                    <Label>Date <span className="text-red-500">*</span></Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
-                          disabled={disableCriticalFields}
-                        >
-                          {date ? format(date, "PPP") : "Pick a date"}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                {/* 4. Date - moved down */}
+                <div className="space-y-2">
+                  <Label>Date <span className="text-red-500">*</span></Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
+                        disabled={disableCriticalFields}
+                      >
+                        {date ? format(date, "PPP") : "Pick a date"}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 {type === 'Buy' && (
