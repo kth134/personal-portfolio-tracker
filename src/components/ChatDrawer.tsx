@@ -14,11 +14,11 @@ export function ChatDrawer() {
   const [input, setInput] = useState('');
   const [showConsent, setShowConsent] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && !localStorage.getItem('grokConsent')) {
-      setShowConsent(true);
-    }
-  }, [isOpen]);
+useEffect(() => {
+  if (typeof window !== 'undefined' && isOpen && !localStorage.getItem('grokConsent')) {
+    setShowConsent(true);
+  }
+}, [isOpen]);
 
   const handleConsent = () => {
     localStorage.setItem('grokConsent', 'true');
