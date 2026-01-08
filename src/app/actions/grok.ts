@@ -264,7 +264,10 @@ body: JSON.stringify({
 tools: [
   {
     type: "live_search",
-    sources: ["web", "x"]  // ← NEW: Required field — enables full web + X search
+    sources: [
+      { type: "web" },
+      { type: "x" }
+    ]
   }
 ],
 tool_choice: "auto"
