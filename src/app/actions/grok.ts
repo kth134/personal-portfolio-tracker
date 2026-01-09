@@ -9,7 +9,7 @@ const grokApiKey = process.env.GROK_API_KEY!;
 
 interface GlidePathItem {
   age: number;
-  target_allocation: any; // Adjust type as needed based on actual data structure
+  target_allocation: any;
 }
 
 export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: any) {
@@ -28,30 +28,44 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   if (!user) throw new Error('Unauthorized');
   const userId = user.id;
 
-  // Fetch raw tax lots with join to assets for type/sub/ticker
+  // Updated query: Join sub_portfolios for name, objective, manager, target_allocation
   const { data: rawHoldingsData, error: holdingsError } = await supabase
     .from('tax_lots')
-    .select('assets(asset_type, sub_portfolio, ticker), remaining_quantity, cost_basis_per_unit')
+    .select(`
+      assets(
+        asset_type, 
+        sub_portfolio_id, 
+        ticker,
+        sub_portfolio:sub_portfolios(name, objective, manager, target_allocation)
+      ), 
+      remaining_quantity, 
+      cost_basis_per_unit
+    `)
     .eq('user_id', userId)
-    .gt('remaining_quantity', 0); // Only unsold portions
+    .gt('remaining_quantity', 0);
 
   if (holdingsError) throw holdingsError;
 
   const rawHoldings = rawHoldingsData as unknown as {
-    assets: { asset_type: string; sub_portfolio: string; ticker: string };
+    assets: {
+      asset_type: string;
+      sub_portfolio_id: string | null;
+      ticker: string;
+      sub_portfolio: { name: string; objective?: string; manager?: string; target_allocation?: number } | null;
+    };
     remaining_quantity: number;
     cost_basis_per_unit: number;
   }[];
 
   if (rawHoldings.length === 0) {
-    return { totalValue: 0, allocations: [], performance: [], recentTransactions: [], missingPrices: [] }; // Early return if no holdings
+    return { totalValue: 0, allocations: [], performance: [], recentTransactions: [], missingPrices: [] };
   }
 
   // Get unique tickers and fetch latest prices
   const tickers = [...new Set(rawHoldings
-  .filter(h => h.assets)
-  .map(h => h.assets.ticker)
-)];
+    .filter(h => h.assets)
+    .map(h => h.assets.ticker)
+  )];
   const { data: rawPrices, error: pricesError } = await supabase
     .from('asset_prices')
     .select('ticker, price, timestamp')
@@ -60,7 +74,6 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     .order('timestamp', { ascending: false });
   if (pricesError) throw pricesError;
 
-  // Map to latest price per ticker (first per group since ordered desc timestamp)
   const latestPrices = new Map<string, number>();
   rawPrices.forEach(p => {
     if (!latestPrices.has(p.ticker)) {
@@ -70,61 +83,72 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
 
   const missingTickers = new Set(tickers.filter(t => !latestPrices.has(t)));
 
-  // Build tickersMap for allocations
+  // Build tickersMap for allocations (still useful for ticker lists per group)
   const tickersMap = new Map<string, Set<string>>();
   rawHoldings.forEach(h => {
-  if (!h.assets) return; // Skip bad rows silently
-  const key = `${h.assets.asset_type}-${h.assets.sub_portfolio}`;
+    if (!h.assets) return;
+    const subName = h.assets.sub_portfolio?.name || 'Untagged';
+    const key = `${h.assets.asset_type}-${subName}`;
     if (!tickersMap.has(key)) {
       tickersMap.set(key, new Set());
     }
     tickersMap.get(key)!.add(h.assets.ticker);
   });
 
-// Aggregate holdings and performance
-const holdingsMap = new Map<string, number>(); // Current values
-const performanceMap = new Map<string, number>(); // Unrealized gains
-const costMap = new Map<string, number>(); // Total costs for % return
+  // Aggregate holdings and performance
+  const holdingsMap = new Map<string, number>(); // Current values
+  const performanceMap = new Map<string, number>(); // Unrealized gains
+  const costMap = new Map<string, number>(); // Total costs for % return
 
-rawHoldings.forEach(h => {
-  if (!h.assets) return; // Critical guard — skip if no linked asset
+  rawHoldings.forEach(h => {
+    if (!h.assets) return;
 
-  const key = `${h.assets.asset_type}-${h.assets.sub_portfolio}`;
-  const currentPrice = latestPrices.get(h.assets.ticker) || 0;
-  const currentValue = h.remaining_quantity * currentPrice;
-  const totalCost = h.cost_basis_per_unit * h.remaining_quantity;
-  const unrealizedGain = currentValue - totalCost;
+    const subName = h.assets.sub_portfolio?.name || 'Untagged';
+    const key = `${h.assets.asset_type}-${subName}`;
+    const currentPrice = latestPrices.get(h.assets.ticker) || 0;
+    const currentValue = h.remaining_quantity * currentPrice;
+    const totalCost = h.cost_basis_per_unit * h.remaining_quantity;
+    const unrealizedGain = currentValue - totalCost;
 
-  holdingsMap.set(key, (holdingsMap.get(key) || 0) + currentValue);
-  performanceMap.set(key, (performanceMap.get(key) || 0) + unrealizedGain);
-  costMap.set(key, (costMap.get(key) || 0) + totalCost);
-});
+    holdingsMap.set(key, (holdingsMap.get(key) || 0) + currentValue);
+    performanceMap.set(key, (performanceMap.get(key) || 0) + unrealizedGain);
+    costMap.set(key, (costMap.get(key) || 0) + totalCost);
+  });
 
-// Holdings array
-const holdings = Array.from(holdingsMap.entries()).map(([key, value]) => {
-  const [assetType, subPortfolio] = key.split('-');
-  return { asset_type: assetType, sub_portfolio: subPortfolio, value };
-});
+  // Holdings array
+  const holdings = Array.from(holdingsMap.entries()).map(([key, value]) => {
+    const [assetType, subName] = key.split('-', 2); // safe split
+    return { asset_type: assetType, sub_name: subName, value };
+  });
 
   const totalValue = holdings.reduce((sum, h) => sum + h.value, 0);
 
-  // Allocations
-const allocations = holdings.map(h => ({  
-  type: h.asset_type,  
-  sub: h.sub_portfolio,  
-  pct: totalValue > 0 ? (h.value / totalValue) * 100 : 0,  
-  value: h.value,  
-  tickers: Array.from(tickersMap.get(`${h.asset_type}-${h.sub_portfolio}`) || [])  
-}));  
+  // Allocations – now enriched with sub-portfolio metadata
+  const allocations = holdings.map(h => {
+    const subPortfolio = rawHoldings
+      .find(rh => rh.assets?.sub_portfolio?.name === h.sub_name)?.assets?.sub_portfolio || null;
+
+    return {
+      type: h.asset_type,
+      sub: h.sub_name,
+      pct: totalValue > 0 ? (h.value / totalValue) * 100 : 0,
+      value: h.value,
+      tickers: Array.from(tickersMap.get(`${h.asset_type}-${h.sub_name}`) || []),
+      objective: subPortfolio?.objective || null,
+      manager: subPortfolio?.manager || null,
+      target_allocation: subPortfolio?.target_allocation || null
+    };
+  });
 
   // Performance with % return
   const performance = Array.from(performanceMap.entries()).map(([key, unrealizedGain]) => {
-    const [assetType, subPortfolio] = key.split('-');
+    const [assetType, subName] = key.split('-', 2);
     const cost = costMap.get(key) || 0;
-const returnPct = cost > 0 ? (unrealizedGain / cost) * 100 : 0; // Or 'N/A' if you prefer string      return { type: assetType, sub: subPortfolio, unrealizedGain, return: returnPct };
+    const returnPct = cost > 0 ? (unrealizedGain / cost) * 100 : 0;
+    return { type: assetType, sub: subName, unrealizedGain, return: returnPct };
   });
 
-  // Glide path
+  // Glide path (unchanged)
   let glidePath: GlidePathItem[] = [];
   try {
     const { data, error } = await supabase
@@ -134,67 +158,65 @@ const returnPct = cost > 0 ? (unrealizedGain / cost) * 100 : 0; // Or 'N/A' if y
       .order('age');
     if (!error && data) glidePath = data as GlidePathItem[];
   } catch (e) {
-    // Table doesn't exist yet — safe to ignore
     glidePath = [];
   }
 
   // Recent transactions (unchanged)
-  const { data: rawTransactions, error: txError } = await supabase  
-  .from('transactions')  
-  .select('type, date') // Add date for context  
-  .eq('user_id', userId)  
-  .gte('date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())  
-  .order('date', { ascending: false })  
-  .limit(10);  
+  const { data: rawTransactions, error: txError } = await supabase
+    .from('transactions')
+    .select('type, date')
+    .eq('user_id', userId)
+    .gte('date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+    .order('date', { ascending: false })
+    .limit(10);
   if (txError) throw txError;
 
-  const transactionCounts = new Map<string, number>();
-  rawTransactions.forEach(tx => {
-    const count = transactionCounts.get(tx.type) || 0;
-    transactionCounts.set(tx.type, count + 1);
-  });
-const transactions = rawTransactions.map(tx => ({ type: tx.type, date: tx.date }));  
+  const transactions = rawTransactions.map(tx => ({ type: tx.type, date: tx.date }));
+
   let summary = {
-totalValue: Math.round(totalValue / 1000) * 1000, // Nearest $1k  
-allocations: allocations.map(a => ({ ...a, value: Math.round(a.value), pct: Math.round(a.pct * 10) / 10 })), // 1 decimal pct  
+    totalValue: Math.round(totalValue / 1000) * 1000,
+    allocations: allocations.map(a => ({
+      ...a,
+      value: Math.round(a.value),
+      pct: Math.round(a.pct * 10) / 10
+    })),
     performance,
     glidePath,
     recentTransactions: transactions,
     missingPrices: Array.from(missingTickers),
   };
 
+  // Sandbox handling (unchanged – still uses ticker or old asset fallback)
   if (isSandbox && sandboxChanges) {
-    summary = JSON.parse(JSON.stringify(summary)); // Deep copy
-        if (sandboxChanges.sell) {
-        // Prefer ticker match first
-        let groupIdx = summary.allocations.findIndex(a =>
-            a.tickers.includes(sandboxChanges.sell.ticker)
-        );
-        if (groupIdx === -1 && sandboxChanges.sell.asset) {
-            // Fallback to old type-based (for backward compatibility)
-            const fallbackIdx = summary.allocations.findIndex(a => a.type === sandboxChanges.sell.asset);
-            if (fallbackIdx > -1) groupIdx = fallbackIdx;
-        }
-        if (groupIdx > -1) {
-               const reduction = sandboxChanges.sell.amount * summary.allocations[groupIdx].value;
-                summary.allocations[groupIdx].value -= reduction;
-                summary.allocations[groupIdx].pct = 
-                (summary.allocations[groupIdx].value / (summary.totalValue - reduction)) * 100;
-                summary.totalValue -= reduction;
-}
+    summary = JSON.parse(JSON.stringify(summary));
+    if (sandboxChanges.sell) {
+      let groupIdx = summary.allocations.findIndex(a =>
+        a.tickers.includes(sandboxChanges.sell.ticker)
+      );
+      if (groupIdx === -1 && sandboxChanges.sell.asset) {
+        const fallbackIdx = summary.allocations.findIndex(a => a.type === sandboxChanges.sell.asset);
+        if (fallbackIdx > -1) groupIdx = fallbackIdx;
+      }
+      if (groupIdx > -1) {
+        const reduction = sandboxChanges.sell.amount * summary.allocations[groupIdx].value;
+        summary.allocations[groupIdx].value -= reduction;
+        summary.allocations[groupIdx].pct =
+          (summary.allocations[groupIdx].value / (summary.totalValue - reduction)) * 100;
+        summary.totalValue -= reduction;
+      }
     }
-    // TODO: Adjust performance for changes if needed
   }
 
-  // Apply consistent privacy rounding to both real and sandbox summaries
+  // Final rounding
   summary.totalValue = Math.round(summary.totalValue / 1000) * 1000;
   summary.allocations = summary.allocations.map(a => ({
     ...a,
     value: Math.round(a.value),
-    pct: Math.round(a.pct * 10) / 10  // One decimal place
+    pct: Math.round(a.pct * 10) / 10
   }));
 
-  return summary;}
+  return summary;
+}
 
 export async function askGrok(query: string, isSandbox: boolean, prevSandboxState?: any) {
   const cookieStore = await cookies();
@@ -272,186 +294,182 @@ Respond conversationally but professionally—no fluff.`;
     { role: "system", content: systemPrompt },
     { role: "user", content: query }
   ];
-try {
-  while (true) {
-    const response = await fetch('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${grokApiKey}` },
-      body: JSON.stringify({
-        model: "grok-4-1-fast-reasoning",
-        messages,
-        temperature: 0.6,
-        max_tokens: 1000,
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "web_search",
-              description: "Search the web for current news, market data, prices, sentiment, or any time-sensitive information. Use this for X/Twitter info as well by including 'site:x.com' in the query if needed.",
-              parameters: {
-                type: "object",
-                properties: {
-                  query: { type: "string", description: "The detailed search query. Be specific." }
-                },
-                required: ["query"]
+
+  try {
+    while (true) {
+      const response = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${grokApiKey}` },
+        body: JSON.stringify({
+          model: "grok-4-1-fast-reasoning",
+          messages,
+          temperature: 0.6,
+          max_tokens: 1000,
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "web_search",
+                description: "Search the web for current news, market data, prices, sentiment, or any time-sensitive information. Use this for X/Twitter info as well by including 'site:x.com' in the query if needed.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    query: { type: "string", description: "The detailed search query. Be specific." }
+                  },
+                  required: ["query"]
+                }
               }
             }
-          }
-        ],
-        tool_choice: "auto"
-      }),
-    });
+          ],
+          tool_choice: "auto"
+        }),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Grok API request failed: Status ${response.status}, Response: ${errorText}`);
-      throw new Error(`Grok API error: ${response.status} - ${errorText}`);
-    }
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Grok API request failed: Status ${response.status}, Response: ${errorText}`);
+        throw new Error(`Grok API error: ${response.status} - ${errorText}`);
+      }
 
-    const data = await response.json();
-    if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-      console.error(`Invalid Grok API response: ${JSON.stringify(data)}`);
-      throw new Error('No valid choices in Grok API response');
-    }
+      const data = await response.json();
+      if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+        console.error(`Invalid Grok API response: ${JSON.stringify(data)}`);
+        throw new Error('No valid choices in Grok API response');
+      }
 
-    const message = data.choices[0].message;
-    messages.push(message);
+      const message = data.choices[0].message;
+      messages.push(message);
 
-    if (!message.tool_calls) {
-      // Final response
-      const content = message.content;
-      let changes = null;
-      if (isSandbox) {
-        const changeMatch = content.match(/\{.*\}/s);
-        if (changeMatch) {
-          try {
-            changes = JSON.parse(changeMatch[0]);
-          } catch (parseError) {
-            console.error(`Failed to parse changes: ${changeMatch[0]}`, parseError);
+      if (!message.tool_calls) {
+        const content = message.content;
+        let changes = null;
+        if (isSandbox) {
+          const changeMatch = content.match(/\{.*\}/s);
+          if (changeMatch) {
+            try {
+              changes = JSON.parse(changeMatch[0]);
+            } catch (parseError) {
+              console.error(`Failed to parse changes: ${changeMatch[0]}`, parseError);
+            }
           }
         }
-      }
-      return { content, changes };
-    }
-
-    // Handle tool calls
-    for (const toolCall of message.tool_calls) {
-      const func = toolCall.function;
-      console.log('Tool call received:', func.name, 'arguments:', func.arguments); // Log for debug
-      let args: { query?: string } = {};
-      try {
-        args = func.arguments ? JSON.parse(func.arguments) : {};
-      } catch (parseError) {
-        console.error('Failed to parse tool arguments:', parseError, 'Raw:', func.arguments);
-        messages.push({
-          role: "tool",
-          tool_call_id: toolCall.id,
-          name: func.name,
-          content: 'Error: Invalid arguments provided.'
-        });
-        continue;
+        return { content, changes };
       }
 
-     if (func.name === "web_search") {
-  if (!args.query) {
-    messages.push({
-      role: "tool",
-      tool_call_id: toolCall.id,
-      name: func.name,
-      content: 'Error: No query provided for search.'
-    });
-    continue;
-  }
+      // Tool handling (web_search) – unchanged
+      for (const toolCall of message.tool_calls) {
+        const func = toolCall.function;
+        console.log('Tool call received:', func.name, 'arguments:', func.arguments);
+        let args: { query?: string } = {};
+        try {
+          args = func.arguments ? JSON.parse(func.arguments) : {};
+        } catch (parseError) {
+          console.error('Failed to parse tool arguments:', parseError, 'Raw:', func.arguments);
+          messages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            name: func.name,
+            content: 'Error: Invalid arguments provided.'
+          });
+          continue;
+        }
 
-  const serperApiKey = process.env.SERPER_API_KEY;
-  if (!serperApiKey) {
-    throw new Error('SERPER_API_KEY not set in environment.');
-  }
+        if (func.name === "web_search") {
+          if (!args.query) {
+            messages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              name: func.name,
+              content: 'Error: No query provided for search.'
+            });
+            continue;
+          }
 
-  // === Caching logic (10-minute TTL) ===
-  const cacheTime = 10 * 60 * 1000; // 10 minutes
-  let result = '';
-  const { data: cacheData, error: cacheError } = await supabase
-    .from('search_cache')
-    .select('result, updated_at')
-    .eq('query', args.query)
-    .single();
+          const serperApiKey = process.env.SERPER_API_KEY;
+          if (!serperApiKey) {
+            throw new Error('SERPER_API_KEY not set in environment.');
+          }
 
-  if (cacheError && cacheError.code !== 'PGRST116') { // PGRST116 = no rows
-    console.error('Cache query error:', cacheError);
-  }
+          // Caching logic (10-minute TTL)
+          const cacheTime = 10 * 60 * 1000;
+          let result = '';
+          const { data: cacheData, error: cacheError } = await supabase
+            .from('search_cache')
+            .select('result, updated_at')
+            .eq('query', args.query)
+            .single();
 
-  if (cacheData) {
-    const age = Date.now() - new Date(cacheData.updated_at).getTime();
-    if (age < cacheTime) {
-      result = cacheData.result;
-      console.log(`Serper cache hit: ${args.query}`);
+          if (cacheError && cacheError.code !== 'PGRST116') {
+            console.error('Cache query error:', cacheError);
+          }
+
+          if (cacheData) {
+            const age = Date.now() - new Date(cacheData.updated_at).getTime();
+            if (age < cacheTime) {
+              result = cacheData.result;
+              console.log(`Serper cache hit: ${args.query}`);
+            }
+          }
+
+          if (!result) {
+            console.log(`Serper cache miss: ${args.query}`);
+            const searchRes = await fetch('https://google.serper.dev/search', {
+              method: 'POST',
+              headers: {
+                'X-API-KEY': serperApiKey,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ q: args.query })
+            });
+
+            if (!searchRes.ok) {
+              const errorText = await searchRes.text();
+              console.error(`Serper API error: ${searchRes.status} - ${errorText}`);
+              messages.push({
+                role: "tool",
+                tool_call_id: toolCall.id,
+                name: func.name,
+                content: `Error: Search failed - ${errorText}`
+              });
+              continue;
+            }
+
+            const data = await searchRes.json();
+
+            if (data.organic && data.organic.length > 0) {
+              result += 'Results:\n';
+              data.organic.slice(0, 8).forEach((item: any) => {
+                result += `- ${item.title}: ${item.snippet} (${item.link})\n`;
+              });
+            } else {
+              result = 'No results found.';
+            }
+
+            const { error: upsertError } = await supabase
+              .from('search_cache')
+              .upsert(
+                {
+                  query: args.query,
+                  result,
+                  updated_at: new Date().toISOString()
+                },
+                { onConflict: 'query' }
+              );
+
+            if (upsertError) console.error('Cache upsert error:', upsertError);
+          }
+
+          messages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            name: func.name,
+            content: result
+          });
+        }
+      }
     }
+  } catch (error) {
+    console.error('Error in askGrok:', error);
+    throw error;
   }
-
-  // === If no fresh cache, call Serper ===
-  if (!result) {
-    console.log(`Serper cache miss: ${args.query}`);
-    const searchRes = await fetch('https://google.serper.dev/search', {
-      method: 'POST',
-      headers: {
-        'X-API-KEY': serperApiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ q: args.query })
-    });
-
-    if (!searchRes.ok) {
-      const errorText = await searchRes.text();
-      console.error(`Serper API error: ${searchRes.status} - ${errorText}`);
-      messages.push({
-        role: "tool",
-        tool_call_id: toolCall.id,
-        name: func.name,
-        content: `Error: Search failed - ${errorText}`
-      });
-      continue;
-    }
-
-    const data = await searchRes.json();
-
-    // Build clean result string
-    if (data.organic && data.organic.length > 0) {
-      result += 'Results:\n';
-      data.organic.slice(0, 8).forEach((item: any) => {
-        result += `- ${item.title}: ${item.snippet} (${item.link})\n`;
-      });
-    } else {
-      result = 'No results found.';
-    }
-
-    // Cache the result
-const { error: upsertError } = await supabase
-  .from('search_cache')
-  .upsert(
-    {
-      query: args.query,
-      result,
-      updated_at: new Date().toISOString()
-    },
-    { onConflict: 'query' }  // ← Add this
-  );
-
-    if (upsertError) console.error('Cache upsert error:', upsertError);
-  }
-
-  messages.push({
-    role: "tool",
-    tool_call_id: toolCall.id,
-    name: func.name,
-    content: result
-  });
-    }
-  }
-} // ← Closes the while(true)
-} // ← Closes the try
-catch (error) {
-  console.error('Error in askGrok:', error);
-  throw error;
-}
 }

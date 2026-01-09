@@ -17,7 +17,7 @@ type Asset = {
   id: string; 
   ticker: string; 
   name?: string; 
-  sub_portfolio: string; 
+  sub_portfolio_id: string | null; 
   notes?: string;
   asset_type?: string;
   asset_subtype?: string;
@@ -33,7 +33,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
   const [form, setForm] = useState({ 
     ticker: '', 
     name: '', 
-    sub_portfolio: '', 
+    sub_portfolio_id: '', 
     notes: '',
     asset_type: '',
     asset_subtype: '',
@@ -46,16 +46,21 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
   const [sortColumn, setSortColumn] = useState<keyof Asset | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
-  // Keep creatable logic only for sub_portfolio
-  const [subPortfolios, setSubPortfolios] = useState<string[]>([])
+  // Sub-portfolios: id-name pairs
+  const [subPortfolios, setSubPortfolios] = useState<{ id: string; name: string }[]>([])
+  const [subMap, setSubMap] = useState<Map<string, string>>(new Map())
   const [subPortfolioPopoverOpen, setSubPortfolioPopoverOpen] = useState(false)
 
-  // Fetch unique existing sub-portfolios on mount
+  // Fetch sub-portfolios on mount
   useEffect(() => {
     const fetchOptions = async () => {
-      const { data } = await supabaseClient.from('assets').select('sub_portfolio')
-      const uniqueSubPortfolios = [...new Set(data?.map((a: any) => a.sub_portfolio).filter(Boolean))] as string[]
-      setSubPortfolios(uniqueSubPortfolios)
+      const { data } = await supabaseClient.from('sub_portfolios').select('id, name')
+      if (data) {
+        setSubPortfolios(data)
+        const newMap = new Map<string, string>()
+        data.forEach((sp) => newMap.set(sp.id, sp.name))
+        setSubMap(newMap)
+      }
     }
     fetchOptions()
   }, [])
@@ -66,7 +71,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
       setForm({
         ticker: editingAsset.ticker,
         name: editingAsset.name || '',
-        sub_portfolio: editingAsset.sub_portfolio,
+        sub_portfolio_id: editingAsset.sub_portfolio_id || '',
         notes: editingAsset.notes || '',
         asset_type: editingAsset.asset_type || '',
         asset_subtype: editingAsset.asset_subtype || '',
@@ -89,8 +94,12 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
 
   const sortedAssets = [...assets].sort((a, b) => {
     if (!sortColumn) return 0
-    const aVal = a[sortColumn] ?? ''
-    const bVal = b[sortColumn] ?? ''
+    let aVal = a[sortColumn] ?? ''
+    let bVal = b[sortColumn] ?? ''
+    if (sortColumn === 'sub_portfolio_id') {
+      aVal = subMap.get(a.sub_portfolio_id || '') || ''
+      bVal = subMap.get(b.sub_portfolio_id || '') || ''
+    }
     if (typeof aVal === 'string' && typeof bVal === 'string') {
       return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
     }
@@ -108,21 +117,18 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
       ({ data, error } = await supabaseClient.from('assets').insert({ ...form }).select())
     }
     if (!error && data) {
-      if (editingAsset) {
-        setAssets(assets.map(a => a.id === editingAsset.id ? data[0] : a))
-      } else {
-        setAssets([...assets, data[0]])
+      // Refetch assets to update list
+      const { data: refreshedAssets } = await supabaseClient.from('assets').select('*')
+      if (refreshedAssets) {
+        setAssets(refreshedAssets)
       }
-      // Refresh sub_portfolio list if new value added
-      if (form.sub_portfolio && !subPortfolios.includes(form.sub_portfolio)) {
-        setSubPortfolios([...subPortfolios, form.sub_portfolio])
-      }
+      // No need to refresh sub_portfolios here; handled in create flow
       setOpen(false)
       setEditingAsset(null)
       setForm({ 
         ticker: '', 
         name: '', 
-        sub_portfolio: '', 
+        sub_portfolio_id: '', 
         notes: '',
         asset_type: '',
         asset_subtype: '',
@@ -170,7 +176,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
               <Popover open={subPortfolioPopoverOpen} onOpenChange={setSubPortfolioPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" role="combobox" className="w-full justify-between">
-                    {form.sub_portfolio || "Select or add sub-portfolio"}
+                    {subMap.get(form.sub_portfolio_id) || "Select or add sub-portfolio"}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
@@ -178,13 +184,16 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
                   <Command>
                     <CommandInput 
                       placeholder="Search or add sub-portfolio..." 
-                      onKeyDown={(e) => {
+                      onKeyDown={async (e) => {
                         if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                          const newSub = e.currentTarget.value.trim()
-                          if (!subPortfolios.includes(newSub)) {
-                            setSubPortfolios([...subPortfolios, newSub])
+                          const newName = e.currentTarget.value.trim()
+                          const { data, error } = await supabaseClient.from('sub_portfolios').insert({ name: newName }).select('id, name')
+                          if (!error && data) {
+                            const newSp = data[0]
+                            setSubPortfolios([...subPortfolios, newSp])
+                            setSubMap(new Map(subMap).set(newSp.id, newSp.name))
+                            setForm({ ...form, sub_portfolio_id: newSp.id })
                           }
-                          setForm({ ...form, sub_portfolio: newSub })
                           setSubPortfolioPopoverOpen(false)
                         }
                       }}
@@ -194,16 +203,16 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
                         {subPortfolios.length === 0 ? "Type to create new" : "No match — press Enter to create"}
                       </CommandEmpty>
                       <CommandGroup>
-                        {subPortfolios.map(sub => (
+                        {subPortfolios.map(sp => (
                           <CommandItem 
-                            key={sub} 
+                            key={sp.id} 
                             onSelect={() => {
-                              setForm({ ...form, sub_portfolio: sub })
+                              setForm({ ...form, sub_portfolio_id: sp.id })
                               setSubPortfolioPopoverOpen(false)
                             }}
                           >
-                            <Check className={cn("mr-2 h-4 w-4", form.sub_portfolio === sub ? "opacity-100" : "opacity-0")} />
-                            {sub}
+                            <Check className={cn("mr-2 h-4 w-4", form.sub_portfolio_id === sp.id ? "opacity-100" : "opacity-0")} />
+                            {sp.name}
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -298,7 +307,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
             <TableHead className="cursor-pointer" onClick={() => handleSort('name')}>
               Name <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('sub_portfolio')}>
+            <TableHead className="cursor-pointer" onClick={() => handleSort('sub_portfolio_id')}>
               Sub-Portfolio <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
             <TableHead className="cursor-pointer" onClick={() => handleSort('asset_type')}>
@@ -327,7 +336,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
             <TableRow key={asset.id}>
               <TableCell>{asset.ticker}</TableCell>
               <TableCell>{asset.name || '-'}</TableCell>
-              <TableCell>{asset.sub_portfolio}</TableCell>
+              <TableCell>{subMap.get(asset.sub_portfolio_id || '') || '-'}</TableCell>
               <TableCell>{asset.asset_type || '-'}</TableCell>
               <TableCell>{asset.asset_subtype || '-'}</TableCell>
               <TableCell>{asset.geography || '-'}</TableCell>

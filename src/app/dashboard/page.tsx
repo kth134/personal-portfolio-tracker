@@ -1,302 +1,273 @@
-// app/dashboard/page.tsx
-'use client';
+import { supabaseServer } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import AccountsList from '@/components/AccountsList'
+import AssetsList from '@/components/AssetsList'
+import PortfolioHoldingsClient from './portfolio/PortfolioHoldingsClient'
 
-import { useEffect, useState } from 'react';
-import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
-  LineChart, Line, XAxis, YAxis, CartesianGrid
-} from 'recharts';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatUSD } from '@/lib/formatters';
-import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
+// Updated types to reflect new schema
+type AssetDetail = {
+  ticker: string
+  name: string | null
+  asset_subtype: string | null
+  sub_portfolio_id: string | null
+  sub_portfolio: { name: string } | null
+}
+type TaxLot = {
+  asset_id: string
+  account_id: string
+  remaining_quantity: number
+  cost_basis_per_unit: number
+  asset: AssetDetail
+}
+type Holding = {
+  asset_id: string
+  ticker: string
+  name: string | null
+  total_quantity: number
+  total_basis: number
+  current_price?: number
+  current_value?: number
+  unrealized_gain: number
+}
+type GroupedHolding = {
+  key: string // account name or sub_portfolio name
+  holdings: Holding[]
+  total_basis: number
+  total_value: number
+  unrealized_gain: number
+}
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
-const BENCHMARK_COLORS: Record<string, string> = {
-  SPX: '#10b981',
-  IXIC: '#f59e0b',
-  BTCUSD: '#f97316'
-};
+export default async function PortfolioPage() {
+  const supabase = await supabaseServer()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/')
 
-export default function DashboardHome() {
-  const [lens, setLens] = useState('sub_portfolio');
-  const [period, setPeriod] = useState('1Y');
-  const [metricType, setMetricType] = useState<'twr' | 'mwr'>('mwr');
-  const [allocations, setAllocations] = useState<any[]>([]);
-  const [performance, setPerformance] = useState<any>(null);
-  const [drillItems, setDrillItems] = useState<any[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
-const [error, setError] = useState<string | null>(null);
-  // Fetch data on filter change
-  useEffect(() => {
-    const fetchData = async () => {
-      const [allocRes, perfRes] = await Promise.all([
-        fetch('/api/allocations', {
-          method: 'POST',
-          body: JSON.stringify({ lens })
-        }),
-        fetch('/api/performance', {
-          method: 'POST',
-          body: JSON.stringify({ period, lens, metricType })
+  // Updated query: Join sub_portfolios to get name for grouping/display
+  const [lotsRes, accountsRes, assetsRes, transactionsRes] = await Promise.all([
+    supabase
+      .from('tax_lots')
+      .select(`
+        asset_id, 
+        account_id, 
+        remaining_quantity, 
+        cost_basis_per_unit, 
+        asset:assets (
+          ticker, 
+          name, 
+          asset_subtype, 
+          sub_portfolio_id,
+          sub_portfolio:sub_portfolios (name)
+        )
+      `)
+      .gt('remaining_quantity', 0)
+      .eq('user_id', user.id),
+    supabase.from('accounts').select('*').eq('user_id', user.id),
+    supabase.from('assets').select('*').eq('user_id', user.id),
+    supabase.from('transactions').select('*').eq('user_id', user.id)
+  ])
+
+  const lots = lotsRes.data as TaxLot[] | null
+  const initialAccounts = accountsRes.data || []
+  const initialAssets = assetsRes.data || []
+  const transactions = transactionsRes.data || []
+
+  // Compute cash balances per account (unchanged)
+  const cashBalances = new Map<string, number>()
+  transactions.forEach(tx => {
+    if (!tx.account_id) return
+    const current = cashBalances.get(tx.account_id) || 0
+    let delta = Number(tx.amount || 0)
+    if (tx.type === 'Buy' && tx.funding_source === 'cash') delta = -Math.abs(Number(tx.amount || 0))
+    cashBalances.set(tx.account_id, current + delta)
+  })
+  const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
+
+  // Fetch latest prices (unchanged)
+  const uniqueTickers = new Set(lots?.map(lot => lot.asset.ticker) || [])
+  const { data: pricesList } = await supabase
+    .from('asset_prices')
+    .select('ticker, price, timestamp')
+    .in('ticker', Array.from(uniqueTickers))
+    .order('timestamp', { ascending: false })
+
+  const latestPrices = new Map<string, number>()
+  pricesList?.forEach(p => {
+    if (!latestPrices.has(p.ticker)) {
+      latestPrices.set(p.ticker, p.price)
+    }
+  })
+
+  // Process holdings (unchanged logic)
+  const holdingsMap = new Map<string, Holding>()
+  let investedTotalBasis = 0
+  let investedCurrentValue = 0
+  if (lots) {
+    for (const lot of lots) {
+      const key = lot.asset_id
+      const qty = Number(lot.remaining_quantity)
+      const basisPer = Number(lot.cost_basis_per_unit)
+      const basisThisLot = qty * basisPer
+      investedTotalBasis += basisThisLot
+
+      const assetDetail = lot.asset
+      const currentPrice = latestPrices.get(assetDetail.ticker) || 0
+      const valueThisLot = qty * currentPrice
+
+      if (holdingsMap.has(key)) {
+        const existing = holdingsMap.get(key)!
+        existing.total_quantity += qty
+        existing.total_basis += basisThisLot
+        existing.current_value = (existing.current_value || 0) + valueThisLot
+      } else {
+        holdingsMap.set(key, {
+          asset_id: key,
+          ticker: assetDetail.ticker,
+          name: assetDetail.name,
+          total_quantity: qty,
+          total_basis: basisThisLot,
+          current_price: currentPrice,
+          current_value: valueThisLot,
+          unrealized_gain: valueThisLot - basisThisLot,
         })
-      ]);
-      const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [allocRes, perfRes] = await Promise.all([
-          fetch('/api/allocations', { method: 'POST', body: JSON.stringify({ lens }) }),
-          fetch('/api/performance', { method: 'POST', body: JSON.stringify({ period, lens, metricType }) })
-        ]);
-
-        if (!allocRes.ok) throw new Error(`Allocations API failed: ${allocRes.status}`);
-        if (!perfRes.ok) throw new Error(`Performance API failed: ${perfRes.status}`);
-
-        const allocData = await allocRes.json();
-        console.log('Allocations response:', allocData); // Log
-        setAllocations(allocData.allocations || []);
-
-        const perfData = await perfRes.json();
-        console.log('Performance response:', perfData); // Log
-        setPerformance(perfData);
-
-      } catch (err) {
-        setError((err as Error).message);
-        console.error('Fetch error:', err);
-      } finally {
-        setLoading(false);
       }
-    };
-      const allocData = await allocRes.json();
-      setAllocations(allocData.allocations || []);
+      investedCurrentValue += valueThisLot
+    }
+  }
+  const investedHoldings: Holding[] = Array.from(holdingsMap.values()).map(h => ({
+    ...h,
+    unrealized_gain: (h.current_value || 0) - h.total_basis,
+  }))
+  const grandTotalBasis = investedTotalBasis + totalCash
+  const grandTotalValue = investedCurrentValue + totalCash
+  const overallUnrealized = grandTotalValue - grandTotalBasis
 
-      const perfData = await perfRes.json();
-      setPerformance(perfData);
-    };
+  // Precompute grouped data (updated to use sub_portfolio.name)
+  const accountMap = new Map(initialAccounts.map(a => [a.id, a.name]))
+  const groupedByAccount: GroupedHolding[] = []
+  const groupedBySubPortfolio: GroupedHolding[] = []
+  if (lots) {
+    const accHoldings = new Map<string, { holdings: Map<string, Holding>, total_basis: number, total_value: number }>()
+    const subHoldings = new Map<string, { holdings: Map<string, Holding>, total_basis: number, total_value: number }>()
 
-    fetchData();
-  }, [lens, period, metricType]);
+    for (const lot of lots) {
+      const assetKey = lot.asset_id
+      const accKey = accountMap.get(lot.account_id) || 'Unknown'
+      const subKey = lot.asset.sub_portfolio?.name || 'Untagged'
+      const qty = Number(lot.remaining_quantity)
+      const basisThis = qty * Number(lot.cost_basis_per_unit)
+      const currentPrice = latestPrices.get(lot.asset.ticker) || 0
+      const valueThis = qty * currentPrice
 
-  const handleRefreshPrices = async () => {
-    setRefreshing(true);
-    await refreshAssetPrices();
-    window.location.reload(); // Simple full refresh – keeps it reliable
-    setRefreshing(false);
-  };
+      // Group by account (unchanged)
+      if (!accHoldings.has(accKey)) accHoldings.set(accKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
+      const accGroup = accHoldings.get(accKey)!
+      if (!accGroup.holdings.has(assetKey)) {
+        accGroup.holdings.set(assetKey, {
+          asset_id: assetKey,
+          ticker: lot.asset.ticker,
+          name: lot.asset.name,
+          total_quantity: 0,
+          total_basis: 0,
+          current_price: currentPrice,
+          current_value: 0,
+          unrealized_gain: 0,
+        })
+      }
+      const accAsset = accGroup.holdings.get(assetKey)!
+      accAsset.total_quantity += qty
+      accAsset.total_basis += basisThis
+      accAsset.current_value! += valueThis
+      accAsset.unrealized_gain = accAsset.current_value! - accAsset.total_basis
+      accGroup.total_basis += basisThis
+      accGroup.total_value += valueThis
 
-  const handlePieClick = (data: any) => {
-    setDrillItems(data.items || []);
-  };
+      // Group by sub-portfolio name (updated)
+      if (!subHoldings.has(subKey)) subHoldings.set(subKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
+      const subGroup = subHoldings.get(subKey)!
+      if (!subGroup.holdings.has(assetKey)) {
+        subGroup.holdings.set(assetKey, {
+          asset_id: assetKey,
+          ticker: lot.asset.ticker,
+          name: lot.asset.name,
+          total_quantity: 0,
+          total_basis: 0,
+          current_price: currentPrice,
+          current_value: 0,
+          unrealized_gain: 0,
+        })
+      }
+      const subAsset = subGroup.holdings.get(assetKey)!
+      subAsset.total_quantity += qty
+      subAsset.total_basis += basisThis
+      subAsset.current_value! += valueThis
+      subAsset.unrealized_gain = subAsset.current_value! - subAsset.total_basis
+      subGroup.total_basis += basisThis
+      subGroup.total_value += valueThis
+    }
+
+    // Add cash to account groups (unchanged)
+    for (const [accId, bal] of cashBalances) {
+      const accKey = accountMap.get(accId) || 'Unknown'
+      if (!accHoldings.has(accKey)) accHoldings.set(accKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
+      const accGroup = accHoldings.get(accKey)!
+      accGroup.holdings.set('cash', {
+        asset_id: 'cash',
+        ticker: 'Cash',
+        name: null,
+        total_quantity: 0,
+        total_basis: bal,
+        current_price: 1,
+        current_value: bal,
+        unrealized_gain: 0,
+      })
+      accGroup.total_basis += bal
+      accGroup.total_value += bal
+    }
+
+    // Convert to arrays (unchanged)
+    groupedByAccount.push(...Array.from(accHoldings, ([key, g]) => ({
+      key,
+      holdings: Array.from(g.holdings.values()),
+      total_basis: g.total_basis,
+      total_value: g.total_value,
+      unrealized_gain: g.total_value - g.total_basis
+    })))
+    groupedBySubPortfolio.push(...Array.from(subHoldings, ([key, g]) => ({
+      key,
+      holdings: Array.from(g.holdings.values()),
+      total_basis: g.total_basis,
+      total_value: g.total_value,
+      unrealized_gain: g.total_value - g.total_basis
+    })))
+  }
 
   return (
-    <main className="container mx-auto p-6">
-      <h1 className="text-4xl font-bold mb-8">Portfolio Dashboard</h1>
-
-      {/* Controls */}
-      <div className="flex flex-wrap gap-4 mb-8 items-end">
-        <div>
-          <label className="text-sm font-medium">Slice by</label>
-          <Select value={lens} onValueChange={setLens}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="asset_type">Asset Type</SelectItem>
-              <SelectItem value="asset_subtype">Sub-Type</SelectItem>
-              <SelectItem value="geography">Geography</SelectItem>
-              <SelectItem value="factor_tag">Factor</SelectItem>
-              <SelectItem value="size_tag">Size</SelectItem>
-              <SelectItem value="sub_portfolio">Sub-Portfolio</SelectItem>
-              <SelectItem value="account">Account</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <label className="text-sm font-medium">Period</label>
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1D">1 Day</SelectItem>
-              <SelectItem value="1M">1 Month</SelectItem>
-              <SelectItem value="1Y">1 Year</SelectItem>
-              <SelectItem value="All">All Time</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <label className="text-sm font-medium">Return Metric</label>
-          <Select value={metricType} onValueChange={(v: 'twr' | 'mwr') => setMetricType(v)}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="twr">TWR</SelectItem>
-              <SelectItem value="mwr">MWR</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Button onClick={handleRefreshPrices} disabled={refreshing}>
-          {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-        </Button>
-      </div>
-{loading ? (
-  <p>Loading portfolio data...</p>
-) : error ? (
-  <p className="text-red-500">Error: {error} (Check console for details)</p>
-) : (
-  <>
-    {/* Existing Allocations Card */}
-    <Card className="mb-8">...</Card>
-    {/* Existing Performance Card */}
-    <Card>...</Card>
-  </>
-)}
-      {/* Allocations Section – preserved exactly from your current code */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Current Allocation ({lens.replace('_', ' ')})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-8">
-            <ResponsiveContainer width="100%" height={400}>
-              <PieChart>
-                <Pie
-                  data={allocations}
-                  dataKey="percentage"
-                  nameKey="key"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={120}
-                  label={({ percent }) => `${((percent ?? 0) * 100).toFixed(1)}%`}
-                  onClick={handlePieClick}
-                >
-                  {allocations.map((_, i) => (
-                    <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => (v !== undefined ? `${Number(v).toFixed(2)}%` : '')} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableCell>Category</TableCell>
-                  <TableCell className="text-right">% </TableCell>
-                  <TableCell className="text-right">Value</TableCell>
-                  <TableCell className="text-right">Unrealized</TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allocations.map(a => (
-                  <TableRow key={a.key} className="cursor-pointer hover:bg-muted/50" onClick={() => handlePieClick(a)}>
-                    <TableCell className="font-medium">{a.key}</TableCell>
-                    <TableCell className="text-right">{a.percentage.toFixed(2)}%</TableCell>
-                    <TableCell className="text-right">{formatUSD(a.value)}</TableCell>
-                    <TableCell className="text-right">{formatUSD(a.unrealized)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {drillItems.length > 0 && (
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-4">Holdings in selected slice</h3>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableCell>Ticker</TableCell>
-                    <TableCell>Name</TableCell>
-                    <TableCell className="text-right">Quantity</TableCell>
-                    <TableCell className="text-right">Value</TableCell>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {drillItems.map((item: any) => (
-                    <TableRow key={item.ticker}>
-                      <TableCell>{item.ticker}</TableCell>
-                      <TableCell>{item.name || '-'}</TableCell>
-                      <TableCell className="text-right">{item.quantity.toFixed(4)}</TableCell>
-                      <TableCell className="text-right">{formatUSD(item.value)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Performance Section – now with real line chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Performance ({period} • {metricType.toUpperCase()})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={performance?.series || []}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis tickFormatter={(v) => `${v}%`} />
-              <Tooltip formatter={(v) => (v !== undefined ? `${Number(v).toFixed(2)}%` : '')} />
-              <Legend />
-              <Line type="monotone" dataKey="portfolio" stroke="#3b82f6" strokeWidth={2} name="Portfolio" dot={false} />
-              <Line type="monotone" dataKey="SPX" stroke={BENCHMARK_COLORS.SPX} name="S&P 500" dot={false} />
-              <Line type="monotone" dataKey="IXIC" stroke={BENCHMARK_COLORS.IXIC} name="NASDAQ" dot={false} />
-              <Line type="monotone" dataKey="BTCUSD" stroke={BENCHMARK_COLORS.BTCUSD} name="Bitcoin" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-
-          <Table className="mt-8">
-            <TableHeader>
-              <TableRow>
-                <TableCell>Metric</TableCell>
-                <TableCell className="text-right">Value</TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell className="font-medium">Total Return</TableCell>
-                <TableCell className="text-right">
-                  {performance?.totalReturn !== undefined ? `${(performance.totalReturn * 100).toFixed(2)}%` : '-'}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Annualized Return</TableCell>
-                <TableCell className="text-right">
-                  {performance?.annualized !== undefined ? `${(performance.annualized * 100).toFixed(2)}%` : '-'}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Unrealized Gain/Loss</TableCell>
-                <TableCell className="text-right">{formatUSD(performance?.factors?.unrealized || 0)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Realized Gain/Loss</TableCell>
-                <TableCell className="text-right">{formatUSD(performance?.factors?.realized || 0)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Dividends</TableCell>
-                <TableCell className="text-right">{formatUSD(performance?.factors?.dividends || 0)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Fees</TableCell>
-                <TableCell className="text-right">{formatUSD(performance?.factors?.fees || 0)}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+    <main className="p-8">
+      <h1 className="text-3xl font-bold mb-8">Portfolio</h1>
+      <Tabs defaultValue="holdings">
+        <TabsList>
+          <TabsTrigger value="holdings">Holdings</TabsTrigger>
+          <TabsTrigger value="accounts">Accounts</TabsTrigger>
+          <TabsTrigger value="assets">Assets</TabsTrigger>
+        </TabsList>
+        <TabsContent value="holdings">
+          <PortfolioHoldingsClient
+            groupedAccounts={groupedByAccount}
+            groupedSubs={groupedBySubPortfolio}
+            cash={totalCash}
+            grandTotalBasis={grandTotalBasis}
+            grandTotalValue={grandTotalValue}
+            overallUnrealized={overallUnrealized}
+          />
+        </TabsContent>
+        <TabsContent value="accounts">
+          <AccountsList initialAccounts={initialAccounts} />
+        </TabsContent>
+        <TabsContent value="assets">
+          <AssetsList initialAssets={initialAssets} />
+        </TabsContent>
+      </Tabs>
     </main>
-  );
+  )
 }

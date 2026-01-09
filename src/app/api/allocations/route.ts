@@ -10,9 +10,8 @@ export async function POST(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Unauthorized');
 
-    // Fetch open tax lots with asset tags and account name
+    // Updated query: Join sub_portfolios to get name for grouping/display
     const { data: lots } = await supabase
-    
       .from('tax_lots')
       .select(`
         remaining_quantity,
@@ -25,7 +24,8 @@ export async function POST(request: Request) {
           geography,
           factor_tag,
           size_tag,
-          sub_portfolio
+          sub_portfolio_id,
+          sub_portfolio:sub_portfolios (name)
         ),
         account:accounts (name)
       `)
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ allocations: [] });
     }
     console.log(`Fetched ${lots?.length || 0} lots for lens ${lens}`);
-    // Get latest prices for all tickers
+    // Get unique tickers and fetch prices (unchanged)
     const tickers = [...new Set(lots.map(l => l.asset[0]?.ticker).filter(Boolean))];
     const { data: prices } = await supabase
       .from('asset_prices')
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     console.log(`Fetched ${prices?.length || 0} prices`);
     const priceMap = new Map(prices?.map(p => [p.ticker, p.price]) ?? []);
 
-    // Aggregate by lens
+    // Aggregate by lens (updated for sub_portfolio to use name)
     const map = new Map<string, {
       value: number;
       basis: number;
@@ -58,9 +58,14 @@ export async function POST(request: Request) {
     lots.forEach(lot => {
       const asset = lot.asset[0];
       if (!asset) return;
-      const key = lens === 'account'
-        ? lot.account?.[0]?.name || 'Uncategorized'
-        : (asset as any)[lens] || 'Untagged';
+      let key: string;
+      if (lens === 'account') {
+        key = lot.account?.[0]?.name || 'Uncategorized';
+      } else if (lens === 'sub_portfolio') {
+        key = asset.sub_portfolio?.[0]?.name || 'Untagged';
+      } else {
+        key = (asset as any)[lens] || 'Untagged';
+      }
 
       const quantity = lot.remaining_quantity;
       const basisThis = quantity * lot.cost_basis_per_unit;
@@ -83,7 +88,7 @@ export async function POST(request: Request) {
       totalValue += valueThis;
     });
 
-    // Add cash (simple sum of cash-type transactions – adjust if you have a cash balance column)
+    // Add cash (unchanged – simple sum; adjust if cash per sub-portfolio needed)
     const { data: cashTxs } = await supabase
       .from('transactions')
       .select('amount')
@@ -97,7 +102,7 @@ export async function POST(request: Request) {
       map.set('Cash', { value: cash, basis: cash, items: [] });
     }
 
-    // Format for Recharts + table
+    // Format for Recharts + table (unchanged)
     const allocations = Array.from(map.entries()).map(([key, g]) => ({
       key,
       percentage: totalValue > 0 ? (g.value / totalValue) * 100 : 0,
@@ -107,10 +112,10 @@ export async function POST(request: Request) {
       items: g.items
     }));
 
-    // Sort by value descending
+    // Sort by value descending (unchanged)
     allocations.sort((a, b) => b.value - a.value);
 
-  return NextResponse.json({ allocations, totalValue });
+    return NextResponse.json({ allocations, totalValue });
   } catch (error) {
     console.error('Allocations error:', error);
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
