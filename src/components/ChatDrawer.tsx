@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -12,6 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Mermaid from 'react-mermaid2'; // ← NEW: for rendering charts
 import { X } from 'lucide-react';
+import { cn } from '@/lib/utils'; // shadcn utility for className merging; add if missing
 
 export function ChatDrawer() {
   const { 
@@ -100,121 +100,96 @@ export function ChatDrawer() {
   return (
     <>
       {/* ← NEW: modal={false} makes it floating/non-blocking */}
-<Drawer open={isOpen} onOpenChange={toggleOpen} modal={false}>
-  <DrawerContent 
-    className="w-full max-w-lg h-full ml-auto fixed inset-y-0 right-0 z-50 pointer-events-auto bg-background/95 shadow-xl" 
-    data-vaul-drawer-direction="right"
+{isOpen && (
+  <div
+    className={cn(
+      "fixed inset-y-0 right-0 z-50 w-full max-w-lg h-full bg-background/95 shadow-xl overflow-hidden",
+      "transform transition-transform duration-300 ease-in-out",
+      isOpen ? "translate-x-0" : "translate-x-full"
+    )}
   >
-    <DrawerHeader className="border-b relative">
-      <div className="flex justify-between items-center">
-        <DrawerTitle>Ask Grok</DrawerTitle>
-        <Button variant="ghost" size="icon" onClick={toggleOpen}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-      <div className="flex items-center gap-3 mt-3">
-        <Switch checked={isSandbox} onCheckedChange={toggleSandbox} />
-        <span className="text-sm">Sandbox Mode (What-If)</span>
-        {isSandbox && (
-          <Button variant="ghost" size="sm" onClick={resetSandbox}>
-            Reset
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="border-b p-4 relative">
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-semibold">Ask Grok</h2>
+          <Button variant="ghost" size="icon" onClick={toggleOpen}>
+            <X className="h-4 w-4" />
           </Button>
+        </div>
+        <div className="flex items-center gap-3 mt-3">
+          <Switch checked={isSandbox} onCheckedChange={toggleSandbox} />
+          <span className="text-sm">Sandbox Mode (What-If)</span>
+          {isSandbox && (
+            <Button variant="ghost" size="sm" onClick={resetSandbox}>
+              Reset
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Body - Scrollable content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {messages.map((msg, idx) => (
+          <div
+            key={idx}
+            className={`mb-6 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}
+          >
+            <div className="font-semibold text-sm mb-1 text-muted-foreground">
+              {msg.role === 'user' ? 'You' : 'Grok'}
+            </div>
+            <div
+              className={`
+                inline-block max-w-full rounded-xl px-4 py-3 shadow-sm
+                ${msg.role === 'user' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-muted'
+                }
+              `}
+            >
+              <div className="prose prose-sm max-w-none break-words">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    // ... (keep your existing components for table, th, td, code, etc.)
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+              </div>
+            </div>
+          </div>
+        ))}
+        {isLoading && (
+          <div className="text-center text-muted-foreground text-sm">
+            Grok is thinking...
+          </div>
         )}
       </div>
-    </DrawerHeader>
 
-          <div className="flex-1 overflow-y-auto p-4 pb-20">
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`mb-6 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}
-              >
-                <div className="font-semibold text-sm mb-1 text-muted-foreground">
-                  {msg.role === 'user' ? 'You' : 'Grok'}
-                </div>
-                <div
-                  className={`
-                    inline-block max-w-full rounded-xl px-4 py-3 shadow-sm
-                    ${msg.role === 'user' 
-                      ? 'bg-primary text-primary-foreground' 
-                      : 'bg-muted'
-                    }
-                  `}
-                >
-                  <div className="prose prose-sm max-w-none break-words">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        table: ({ children }) => (
-                          <div className="overflow-x-auto -mx-4 px-4 my-3">
-                            <table className="min-w-full divide-y divide-border rounded-lg overflow-hidden">
-                              {children}
-                            </table>
-                          </div>
-                        ),
-                        thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
-                        th: ({ children }) => (
-                          <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider">
-                            {children}
-                          </th>
-                        ),
-                        td: ({ children }) => (
-                          <td className="px-3 py-2 text-sm whitespace-normal">
-                            {children}
-                          </td>
-                        ),
-                        code: ({ className, children, ...props }) => {
-                          const isInline = !className;
-                          const codeString = String(children).trim();
-                          // Detect Mermaid code blocks
-                          if (!isInline && className === 'language-mermaid') {
-                            return <MermaidChart code={codeString} />;
-                          }
-                          return isInline ? (
-                            <code className="bg-black/10 rounded px-1 text-sm" {...props}>{children}</code>
-                          ) : (
-                            <code className="block bg-black/5 rounded p-3 overflow-x-auto text-sm" {...props}>
-                              {children}
-                            </code>
-                          );
-                        },
-                      }}
-                    >
-                      {msg.content}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {isLoading && (
-              <div className="text-center text-muted-foreground text-sm">
-                Grok is thinking...
-              </div>
-            )}
-          </div>
-
-          <DrawerFooter className="border-t pt-4">
-            <div className="flex gap-2">
-              <Input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask about your portfolio..."
-                disabled={isLoading || (typeof window !== 'undefined' && !localStorage.getItem('grokConsent'))}
-                className="flex-1"
-              />
-              <Button 
-                onClick={handleSend} 
-                disabled={isLoading || !input.trim() || (typeof window !== 'undefined' && !localStorage.getItem('grokConsent'))}
-              >
-                Send
-              </Button>
-            </div>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
-
+      {/* Footer */}
+      <div className="border-t p-4">
+        <div className="flex gap-2">
+          <Input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about your portfolio..."
+            disabled={isLoading || (typeof window !== 'undefined' && !localStorage.getItem('grokConsent'))}
+            className="flex-1"
+          />
+          <Button 
+            onClick={handleSend} 
+            disabled={isLoading || !input.trim() || (typeof window !== 'undefined' && !localStorage.getItem('grokConsent'))}
+          >
+            Send
+          </Button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
       <Dialog open={showConsent} onOpenChange={setShowConsent}>
         <DialogContent>
           <DialogHeader>
