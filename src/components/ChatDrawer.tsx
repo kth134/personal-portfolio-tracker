@@ -150,9 +150,42 @@ export function ChatDrawer() {
               <div className="prose prose-sm max-w-none break-words">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
-                  components={{
-                    // ... (keep your existing components for table, th, td, code, etc.)
-                  }}
+                    components={{
+                      table: ({ children }) => (
+                        <div className="overflow-x-auto -mx-4 px-4 my-3">
+                          <table className="min-w-full divide-y divide-border rounded-lg overflow-hidden">
+                            {children}
+                          </table>
+                        </div>
+                      ),
+                      thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+                      th: ({ children }) => (
+                        <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider">
+                          {children}
+                        </th>
+                      ),
+                      td: ({ children }) => (
+                        <td className="px-3 py-2 text-sm whitespace-normal">
+                          {children}
+                        </td>
+                      ),
+                      code: ({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode; [key: string]: any }) => {
+                        const match = /language-(\w+)/.exec(className || '');
+                        const codeString = String(children).trim();
+                        if (!inline && match && match[1] === 'mermaid') {
+                          return <MermaidChart code={codeString} />;
+                        }
+                        return inline ? (
+                          <code className="bg-black/10 rounded px-1 text-sm" {...props}>
+                            {children}
+                          </code>
+                        ) : (
+                          <pre className="bg-muted p-4 rounded overflow-x-auto text-sm">
+                            <code {...props}>{children}</code>
+                          </pre>
+                        );
+                      },
+                    }}
                 >
                   {msg.content}
                 </ReactMarkdown>
