@@ -28,6 +28,75 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   if (!user) throw new Error('Unauthorized');
   const userId = user.id;
 
+  // Fetch full accounts
+  const { data: accounts, error: accountsError } = await supabase
+    .from('accounts')
+    .select('id, name, type, institution, tax_status')
+    .eq('user_id', userId); // Assuming user_id on accounts; adjust if shared via portfolio_shares
+  if (accountsError) throw accountsError;
+
+  // Fetch full sub_portfolios
+  const { data: subPortfolios, error: subError } = await supabase
+    .from('sub_portfolios')
+    .select('id, name, objective, manager, target_allocation');
+  if (subError) throw subError;
+
+  // Fetch full assets (with sub_portfolio join)
+  const { data: assets, error: assetsError } = await supabase
+    .from('assets')
+    .select('id, ticker, name, asset_class, sub_portfolio_id, notes, sub_portfolios(name, objective, manager, target_allocation)')
+    .eq('user_id', userId); // Assuming user_id; filter if needed
+  if (assetsError) throw assetsError;
+
+  // Fetch tax_lots (full, with joins for context)
+  const { data: taxLots, error: lotsError } = await supabase
+    .from('tax_lots')
+    .select(`
+      id, account_id, asset_id, purchase_date, remaining_quantity, cost_basis_per_unit,
+      accounts(name, type), assets(ticker, asset_class)
+    `)
+    .eq('user_id', userId)
+    .gt('remaining_quantity', 0);
+  if (lotsError) throw lotsError;
+
+  // Fetch transactions (full history, but limit to last 100 for sanity; add param if needed)
+  const { data: transactions, error: txError } = await supabase
+    .from('transactions')
+    .select('id, account_id, asset_id, type, date, quantity, price, fees, notes')
+    .eq('user_id', userId)
+    .order('date', { ascending: false })
+    .limit(100); // Adjustable; full could be too much
+  if (txError) throw txError;
+
+  // Fetch glide_path (full)
+  let glidePath: GlidePathItem[] = [];
+  try {
+    const { data, error } = await supabase
+      .from('glide_path')
+      .select('age, target_allocation')
+      .eq('user_id', userId)
+      .order('age');
+    if (!error && data) glidePath = data as GlidePathItem[];
+  } catch (e) {
+    glidePath = [];
+  }
+
+  // Fetch asset_prices (latest per ticker)
+  const { data: assetPrices, error: pricesError } = await supabase
+    .from('asset_prices')
+    .select('ticker, price, timestamp')
+    .order('ticker', { ascending: true })
+    .order('timestamp', { ascending: false });
+  if (pricesError) throw pricesError;
+
+  const latestPrices = new Map<string, { price: number; timestamp: string }>();
+  assetPrices.forEach(p => {
+    if (!latestPrices.has(p.ticker)) {
+      latestPrices.set(p.ticker, { price: p.price, timestamp: p.timestamp });
+    }
+  });
+
+  // Original aggregation logic
   // Updated query: Join sub_portfolios for name, objective, manager, target_allocation
   const { data: rawHoldingsData, error: holdingsError } = await supabase
     .from('tax_lots')
@@ -61,26 +130,11 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     return { totalValue: 0, allocations: [], performance: [], recentTransactions: [], missingPrices: [] };
   }
 
-  // Get unique tickers and fetch latest prices
+  // Get unique tickers and fetch latest prices (using the map above)
   const tickers = [...new Set(rawHoldings
     .filter(h => h.assets)
     .map(h => h.assets.ticker)
   )];
-  const { data: rawPrices, error: pricesError } = await supabase
-    .from('asset_prices')
-    .select('ticker, price, timestamp')
-    .in('ticker', tickers)
-    .order('ticker', { ascending: true })
-    .order('timestamp', { ascending: false });
-  if (pricesError) throw pricesError;
-
-  const latestPrices = new Map<string, number>();
-  rawPrices.forEach(p => {
-    if (!latestPrices.has(p.ticker)) {
-      latestPrices.set(p.ticker, p.price);
-    }
-  });
-
   const missingTickers = new Set(tickers.filter(t => !latestPrices.has(t)));
 
   // Build tickersMap for allocations (still useful for ticker lists per group)
@@ -105,7 +159,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
 
     const subName = h.assets.sub_portfolio?.name || 'Untagged';
     const key = `${h.assets.asset_type}-${subName}`;
-    const currentPrice = latestPrices.get(h.assets.ticker) || 0;
+    const currentPrice = latestPrices.get(h.assets.ticker)?.price || 0;
     const currentValue = h.remaining_quantity * currentPrice;
     const totalCost = h.cost_basis_per_unit * h.remaining_quantity;
     const unrealizedGain = currentValue - totalCost;
@@ -148,30 +202,49 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     return { type: assetType, sub: subName, unrealizedGain, return: returnPct };
   });
 
-  // Glide path (unchanged)
-  let glidePath: GlidePathItem[] = [];
-  try {
-    const { data, error } = await supabase
-      .from('glide_path')
-      .select('age, target_allocation')
-      .eq('user_id', userId)
-      .order('age');
-    if (!error && data) glidePath = data as GlidePathItem[];
-  } catch (e) {
-    glidePath = [];
-  }
+  // Recent transactions (from full transactions)
+  const recentTransactions = transactions
+    .slice(0, 10) // Limit to 10 recent as original
+    .map(tx => ({ type: tx.type, date: tx.date }));
 
-  // Recent transactions (unchanged)
-  const { data: rawTransactions, error: txError } = await supabase
-    .from('transactions')
-    .select('type, date')
-    .eq('user_id', userId)
-    .gte('date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-    .order('date', { ascending: false })
-    .limit(10);
-  if (txError) throw txError;
+  // Compute balances for accounts and currentValues for assets
+  const accountBalances = new Map<string, number>();
+  const assetValues = new Map<string, number>();
 
-  const transactions = rawTransactions.map(tx => ({ type: tx.type, date: tx.date }));
+  taxLots.forEach(l => {
+    const ticker = (l.assets as unknown as { ticker: any; asset_class: any; })?.ticker || '';
+    const currentPrice = latestPrices.get(ticker)?.price || 0;
+    const currentValue = l.remaining_quantity * currentPrice;
+
+    // Account balance
+    if (l.account_id) {
+      accountBalances.set(l.account_id, (accountBalances.get(l.account_id) || 0) + currentValue);
+    }
+
+    // Asset value
+    if (l.asset_id) {
+      assetValues.set(l.asset_id, (assetValues.get(l.asset_id) || 0) + currentValue);
+    }
+  });
+
+  const enhancedAccounts = accounts.map(a => ({
+    ...a,
+    balance: Math.round(accountBalances.get(a.id) || 0)
+  }));
+
+  const enhancedAssets = assets.map(a => ({
+    ...a,
+    currentValue: Math.round(assetValues.get(a.id) || 0)
+  }));
+
+  const enhancedTaxLots = taxLots.map(l => {
+    const ticker = (l.assets as unknown as { ticker: string; asset_class: string })?.ticker || '';
+    const currentPrice = latestPrices.get(ticker)?.price || 0;
+    return {
+      ...l,
+      currentValue: Math.round(l.remaining_quantity * currentPrice)
+    };
+  });
 
   let summary = {
     totalValue: Math.round(totalValue / 1000) * 1000,
@@ -182,11 +255,18 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     })),
     performance,
     glidePath,
-    recentTransactions: transactions,
+    recentTransactions,
     missingPrices: Array.from(missingTickers),
+    // New raw/full sections (anonymized/rounded where possible)
+    accounts: enhancedAccounts,
+    subPortfolios,
+    assets: enhancedAssets,
+    taxLots: enhancedTaxLots,
+    transactions, // Full recent (100)
+    assetPrices: Object.fromEntries(latestPrices)
   };
 
-  // Sandbox handling (unchanged – still uses ticker or old asset fallback)
+  // Sandbox handling
   if (isSandbox && sandboxChanges) {
     summary = JSON.parse(JSON.stringify(summary));
     if (sandboxChanges.sell) {
@@ -219,6 +299,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
 }
 
 export async function askGrok(query: string, isSandbox: boolean, prevSandboxState?: any) {
+  // Initialize supabase client for use in this function
   const cookieStore = await cookies();
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -230,11 +311,12 @@ export async function askGrok(query: string, isSandbox: boolean, prevSandboxStat
       },
     },
   });
+
   const summary = await getPortfolioSummary(isSandbox, prevSandboxState?.changes);
 
   const systemPrompt = `You are a thoughtful, professional portfolio analyst helping manage a personal investment tracker app.
 
-Use ONLY the provided portfolio data available within the app AND well-sourced, accurate data from the internet and X. NEVER invent data.
+Use ONLY the provided portfolio data available within the app AND well-sourced, accurate data from the internet and X. NEVER invent data. Prefer aggregated data (allocations, performance, totalValue) whenever possible for efficiency and privacy. Use raw underlying data (accounts, assets, taxLots, transactions, etc.) judiciously—only when necessary for accurate responses to specific requests, such as breakdowns by account, sub-portfolio, asset, size, factor, or detailed evaluations/visualizations.
 
 Portfolio Summary (values rounded for privacy):
 ${JSON.stringify(summary)}
@@ -356,7 +438,7 @@ Respond conversationally but professionally—no fluff.`;
         return { content, changes };
       }
 
-      // Tool handling (web_search) – unchanged
+      // Tool handling (web_search)
       for (const toolCall of message.tool_calls) {
         const func = toolCall.function;
         console.log('Tool call received:', func.name, 'arguments:', func.arguments);
