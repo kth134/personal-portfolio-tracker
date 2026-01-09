@@ -60,58 +60,60 @@ export async function POST(request: Request) {
     const startStr = format(startDate, 'yyyy-MM-dd');
     const endStr = format(today, 'yyyy-MM-dd');
 
-    // Fetch current tax lots (holdings)
-    const lotsSelectFields = lens !== 'all'
-      ? `remaining_quantity, cost_basis_per_unit, asset_id, asset:assets!inner(ticker, ${lens})`
-      : `remaining_quantity, cost_basis_per_unit, asset_id, asset:assets!inner(ticker)`;
-
+    // === Fetch open tax lots — only ticker, quantity, and basis needed ===
     let lotsQuery = supabase
       .from('tax_lots')
-      .select(lotsSelectFields)
+      .select(`
+        remaining_quantity,
+        cost_basis_per_unit,
+        asset:assets!inner (
+          ticker
+        )
+      `)
       .gt('remaining_quantity', 0)
       .eq('user_id', user.id);
 
+    // Apply lens filter if not 'all' (e.g., sub_portfolio = 'High-Growth')
     if (lens !== 'all') {
       lotsQuery = lotsQuery.ilike(`asset.${lens}`, '%');
     }
 
     const { data: lots, error: lotsError } = await lotsQuery;
-    if (lotsError) throw new Error(`Failed to fetch tax lots: ${lotsError.message}`);
+    if (lotsError) {
+      console.error('Tax lots query error:', lotsError);
+      throw new Error(`Failed to fetch tax lots: ${lotsError.message}`);
+    }
+
     console.log(`Fetched ${lots?.length || 0} open tax lots for lens: ${lens}`);
 
     type LotEntry = {
       remaining_quantity: number;
       cost_basis_per_unit: number;
-      asset: { ticker: string } & Record<string, any>;
+      asset: { ticker: any; }[];
     };
 
-    const validLots: LotEntry[] = ((lots as any[]) || [])
+    const validLots: LotEntry[] = (lots || [])
       .filter((lot: any): lot is LotEntry =>
         lot &&
+        lot.remaining_quantity > 0 &&
         lot.asset &&
-        typeof lot.asset === 'object' &&
-        'ticker' in lot.asset &&
-        lot.remaining_quantity > 0
+        Array.isArray(lot.asset) &&
+        lot.asset.length > 0 &&
+        typeof lot.asset[0].ticker === 'string'
       );
 
-    // Fetch transactions in period (for cash flows and factors)
-    const txSelectFields = lens !== 'all'
-      ? `*, asset:assets!inner(ticker, ${lens})`
-      : `*, asset:assets!inner(ticker)`;
-
-    let txQuery = supabase
+    // === Fetch transactions in period (for cash flows and factors) ===
+    const { data: transactionsRaw, error: txError } = await supabase
       .from('transactions')
-      .select(txSelectFields)
+      .select('date, type, amount, fees, realized_gain')
       .gte('date', startStr)
       .lte('date', endStr)
       .eq('user_id', user.id);
 
-    if (lens !== 'all') {
-      txQuery = txQuery.ilike(`asset.${lens}`, '%');
+    if (txError) {
+      console.error('Transactions query error:', txError);
+      throw new Error(`Failed to fetch transactions: ${txError.message}`);
     }
-
-    const { data: transactionsRaw, error: txError } = await txQuery;
-    if (txError) throw new Error(`Failed to fetch transactions: ${txError.message}`);
 
     type TransactionEntry = {
       date: string;
@@ -121,22 +123,18 @@ export async function POST(request: Request) {
       realized_gain: number | null;
     };
 
-    const transactions: TransactionEntry[] = ((transactionsRaw as any[]) || [])
-      .filter((tx: any): tx is TransactionEntry => 
-        tx && 
-        typeof tx === 'object' && 
-        'date' in tx && 
-        'type' in tx && 
-        'amount' in tx && 
-        'fees' in tx && 
-        'realized_gain' in tx
+    const transactions: TransactionEntry[] = (transactionsRaw || [])
+      .filter((tx: any): tx is TransactionEntry =>
+        tx &&
+        typeof tx.date === 'string' &&
+        typeof tx.type === 'string'
       );
 
-    // Collect all tickers: assets + benchmarks
-    const assetTickers = [...new Set(validLots.map(l => l.asset.ticker))];
+    // === Collect tickers for historical prices ===
+    const assetTickers = [...new Set(validLots.map(l => l.asset[0].ticker))];
     const allTickers = [...new Set([...assetTickers, ...benchmarks])];
 
-    // Fetch historical prices
+    // === Fetch historical prices ===
     const mockRequest = new Request('http://localhost/placeholder', {
       method: 'POST',
       body: JSON.stringify({ tickers: allTickers, startDate: startStr, endDate: endStr }),
@@ -154,7 +152,7 @@ export async function POST(request: Request) {
 
     console.log(`Historical data received for ${Object.keys(historicalData).length} of ${allTickers.length} tickers`);
 
-    // === Build unified date array across ALL series (including gaps) ===
+    // === Unified date timeline ===
     const allDatesSet = new Set<string>();
     Object.values(historicalData).forEach(series => {
       series.forEach(entry => allDatesSet.add(entry.date));
@@ -162,7 +160,7 @@ export async function POST(request: Request) {
     const dates = Array.from(allDatesSet).sort();
 
     if (dates.length === 0) {
-      console.warn('No dates available from historical data');
+      console.warn('No historical dates available');
       return NextResponse.json({
         totalReturn: 0,
         annualized: 0,
@@ -172,13 +170,12 @@ export async function POST(request: Request) {
       });
     }
 
-    console.log(`Aligned timeline: ${dates.length} unique dates from ${dates[0]} to ${dates[dates.length - 1]}`);
+    console.log(`Aligned timeline: ${dates.length} dates from ${dates[0]} to ${dates[dates.length - 1]}`);
 
-    // === Portfolio value time series (with forward-fill for missing prices) ===
+    // === Portfolio value series with forward-fill ===
     const portfolioValues = dates.map(date => {
       return validLots.reduce((total, lot) => {
-        const series = historicalData[lot.asset.ticker] || [];
-        // Find exact match or use last known price (forward-fill)
+        const series = historicalData[lot.asset[0].ticker] || [];
         let price = 0;
         for (let i = series.length - 1; i >= 0; i--) {
           if (series[i].date <= date) {
@@ -191,20 +188,16 @@ export async function POST(request: Request) {
     });
 
     const initialPortfolioValue = portfolioValues[0] || 1;
-    if (initialPortfolioValue <= 0) {
-      console.warn('Initial portfolio value <= 0; using 1 as fallback');
-    }
-
+    if (initialPortfolioValue <= 0) console.warn('Initial value <= 0; using 1');
     const currentPortfolioValue = portfolioValues[portfolioValues.length - 1] || initialPortfolioValue;
 
-    // === Normalized series for chart ===
+    // === Normalized chart series ===
     const series = dates.map((date, i) => {
-      const normalized: Record<string, string | number> = {
+      const entry: Record<string, string | number> = {
         date,
         portfolio: ((portfolioValues[i] / initialPortfolioValue) - 1) * 100
       };
 
-      // Add benchmarks (forward-fill if missing)
       benchmarks.forEach((benchmark: string) => {
         const benchSeries = historicalData[benchmark] || [];
         let benchPrice = 0;
@@ -215,10 +208,10 @@ export async function POST(request: Request) {
           }
         }
         const benchInitial = benchSeries.find(p => p.date === dates[0])?.close || benchSeries[0]?.close || 1;
-        normalized[benchmark] = benchInitial > 0 ? ((benchPrice / benchInitial) - 1) * 100 : 0;
+        entry[benchmark] = benchInitial > 0 ? ((benchPrice / benchInitial) - 1) * 100 : 0;
       });
 
-      return normalized;
+      return entry;
     });
 
     // === Performance factors ===
@@ -231,15 +224,13 @@ export async function POST(request: Request) {
     const totalBasis = validLots.reduce((sum, l) => sum + l.remaining_quantity * l.cost_basis_per_unit, 0);
     const unrealized = currentPortfolioValue - totalBasis;
 
-    // === Total return ===
+    // === Returns ===
     const totalReturn = initialPortfolioValue > 0
       ? (currentPortfolioValue / initialPortfolioValue) - 1
       : 0;
 
-    // Time-Weighted Return (approximated via total return with daily reval)
     const twr = totalReturn;
 
-    // Money-Weighted Return (IRR)
     const cashFlows = transactions.map(tx => {
       let flow = 0;
       if (tx.type === 'Buy') flow = -(tx.amount || 0);
@@ -248,7 +239,7 @@ export async function POST(request: Request) {
       flow -= (tx.fees || 0);
       return flow;
     });
-    cashFlows.push(currentPortfolioValue); // Final value as terminal cash flow
+    cashFlows.push(currentPortfolioValue);
 
     const flowDates = transactions.map(tx => new Date(tx.date));
     flowDates.push(today);
