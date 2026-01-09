@@ -327,8 +327,32 @@ Respond conversationally but professionally—no fluff.`;
       // Handle tool calls
       for (const toolCall of message.tool_calls) {
         const func = toolCall.function;
+        console.log('Tool call received:', func.name, 'arguments:', func.arguments); // Log for debug
+        let args: { query?: string } = {};
+        try {
+          args = func.arguments ? JSON.parse(func.arguments) : {};
+        } catch (parseError) {
+          console.error('Failed to parse tool arguments:', parseError, 'Raw:', func.arguments);
+          messages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            name: func.name,
+            content: 'Error: Invalid arguments provided.'
+          });
+          continue;
+        }
+
         if (func.name === "web_search") {
-          const args = JSON.parse(func.arguments);
+          if (!args.query) {
+            console.warn('web_search called without query; skipping.');
+            messages.push({
+              role: "tool",
+              tool_call_id: toolCall.id,
+              name: func.name,
+              content: 'Error: No query provided for search.'
+            });
+            continue;
+          }
           const searchUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(args.query)}&format=json&pretty=1`;
           const searchRes = await fetch(searchUrl);
           const searchData = await searchRes.json();
