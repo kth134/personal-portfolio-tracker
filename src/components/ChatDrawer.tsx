@@ -11,6 +11,7 @@ import { askGrok, getPortfolioSummary } from '@/app/actions/grok';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Mermaid from 'react-mermaid2'; // ← NEW: for rendering charts
+import { X } from 'lucide-react';
 
 export function ChatDrawer() {
   const { 
@@ -99,23 +100,28 @@ export function ChatDrawer() {
   return (
     <>
       {/* ← NEW: modal={false} makes it floating/non-blocking */}
-      <Drawer open={isOpen} onOpenChange={toggleOpen} modal={false}>
-        <DrawerContent 
-          className="w-full max-w-lg h-full ml-auto fixed inset-y-0 right-0" 
-          data-vaul-drawer-direction="right"
-        >
-          <DrawerHeader className="border-b">
-            <DrawerTitle>Ask Grok</DrawerTitle>
-            <div className="flex items-center gap-3 mt-3">
-              <Switch checked={isSandbox} onCheckedChange={toggleSandbox} />
-              <span className="text-sm">Sandbox Mode (What-If)</span>
-              {isSandbox && (
-                <Button variant="ghost" size="sm" onClick={resetSandbox}>
-                  Reset
-                </Button>
-              )}
-            </div>
-          </DrawerHeader>
+<Drawer open={isOpen} onOpenChange={toggleOpen} modal={false}>
+  <DrawerContent 
+    className="w-full max-w-lg h-full ml-auto fixed inset-y-0 right-0 z-50 pointer-events-auto bg-background/95 shadow-xl" 
+    data-vaul-drawer-direction="right"
+  >
+    <DrawerHeader className="border-b relative">
+      <div className="flex justify-between items-center">
+        <DrawerTitle>Ask Grok</DrawerTitle>
+        <Button variant="ghost" size="icon" onClick={toggleOpen}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="flex items-center gap-3 mt-3">
+        <Switch checked={isSandbox} onCheckedChange={toggleSandbox} />
+        <span className="text-sm">Sandbox Mode (What-If)</span>
+        {isSandbox && (
+          <Button variant="ghost" size="sm" onClick={resetSandbox}>
+            Reset
+          </Button>
+        )}
+      </div>
+    </DrawerHeader>
 
           <div className="flex-1 overflow-y-auto p-4 pb-20">
             {messages.map((msg, idx) => (
