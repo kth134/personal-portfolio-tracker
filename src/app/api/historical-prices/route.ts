@@ -27,6 +27,12 @@ export async function POST(request: Request) {
 
     for (const ticker of tickers) {
       // Try DB first (daily closes)
+      const tickerMap: Record<string, string> = {
+        SPX: '^GSPC',
+        IXIC: '^IXIC',
+        BTCUSD: 'bitcoin',
+};
+      const mappedTicker = tickerMap[ticker] || ticker;
       const { data: cached } = await supabase
         .from('asset_prices')
         .select('timestamp, price')
@@ -45,7 +51,38 @@ export async function POST(request: Request) {
 
       // Fetch live
       let prices: { date: string; close: number }[] = [];
-
+        const isCrypto = ticker.toLowerCase().includes('usd') || ticker === 'BTCUSD';
+        if (isCrypto) {
+          const cgId = tickerMap[ticker] || ticker.toLowerCase().replace('usd', '');
+          const cgUrl = `https://api.coingecko.com/api/v3/coins/${cgId}/market_chart/range?vs_currency=usd&from=${from}&to=${to}`;
+          const res = await fetch(cgUrl);
+          if (!res.ok) {
+            console.error(`CoinGecko historical error for ${cgId}: ${res.statusText}`);
+            prices = []; // Explicit empty
+            continue;
+          }
+          const { prices: cg } = await res.json();
+          prices = cg.map(([ts, p]: [number, number]) => ({
+            date: format(new Date(ts), 'yyyy-MM-dd'),
+            close: p
+          }));
+        } else {
+          const finnhubTicker = tickerMap[ticker] || ticker;
+          const url = `https://finnhub.io/api/v1/stock/candle?symbol=${finnhubTicker}&resolution=D&from=${from}&to=${to}&token=${apiKey}`;
+          const res = await fetch(url);
+          if (!res.ok) {
+            console.error(`Finnhub historical error for ${finnhubTicker}: ${res.statusText}`);
+            prices = [];
+            continue;
+          }
+          const data = await res.json();
+          if (data.c?.length) {
+            prices = data.t.map((ts: number, i: number) => ({
+              date: format(new Date(ts * 1000), 'yyyy-MM-dd'),
+              close: data.c[i]
+            }));
+          }
+        }
       if (ticker === 'BTCUSD' || ticker.toLowerCase().includes('usd')) {
         // CoinGecko fallback for crypto benchmarks
         const cgId = ticker === 'BTCUSD' ? 'bitcoin' : ticker.toLowerCase().replace('usd', '');
@@ -60,7 +97,7 @@ export async function POST(request: Request) {
         }
       } else {
         // Finnhub for stocks/indices (SPX, IXIC, etc.)
-        const url = `https://finnhub.io/api/v1/stock/candle?symbol=${ticker}&resolution=D&from=${from}&to=${to}&token=${apiKey}`;
+        const url = `https://finnhub.io/api/v1/stock/candle?symbol=${mappedTicker}&resolution=D&from=${from}&to=${to}&token=${apiKey}`;
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
@@ -87,7 +124,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ historicalData });
+    return NextResponse.json({ historicalData, fetched: Object.keys(historicalData).length });
   } catch (error) {
     console.error('Historical prices error:', error);
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });

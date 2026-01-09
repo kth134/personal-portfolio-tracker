@@ -12,6 +12,7 @@ export async function POST(request: Request) {
 
     // Fetch open tax lots with asset tags and account name
     const { data: lots } = await supabase
+    
       .from('tax_lots')
       .select(`
         remaining_quantity,
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
     if (!lots || lots.length === 0) {
       return NextResponse.json({ allocations: [] });
     }
-
+    console.log(`Fetched ${lots?.length || 0} lots for lens ${lens}`);
     // Get latest prices for all tickers
     const tickers = [...new Set(lots.map(l => l.asset[0]?.ticker).filter(Boolean))];
     const { data: prices } = await supabase
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
       .select('ticker, price')
       .in('ticker', tickers)
       .order('timestamp', { ascending: false });
-
+    console.log(`Fetched ${prices?.length || 0} prices`);
     const priceMap = new Map(prices?.map(p => [p.ticker, p.price]) ?? []);
 
     // Aggregate by lens
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
     // Sort by value descending
     allocations.sort((a, b) => b.value - a.value);
 
-    return NextResponse.json({ allocations });
+  return NextResponse.json({ allocations, totalValue });
   } catch (error) {
     console.error('Allocations error:', error);
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });

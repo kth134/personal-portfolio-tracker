@@ -38,6 +38,7 @@ export async function GET() {
       const cgUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd`;
       const cgResponse = await fetch(cgUrl);
       if (!cgResponse.ok) {
+        console.error(`CoinGecko error: ${cgResponse.statusText} for tickers ${cgIds.join(',')}`);
         console.error(`CoinGecko error: ${cgResponse.statusText}`);
       } else {
         const cgPrices = await cgResponse.json();
@@ -71,12 +72,12 @@ export async function GET() {
           await supabase.from('asset_prices').insert({ ticker, price, source: 'finnhub' });
           console.log(`Inserted Finnhub price for ${ticker}: $${price}`);
         } else {
-          console.warn(`No valid price returned for ${ticker} from Finnhub`);
+          console.warn(`Invalid price for ${ticker}: ${price}`);
         }
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, inserted: { crypto: cryptoTickers.length, stocks: stockTickers.length } });
   } catch (error) {
     console.error('Price fetch error:', error);
     return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });

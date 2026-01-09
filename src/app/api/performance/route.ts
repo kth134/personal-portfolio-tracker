@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       lotsQuery = lotsQuery.ilike(`asset.${lens}`, '%');
     }
     const { data: lots } = await lotsQuery;
-
+    console.log(`Fetched ${lots?.length || 0} lots for lens ${lens}`);
     // Define the type for lot entries
     type LotEntry = {
       remaining_quantity: number;
@@ -121,7 +121,7 @@ export async function POST(request: Request) {
     const { historicalData } = await histResponse.json() as { 
       historicalData: Record<string, { date: string; close: number }[]> 
     };
-
+    console.log(`Historical for ${allTickers.length} tickers: ${Object.keys(historicalData).length} series`);
     // Build portfolio value time series (daily)
     const dates = Object.values(historicalData)[0]?.map((d) => d.date) || [];
     const portfolioSeries = dates.map((date: string) => {
@@ -134,6 +134,7 @@ export async function POST(request: Request) {
 
     // Normalize to cumulative return % (starting at 0%)
     const initialPortfolioValue = portfolioSeries[0]?.value || 1;
+    if (initialPortfolioValue === 1) console.warn('No initial value; fallback to 1');
     const portfolioNormalized: { date: string; portfolio: number; [key: string]: number | string }[] = portfolioSeries.map(p => ({
       date: p.date,
       portfolio: ((p.value / initialPortfolioValue) - 1) * 100
@@ -160,7 +161,9 @@ export async function POST(request: Request) {
     let totalReturn = 0;
     if (initialPortfolioValue > 0) {
       totalReturn = (currentValue / initialPortfolioValue) - 1;
-    }
+    } else {
+  console.warn('Zero initial value; totalReturn=0');
+}
 
     // Simple TWR ≈ total return (with historical it's very close)
     const twr = totalReturn;
@@ -181,13 +184,14 @@ export async function POST(request: Request) {
     const annualized = years > 0 ? Math.pow(1 + finalReturn, 1 / years) - 1 : finalReturn;
 
     return NextResponse.json({
-      totalReturn: finalReturn,
-      annualized,
-      factors: { unrealized, realized, dividends, fees },
-      series: portfolioNormalized // For line chart
-    });
+  totalReturn: finalReturn,
+  annualized,
+  factors: { unrealized, realized, dividends, fees },
+  series: portfolioNormalized,
+  datesCount: dates.length // Diagnostic
+});
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    console.error('Performance error:', error);
+return NextResponse.json({ error: (error as Error).message, details: 'Check server console' }, { status: 500 });
   }
 }

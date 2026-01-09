@@ -28,7 +28,8 @@ export default function DashboardHome() {
   const [performance, setPerformance] = useState<any>(null);
   const [drillItems, setDrillItems] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-
+  const [loading, setLoading] = useState(true);
+const [error, setError] = useState<string | null>(null);
   // Fetch data on filter change
   useEffect(() => {
     const fetchData = async () => {
@@ -42,7 +43,33 @@ export default function DashboardHome() {
           body: JSON.stringify({ period, lens, metricType })
         })
       ]);
+      const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [allocRes, perfRes] = await Promise.all([
+          fetch('/api/allocations', { method: 'POST', body: JSON.stringify({ lens }) }),
+          fetch('/api/performance', { method: 'POST', body: JSON.stringify({ period, lens, metricType }) })
+        ]);
 
+        if (!allocRes.ok) throw new Error(`Allocations API failed: ${allocRes.status}`);
+        if (!perfRes.ok) throw new Error(`Performance API failed: ${perfRes.status}`);
+
+        const allocData = await allocRes.json();
+        console.log('Allocations response:', allocData); // Log
+        setAllocations(allocData.allocations || []);
+
+        const perfData = await perfRes.json();
+        console.log('Performance response:', perfData); // Log
+        setPerformance(perfData);
+
+      } catch (err) {
+        setError((err as Error).message);
+        console.error('Fetch error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
       const allocData = await allocRes.json();
       setAllocations(allocData.allocations || []);
 
@@ -120,7 +147,18 @@ export default function DashboardHome() {
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}
         </Button>
       </div>
-
+{loading ? (
+  <p>Loading portfolio data...</p>
+) : error ? (
+  <p className="text-red-500">Error: {error} (Check console for details)</p>
+) : (
+  <>
+    {/* Existing Allocations Card */}
+    <Card className="mb-8">...</Card>
+    {/* Existing Performance Card */}
+    <Card>...</Card>
+  </>
+)}
       {/* Allocations Section – preserved exactly from your current code */}
       <Card className="mb-8">
         <CardHeader>
