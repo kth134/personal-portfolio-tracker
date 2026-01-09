@@ -1,11 +1,10 @@
-// app/api/performance/route.ts (final version)
+// src/app/api/performance/route.ts
 import { supabaseServer } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { subDays, subMonths, subYears, format, differenceInDays } from 'date-fns';
 import { POST as historicalPOST } from '../historical-prices/route';
 
 function calculateIRR(cashFlows: number[], dates: Date[]): number {
-  // unchanged from before
   let guess = 0.1;
   const maxIter = 100;
   const precision = 1e-8;
@@ -39,9 +38,15 @@ export async function POST(request: Request) {
 
     const today = new Date();
 
+    // Determine start date based on period
     let startDate: Date;
     if (period === 'All') {
-      const { data: first } = await supabase.from('transactions').select('date').order('date').limit(1).eq('user_id', user.id);
+      const { data: first } = await supabase
+        .from('transactions')
+        .select('date')
+        .order('date')
+        .limit(1)
+        .eq('user_id', user.id);
       startDate = first?.[0] ? new Date(first[0].date) : subYears(today, 5);
     } else {
       switch (period) {
@@ -55,60 +60,84 @@ export async function POST(request: Request) {
     const startStr = format(startDate, 'yyyy-MM-dd');
     const endStr = format(today, 'yyyy-MM-dd');
 
-    // Tax lots (current holdings – filtered)
-    const lotsSelectFields = lens !== 'all' 
+    // Fetch current tax lots (holdings)
+    const lotsSelectFields = lens !== 'all'
       ? `remaining_quantity, cost_basis_per_unit, asset_id, asset:assets!inner(ticker, ${lens})`
       : `remaining_quantity, cost_basis_per_unit, asset_id, asset:assets!inner(ticker)`;
-    let lotsQuery = supabase.from('tax_lots').select(lotsSelectFields).gt('remaining_quantity', 0).eq('user_id', user.id);
+
+    let lotsQuery = supabase
+      .from('tax_lots')
+      .select(lotsSelectFields)
+      .gt('remaining_quantity', 0)
+      .eq('user_id', user.id);
+
     if (lens !== 'all') {
       lotsQuery = lotsQuery.ilike(`asset.${lens}`, '%');
     }
-    const { data: lots } = await lotsQuery;
-    console.log(`Fetched ${lots?.length || 0} lots for lens ${lens}`);
-    // Define the type for lot entries
+
+    const { data: lots, error: lotsError } = await lotsQuery;
+    if (lotsError) throw new Error(`Failed to fetch tax lots: ${lotsError.message}`);
+    console.log(`Fetched ${lots?.length || 0} open tax lots for lens: ${lens}`);
+
     type LotEntry = {
       remaining_quantity: number;
       cost_basis_per_unit: number;
-      asset_id: string;
-      asset: { ticker: string } | null;
+      asset: { ticker: string } & Record<string, any>;
     };
 
-    // Filter out any error entries and ensure proper typing
-    const validLots = ((lots || []) as unknown as LotEntry[]).filter((lot): lot is LotEntry & { asset: { ticker: string } } => 
-      lot !== null && lot.asset !== null && typeof lot.asset === 'object' && 'ticker' in lot.asset
-    );
+    const validLots: LotEntry[] = ((lots as any[]) || [])
+      .filter((lot: any): lot is LotEntry =>
+        lot &&
+        lot.asset &&
+        typeof lot.asset === 'object' &&
+        'ticker' in lot.asset &&
+        lot.remaining_quantity > 0
+      );
 
-    // Transactions for flows
+    // Fetch transactions in period (for cash flows and factors)
     const txSelectFields = lens !== 'all'
       ? `*, asset:assets!inner(ticker, ${lens})`
       : `*, asset:assets!inner(ticker)`;
-    let txQuery = supabase.from('transactions').select(txSelectFields).gte('date', startStr).lte('date', endStr).eq('user_id', user.id);
+
+    let txQuery = supabase
+      .from('transactions')
+      .select(txSelectFields)
+      .gte('date', startStr)
+      .lte('date', endStr)
+      .eq('user_id', user.id);
+
     if (lens !== 'all') {
       txQuery = txQuery.ilike(`asset.${lens}`, '%');
     }
-    const { data: transactionsRaw } = await txQuery;
 
-    // Define the type for transaction entries
+    const { data: transactionsRaw, error: txError } = await txQuery;
+    if (txError) throw new Error(`Failed to fetch transactions: ${txError.message}`);
+
     type TransactionEntry = {
       date: string;
       type: string;
       amount: number | null;
       fees: number | null;
       realized_gain: number | null;
-      asset: { ticker: string } | null;
     };
 
-    // Filter out any error entries and ensure proper typing
-    const transactions = ((transactionsRaw || []) as unknown as TransactionEntry[]).filter((tx): tx is TransactionEntry => 
-      tx !== null && typeof tx === 'object' && 'date' in tx
-    );
+    const transactions: TransactionEntry[] = ((transactionsRaw as any[]) || [])
+      .filter((tx: any): tx is TransactionEntry => 
+        tx && 
+        typeof tx === 'object' && 
+        'date' in tx && 
+        'type' in tx && 
+        'amount' in tx && 
+        'fees' in tx && 
+        'realized_gain' in tx
+      );
 
-    // All tickers needed
+    // Collect all tickers: assets + benchmarks
     const assetTickers = [...new Set(validLots.map(l => l.asset.ticker))];
-    const allTickers = [...assetTickers, ...benchmarks];
+    const allTickers = [...new Set([...assetTickers, ...benchmarks])];
 
     // Fetch historical prices
-    const mockRequest = new Request('http://localhost/placeholder', { // URL doesn't matter
+    const mockRequest = new Request('http://localhost/placeholder', {
       method: 'POST',
       body: JSON.stringify({ tickers: allTickers, startDate: startStr, endDate: endStr }),
       headers: { 'Content-Type': 'application/json' }
@@ -116,82 +145,134 @@ export async function POST(request: Request) {
 
     const histResponse = await historicalPOST(mockRequest);
     if (!histResponse.ok) {
-      throw new Error(`Historical prices internal call failed: ${histResponse.status}`);
+      throw new Error(`Historical prices fetch failed: ${histResponse.status}`);
     }
-    const { historicalData } = await histResponse.json() as { 
-      historicalData: Record<string, { date: string; close: number }[]> 
+
+    const { historicalData } = await histResponse.json() as {
+      historicalData: Record<string, { date: string; close: number }[]>;
     };
-    console.log(`Historical for ${allTickers.length} tickers: ${Object.keys(historicalData).length} series`);
-    // Build portfolio value time series (daily)
-    const dates = Object.values(historicalData)[0]?.map((d) => d.date) || [];
-    const portfolioSeries = dates.map((date: string) => {
-      const value = validLots.reduce((sum, lot) => {
-        const price = historicalData[lot.asset.ticker]?.find((p: any) => p.date === date)?.close || 0;
-        return sum + lot.remaining_quantity * price;
-      }, 0);
-      return { date, value };
+
+    console.log(`Historical data received for ${Object.keys(historicalData).length} of ${allTickers.length} tickers`);
+
+    // === Build unified date array across ALL series (including gaps) ===
+    const allDatesSet = new Set<string>();
+    Object.values(historicalData).forEach(series => {
+      series.forEach(entry => allDatesSet.add(entry.date));
     });
+    const dates = Array.from(allDatesSet).sort();
 
-    // Normalize to cumulative return % (starting at 0%)
-    const initialPortfolioValue = portfolioSeries[0]?.value || 1;
-    if (initialPortfolioValue === 1) console.warn('No initial value; fallback to 1');
-    const portfolioNormalized: { date: string; portfolio: number; [key: string]: number | string }[] = portfolioSeries.map(p => ({
-      date: p.date,
-      portfolio: ((p.value / initialPortfolioValue) - 1) * 100
-    }));
-
-    // Benchmarks normalized
-    benchmarks.forEach((b: string) => {
-      const series = historicalData[b] || [];
-      const init = series[0]?.close || 1;
-      series.forEach((p: { date: string; close: number }, i: number) => {
-        portfolioNormalized[i][b] = ((p.close / init) - 1) * 100;
+    if (dates.length === 0) {
+      console.warn('No dates available from historical data');
+      return NextResponse.json({
+        totalReturn: 0,
+        annualized: 0,
+        factors: { unrealized: 0, realized: 0, dividends: 0, fees: 0 },
+        series: [],
+        datesCount: 0
       });
+    }
+
+    console.log(`Aligned timeline: ${dates.length} unique dates from ${dates[0]} to ${dates[dates.length - 1]}`);
+
+    // === Portfolio value time series (with forward-fill for missing prices) ===
+    const portfolioValues = dates.map(date => {
+      return validLots.reduce((total, lot) => {
+        const series = historicalData[lot.asset.ticker] || [];
+        // Find exact match or use last known price (forward-fill)
+        let price = 0;
+        for (let i = series.length - 1; i >= 0; i--) {
+          if (series[i].date <= date) {
+            price = series[i].close;
+            break;
+          }
+        }
+        return total + lot.remaining_quantity * price;
+      }, 0);
     });
 
-    // Factors (current)
-    const realized = transactions?.reduce((s, t) => s + (t.realized_gain || 0), 0) || 0;
-    const dividends = transactions?.filter(t => t.type === 'Dividend').reduce((s, t) => s + (t.amount || 0), 0) || 0;
-    const fees = transactions?.reduce((s, t) => s + Math.abs(t.fees || 0), 0) || 0;
-    const basis = validLots.reduce((s, l) => s + l.remaining_quantity * l.cost_basis_per_unit, 0);
-    const currentValue = portfolioSeries[portfolioSeries.length - 1]?.value || 0;
-    const unrealized = currentValue - basis;
+    const initialPortfolioValue = portfolioValues[0] || 1;
+    if (initialPortfolioValue <= 0) {
+      console.warn('Initial portfolio value <= 0; using 1 as fallback');
+    }
 
-    // Returns
-    let totalReturn = 0;
-    if (initialPortfolioValue > 0) {
-      totalReturn = (currentValue / initialPortfolioValue) - 1;
-    } else {
-  console.warn('Zero initial value; totalReturn=0');
-}
+    const currentPortfolioValue = portfolioValues[portfolioValues.length - 1] || initialPortfolioValue;
 
-    // Simple TWR ≈ total return (with historical it's very close)
+    // === Normalized series for chart ===
+    const series = dates.map((date, i) => {
+      const normalized: Record<string, string | number> = {
+        date,
+        portfolio: ((portfolioValues[i] / initialPortfolioValue) - 1) * 100
+      };
+
+      // Add benchmarks (forward-fill if missing)
+      benchmarks.forEach((benchmark: string) => {
+        const benchSeries = historicalData[benchmark] || [];
+        let benchPrice = 0;
+        for (let j = benchSeries.length - 1; j >= 0; j--) {
+          if (benchSeries[j].date <= date) {
+            benchPrice = benchSeries[j].close;
+            break;
+          }
+        }
+        const benchInitial = benchSeries.find(p => p.date === dates[0])?.close || benchSeries[0]?.close || 1;
+        normalized[benchmark] = benchInitial > 0 ? ((benchPrice / benchInitial) - 1) * 100 : 0;
+      });
+
+      return normalized;
+    });
+
+    // === Performance factors ===
+    const realized = transactions.reduce((sum, t) => sum + (t.realized_gain || 0), 0);
+    const dividends = transactions
+      .filter(t => t.type === 'Dividend')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+    const fees = transactions.reduce((sum, t) => sum + Math.abs(t.fees || 0), 0);
+
+    const totalBasis = validLots.reduce((sum, l) => sum + l.remaining_quantity * l.cost_basis_per_unit, 0);
+    const unrealized = currentPortfolioValue - totalBasis;
+
+    // === Total return ===
+    const totalReturn = initialPortfolioValue > 0
+      ? (currentPortfolioValue / initialPortfolioValue) - 1
+      : 0;
+
+    // Time-Weighted Return (approximated via total return with daily reval)
     const twr = totalReturn;
-    const mwr = transactions?.length ? calculateIRR(
-      transactions.map(tx => {
-        let f = 0;
-        if (tx.type === 'Buy') f = -(tx.amount || 0);
-        if (tx.type === 'Sell') f = tx.amount || 0;
-        if (tx.type === 'Dividend') f = tx.amount || 0;
-        f -= (tx.fees || 0);
-        return f;
-      }).concat(currentValue),
-      transactions.map(tx => new Date(tx.date)).concat(today)
-    ) : totalReturn;
+
+    // Money-Weighted Return (IRR)
+    const cashFlows = transactions.map(tx => {
+      let flow = 0;
+      if (tx.type === 'Buy') flow = -(tx.amount || 0);
+      if (tx.type === 'Sell') flow = tx.amount || 0;
+      if (tx.type === 'Dividend') flow = tx.amount || 0;
+      flow -= (tx.fees || 0);
+      return flow;
+    });
+    cashFlows.push(currentPortfolioValue); // Final value as terminal cash flow
+
+    const flowDates = transactions.map(tx => new Date(tx.date));
+    flowDates.push(today);
+
+    const mwr = cashFlows.length > 1 && !isNaN(calculateIRR(cashFlows, flowDates))
+      ? calculateIRR(cashFlows, flowDates)
+      : totalReturn;
 
     const finalReturn = metricType === 'twr' ? twr : mwr;
     const years = differenceInDays(today, startDate) / 365.25;
     const annualized = years > 0 ? Math.pow(1 + finalReturn, 1 / years) - 1 : finalReturn;
 
     return NextResponse.json({
-  totalReturn: finalReturn,
-  annualized,
-  factors: { unrealized, realized, dividends, fees },
-  series: portfolioNormalized,
-  datesCount: dates.length // Diagnostic
-});
+      totalReturn: finalReturn,
+      annualized,
+      factors: { unrealized, realized, dividends, fees },
+      series,
+      datesCount: dates.length
+    });
   } catch (error) {
-    console.error('Performance error:', error);
-return NextResponse.json({ error: (error as Error).message, details: 'Check server console' }, { status: 500 });
+    console.error('Performance calculation error:', error);
+    return NextResponse.json(
+      { error: (error as Error).message, details: 'Check server logs' },
+      { status: 500 }
+    );
   }
 }

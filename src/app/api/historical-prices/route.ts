@@ -14,8 +14,8 @@ export async function POST(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Unauthorized');
 
-    const apiKey = process.env.FINNHUB_API_KEY;
-    if (!apiKey) throw new Error('Missing FINNHUB_API_KEY');
+    const polygonKey = process.env.POLYGON_API_KEY;
+    if (!polygonKey) throw new Error('Missing POLYGON_API_KEY');
 
     // Build absolute base URL for any internal calls (prevents relative URL issues)
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
@@ -23,16 +23,16 @@ export async function POST(request: Request) {
     const from = getUnixTime(new Date(startDate));
     const to = getUnixTime(new Date(endDate));
 
+    const tickerMap: Record<string, string> = {
+      SPX: '^GSPC',
+      IXIC: '^IXIC',
+      BTCUSD: 'bitcoin',
+    };
+
     const historicalData: Record<string, { date: string; close: number }[]> = {};
 
     for (const ticker of tickers) {
       // Try DB first (daily closes)
-      const tickerMap: Record<string, string> = {
-        SPX: '^GSPC',
-        IXIC: '^IXIC',
-        BTCUSD: 'bitcoin',
-};
-      const mappedTicker = tickerMap[ticker] || ticker;
       const { data: cached } = await supabase
         .from('asset_prices')
         .select('timestamp, price')
@@ -51,44 +51,16 @@ export async function POST(request: Request) {
 
       // Fetch live
       let prices: { date: string; close: number }[] = [];
-        const isCrypto = ticker.toLowerCase().includes('usd') || ticker === 'BTCUSD';
-        if (isCrypto) {
-          const cgId = tickerMap[ticker] || ticker.toLowerCase().replace('usd', '');
-          const cgUrl = `https://api.coingecko.com/api/v3/coins/${cgId}/market_chart/range?vs_currency=usd&from=${from}&to=${to}`;
-          const res = await fetch(cgUrl);
-          if (!res.ok) {
-            console.error(`CoinGecko historical error for ${cgId}: ${res.statusText}`);
-            prices = []; // Explicit empty
-            continue;
-          }
-          const { prices: cg } = await res.json();
-          prices = cg.map(([ts, p]: [number, number]) => ({
-            date: format(new Date(ts), 'yyyy-MM-dd'),
-            close: p
-          }));
-        } else {
-          const finnhubTicker = tickerMap[ticker] || ticker;
-          const url = `https://finnhub.io/api/v1/stock/candle?symbol=${finnhubTicker}&resolution=D&from=${from}&to=${to}&token=${apiKey}`;
-          const res = await fetch(url);
-          if (!res.ok) {
-            console.error(`Finnhub historical error for ${finnhubTicker}: ${res.statusText}`);
-            prices = [];
-            continue;
-          }
-          const data = await res.json();
-          if (data.c?.length) {
-            prices = data.t.map((ts: number, i: number) => ({
-              date: format(new Date(ts * 1000), 'yyyy-MM-dd'),
-              close: data.c[i]
-            }));
-          }
-        }
-      if (ticker === 'BTCUSD' || ticker.toLowerCase().includes('usd')) {
-        // CoinGecko fallback for crypto benchmarks
-        const cgId = ticker === 'BTCUSD' ? 'bitcoin' : ticker.toLowerCase().replace('usd', '');
+
+      const isCrypto = ticker.toLowerCase().includes('usd') || ticker === 'BTCUSD';
+      if (isCrypto) {
+        const cgId = tickerMap[ticker] || ticker.toLowerCase().replace('usd', '');
         const cgUrl = `https://api.coingecko.com/api/v3/coins/${cgId}/market_chart/range?vs_currency=usd&from=${from}&to=${to}`;
         const res = await fetch(cgUrl);
-        if (res.ok) {
+        if (!res.ok) {
+          console.error(`CoinGecko historical error for ${cgId}: ${res.statusText}`);
+          prices = [];
+        } else {
           const { prices: cg } = await res.json();
           prices = cg.map(([ts, p]: [number, number]) => ({
             date: format(new Date(ts), 'yyyy-MM-dd'),
@@ -96,15 +68,18 @@ export async function POST(request: Request) {
           }));
         }
       } else {
-        // Finnhub for stocks/indices (SPX, IXIC, etc.)
-        const url = `https://finnhub.io/api/v1/stock/candle?symbol=${mappedTicker}&resolution=D&from=${from}&to=${to}&token=${apiKey}`;
+        const polygonTicker = tickerMap[ticker] || ticker;
+        const url = `https://api.polygon.io/v2/aggs/ticker/${polygonTicker}/range/1/day/${startDate}/${endDate}?apiKey=${polygonKey}`;
         const res = await fetch(url);
-        if (res.ok) {
+        if (!res.ok) {
+          console.error(`Polygon historical error for ${polygonTicker}: ${res.statusText}`);
+          prices = [];
+        } else {
           const data = await res.json();
-          if (data.c?.length) {
-            prices = data.t.map((ts: number, i: number) => ({
-              date: format(new Date(ts * 1000), 'yyyy-MM-dd'),
-              close: data.c[i]
+          if (data.results?.length) {
+            prices = data.results.map((r: any) => ({
+              date: format(new Date(r.t), 'yyyy-MM-dd'), // Polygon t is ms
+              close: r.c
             }));
           }
         }
@@ -118,7 +93,7 @@ export async function POST(request: Request) {
             ticker,
             price: p.close,
             timestamp: p.date,
-            source: ticker === 'BTCUSD' ? 'coingecko' : 'finnhub'
+            source: isCrypto ? 'coingecko' : 'polygon'
           }))
         );
       }
