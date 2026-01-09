@@ -214,7 +214,8 @@ Response Guidelines (follow strictly - NO EXCEPTIONS):
 - Use numbered lists for steps or ranked items.
 - Use tables for comparisons (e.g., allocation vs. targets | Metric | Current | Target |).
 - Keep paragraphs short (2–4 sentences max).
-- Include visualizations when helpful: Use Markdown code blocks (e.g., \`\`\`mermaid for simple charts/graphs, or \`\`\`python for quick plots).
+- Include visualizations when helpful or requested: Always output the actual Markdown code block so it can be rendered in the UI. Use \`\`\`mermaid
+- When a user requests a chart, ALWAYS respond with the Mermaid code block first, followed by insights
 - Be concise yet insightful—aim for clarity over length.
 - End with a short summary or next-step suggestion when relevant.
 - When relevant, use the web_search tool to fetch current news, market data, or sentiment from the web.
@@ -232,6 +233,13 @@ Your total value is **$100,000**.
 ## Insights
 - High concentration in **BTC** increases risk.
 - Compare to S&P 500 benchmark: Your portfolio is more volatile.
+
+## Allocation Pie Chart
+\`\`\`mermaid
+pie title Holdings Breakdown
+"Bitcoin" : 91.4
+"High Growth Stocks" : 8.6
+\`\`\`
 
 This is not professional financial advice.
 
