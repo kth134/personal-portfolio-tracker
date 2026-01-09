@@ -32,7 +32,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   const { data: accounts, error: accountsError } = await supabase
     .from('accounts')
     .select('id, name, type, institution, tax_status')
-    .eq('user_id', userId); // Assuming user_id on accounts; adjust if shared via portfolio_shares
+    .eq('user_id', userId);
   if (accountsError) throw accountsError;
 
   // Fetch full sub_portfolios
@@ -41,11 +41,11 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     .select('id, name, objective, manager, target_allocation');
   if (subError) throw subError;
 
-  // Fetch full assets (with sub_portfolio join)
+  // Fetch full assets (with sub_portfolio join and additional tags)
   const { data: assets, error: assetsError } = await supabase
     .from('assets')
-    .select('id, ticker, name, asset_class, sub_portfolio_id, notes, sub_portfolios(name, objective, manager, target_allocation)')
-    .eq('user_id', userId); // Assuming user_id; filter if needed
+    .select('id, ticker, name, asset_type, asset_subtype, geography, factor_tag, size_tag, sub_portfolio_id, notes, sub_portfolios(name, objective, manager, target_allocation)')
+    .eq('user_id', userId);
   if (assetsError) throw assetsError;
 
   // Fetch tax_lots (full, with joins for context)
@@ -53,7 +53,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     .from('tax_lots')
     .select(`
       id, account_id, asset_id, purchase_date, remaining_quantity, cost_basis_per_unit,
-      accounts(name, type), assets(ticker, asset_class)
+      accounts(name, type), assets(ticker, asset_type, asset_subtype, geography, factor_tag, size_tag)
     `)
     .eq('user_id', userId)
     .gt('remaining_quantity', 0);
@@ -62,7 +62,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   // Fetch transactions (full history, but limit to last 100 for sanity; add param if needed)
   const { data: transactions, error: txError } = await supabase
     .from('transactions')
-    .select('id, account_id, asset_id, type, date, quantity, price, fees, notes')
+    .select('id, account_id, asset_id, type, date, quantity, price_per_unit, fees, notes')
     .eq('user_id', userId)
     .order('date', { ascending: false })
     .limit(100); // Adjustable; full could be too much
@@ -96,8 +96,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     }
   });
 
-  // Original aggregation logic
-  // Updated query: Join sub_portfolios for name, objective, manager, target_allocation
+  // Original aggregation logic with corrected fields
   const { data: rawHoldingsData, error: holdingsError } = await supabase
     .from('tax_lots')
     .select(`
@@ -105,7 +104,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
         asset_type, 
         sub_portfolio_id, 
         ticker,
-        sub_portfolio:sub_portfolios(name, objective, manager, target_allocation)
+        subPortfolio:sub_portfolios(name, objective, manager, target_allocation)
       ), 
       remaining_quantity, 
       cost_basis_per_unit
@@ -120,7 +119,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
       asset_type: string;
       sub_portfolio_id: string | null;
       ticker: string;
-      sub_portfolio: { name: string; objective?: string; manager?: string; target_allocation?: number } | null;
+      subPortfolio: { name: string; objective?: string; manager?: string; target_allocation?: number } | null;
     };
     remaining_quantity: number;
     cost_basis_per_unit: number;
@@ -141,7 +140,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   const tickersMap = new Map<string, Set<string>>();
   rawHoldings.forEach(h => {
     if (!h.assets) return;
-    const subName = h.assets.sub_portfolio?.name || 'Untagged';
+    const subName = h.assets.subPortfolio?.name || 'Untagged';
     const key = `${h.assets.asset_type}-${subName}`;
     if (!tickersMap.has(key)) {
       tickersMap.set(key, new Set());
@@ -157,7 +156,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   rawHoldings.forEach(h => {
     if (!h.assets) return;
 
-    const subName = h.assets.sub_portfolio?.name || 'Untagged';
+    const subName = h.assets.subPortfolio?.name || 'Untagged';
     const key = `${h.assets.asset_type}-${subName}`;
     const currentPrice = latestPrices.get(h.assets.ticker)?.price || 0;
     const currentValue = h.remaining_quantity * currentPrice;
@@ -180,7 +179,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   // Allocations – now enriched with sub-portfolio metadata
   const allocations = holdings.map(h => {
     const subPortfolio = rawHoldings
-      .find(rh => rh.assets?.sub_portfolio?.name === h.sub_name)?.assets?.sub_portfolio || null;
+      .find(rh => rh.assets?.subPortfolio?.name === h.sub_name)?.assets?.subPortfolio || null;
 
     return {
       type: h.asset_type,
@@ -212,7 +211,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   const assetValues = new Map<string, number>();
 
   taxLots.forEach(l => {
-    const ticker = (l.assets as unknown as { ticker: any; asset_class: any; })?.ticker || '';
+    const ticker = Array.isArray(l.assets) && l.assets.length > 0 ? l.assets[0].ticker : '';
     const currentPrice = latestPrices.get(ticker)?.price || 0;
     const currentValue = l.remaining_quantity * currentPrice;
 
@@ -238,7 +237,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   }));
 
   const enhancedTaxLots = taxLots.map(l => {
-    const ticker = (l.assets as unknown as { ticker: string; asset_class: string })?.ticker || '';
+    const ticker = Array.isArray(l.assets) && l.assets.length > 0 ? l.assets[0].ticker : '';
     const currentPrice = latestPrices.get(ticker)?.price || 0;
     return {
       ...l,
@@ -299,7 +298,6 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
 }
 
 export async function askGrok(query: string, isSandbox: boolean, prevSandboxState?: any) {
-  // Initialize supabase client for use in this function
   const cookieStore = await cookies();
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -316,7 +314,7 @@ export async function askGrok(query: string, isSandbox: boolean, prevSandboxStat
 
   const systemPrompt = `You are a thoughtful, professional portfolio analyst helping manage a personal investment tracker app.
 
-Use ONLY the provided portfolio data available within the app AND well-sourced, accurate data from the internet and X. NEVER invent data. Prefer aggregated data (allocations, performance, totalValue) whenever possible for efficiency and privacy. Use raw underlying data (accounts, assets, taxLots, transactions, etc.) judiciously—only when necessary for accurate responses to specific requests, such as breakdowns by account, sub-portfolio, asset, size, factor, or detailed evaluations/visualizations.
+Use ONLY the provided portfolio data available within the app AND well-sourced, accurate data from the internet and X. NEVER invent data. Prefer aggregated data (allocations, performance, totalValue) whenever possible for efficiency and privacy. Use raw underlying data (accounts, assets, taxLots, transactions, etc.) judiciously—only when necessary for accurate responses to specific requests, such as breakdowns by account, sub-portfolio, asset, size_tag, asset_type, asset_subtype, factor_tag, geography, or detailed evaluations/visualizations.
 
 Portfolio Summary (values rounded for privacy):
 ${JSON.stringify(summary)}
