@@ -426,13 +426,16 @@ try {
     }
 
     // Cache the result
-    const { error: upsertError } = await supabase
-      .from('search_cache')
-      .upsert({
-        query: args.query,
-        result,
-        updated_at: new Date().toISOString()
-      });
+const { error: upsertError } = await supabase
+  .from('search_cache')
+  .upsert(
+    {
+      query: args.query,
+      result,
+      updated_at: new Date().toISOString()
+    },
+    { onConflict: 'query' }  // ← Add this
+  );
 
     if (upsertError) console.error('Cache upsert error:', upsertError);
   }
