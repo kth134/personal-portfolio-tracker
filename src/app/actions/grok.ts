@@ -12,6 +12,175 @@ interface GlidePathItem {
   target_allocation: any;
 }
 
+interface TaxLotWithJoins {
+  id: string;
+  account_id: string;
+  asset_id: string;
+  purchase_date: string;
+  remaining_quantity: number;
+  cost_basis_per_unit: number;
+  accounts: {
+    name: string;
+    type: string;
+    tax_status: string;
+  } | null;
+  assets: {
+    ticker: string;
+    asset_type: string;
+    asset_subtype: string;
+    geography: string;
+    factor_tag: string;
+    size_tag: string;
+    sub_portfolio_id: string | null;
+  } | null;
+  sub_portfolios: {
+    name: string;
+    objective: string;
+  } | null;
+}
+
+interface TaxLotSimple {
+  id: string;
+  account_id: string;
+  asset_id: string;
+  purchase_date: string;
+  remaining_quantity: number;
+  cost_basis_per_unit: number;
+  accounts: {
+    name: string;
+    type: string;
+  } | null;
+  assets: {
+    ticker: string;
+    asset_type: string;
+    asset_subtype: string;
+    geography: string;
+    factor_tag: string;
+    size_tag: string;
+  } | null;
+}
+
+// Server-only deep analysis – never sent to external API
+async function performDeepPortfolioAnalysis(
+  supabase: any,
+  userId: string,
+  userQuery: string
+): Promise<string> {
+  // Early exit if query doesn't seem to need deep data
+  const lowerQuery = userQuery.toLowerCase();
+  const needsDeep = /lot|basis|date|purchase|age|hold.*period|realized|unrealized.*by|breakdown.*by|factor|size|geography|subtype|account|sub-portfolio/i.test(lowerQuery);
+  if (!needsDeep) return "";
+
+  let analysis = "Deep analysis results:\n";
+
+  // Fetch necessary data for analysis (to avoid multiple queries)
+  const { data: taxLots } = await supabase
+    .from('tax_lots')
+    .select(`
+      id, account_id, asset_id, purchase_date, remaining_quantity, cost_basis_per_unit,
+      accounts(name, type, tax_status), assets(ticker, asset_type, asset_subtype, geography, factor_tag, size_tag, sub_portfolio_id),
+      sub_portfolios(name, objective)
+    `)
+    .eq('user_id', userId)
+    .gt('remaining_quantity', 0) as { data: TaxLotWithJoins[] | null };
+
+  const { data: latestPrices } = await supabase
+    .from('asset_prices')
+    .select('ticker, price')
+    .order('ticker', { ascending: true })
+    .order('timestamp', { ascending: false }) as { data: { ticker: string; price: number }[] | null };
+
+  const pricesMap = new Map();
+  if (latestPrices) {
+    latestPrices.forEach(p => {
+      if (!pricesMap.has(p.ticker)) pricesMap.set(p.ticker, p.price);
+    });
+  }
+
+  if (!taxLots?.length) {
+    return "No detailed holdings found for deep analysis.";
+  }
+
+  // 1. Tax lots by age or purchase date
+  if (/lot|age|purchase|hold.*period/i.test(lowerQuery)) {
+    const tickerMatch = lowerQuery.match(/btc|bitcoin|([a-z]{3,4})/i);
+    const targetTicker = tickerMatch ? tickerMatch[0].toUpperCase() : null;
+
+    const filteredLots = taxLots.filter(lot => !targetTicker || lot.assets?.ticker === targetTicker);
+
+    if (filteredLots.length) {
+      const lotSummaries = filteredLots.map(lot => {
+        const currentPrice = pricesMap.get(lot.assets?.ticker) || 0;
+        const currentValue = lot.remaining_quantity * currentPrice;
+        const unrealizedGain = currentValue - (lot.cost_basis_per_unit * lot.remaining_quantity);
+        const ageDays = Math.floor((Date.now() - new Date(lot.purchase_date).getTime()) / (86400000));
+        return `- Account: ${lot.accounts?.name || 'Unknown'} (${lot.accounts?.tax_status || ''}) | Ticker: ${lot.assets?.ticker} | Quantity: ${lot.remaining_quantity.toFixed(4)} | Basis: $${lot.cost_basis_per_unit.toFixed(2)} | Purchase: ${new Date(lot.purchase_date).toLocaleDateString()} | Age: ${ageDays} days | Unrealized Gain: $${unrealizedGain.toFixed(0)}`;
+      });
+      analysis += `Detailed lots${targetTicker ? ` for ${targetTicker}` : ''}:\n${lotSummaries.join('\n')}\n\n`;
+    }
+  }
+
+  // 2. Breakdown by account or tax_status
+  if (/account|tax_status/i.test(lowerQuery)) {
+    const accountGains: Record<string, number> = {};
+    taxLots.forEach(lot => {
+      const accName = lot.accounts?.name || 'Untagged';
+      const currentPrice = pricesMap.get(lot.assets?.ticker) || 0;
+      const unrealizedGain = (lot.remaining_quantity * currentPrice) - (lot.cost_basis_per_unit * lot.remaining_quantity);
+      accountGains[accName] = (accountGains[accName] || 0) + unrealizedGain;
+    });
+
+    const gainSummaries = Object.entries(accountGains).map(([acc, gain]) => `- ${acc}: $${(gain as number).toFixed(0)} unrealized gain`);
+    analysis += `Unrealized gains by account:\n${gainSummaries.join('\n')}\n\n`;
+  }
+
+  // 3. Breakdown by sub-portfolio, factor_tag, size_tag, geography, asset_subtype
+  if (/sub-portfolio|factor|size|geography|subtype/i.test(lowerQuery)) {
+    const breakdowns = {
+      'sub-portfolio': 'sub_portfolios.name',
+      factor: 'assets.factor_tag',
+      size: 'assets.size_tag',
+      geography: 'assets.geography',
+      subtype: 'assets.asset_subtype'
+    };
+
+// Breakdown by sub-portfolio name
+if (/sub-portfolio|sub\s*portfolio/i.test(lowerQuery)) {
+  const subGains: Record<string, number> = {};
+  taxLots.forEach(lot => {
+    const subName = lot.sub_portfolios?.name || 'Untagged';
+    const currentPrice = pricesMap.get(lot.assets?.ticker) || 0;
+    const unrealizedGain = (lot.remaining_quantity * currentPrice) - (lot.cost_basis_per_unit * lot.remaining_quantity);
+    subGains[subName] = (subGains[subName] || 0) + unrealizedGain;
+  });
+
+  const subSummaries = Object.entries(subGains).map(([sub, gain]) => 
+    `- ${sub}: $${(gain as number).toFixed(0)} unrealized gain`
+  );
+  analysis += `Unrealized gains by sub-portfolio:\n${subSummaries.join('\n')}\n\n`;
+}
+
+    for (const [key, field] of Object.entries(breakdowns)) {
+      if (new RegExp(key, 'i').test(lowerQuery)) {
+        const groupGains: Record<string, number> = {};
+        taxLots.forEach(lot => {
+          const groupKey = field.split('.').reduce((o: any, k) => o?.[k], lot) || 'Untagged';
+          const currentPrice = pricesMap.get(lot.assets?.ticker) || 0;
+          const unrealizedGain = (lot.remaining_quantity * currentPrice) - (lot.cost_basis_per_unit * lot.remaining_quantity);
+          groupGains[groupKey] = (groupGains[groupKey] || 0) + unrealizedGain;
+        });
+
+        const groupSummaries = Object.entries(groupGains).map(([group, gain]) => `- ${group}: $${(gain as number).toFixed(0)} unrealized gain`);
+        analysis += `Unrealized gains by ${key}:\n${groupSummaries.join('\n')}\n\n`;
+      }
+    }
+  }
+
+  // Add more patterns as needed (e.g., realized gains from transactions)
+
+  return analysis.trim() || "No matching deep analysis for this query.";
+}
+
 export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: any) {
   const cookieStore = await cookies();
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
@@ -48,7 +217,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     .eq('user_id', userId);
   if (assetsError) throw assetsError;
 
-  // Fetch tax_lots (full, with joins for context)
+  // Fetch tax_lots (full, with joins for context) - but now only used server-side
   const { data: taxLots, error: lotsError } = await supabase
     .from('tax_lots')
     .select(`
@@ -56,7 +225,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
       accounts(name, type), assets(ticker, asset_type, asset_subtype, geography, factor_tag, size_tag)
     `)
     .eq('user_id', userId)
-    .gt('remaining_quantity', 0);
+    .gt('remaining_quantity', 0) as { data: TaxLotSimple[] | null, error: any };
   if (lotsError) throw lotsError;
 
   // Fetch transactions (full history, but limit to last 100 for sanity; add param if needed)
@@ -210,21 +379,23 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   const accountBalances = new Map<string, number>();
   const assetValues = new Map<string, number>();
 
-  taxLots.forEach(l => {
-    const ticker = Array.isArray(l.assets) && l.assets.length > 0 ? l.assets[0].ticker : '';
-    const currentPrice = latestPrices.get(ticker)?.price || 0;
-    const currentValue = l.remaining_quantity * currentPrice;
+  if (taxLots) {
+    taxLots.forEach(l => {
+      const ticker = l.assets?.ticker || '';
+      const currentPrice = latestPrices.get(ticker)?.price || 0;
+      const currentValue = l.remaining_quantity * currentPrice;
 
-    // Account balance
-    if (l.account_id) {
-      accountBalances.set(l.account_id, (accountBalances.get(l.account_id) || 0) + currentValue);
-    }
+      // Account balance
+      if (l.account_id) {
+        accountBalances.set(l.account_id, (accountBalances.get(l.account_id) || 0) + currentValue);
+      }
 
-    // Asset value
-    if (l.asset_id) {
-      assetValues.set(l.asset_id, (assetValues.get(l.asset_id) || 0) + currentValue);
-    }
-  });
+      // Asset value
+      if (l.asset_id) {
+        assetValues.set(l.asset_id, (assetValues.get(l.asset_id) || 0) + currentValue);
+      }
+    });
+  }
 
   const enhancedAccounts = accounts.map(a => ({
     ...a,
@@ -236,14 +407,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     currentValue: Math.round(assetValues.get(a.id) || 0)
   }));
 
-  const enhancedTaxLots = taxLots.map(l => {
-    const ticker = Array.isArray(l.assets) && l.assets.length > 0 ? l.assets[0].ticker : '';
-    const currentPrice = latestPrices.get(ticker)?.price || 0;
-    return {
-      ...l,
-      currentValue: Math.round(l.remaining_quantity * currentPrice)
-    };
-  });
+  // Note: We no longer include raw taxLots/transactions in the summary - they stay server-side
 
   let summary = {
     totalValue: Math.round(totalValue / 1000) * 1000,
@@ -256,12 +420,10 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     glidePath,
     recentTransactions,
     missingPrices: Array.from(missingTickers),
-    // New raw/full sections (anonymized/rounded where possible)
+    // Safe sections only
     accounts: enhancedAccounts,
     subPortfolios,
     assets: enhancedAssets,
-    taxLots: enhancedTaxLots,
-    transactions, // Full recent (100)
     assetPrices: Object.fromEntries(latestPrices)
   };
 
@@ -309,15 +471,26 @@ export async function askGrok(query: string, isSandbox: boolean, prevSandboxStat
       },
     },
   });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Unauthorized');
+  const userId = user.id;
 
   const summary = await getPortfolioSummary(isSandbox, prevSandboxState?.changes);
 
+  // NEW: Run server-side deep analysis (never leaves server)
+  const deepAnalysis = await performDeepPortfolioAnalysis(supabase, userId, query);
+
+  const safePromptData = {
+    ...summary,
+    deep_analysis: deepAnalysis || undefined  // only add if meaningful
+  };
+
   const systemPrompt = `You are a thoughtful, professional portfolio analyst helping manage a personal investment tracker app.
 
-Use ONLY the provided portfolio data available within the app AND well-sourced, accurate data from the internet and X. NEVER invent data. Prefer aggregated data (allocations, performance, totalValue) whenever possible for efficiency and privacy. Use raw underlying data (accounts, assets, taxLots, transactions, etc.) judiciously—only when necessary for accurate responses to specific requests, such as breakdowns by account, sub-portfolio, asset, size_tag, asset_type, asset_subtype, factor_tag, geography, or detailed evaluations/visualizations.
+Use ONLY the provided portfolio data available within the app AND well-sourced, accurate data from the internet and X. NEVER invent data. Prefer aggregated data (allocations, performance, totalValue) whenever possible for efficiency and privacy. Use the deep_analysis summary (when provided) for accurate responses to specific requests, such as breakdowns by account, sub-portfolio, asset, size_tag, asset_type, asset_subtype, factor_tag, geography, or detailed evaluations/visualizations.
 
 Portfolio Summary (values rounded for privacy):
-${JSON.stringify(summary)}
+${JSON.stringify(safePromptData)}
 
 Response Guidelines (follow strictly - NO EXCEPTIONS):
 - **Every response MUST be in clean, scannable Markdown format from start to finish.**
