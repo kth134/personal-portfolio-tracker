@@ -197,6 +197,17 @@ allocations: allocations.map(a => ({ ...a, value: Math.round(a.value), pct: Math
   return summary;}
 
 export async function askGrok(query: string, isSandbox: boolean, prevSandboxState?: any) {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+      },
+    },
+  });
   const summary = await getPortfolioSummary(isSandbox, prevSandboxState?.changes);
 
   const systemPrompt = `You are a thoughtful, professional portfolio analyst helping manage a personal investment tracker app.
@@ -261,119 +272,183 @@ Respond conversationally but professionally—no fluff.`;
     { role: "system", content: systemPrompt },
     { role: "user", content: query }
   ];
-
-  try {
-    while (true) {
-      const response = await fetch('https://api.x.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${grokApiKey}` },
-        body: JSON.stringify({
-          model: "grok-4-1-fast-reasoning",
-          messages,
-          temperature: 0.6,
-          max_tokens: 1000,
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "web_search",
-                description: "Search the web for current news, market data, prices, sentiment, or any time-sensitive information. Use this for X/Twitter info as well by including 'site:x.com' in the query if needed.",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    query: { type: "string", description: "The detailed search query. Be specific." }
-                  },
-                  required: ["query"]
-                }
+try {
+  while (true) {
+    const response = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${grokApiKey}` },
+      body: JSON.stringify({
+        model: "grok-4-1-fast-reasoning",
+        messages,
+        temperature: 0.6,
+        max_tokens: 1000,
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "web_search",
+              description: "Search the web for current news, market data, prices, sentiment, or any time-sensitive information. Use this for X/Twitter info as well by including 'site:x.com' in the query if needed.",
+              parameters: {
+                type: "object",
+                properties: {
+                  query: { type: "string", description: "The detailed search query. Be specific." }
+                },
+                required: ["query"]
               }
             }
-          ],
-          tool_choice: "auto"
-        }),
+          }
+        ],
+        tool_choice: "auto"
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Grok API request failed: Status ${response.status}, Response: ${errorText}`);
+      throw new Error(`Grok API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+      console.error(`Invalid Grok API response: ${JSON.stringify(data)}`);
+      throw new Error('No valid choices in Grok API response');
+    }
+
+    const message = data.choices[0].message;
+    messages.push(message);
+
+    if (!message.tool_calls) {
+      // Final response
+      const content = message.content;
+      let changes = null;
+      if (isSandbox) {
+        const changeMatch = content.match(/\{.*\}/s);
+        if (changeMatch) {
+          try {
+            changes = JSON.parse(changeMatch[0]);
+          } catch (parseError) {
+            console.error(`Failed to parse changes: ${changeMatch[0]}`, parseError);
+          }
+        }
+      }
+      return { content, changes };
+    }
+
+    // Handle tool calls
+    for (const toolCall of message.tool_calls) {
+      const func = toolCall.function;
+      console.log('Tool call received:', func.name, 'arguments:', func.arguments); // Log for debug
+      let args: { query?: string } = {};
+      try {
+        args = func.arguments ? JSON.parse(func.arguments) : {};
+      } catch (parseError) {
+        console.error('Failed to parse tool arguments:', parseError, 'Raw:', func.arguments);
+        messages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          name: func.name,
+          content: 'Error: Invalid arguments provided.'
+        });
+        continue;
+      }
+
+     if (func.name === "web_search") {
+  if (!args.query) {
+    messages.push({
+      role: "tool",
+      tool_call_id: toolCall.id,
+      name: func.name,
+      content: 'Error: No query provided for search.'
+    });
+    continue;
+  }
+
+  const serperApiKey = process.env.SERPER_API_KEY;
+  if (!serperApiKey) {
+    throw new Error('SERPER_API_KEY not set in environment.');
+  }
+
+  // === Caching logic (10-minute TTL) ===
+  const cacheTime = 10 * 60 * 1000; // 10 minutes
+  let result = '';
+  const { data: cacheData, error: cacheError } = await supabase
+    .from('search_cache')
+    .select('result, updated_at')
+    .eq('query', args.query)
+    .single();
+
+  if (cacheError && cacheError.code !== 'PGRST116') { // PGRST116 = no rows
+    console.error('Cache query error:', cacheError);
+  }
+
+  if (cacheData) {
+    const age = Date.now() - new Date(cacheData.updated_at).getTime();
+    if (age < cacheTime) {
+      result = cacheData.result;
+      console.log(`Serper cache hit: ${args.query}`);
+    }
+  }
+
+  // === If no fresh cache, call Serper ===
+  if (!result) {
+    console.log(`Serper cache miss: ${args.query}`);
+    const searchRes = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': serperApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ q: args.query })
+    });
+
+    if (!searchRes.ok) {
+      const errorText = await searchRes.text();
+      console.error(`Serper API error: ${searchRes.status} - ${errorText}`);
+      messages.push({
+        role: "tool",
+        tool_call_id: toolCall.id,
+        name: func.name,
+        content: `Error: Search failed - ${errorText}`
+      });
+      continue;
+    }
+
+    const data = await searchRes.json();
+
+    // Build clean result string
+    if (data.organic && data.organic.length > 0) {
+      result += 'Results:\n';
+      data.organic.slice(0, 8).forEach((item: any) => {
+        result += `- ${item.title}: ${item.snippet} (${item.link})\n`;
+      });
+    } else {
+      result = 'No results found.';
+    }
+
+    // Cache the result
+    const { error: upsertError } = await supabase
+      .from('search_cache')
+      .upsert({
+        query: args.query,
+        result,
+        updated_at: new Date().toISOString()
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Grok API request failed: Status ${response.status}, Response: ${errorText}`);
-        throw new Error(`Grok API error: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-        console.error(`Invalid Grok API response: ${JSON.stringify(data)}`);
-        throw new Error('No valid choices in Grok API response');
-      }
-
-      const message = data.choices[0].message;
-      messages.push(message);
-
-      if (!message.tool_calls) {
-        // Final response
-        const content = message.content;
-        let changes = null;
-        if (isSandbox) {
-          const changeMatch = content.match(/\{.*\}/s);
-          if (changeMatch) {
-            try {
-              changes = JSON.parse(changeMatch[0]);
-            } catch (parseError) {
-              console.error(`Failed to parse changes: ${changeMatch[0]}`, parseError);
-            }
-          }
-        }
-        return { content, changes };
-      }
-
-      // Handle tool calls
-      for (const toolCall of message.tool_calls) {
-        const func = toolCall.function;
-        console.log('Tool call received:', func.name, 'arguments:', func.arguments); // Log for debug
-        let args: { query?: string } = {};
-        try {
-          args = func.arguments ? JSON.parse(func.arguments) : {};
-        } catch (parseError) {
-          console.error('Failed to parse tool arguments:', parseError, 'Raw:', func.arguments);
-          messages.push({
-            role: "tool",
-            tool_call_id: toolCall.id,
-            name: func.name,
-            content: 'Error: Invalid arguments provided.'
-          });
-          continue;
-        }
-
-        if (func.name === "web_search") {
-          if (!args.query) {
-            console.warn('web_search called without query; skipping.');
-            messages.push({
-              role: "tool",
-              tool_call_id: toolCall.id,
-              name: func.name,
-              content: 'Error: No query provided for search.'
-            });
-            continue;
-          }
-          const searchUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(args.query)}&format=json&pretty=1`;
-          const searchRes = await fetch(searchUrl);
-          const searchData = await searchRes.json();
-          let result = searchData.Abstract || 'No abstract found.';
-          if (searchData.RelatedTopics && searchData.RelatedTopics.length > 0) {
-            result += '\n\nRelated Topics:\n' + searchData.RelatedTopics.slice(0, 5).map((t: any) => `- ${t.Text} (${t.FirstURL})`).join('\n');
-          }
-          if (searchData.Results && searchData.Results.length > 0) {
-            result += '\n\nResults:\n' + searchData.Results.slice(0, 5).map((r: any) => `- ${r.Text} (${r.FirstURL})`).join('\n');
-          }
-          messages.push({
-            role: "tool",
-            tool_call_id: toolCall.id,
-            name: func.name,
-            content: result || 'No results found.'
-          });
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error in askGrok:', error);
-    throw error;
+    if (upsertError) console.error('Cache upsert error:', upsertError);
   }
+
+  messages.push({
+    role: "tool",
+    tool_call_id: toolCall.id,
+    name: func.name,
+    content: result
+  });
+    }
+  }
+} // ← Closes the while(true)
+} // ← Closes the try
+catch (error) {
+  console.error('Error in askGrok:', error);
+  throw error;
+}
 }
