@@ -254,7 +254,7 @@ export default async function PortfolioPage() {
         <TabsContent value="subportfolios">
           <SubPortfoliosList initialSubPortfolios={initialSubPortfolios} />
         </TabsContent>
-        <TabsContent value="subportfolios">
+        <TabsContent value="assets">
           <AssetsList initialAssets={initialAssets} />
         </TabsContent>
       </Tabs>
