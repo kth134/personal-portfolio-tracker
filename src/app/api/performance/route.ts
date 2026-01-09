@@ -30,6 +30,11 @@ export async function POST(request: Request) {
       lens = 'all',
       metricType = 'mwr',
       benchmarks = ['SPX', 'IXIC', 'BTCUSD']
+    }: {
+      period?: string;
+      lens?: string;
+      metricType?: string;
+      benchmarks?: string[];
     } = await request.json();
 
     const supabase = await supabaseServer();
@@ -73,7 +78,7 @@ export async function POST(request: Request) {
       .gt('remaining_quantity', 0)
       .eq('user_id', user.id);
 
-    // Apply lens filter if not 'all' (e.g., sub_portfolio = 'High-Growth')
+    // Apply lens filter if not 'all'
     if (lens !== 'all') {
       lotsQuery = lotsQuery.ilike(`asset.${lens}`, '%');
     }
@@ -89,7 +94,7 @@ export async function POST(request: Request) {
     type LotEntry = {
       remaining_quantity: number;
       cost_basis_per_unit: number;
-      asset: { ticker: any; }[];
+      asset: { ticker: string }[];
     };
 
     const validLots: LotEntry[] = (lots || [])
@@ -164,7 +169,13 @@ export async function POST(request: Request) {
       return NextResponse.json({
         totalReturn: 0,
         annualized: 0,
-        factors: { unrealized: 0, realized: 0, dividends: 0, fees: 0 },
+        factors: { 
+          unrealized: 0, 
+          realized: 0, 
+          dividends: 0, 
+          fees: 0,
+          netGain: 0
+        },
         series: [],
         datesCount: 0
       });
@@ -198,7 +209,7 @@ export async function POST(request: Request) {
         portfolio: ((portfolioValues[i] / initialPortfolioValue) - 1) * 100
       };
 
-      benchmarks.forEach((benchmark: string) => {
+      benchmarks.forEach(benchmark => {
         const benchSeries = historicalData[benchmark] || [];
         let benchPrice = 0;
         for (let j = benchSeries.length - 1; j >= 0; j--) {
@@ -223,6 +234,9 @@ export async function POST(request: Request) {
 
     const totalBasis = validLots.reduce((sum, l) => sum + l.remaining_quantity * l.cost_basis_per_unit, 0);
     const unrealized = currentPortfolioValue - totalBasis;
+
+    // === NEW: Net Gain (Realized + Unrealized + Dividends – Fees) ===
+    const netGain = realized + unrealized + dividends - fees;
 
     // === Returns ===
     const totalReturn = initialPortfolioValue > 0
@@ -255,7 +269,13 @@ export async function POST(request: Request) {
     return NextResponse.json({
       totalReturn: finalReturn,
       annualized,
-      factors: { unrealized, realized, dividends, fees },
+      factors: { 
+        unrealized, 
+        realized, 
+        dividends, 
+        fees,
+        netGain
+      },
       series,
       datesCount: dates.length
     });
