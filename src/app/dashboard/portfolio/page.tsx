@@ -6,20 +6,23 @@ import AssetsList from '@/components/AssetsList'
 import PortfolioHoldingsClient from './PortfolioHoldingsClient'
 import SubPortfoliosList from '@/components/SubPortfoliosList'
 
-// Reuse types, but extend AssetDetail with sub_portfolio and account_id on TaxLot
+// Updated types with proper join structure
 type AssetDetail = {
   ticker: string
   name: string | null
   asset_subtype: string | null
-  sub_portfolio: string | null
+  sub_portfolio_id: string | null
+  sub_portfolio: { name: string } | null   // ← Joined sub_portfolio table
 }
+
 type TaxLot = {
   asset_id: string
-  account_id: string // Add for account grouping
+  account_id: string
   remaining_quantity: number
   cost_basis_per_unit: number
   asset: AssetDetail
 }
+
 type Holding = {
   asset_id: string
   ticker: string
@@ -28,10 +31,11 @@ type Holding = {
   total_basis: number
   current_price?: number
   current_value?: number
-  unrealized_gain: number // Changed to required
+  unrealized_gain: number
 }
+
 type GroupedHolding = {
-  key: string // account name or sub_portfolio
+  key: string // account name or sub-portfolio name
   holdings: Holding[]
   total_basis: number
   total_value: number
@@ -43,9 +47,25 @@ export default async function PortfolioPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
 
-  // Fetch with account_id and sub_portfolio
+  // Updated query with proper sub_portfolios join
   const [lotsRes, accountsRes, subPortfoliosRes, assetsRes, transactionsRes] = await Promise.all([
-    supabase.from('tax_lots').select(`asset_id, account_id, remaining_quantity, cost_basis_per_unit, asset:assets (ticker, name, asset_subtype, sub_portfolio)`).gt('remaining_quantity', 0).eq('user_id', user.id),
+    supabase
+      .from('tax_lots')
+      .select(`
+        asset_id, 
+        account_id, 
+        remaining_quantity, 
+        cost_basis_per_unit, 
+        asset:assets (
+          ticker, 
+          name, 
+          asset_subtype, 
+          sub_portfolio_id,
+          sub_portfolio:sub_portfolios (name)
+        )
+      `)
+      .gt('remaining_quantity', 0)
+      .eq('user_id', user.id),
     supabase.from('accounts').select('*').eq('user_id', user.id),
     supabase.from('sub_portfolios').select('*').eq('user_id', user.id),
     supabase.from('assets').select('*').eq('user_id', user.id),
@@ -58,38 +78,37 @@ export default async function PortfolioPage() {
   const initialAssets = assetsRes.data || []
   const transactions = transactionsRes.data || []
 
-  // Compute cash balances per account
-  const cashBalances = new Map<string, number>() // account_id -> balance
+  // Compute cash balances (unchanged)
+  const cashBalances = new Map<string, number>()
   transactions.forEach(tx => {
     if (!tx.account_id) return
     const current = cashBalances.get(tx.account_id) || 0
     let delta = Number(tx.amount || 0)
-    if (tx.type === 'Buy' && tx.funding_source === 'cash') delta = Number(tx.amount || 0) // Already negative
+    if (tx.type === 'Buy' && tx.funding_source === 'cash') delta = -Math.abs(Number(tx.amount || 0))
     cashBalances.set(tx.account_id, current + delta)
   })
   const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
 
-  // Fetch latest prices for all unique tickers at once (optimized)
-  const uniqueTickers = new Set(lots?.map(lot => lot.asset.ticker) || []);
+  // Prices fetch (unchanged)
+  const uniqueTickers = new Set(lots?.map(lot => lot.asset.ticker) || [])
   const { data: pricesList } = await supabase
     .from('asset_prices')
     .select('ticker, price, timestamp')
     .in('ticker', Array.from(uniqueTickers))
-    .order('timestamp', { ascending: false });  // New: Sort DESC for latest first
+    .order('timestamp', { ascending: false })
 
-  // Map to latest price per ticker (take first after sort)
-  const latestPrices = new Map<string, number>();
+  const latestPrices = new Map<string, number>()
   pricesList?.forEach(p => {
     if (!latestPrices.has(p.ticker)) {
-      latestPrices.set(p.ticker, p.price);  // Only set if not already (since sorted DESC)
+      latestPrices.set(p.ticker, p.price)
     }
-  });
+  })
 
-  // Process flat holdings (for reference, though not used in view anymore)
+  // Process holdings (unchanged logic)
   const holdingsMap = new Map<string, Holding>()
   let investedTotalBasis = 0
   let investedCurrentValue = 0
-  if (lots) {
+  if (lots?.length) {
     for (const lot of lots) {
       const key = lot.asset_id
       const qty = Number(lot.remaining_quantity)
@@ -98,7 +117,7 @@ export default async function PortfolioPage() {
       investedTotalBasis += basisThisLot
 
       const assetDetail = lot.asset
-      const currentPrice = latestPrices.get(assetDetail.ticker) || 0 // Use fetched price or 0
+      const currentPrice = latestPrices.get(assetDetail.ticker) || 0
       const valueThisLot = qty * currentPrice
 
       if (holdingsMap.has(key)) {
@@ -129,23 +148,25 @@ export default async function PortfolioPage() {
   const grandTotalValue = investedCurrentValue + totalCash
   const overallUnrealized = grandTotalValue - grandTotalBasis
 
-  // Precompute grouped data for client
+  // Grouped data (updated to use sub_portfolio.name)
   const accountMap = new Map(initialAccounts.map(a => [a.id, a.name]))
   const groupedByAccount: GroupedHolding[] = []
   const groupedBySubPortfolio: GroupedHolding[] = []
-  if (lots) {
+
+  if (lots?.length) {
     const accHoldings = new Map<string, { holdings: Map<string, Holding>, total_basis: number, total_value: number }>()
     const subHoldings = new Map<string, { holdings: Map<string, Holding>, total_basis: number, total_value: number }>()
+
     for (const lot of lots) {
       const assetKey = lot.asset_id
       const accKey = accountMap.get(lot.account_id) || 'Unknown'
-      const subKey = lot.asset.sub_portfolio || 'Untagged'
+      const subKey = lot.asset.sub_portfolio?.name || 'Untagged'
       const qty = Number(lot.remaining_quantity)
       const basisThis = qty * Number(lot.cost_basis_per_unit)
       const currentPrice = latestPrices.get(lot.asset.ticker) || 0
       const valueThis = qty * currentPrice
 
-      // Group by account
+      // Account grouping
       if (!accHoldings.has(accKey)) accHoldings.set(accKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
       const accGroup = accHoldings.get(accKey)!
       if (!accGroup.holdings.has(assetKey)) {
@@ -168,7 +189,7 @@ export default async function PortfolioPage() {
       accGroup.total_basis += basisThis
       accGroup.total_value += valueThis
 
-      // Group by sub-portfolio (similar)
+      // Sub-portfolio grouping
       if (!subHoldings.has(subKey)) subHoldings.set(subKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
       const subGroup = subHoldings.get(subKey)!
       if (!subGroup.holdings.has(assetKey)) {
@@ -192,7 +213,7 @@ export default async function PortfolioPage() {
       subGroup.total_value += valueThis
     }
 
-    // Add cash to account groups
+    // Add cash to accounts
     for (const [accId, bal] of cashBalances) {
       const accKey = accountMap.get(accId) || 'Unknown'
       if (!accHoldings.has(accKey)) accHoldings.set(accKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
@@ -211,7 +232,6 @@ export default async function PortfolioPage() {
       accGroup.total_value += bal
     }
 
-    // Convert to arrays
     groupedByAccount.push(...Array.from(accHoldings, ([key, g]) => ({
       key,
       holdings: Array.from(g.holdings.values()),
@@ -238,22 +258,33 @@ export default async function PortfolioPage() {
           <TabsTrigger value="subportfolios">Sub-Portfolios</TabsTrigger>
           <TabsTrigger value="assets">Assets</TabsTrigger>
         </TabsList>
+
         <TabsContent value="holdings">
-          <PortfolioHoldingsClient
-            groupedAccounts={groupedByAccount}
-            groupedSubs={groupedBySubPortfolio}
-            cash={totalCash}
-            grandTotalBasis={grandTotalBasis}
-            grandTotalValue={grandTotalValue}
-            overallUnrealized={overallUnrealized}
-          />
+          {lots?.length ? (
+            <PortfolioHoldingsClient
+              groupedAccounts={groupedByAccount}
+              groupedSubs={groupedBySubPortfolio}
+              cash={totalCash}
+              grandTotalBasis={grandTotalBasis}
+              grandTotalValue={grandTotalValue}
+              overallUnrealized={overallUnrealized}
+            />
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <p className="text-lg mb-2">No holdings yet</p>
+              <p>Add a Buy transaction to see positions here.</p>
+            </div>
+          )}
         </TabsContent>
+
         <TabsContent value="accounts">
           <AccountsList initialAccounts={initialAccounts} />
         </TabsContent>
+
         <TabsContent value="subportfolios">
           <SubPortfoliosList initialSubPortfolios={initialSubPortfolios} />
         </TabsContent>
+
         <TabsContent value="assets">
           <AssetsList initialAssets={initialAssets} />
         </TabsContent>
