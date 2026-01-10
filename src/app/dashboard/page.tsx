@@ -384,11 +384,14 @@ export default function DashboardHome() {
               <Table className="mt-8">
                 {/* Headers */}
                 <TableBody>
-                  {performance?.metrics?.map((m: any) => (
-                    <TableRow key={m.key}>
-                      <TableCell>{m.key} - Total Return</TableCell>
-                      <TableCell className="text-right">{(m.totalReturn * 100).toFixed(2)}%</TableCell>
-                      {/* Add annualized, netGain similarly */}
+                  {drillItems.map((item: any) => (
+                    <TableRow key={item.ticker}>
+                      <TableCell>{item.ticker}</TableCell>
+                      <TableCell>{item.name || '-'}</TableCell>
+                      <TableCell className="text-right">{item.quantity.toFixed(8)}</TableCell>
+                      <TableCell className="text-right">{formatUSD(item.value)}</TableCell>
+                      <TableHead className="text-right">Net Gain</TableHead>
+                      <TableCell className="text-right">{formatUSD(item.net_gain)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

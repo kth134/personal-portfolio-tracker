@@ -8,32 +8,58 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Fetch open lots with joins
-    let lotsQuery = supabase
-      .from('tax_lots')
-      .select(`
-        remaining_quantity,
-        cost_basis_per_unit,
-        asset:assets(id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolio:sub_portfolios!inner(name)),
-        account:accounts!inner(name)
-      `)
-      .gt('remaining_quantity', 0)
-      .eq('user_id', user.id);
+    // Fetch open lots with joins (keep !inner — safe and enables filtering)
+let lotsQuery = supabase
+  .from('tax_lots')
+  .select(`
+    remaining_quantity,
+    cost_basis_per_unit,
+    asset_id,
+    asset:assets(id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolio:sub_portfolios!inner(name)),
+    account:accounts!inner(name)
+  `)
+  .gt('remaining_quantity', 0)
+  .eq('user_id', user.id);
 
-    if (lens !== 'total' && selectedValues?.length > 0) {
-      // Apply filter based on lens
-      switch (lens) {
-        case 'sub_portfolio':
-          // TODO: Implement filtering by sub_portfolio names
-          break;
-        // Add similar for other lenses
-      }
-    }
+if (lens !== 'total' && selectedValues?.length > 0) {
+  switch (lens) {
+    case 'sub_portfolio':
+      lotsQuery = lotsQuery.in('asset.sub_portfolio.name', selectedValues);
+      break;
+    case 'account':
+      lotsQuery = lotsQuery.in('account.name', selectedValues);
+      break;
+    case 'asset_type':
+      lotsQuery = lotsQuery.in('asset.asset_type', selectedValues);
+      break;
+    case 'asset_subtype':
+      lotsQuery = lotsQuery.in('asset.asset_subtype', selectedValues);
+      break;
+    case 'geography':
+      lotsQuery = lotsQuery.in('asset.geography', selectedValues);
+      break;
+    case 'size_tag':
+      lotsQuery = lotsQuery.in('asset.size_tag', selectedValues);
+      break;
+    case 'factor_tag':
+      lotsQuery = lotsQuery.in('asset.factor_tag', selectedValues);
+      break;
+    default:
+      // No filter for unknown lens
+      break;
+  }
+}
 
-    const lots = (await lotsQuery).data as any[];
+const { data: lots, error: lotsError } = await lotsQuery;
+if (lotsError) throw lotsError;
+if (!lots || lots.length === 0) {
+  return NextResponse.json({ allocations: [] });
+}
+
+const typedLots = lots as any;
 
     // Fetch latest prices (reuse your existing logic)
-    const tickers = [...new Set(lots?.map(l => l.asset.ticker) || [])];
+    const tickers = [...new Set(typedLots?.map((l: any) => l.asset.ticker) || [])];
     const { data: prices } = await supabase
       .from('asset_prices')
       .select('ticker, price')
@@ -58,69 +84,106 @@ export async function POST(req: Request) {
       netGainByAsset.set(tx.asset_id, (netGainByAsset.get(tx.asset_id) || 0) + gain);
     });
 
-    // Compute holdings per group (key = lens value)
-    const groups = new Map<string, any>();
-    let totalValue = 0;
+   // Compute holdings per group, aggregated by ticker
+const groups = new Map<string, {
+  value: number;
+  net_gain: number;
+  tickers: Map<string, { quantity: number; value: number; net_gain: number; name: string | null }>;
+}>();
 
-    lots?.forEach(lot => {
-      const ticker = lot.asset.ticker;
-      const qty = lot.remaining_quantity;
-      const basis = qty * lot.cost_basis_per_unit;
-      const price = priceMap.get(ticker) || 0;
-      const value = qty * price;
-      const unreal = value - basis;
-      const netGain = unreal + (netGainByAsset.get(lot.asset.id) || 0);
+let totalValue = 0;
 
-      let key = 'Total';
-      if (lens !== 'total') {
-        switch (lens) {
-          case 'sub_portfolio': key = lot.asset.sub_portfolio?.name || 'Untagged'; break;
-          case 'account': key = lot.account?.name || 'Untagged'; break;
-          // Add others
-          default: key = lot.asset[lens] || 'Untagged';
-        }
-      }
+typedLots?.forEach((lot: any) => {
+  const ticker = lot.asset.ticker;
+  const assetName = lot.asset.name;
+  const qty = Number(lot.remaining_quantity);
+  const basis = qty * Number(lot.cost_basis_per_unit);
+  const price = priceMap.get(ticker) || 0;
+  const value = qty * price;
+  const unreal = value - basis;
 
-      if (!groups.has(key)) {
-        groups.set(key, { value: 0, net_gain: 0, items: [] });
-      }
-      const group = groups.get(key);
-      group.value += value;
-      group.net_gain += netGain;
-      group.items.push({
-        ticker,
-        name: lot.asset.name,
-        quantity: qty,
-        value,
-        net_gain: netGain,
-      });
-      totalValue += value;
-    });
+  // Net gain for this lot (unreal + historical from transactions)
+  const lotNetGain = unreal + (netGainByAsset.get(lot.asset.id) || 0); // asset_id unique per ticker
 
-    // Build response
-    let allocations: any[] = [];
-    groups.forEach((g, key) => {
-      allocations.push({
-        key,
-        value: g.value,
-        percentage: totalValue > 0 ? g.value / totalValue : 0,
-        net_gain: g.net_gain,
-        data: g.items.map((i: any) => ({ subkey: i.ticker, value: i.value })),
-        items: g.items,
-      });
-    });
-
-    if (aggregate && allocations.length > 1) {
-      // Combine into single
-      const combined = allocations.reduce((acc, cur) => ({
-        key: 'Aggregated',
-        value: acc.value + cur.value,
-        net_gain: acc.net_gain + cur.net_gain,
-        data: [...acc.data, ...cur.data],
-        items: [...acc.items, ...cur.items],
-      }));
-      allocations = [combined];
+  let key = 'Total';
+  if (lens !== 'total') {
+    switch (lens) {
+      case 'sub_portfolio': key = lot.asset.sub_portfolio?.name || 'Untagged'; break;
+      case 'account': key = lot.account?.name || 'Untagged'; break;
+      case 'asset_type': key = lot.asset.asset_type || 'Untagged'; break;
+      case 'asset_subtype': key = lot.asset.asset_subtype || 'Untagged'; break;
+      case 'geography': key = lot.asset.geography || 'Untagged'; break;
+      case 'size_tag': key = lot.asset.size_tag || 'Untagged'; break;
+      case 'factor_tag': key = lot.asset.factor_tag || 'Untagged'; break;
+      default: key = 'Untagged';
     }
+  }
+
+  if (!groups.has(key)) {
+    groups.set(key, { value: 0, net_gain: 0, tickers: new Map() });
+  }
+  const group = groups.get(key)!;
+
+  if (!group.tickers.has(ticker)) {
+    group.tickers.set(ticker, { quantity: 0, value: 0, net_gain: 0, name: assetName });
+  }
+  const tickerEntry = group.tickers.get(ticker)!;
+  tickerEntry.quantity += qty;
+  tickerEntry.value += value;
+  tickerEntry.net_gain += lotNetGain;
+
+  group.value += value;
+  group.net_gain += lotNetGain;
+  totalValue += value;
+});
+
+ // Build response
+let allocations: any[] = [];
+
+groups.forEach((group, key) => {
+  const tickerData = Array.from(group.tickers.entries()).map(([ticker, t]) => ({
+    subkey: ticker,
+    value: t.value,
+    percentage: group.value > 0 ? (t.value / group.value) * 100 : 0,
+  }));
+
+  const items = Array.from(group.tickers.entries()).map(([ticker, t]) => ({
+    ticker,
+    name: t.name,
+    quantity: t.quantity,
+    value: t.value,
+    net_gain: t.net_gain,
+  }));
+
+  allocations.push({
+    key,
+    value: group.value,
+    percentage: totalValue > 0 ? group.value / totalValue : 0,
+    net_gain: group.net_gain,
+    data: tickerData,
+    items, // For drill-down
+  });
+});
+
+// Aggregate mode: Combine if multiple groups and aggregate=true
+if (aggregate && allocations.length > 1) {
+  const combinedValue = allocations.reduce((sum, a) => sum + a.value, 0);
+  const combinedNetGain = allocations.reduce((sum, a) => sum + a.net_gain, 0);
+  const combinedData = allocations.flatMap(a => a.data);
+  const combinedItems = allocations.flatMap(a => a.items);
+
+  allocations = [{
+    key: 'Aggregated Selection',
+    value: combinedValue,
+    percentage: 1,
+    net_gain: combinedNetGain,
+    data: combinedData.map(d => ({
+      ...d,
+      percentage: combinedValue > 0 ? (d.value / combinedValue) * 100 : 0,
+    })),
+    items: combinedItems,
+  }];
+}
 
     return NextResponse.json({ allocations });
   } catch (err) {
