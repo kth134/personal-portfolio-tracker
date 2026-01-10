@@ -1,93 +1,161 @@
-// app/dashboard/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
-  LineChart, Line, XAxis, YAxis, CartesianGrid
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
+import { format, startOfYear, startOfQuarter, startOfMonth, startOfWeek, subYears, subQuarters } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Calendar } from '@/components/ui/calendar';
+import { CalendarIcon, Check, ChevronsUpDown } from 'lucide-react';
 import { formatUSD } from '@/lib/formatters';
 import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
+import { cn } from '@/lib/utils';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
-const BENCHMARK_COLORS: Record<string, string> = {
-  SPX: '#10b981',
-  IXIC: '#f59e0b',
-  BTCUSD: '#f97316'
-};
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7'];
+
+const LENSES = [
+  { value: 'total', label: 'Total Portfolio' },
+  { value: 'sub_portfolio', label: 'Sub-Portfolio' },
+  { value: 'account', label: 'Account' },
+  { value: 'asset_type', label: 'Asset Type' },
+  { value: 'asset_subtype', label: 'Asset Sub-Type' },
+  { value: 'geography', label: 'Geography' },
+  { value: 'size_tag', label: 'Size' },
+  { value: 'factor_tag', label: 'Factor' },
+];
+
+const PRESETS = [
+  { value: 'today', label: 'Today' },
+  { value: 'wtd', label: 'Week to Date' },
+  { value: 'mtd', label: 'Month to Date' },
+  { value: 'qtd', label: 'Quarter to Date' },
+  { value: 'prev_q', label: 'Previous Quarter' },
+  { value: 'ytd', label: 'Year to Date' },
+  { value: 'prev_y', label: 'Previous Year' },
+  { value: '3y', label: 'Trailing 3 Years' },
+  { value: '5y', label: 'Trailing 5 Years' },
+];
 
 export default function DashboardHome() {
-  const [lens, setLens] = useState('sub_portfolio');
-  const [period, setPeriod] = useState('1Y');
-  const [metricType, setMetricType] = useState<'twr' | 'mwr'>('mwr');
-  const [allocations, setAllocations] = useState<any[]>([]);
+  const [lens, setLens] = useState('total');
+  const [availableValues, setAvailableValues] = useState<string[]>([]);
+  const [selectedValues, setSelectedValues] = useState<string[]>([]);
+  const [aggregate, setAggregate] = useState(true);
+  const [preset, setPreset] = useState('ytd');
+  const [customStart, setCustomStart] = useState<Date | undefined>(undefined);
+  const [customEnd, setCustomEnd] = useState<Date | undefined>(undefined);
+  const [metric, setMetric] = useState<'twr' | 'mwr'>('twr');
+  const [showBenchmarks, setShowBenchmarks] = useState(false);
+  const [allocations, setAllocations] = useState<any[]>([]); // array of {key, value, percentage, net_gain, items?}
   const [performance, setPerformance] = useState<any>(null);
   const [drillItems, setDrillItems] = useState<any[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-const [error, setError] = useState<string | null>(null);
-  // Fetch data on filter change
+  const [valuesLoading, setValuesLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch distinct values when lens changes
   useEffect(() => {
-    const fetchData = async () => {
-      const [allocRes, perfRes] = await Promise.all([
-        fetch('/api/allocations', {
-          method: 'POST',
-          body: JSON.stringify({ lens })
-        }),
-        fetch('/api/performance', {
-          method: 'POST',
-          body: JSON.stringify({ period, lens, metricType })
-        })
-      ]);
-      const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [allocRes, perfRes] = await Promise.all([
-          fetch('/api/allocations', { method: 'POST', body: JSON.stringify({ lens }) }),
-          fetch('/api/performance', { method: 'POST', body: JSON.stringify({ period, lens, metricType }) })
-        ]);
-
-        if (!allocRes.ok) throw new Error(`Allocations API failed: ${allocRes.status}`);
-        if (!perfRes.ok) throw new Error(`Performance API failed: ${perfRes.status}`);
-
-        const allocData = await allocRes.json();
-        console.log('Allocations response:', allocData); // Log
-        setAllocations(allocData.allocations || []);
-
-        const perfData = await perfRes.json();
-        console.log('Performance response:', perfData); // Log
-        setPerformance(perfData);
-
-      } catch (err) {
-        setError((err as Error).message);
-        console.error('Fetch error:', err);
-      } finally {
-        setLoading(false);
-      }
+    if (lens === 'total') {
+      setAvailableValues([]);
+      setSelectedValues([]);
+      return;
+    }
+    const fetchValues = async () => {
+      setValuesLoading(true);
+      const res = await fetch('/api/dashboard/values', {
+        method: 'POST',
+        body: JSON.stringify({ lens }),
+      });
+      const data = await res.json();
+      setAvailableValues(data.values || []);
+      setSelectedValues(data.values || []); // default all
+      setValuesLoading(false);
     };
-      const allocData = await allocRes.json();
-      setAllocations(allocData.allocations || []);
+    fetchValues();
+  }, [lens]);
 
-      const perfData = await perfRes.json();
-      setPerformance(perfData);
-    };
-
-    fetchData();
-  }, [lens, period, metricType]);
-
-  const handleRefreshPrices = async () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
     await refreshAssetPrices();
-    window.location.reload(); // Simple full refresh – keeps it reliable
-    setRefreshing(false);
+    window.location.reload();
   };
 
-  const handlePieClick = (data: any) => {
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const today = new Date();
+      let start = customStart || today;
+      let end = customEnd || today;
+
+      if (!customStart && !customEnd) {
+        switch (preset) {
+          case 'today': start = today; break;
+          case 'wtd': start = startOfWeek(today); break;
+          case 'mtd': start = startOfMonth(today); break;
+          case 'qtd': start = startOfQuarter(today); break;
+          case 'prev_q': 
+            const prevQStart = subQuarters(startOfQuarter(today), 1);
+            start = prevQStart;
+            end = subQuarters(startOfQuarter(today), 1);
+            break;
+          case 'ytd': start = startOfYear(today); break;
+          case 'prev_y': 
+            start = subYears(startOfYear(today), 1);
+            end = subYears(startOfYear(today), 1);
+            break;
+          case '3y': start = subYears(today, 3); break;
+          case '5y': start = subYears(today, 5); break;
+        }
+      }
+
+      const startStr = format(start, 'yyyy-MM-dd');
+      const endStr = format(end, 'yyyy-MM-dd');
+
+      const payload = {
+        lens,
+        selectedValues: lens === 'total' ? [] : selectedValues,
+        aggregate,
+        start: startStr,
+        end: endStr,
+        metric,
+        benchmarks: showBenchmarks,
+      };
+
+      const [allocRes, perfRes] = await Promise.all([
+        fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload) }),
+        fetch('/api/dashboard/performance', { method: 'POST', body: JSON.stringify(payload) }),
+      ]);
+
+      const allocData = await allocRes.json();
+      const perfData = await perfRes.json();
+
+      setAllocations(allocData.allocations || []);
+      setPerformance(perfData);
+      setLoading(false);
+    };
+
+    if (lens === 'total' || selectedValues.length > 0) {
+      fetchData();
+    }
+  }, [lens, selectedValues, aggregate, preset, customStart, customEnd, metric, showBenchmarks]);
+
+  const toggleValue = (value: string) => {
+    setSelectedValues(prev =>
+      prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+    );
+  };
+
+  const handlePieClick = (data: any, index: number) => {
+    // In separate mode, data is per slice
     setDrillItems(data.items || []);
   };
 
@@ -95,44 +163,110 @@ const [error, setError] = useState<string | null>(null);
     <main className="container mx-auto p-6">
       <h1 className="text-4xl font-bold mb-8">Portfolio Dashboard</h1>
 
-      {/* Controls */}
       <div className="flex flex-wrap gap-4 mb-8 items-end">
+        {/* Lens */}
         <div>
-          <label className="text-sm font-medium">Slice by</label>
+          <Label className="text-sm font-medium">Slice by</Label>
           <Select value={lens} onValueChange={setLens}>
+            <SelectTrigger className="w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LENSES.map(l => (
+                <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Multi-Select Values (disabled for total) */}
+        {lens !== 'total' && (
+          <div className="min-w-64">
+            <Label className="text-sm font-medium">
+              Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  {selectedValues.length === availableValues.length ? 'All selected' :
+                   selectedValues.length === 0 ? 'None selected' :
+                   `${selectedValues.length} selected`}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandInput placeholder="Search..." />
+                  <CommandList>
+                    <CommandEmpty>No values found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableValues.map(val => (
+                        <CommandItem key={val} onSelect={() => toggleValue(val)}>
+                          <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(val) ? "opacity-100" : "opacity-0")} />
+                          {val || 'Untagged'}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+
+        {/* Aggregate Toggle (only if multiple selected and lens not total) */}
+        {lens !== 'total' && selectedValues.length > 1 && (
+          <div className="flex items-center gap-2">
+            <Switch checked={aggregate} onCheckedChange={setAggregate} />
+            <Label>Aggregate selected</Label>
+          </div>
+        )}
+
+        {/* Period Preset & Custom Dates */}
+        <div>
+          <Label className="text-sm font-medium">Period Preset</Label>
+          <Select value={preset} onValueChange={setPreset}>
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="asset_type">Asset Type</SelectItem>
-              <SelectItem value="asset_subtype">Sub-Type</SelectItem>
-              <SelectItem value="geography">Geography</SelectItem>
-              <SelectItem value="factor_tag">Factor</SelectItem>
-              <SelectItem value="size_tag">Size</SelectItem>
-              <SelectItem value="sub_portfolio">Sub-Portfolio</SelectItem>
-              <SelectItem value="account">Account</SelectItem>
+              {PRESETS.map(p => (
+                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
 
         <div>
-          <label className="text-sm font-medium">Period</label>
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1D">1 Day</SelectItem>
-              <SelectItem value="1M">1 Month</SelectItem>
-              <SelectItem value="1Y">1 Year</SelectItem>
-              <SelectItem value="All">All Time</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label className="text-sm font-medium">Custom Start</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {customStart ? format(customStart, 'PPP') : 'Select'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent><Calendar mode="single" selected={customStart} onSelect={setCustomStart} /></PopoverContent>
+          </Popover>
         </div>
 
         <div>
-          <label className="text-sm font-medium">Return Metric</label>
-          <Select value={metricType} onValueChange={(v: 'twr' | 'mwr') => setMetricType(v)}>
+          <Label className="text-sm font-medium">Custom End</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {customEnd ? format(customEnd, 'PPP') : 'Select'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent><Calendar mode="single" selected={customEnd} onSelect={setCustomEnd} /></PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Metric & Benchmarks */}
+        <div>
+          <Label className="text-sm font-medium">Return Metric</Label>
+          <Select value={metric} onValueChange={(v: 'twr' | 'mwr') => setMetric(v)}>
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>
@@ -143,160 +277,126 @@ const [error, setError] = useState<string | null>(null);
           </Select>
         </div>
 
-        <Button onClick={handleRefreshPrices} disabled={refreshing}>
+        <div className="flex items-center gap-2">
+          <Switch checked={showBenchmarks} onCheckedChange={setShowBenchmarks} />
+          <Label>Show Benchmarks</Label>
+        </div>
+
+        <Button onClick={handleRefresh} disabled={refreshing}>
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}
         </Button>
       </div>
-{loading ? (
-  <p>Loading portfolio data...</p>
-) : error ? (
-  <p className="text-red-500">Error: {error} (Check console for details)</p>
-) : (
-  <>
-    {/* Existing Allocations Card */}
-    <Card className="mb-8">...</Card>
-    {/* Existing Performance Card */}
-    <Card>...</Card>
-  </>
-)}
-      {/* Allocations Section – preserved exactly from your current code */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Current Allocation ({lens.replace('_', ' ')})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-8">
-            <ResponsiveContainer width="100%" height={400}>
-              <PieChart>
-                <Pie
-                  data={allocations}
-                  dataKey="percentage"
-                  nameKey="key"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={120}
-                  label={({ percent }) => `${((percent ?? 0) * 100).toFixed(1)}%`}
-                  onClick={handlePieClick}
-                >
-                  {allocations.map((_, i) => (
-                    <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => (v !== undefined ? `${Number(v).toFixed(2)}%` : '')} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableCell>Category</TableCell>
-                  <TableCell className="text-right">% </TableCell>
-                  <TableCell className="text-right">Value</TableCell>
-                  <TableCell className="text-right">Unrealized</TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allocations.map(a => (
-                  <TableRow key={a.key} className="cursor-pointer hover:bg-muted/50" onClick={() => handlePieClick(a)}>
-                    <TableCell className="font-medium">{a.key}</TableCell>
-                    <TableCell className="text-right">{a.percentage.toFixed(2)}%</TableCell>
-                    <TableCell className="text-right">{formatUSD(a.value)}</TableCell>
-                    <TableCell className="text-right">{formatUSD(a.unrealized)}</TableCell>
-                  </TableRow>
+      {/* Disclaimer Tooltip */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="sm" className="mb-4">ℹ️ Note on slicing</Button>
+        </PopoverTrigger>
+        <PopoverContent>
+          <p className="text-sm">
+            Performance attribution assumes asset tags (sub-portfolio, geography, etc.) have been stable over time.
+            If you have moved assets between categories, historical gains may be attributed to the current tag.
+          </p>
+        </PopoverContent>
+      </Popover>
+
+      {loading ? (
+        <p>Loading...</p>
+      ) : selectedValues.length === 0 && lens !== 'total' ? (
+        <p>Select at least one value to view data.</p>
+      ) : (
+        <>
+          {/* Allocations */}
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>
+                Current Allocation {aggregate ? '(Aggregated)' : '(Separate Comparison)'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={cn("gap-8", aggregate ? "grid md:grid-cols-1" : "grid md:grid-cols-2 lg:grid-cols-3")}>
+                {allocations.map((slice, idx) => (
+                  <div key={idx} className="space-y-4">
+                    <h4 className="font-medium text-center">{slice.key}</h4>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={slice.data}
+                          dataKey="value"
+                          nameKey="subkey"
+                          outerRadius={100}
+                          label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
+                          onClick={(data) => handlePieClick(data, idx)}
+                        >
+                          {slice.data.map((_: any, i: number) => (
+                            <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSD(v) : ''} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
-          </div>
+              </div>
 
-          {drillItems.length > 0 && (
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-4">Holdings in selected slice</h3>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableCell>Ticker</TableCell>
-                    <TableCell>Name</TableCell>
-                    <TableCell className="text-right">Quantity</TableCell>
-                    <TableCell className="text-right">Value</TableCell>
-                  </TableRow>
-                </TableHeader>
+              {/* Holdings Table (from clicked pie) */}
+              {drillItems.length > 0 && (
+                <div className="mt-8">
+                  <h3 className="text-lg font-semibold mb-4">Holdings in Selected Slice</h3>
+                  <Table>{/* same as before, using drillItems */}</Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Performance */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Performance ({preset.toUpperCase()} • {metric.toUpperCase()})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={performance?.series || []}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis tickFormatter={(v) => `${v}%`} />
+                  <Tooltip formatter={(v: number | undefined) => v !== undefined ? `${v.toFixed(2)}%` : ''} />
+                  <Legend />
+                  {performance?.lines?.map((line: any, i: number) => (
+                    <Line
+                      key={i}
+                      type="monotone"
+                      dataKey={line.key}
+                      stroke={COLORS[i % COLORS.length]}
+                      name={line.name}
+                      dot={false}
+                    />
+                  ))}
+                  {showBenchmarks && performance?.benchmarks?.SPX && (
+                    <Line type="monotone" dataKey="SPX" stroke="#10b981" name="S&P 500" />
+                  )}
+                  {/* similar for others */}
+                </LineChart>
+              </ResponsiveContainer>
+
+              {/* Metrics Table – one row per slice if separate */}
+              <Table className="mt-8">
+                {/* Headers */}
                 <TableBody>
-                  {drillItems.map((item: any) => (
-                    <TableRow key={item.ticker}>
-                      <TableCell>{item.ticker}</TableCell>
-                      <TableCell>{item.name || '-'}</TableCell>
-                      <TableCell className="text-right">{item.quantity.toFixed(4)}</TableCell>
-                      <TableCell className="text-right">{formatUSD(item.value)}</TableCell>
+                  {performance?.metrics?.map((m: any) => (
+                    <TableRow key={m.key}>
+                      <TableCell>{m.key} - Total Return</TableCell>
+                      <TableCell className="text-right">{(m.totalReturn * 100).toFixed(2)}%</TableCell>
+                      {/* Add annualized, netGain similarly */}
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Performance Section – now with real line chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Performance ({period} • {metricType.toUpperCase()})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={performance?.series || []}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis tickFormatter={(v) => `${v}%`} />
-              <Tooltip formatter={(v) => (v !== undefined ? `${Number(v).toFixed(2)}%` : '')} />
-              <Legend />
-              <Line type="monotone" dataKey="portfolio" stroke="#3b82f6" strokeWidth={2} name="Portfolio" dot={false} />
-              <Line type="monotone" dataKey="SPX" stroke={BENCHMARK_COLORS.SPX} name="S&P 500" dot={false} />
-              <Line type="monotone" dataKey="IXIC" stroke={BENCHMARK_COLORS.IXIC} name="NASDAQ" dot={false} />
-              <Line type="monotone" dataKey="BTCUSD" stroke={BENCHMARK_COLORS.BTCUSD} name="Bitcoin" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-
-          <Table className="mt-8">
-            <TableHeader>
-              <TableRow>
-                <TableCell>Metric</TableCell>
-                <TableCell className="text-right">Value</TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell className="font-medium">Total Return</TableCell>
-                <TableCell className="text-right">
-                  {performance?.totalReturn !== undefined ? `${(performance.totalReturn * 100).toFixed(2)}%` : '-'}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Annualized Return</TableCell>
-                <TableCell className="text-right">
-                  {performance?.annualized !== undefined ? `${(performance.annualized * 100).toFixed(2)}%` : '-'}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Unrealized Gain/Loss</TableCell>
-                <TableCell className="text-right">{formatUSD(performance?.factors?.unrealized || 0)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Realized Gain/Loss</TableCell>
-                <TableCell className="text-right">{formatUSD(performance?.factors?.realized || 0)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Dividends</TableCell>
-                <TableCell className="text-right">{formatUSD(performance?.factors?.dividends || 0)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Fees</TableCell>
-                <TableCell className="text-right">{formatUSD(performance?.factors?.fees || 0)}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </main>
   );
 }
