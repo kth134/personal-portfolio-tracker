@@ -1,4 +1,4 @@
-import { supabaseServer } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AccountsList from '@/components/AccountsList'
@@ -43,7 +43,7 @@ type GroupedHolding = {
 }
 
 export default async function PortfolioPage() {
-  const supabase = await supabaseServer()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
 
@@ -80,7 +80,7 @@ export default async function PortfolioPage() {
 
   // Compute cash balances (unchanged)
   const cashBalances = new Map<string, number>()
-  transactions.forEach(tx => {
+  transactions.forEach((tx: any) => {
     if (!tx.account_id) return
     const current = cashBalances.get(tx.account_id) || 0
     let delta = Number(tx.amount || 0)
@@ -98,7 +98,7 @@ export default async function PortfolioPage() {
     .order('timestamp', { ascending: false })
 
   const latestPrices = new Map<string, number>()
-  pricesList?.forEach(p => {
+  pricesList?.forEach((p: any) => {
     if (!latestPrices.has(p.ticker)) {
       latestPrices.set(p.ticker, p.price)
     }
@@ -149,7 +149,7 @@ export default async function PortfolioPage() {
   const overallUnrealized = grandTotalValue - grandTotalBasis
 
   // Grouped data (updated to use sub_portfolio.name)
-  const accountMap = new Map(initialAccounts.map(a => [a.id, a.name]))
+  const accountMap = new Map(initialAccounts.map((a: any) => [a.id, a.name]))
   const groupedByAccount: GroupedHolding[] = []
   const groupedBySubPortfolio: GroupedHolding[] = []
 
@@ -159,8 +159,8 @@ export default async function PortfolioPage() {
 
     for (const lot of lots) {
       const assetKey = lot.asset_id
-      const accKey = accountMap.get(lot.account_id) || 'Unknown'
-      const subKey = lot.asset.sub_portfolio?.name || 'Untagged'
+      const accKey = (accountMap.get(lot.account_id) || 'Unknown') as string
+      const subKey = (lot.asset.sub_portfolio?.name || 'Untagged') as string
       const qty = Number(lot.remaining_quantity)
       const basisThis = qty * Number(lot.cost_basis_per_unit)
       const currentPrice = latestPrices.get(lot.asset.ticker) || 0
@@ -215,7 +215,7 @@ export default async function PortfolioPage() {
 
     // Add cash to accounts
     for (const [accId, bal] of cashBalances) {
-      const accKey = accountMap.get(accId) || 'Unknown'
+      const accKey = (accountMap.get(accId) || 'Unknown') as string
       if (!accHoldings.has(accKey)) accHoldings.set(accKey, { holdings: new Map(), total_basis: 0, total_value: 0 })
       const accGroup = accHoldings.get(accKey)!
       accGroup.holdings.set('cash', {

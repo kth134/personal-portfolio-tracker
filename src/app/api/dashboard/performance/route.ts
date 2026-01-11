@@ -1,4 +1,4 @@
-import { supabaseServer } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { format, differenceInDays, parseISO } from 'date-fns';
 
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       benchmarks = false,
     } = await req.json();
 
-    const supabase = await supabaseServer();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -118,7 +118,7 @@ export async function POST(req: Request) {
         .order('timestamp', { ascending: true });
 
       if (cached && cached.length > 0) {
-        historicalData[ticker] = cached.map(r => ({
+        historicalData[ticker] = cached.map((r: any) => ({
           date: format(parseISO(r.timestamp as string), 'yyyy-MM-dd'),
           close: r.price,
         }));
@@ -237,11 +237,11 @@ export async function POST(req: Request) {
     // MWR per group (cash flows + final value)
     const mwrByGroup = new Map<string, number>();
     groups.forEach((_, key) => {
-      const groupTx = (transactions || []).filter(tx => {
+      const groupTx = (transactions || []).filter((tx: any) => {
         // Approximate filter - in real app, join properly
         return true; // refine with asset tag match
       });
-      const cfs = groupTx.map(tx => {
+      const cfs = groupTx.map((tx: any) => {
         let f = 0;
         if (tx.type === 'Buy') f = -(tx.amount || 0);
         if (tx.type === 'Sell') f = tx.amount || 0;
@@ -251,7 +251,7 @@ export async function POST(req: Request) {
       });
       const finalVal = finalByGroup.get(key) || 0;
       cfs.push(finalVal);
-      const cfDates = [...groupTx.map(t => parseISO(t.date)), endDate];
+      const cfDates = [...groupTx.map((t: any) => parseISO(t.date)), endDate];
       const irr = calculateIRR(cfs, cfDates);
       mwrByGroup.set(key, isNaN(irr) ? 0 : irr);
     });
@@ -260,9 +260,9 @@ export async function POST(req: Request) {
     const netGainByGroup = new Map<string, number>();
     groups.forEach((groupLots, key) => {
       const unreal = finalByGroup.get(key)! - groupLots.reduce((sum, l) => sum + l.remaining_quantity * l.cost_basis_per_unit, 0);
-      const realized = (transactions || []).reduce((sum, t) => sum + (t.realized_gain || 0), 0);
-      const div = (transactions || []).filter(t => t.type === 'Dividend' || t.type === 'Interest').reduce((sum, t) => sum + (t.amount || 0), 0);
-      const fees = (transactions || []).reduce((sum, t) => sum + Math.abs(t.fees || 0), 0);
+      const realized = (transactions || []).reduce((sum: number, t: any) => sum + (t.realized_gain || 0), 0);
+      const div = (transactions || []).filter((t: any) => t.type === 'Dividend' || t.type === 'Interest').reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+      const fees = (transactions || []).reduce((sum: number, t: any) => sum + Math.abs(t.fees || 0), 0);
       netGainByGroup.set(key, unreal + realized + div - fees);
     });
 

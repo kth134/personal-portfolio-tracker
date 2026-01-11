@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabaseClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,7 +32,8 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
   // Fetch unique existing institutions on mount
   useEffect(() => {
     const fetchInstitutions = async () => {
-      const { data } = await supabaseClient.from('accounts').select('institution')
+      const supabase = createClient()
+      const { data } = await supabase.from('accounts').select('institution')
       const unique = [...new Set(data?.map((a: any) => a.institution).filter(Boolean))] as string[]
       setInstitutions(unique)
     }
@@ -75,11 +76,12 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const supabase = createClient()
     let data, error
     if (editingAccount) {
-      ({ data, error } = await supabaseClient.from('accounts').update({ ...form }).eq('id', editingAccount.id).select())
+      ({ data, error } = await supabase.from('accounts').update({ ...form }).eq('id', editingAccount.id).select())
     } else {
-      ({ data, error } = await supabaseClient.from('accounts').insert({ ...form }).select())
+      ({ data, error } = await supabase.from('accounts').insert({ ...form }).select())
     }
     if (!error && data) {
       if (editingAccount) {
@@ -100,7 +102,8 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
   }
 
   const handleDelete = async (id: string) => {
-    await supabaseClient.from('accounts').delete().eq('id', id)
+    const supabase = createClient()
+    await supabase.from('accounts').delete().eq('id', id)
     setAccounts(accounts.filter(a => a.id !== id))
   }
 

@@ -1,9 +1,9 @@
-import { supabaseServer } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AssetsList from '@/components/AssetsList'
 
 export default async function AssetsPage() {
-  const supabase = await supabaseServer()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
 

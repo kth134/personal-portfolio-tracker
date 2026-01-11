@@ -1,11 +1,11 @@
 // app/api/allocations/route.ts
-import { supabaseServer } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
     const { lens = 'sub_portfolio' } = await request.json(); // default to sub_portfolio if not sent
-    const supabase = await supabaseServer();
+    const supabase = await createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Unauthorized');
@@ -37,14 +37,14 @@ export async function POST(request: Request) {
     }
     console.log(`Fetched ${lots?.length || 0} lots for lens ${lens}`);
     // Get unique tickers and fetch prices (unchanged)
-    const tickers = [...new Set(lots.map(l => l.asset[0]?.ticker).filter(Boolean))];
+    const tickers = [...new Set(lots.map((l: any) => l.asset[0]?.ticker).filter(Boolean))];
     const { data: prices } = await supabase
       .from('asset_prices')
       .select('ticker, price')
       .in('ticker', tickers)
       .order('timestamp', { ascending: false });
     console.log(`Fetched ${prices?.length || 0} prices`);
-    const priceMap = new Map(prices?.map(p => [p.ticker, p.price]) ?? []);
+    const priceMap = new Map(prices?.map((p: any) => [p.ticker, p.price]) ?? []);
 
     // Aggregate by lens (updated for sub_portfolio to use name)
     const map = new Map<string, {
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
     let totalValue = 0;
 
-    lots.forEach(lot => {
+    lots.forEach((lot: any) => {
       const asset = lot.asset[0];
       if (!asset) return;
       let key: string;
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
       const quantity = lot.remaining_quantity;
       const basisThis = quantity * lot.cost_basis_per_unit;
-      const price = priceMap.get(asset.ticker) || 0;
+      const price = Number(priceMap.get(asset.ticker)) || 0;
       const valueThis = quantity * price;
 
       if (!map.has(key)) {
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
       .eq('type', 'Cash')
       .eq('user_id', user.id);
 
-    const cash = cashTxs?.reduce((sum, tx) => sum + (tx.amount || 0), 0) || 0;
+    const cash = cashTxs?.reduce((sum: number, tx: any) => sum + (tx.amount || 0), 0) || 0;
     totalValue += cash;
 
     if (cash > 0) {

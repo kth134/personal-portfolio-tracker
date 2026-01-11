@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabaseClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -54,11 +54,12 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
   // Fetch sub-portfolios on mount
   useEffect(() => {
     const fetchOptions = async () => {
-      const { data } = await supabaseClient.from('sub_portfolios').select('id, name')
+      const supabase = createClient()
+      const { data } = await supabase.from('sub_portfolios').select('id, name')
       if (data) {
         setSubPortfolios(data)
         const newMap = new Map<string, string>()
-        data.forEach((sp) => newMap.set(sp.id, sp.name))
+        data.forEach((sp: any) => newMap.set(sp.id, sp.name))
         setSubMap(newMap)
       }
     }
@@ -110,15 +111,16 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const supabase = createClient()
     let data, error
     if (editingAsset) {
-      ({ data, error } = await supabaseClient.from('assets').update({ ...form }).eq('id', editingAsset.id).select())
+      ({ data, error } = await supabase.from('assets').update({ ...form }).eq('id', editingAsset.id).select())
     } else {
-      ({ data, error } = await supabaseClient.from('assets').insert({ ...form }).select())
+      ({ data, error } = await supabase.from('assets').insert({ ...form }).select())
     }
     if (!error && data) {
       // Refetch assets to update list
-      const { data: refreshedAssets } = await supabaseClient.from('assets').select('*')
+      const { data: refreshedAssets } = await supabase.from('assets').select('*')
       if (refreshedAssets) {
         setAssets(refreshedAssets)
       }
@@ -142,7 +144,8 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
   }
 
   const handleDelete = async (id: string) => {
-    await supabaseClient.from('assets').delete().eq('id', id)
+    const supabase = createClient()
+    await supabase.from('assets').delete().eq('id', id)
     setAssets(assets.filter(a => a.id !== id))
   }
 
@@ -186,8 +189,9 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
                       placeholder="Search or add sub-portfolio..." 
                       onKeyDown={async (e) => {
                         if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                          const supabase = createClient()
                           const newName = e.currentTarget.value.trim()
-                          const { data, error } = await supabaseClient.from('sub_portfolios').insert({ name: newName }).select('id, name')
+                          const { data, error } = await supabase.from('sub_portfolios').insert({ name: newName }).select('id, name')
                           if (!error && data) {
                             const newSp = data[0]
                             setSubPortfolios([...subPortfolios, newSp])

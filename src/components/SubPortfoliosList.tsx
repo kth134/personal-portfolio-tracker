@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabaseClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -71,6 +71,7 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const supabase = createClient()
     const allocNum = Number(form.target_allocation)
     if (allocNum < 0 || allocNum > 100) {
       alert('Target allocation must be 0-100')
@@ -85,9 +86,9 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
       notes: form.notes || null
     }
     if (editingSub) {
-      ({ data, error } = await supabaseClient.from('sub_portfolios').update(submitData).eq('id', editingSub.id).select())
+      ({ data, error } = await supabase.from('sub_portfolios').update(submitData).eq('id', editingSub.id).select())
     } else {
-      ({ data, error } = await supabaseClient.from('sub_portfolios').insert(submitData).select())
+      ({ data, error } = await supabase.from('sub_portfolios').insert(submitData).select())
     }
     if (!error && data) {
       if (editingSub) {
@@ -104,7 +105,8 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
   }
 
   const handleDelete = async (id: string) => {
-    await supabaseClient.from('sub_portfolios').delete().eq('id', id)
+    const supabase = createClient()
+    await supabase.from('sub_portfolios').delete().eq('id', id)
     setSubPortfolios(subPortfolios.filter(s => s.id !== id))
   }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabaseClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -57,8 +57,9 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
   // Fetch accounts & assets
   useEffect(() => {
     const fetchData = async () => {
-      const { data: accs } = await supabaseClient.from('accounts').select('id, name, type')
-      const { data: asts } = await supabaseClient.from('assets').select('id, ticker, name')
+      const supabase = createClient()
+      const { data: accs } = await supabase.from('accounts').select('id, name, type')
+      const { data: asts } = await supabase.from('assets').select('id, ticker, name')
       setAccounts(accs || [])
       setAssets(asts || [])
     }
@@ -89,6 +90,7 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const supabase = createClient()
     if (!selectedAccount || !selectedAsset || !purchaseDate || !quantity || !basisPerUnit || !remainingQuantity) {
       alert('Please fill all fields')
       return
@@ -114,20 +116,20 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
       }
 
       if (editingLot) {
-        const { error } = await supabaseClient
+        const { error } = await supabase
           .from('tax_lots')
           .update(lotData)
           .eq('id', editingLot.id)
         if (error) throw error
       } else {
-        const { error } = await supabaseClient
+        const { error } = await supabase
           .from('tax_lots')
           .insert(lotData)
         if (error) throw error
       }
 
       // Refetch for accuracy
-      const { data: refreshed } = await supabaseClient
+      const { data: refreshed } = await supabase
         .from('tax_lots')
         .select(`
           *,
@@ -146,8 +148,9 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
 
   const handleDelete = async () => {
     if (!deleteId) return
+    const supabase = createClient()
     try {
-      await supabaseClient.from('tax_lots').delete().eq('id', deleteId)
+      await supabase.from('tax_lots').delete().eq('id', deleteId)
       setTaxLots(taxLots.filter(l => l.id !== deleteId))
       setDeleteId(null)
     } catch (err) {

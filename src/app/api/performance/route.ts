@@ -1,5 +1,5 @@
 // src/app/api/performance/route.ts
-import { supabaseServer } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { subDays, subMonths, subYears, format, differenceInDays } from 'date-fns';
 import { POST as historicalPOST } from '../historical-prices/route';
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       benchmarks = ['SPX', 'IXIC', 'BTCUSD']
     } = await request.json();
 
-    const supabase = await supabaseServer();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Unauthorized');
 

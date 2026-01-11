@@ -1,9 +1,9 @@
-import { supabaseServer } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AccountsList from '@/components/AccountsList'
 
 export default async function AccountsPage() {
-  const supabase = await supabaseServer()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
 

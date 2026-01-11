@@ -1,5 +1,5 @@
 // app/api/historical-prices/route.ts
-import { supabaseServer } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { format, getUnixTime } from 'date-fns';
 
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
     }
 
-    const supabase = await supabaseServer();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Unauthorized');
 
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
         .order('timestamp', { ascending: true });
 
       if (cached && cached.length > 0) {
-        historicalData[ticker] = cached.map(r => ({
+        historicalData[ticker] = cached.map((r: any) => ({
           date: format(new Date(r.timestamp), 'yyyy-MM-dd'),
           close: r.price
         }));

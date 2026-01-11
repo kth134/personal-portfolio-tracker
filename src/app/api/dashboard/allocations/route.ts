@@ -1,10 +1,10 @@
-import { supabaseServer } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
     const { lens, selectedValues, aggregate } = await req.json();
-    const supabase = await supabaseServer();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -66,7 +66,7 @@ const typedLots = lots as any;
       .in('ticker', tickers)
       .order('timestamp', { ascending: false });
 
-    const priceMap = new Map(prices?.map(p => [p.ticker, p.price]) || []);
+    const priceMap = new Map(prices?.map((p: any) => [p.ticker, p.price]) || []);
 
     // Fetch transactions for realized/dividends/fees (all time, filtered if needed)
     const { data: transactions } = await supabase
@@ -76,7 +76,7 @@ const typedLots = lots as any;
 
     // Aggregate net gains by asset_id
     const netGainByAsset = new Map<string, number>();
-    transactions?.forEach(tx => {
+    transactions?.forEach((tx: any) => {
       if (!tx.asset_id) return;
       let gain = (tx.realized_gain || 0);
       if (tx.type === 'Dividend' || tx.type === 'Interest') gain += (tx.amount || 0);

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabaseClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -78,8 +78,9 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   // Fetch accounts & assets
   useEffect(() => {
     const fetchData = async () => {
-      const { data: accs } = await supabaseClient.from('accounts').select('id, name, type').order('name')
-      const { data: asts } = await supabaseClient.from('assets').select('id, ticker, name').order('ticker')
+      const supabase = createClient()
+      const { data: accs } = await supabase.from('accounts').select('id, name, type').order('name')
+      const { data: asts } = await supabase.from('assets').select('id, ticker, name').order('ticker')
       setAccounts(accs || [])
       setAssets(asts || [])
     }
@@ -179,6 +180,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const supabase = createClient()
     if (!selectedAccount || !type || !date) {
       alert('Please fill all required fields')
       return
@@ -228,7 +230,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
       let updatedTx: Transaction
 
       if (editingTx) {
-        const { data, error } = await supabaseClient
+        const { data, error } = await supabase
           .from('transactions')
           .update(txData)
           .eq('id', editingTx.id)
@@ -241,7 +243,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         if (error) throw error
         updatedTx = data
       } else {
-        const { data, error } = await supabaseClient
+        const { data, error } = await supabase
           .from('transactions')
           .insert(txData)
           .select(`
@@ -264,10 +266,10 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
               amount: depositAmt,
               notes: `Auto-deposit for external buy of ${selectedAsset.ticker || 'asset'}`,
             }
-            await supabaseClient.from('transactions').insert(depositData)
+            await supabase.from('transactions').insert(depositData)
           }
           const basis_per_unit = Math.abs(amt) / qty
-          await supabaseClient.from('tax_lots').insert({
+          await supabase.from('tax_lots').insert({
             account_id: selectedAccount.id,
             asset_id: selectedAsset.id,
             purchase_date: format(date, 'yyyy-MM-dd'),
@@ -276,7 +278,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
             remaining_quantity: qty,
           })
         } else if (type === 'Sell' && qty && prc) {
-          const { data: lots } = await supabaseClient
+          const { data: lots } = await supabase
             .from('tax_lots')
             .select('*')
             .eq('account_id', selectedAccount.id)
@@ -296,12 +298,12 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
             remaining -= deplete
 
             if (lot.remaining_quantity - deplete > 0) {
-              await supabaseClient
+              await supabase
                 .from('tax_lots')
                 .update({ remaining_quantity: lot.remaining_quantity - deplete })
                 .eq('id', lot.id)
             } else {
-              await supabaseClient.from('tax_lots').delete().eq('id', lot.id)
+              await supabase.from('tax_lots').delete().eq('id', lot.id)
             }
           }
 
@@ -310,7 +312,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
           const proceeds = qty * prc - fs
           const realized_gain = proceeds - basis_sold
 
-          const { data: finalTx } = await supabaseClient
+          const { data: finalTx } = await supabase
             .from('transactions')
             .update({ realized_gain })
             .eq('id', updatedTx.id)
@@ -342,12 +344,13 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
 
   const handleDelete = async () => {
     if (!deletingTx) return
+    const supabase = createClient()
 
     try {
       if (deletingTx.type === 'Buy') {
         const expected_basis = Math.abs(deletingTx.amount ?? 0) / (deletingTx.quantity ?? 1)
 
-        const { data: candidateLots } = await supabaseClient
+        const { data: candidateLots } = await supabase
           .from('tax_lots')
           .select('*')
           .eq('account_id', deletingTx.account_id)
@@ -355,13 +358,13 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
           .eq('purchase_date', deletingTx.date)
 
         if (candidateLots && candidateLots.length > 0) {
-          const matchingLot = candidateLots.find(lot =>
+          const matchingLot = candidateLots.find((lot: any) =>
             Math.abs(lot.cost_basis_per_unit - expected_basis) < 0.01 &&
             Math.abs(lot.quantity - (deletingTx.quantity ?? 0)) < 0.00000001
           )
 
           if (matchingLot && matchingLot.remaining_quantity === matchingLot.quantity) {
-            await supabaseClient.from('tax_lots').delete().eq('id', matchingLot.id)
+            await supabase.from('tax_lots').delete().eq('id', matchingLot.id)
           } else {
             alert('Buy deleted, but the tax lot was partially sold or doesn\'t exactly match — please review/clean up manually on the Tax Lots page.')
           }
@@ -371,7 +374,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
       }
       // Dividend/others: no lot action
 
-      await supabaseClient.from('transactions').delete().eq('id', deletingTx.id)
+      await supabase.from('transactions').delete().eq('id', deletingTx.id)
 
       setTransactions(transactions.filter(t => t.id !== deletingTx.id))
       router.refresh()
