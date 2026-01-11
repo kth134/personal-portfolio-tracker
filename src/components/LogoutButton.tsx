@@ -22,9 +22,9 @@ export function LogoutButton() {
   const router = useRouter()
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push('/login') // or '/' if you have a public landing page
-    router.refresh() // Force refresh to clear any stale session data
+    await supabase.auth.signOut({ scope: 'global' }) // invalidate all sessions
+    router.replace('/login') // hard redirect to login form
+    router.refresh() // clear any stale data
   }
 
   return (
@@ -36,9 +36,9 @@ export function LogoutButton() {
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+          <AlertDialogTitle>Log out?</AlertDialogTitle>
           <AlertDialogDescription>
-            You will be signed out of your account.
+            You'll be signed out of your account and returned to the login page.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

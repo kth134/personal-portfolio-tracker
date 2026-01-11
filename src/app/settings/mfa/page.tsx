@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client' // your browser client
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -29,7 +29,6 @@ export default function MFASettings() {
       return
     }
 
-    // Check if any verified TOTP factor exists
     setSuccess(!!data?.totp?.some(f => f.status === 'verified'))
   }
 
@@ -41,7 +40,6 @@ export default function MFASettings() {
 
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: 'totp',
-      // optional: friendly_name: 'Portfolio Tracker App'
     })
 
     setLoading(false)
@@ -52,7 +50,7 @@ export default function MFASettings() {
     }
 
     if (data?.totp?.qr_code) {
-      setQrUri(data.totp.qr_code) // SVG string from Supabase
+      setQrUri(data.totp.qr_code)
       setSecret(data.totp.secret)
     } else {
       setError('No QR code returned from Supabase')
@@ -63,35 +61,45 @@ export default function MFASettings() {
     setError(null)
     setLoading(true)
 
-    const { data: factorsData, error: listError } = await supabase.auth.mfa.listFactors()
-    if (listError || !factorsData?.totp?.length) {
-      setError('No pending or active TOTP factor found')
+    try {
+      // Step 1: List factors to get the pending one
+      const { data: factorsData, error: listError } = await supabase.auth.mfa.listFactors()
+      if (listError || !factorsData?.totp?.length) {
+        throw new Error('No TOTP factor found – try enrolling again')
+      }
+
+      const factor = factorsData.totp.find((f: any) => f.status === 'unverified') || factorsData.totp[0]
+      const factorId = factor.id
+
+      // Step 2: Challenge the factor to start verification session
+      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId,
+      })
+
+      if (challengeError) throw challengeError
+
+      const challengeId = challengeData?.id
+      if (!challengeId) throw new Error('No challenge ID received')
+
+      // Step 3: Verify with code + challengeId
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId,
+        challengeId,
+        code: verifyCode.trim(),
+      })
+
+      if (verifyError) throw verifyError
+
+      setSuccess(true)
+      setQrUri(null)
+      setSecret(null)
+      setVerifyCode('')
+      loadFactors() // refresh
+    } catch (err: any) {
+      setError(err.message || 'Verification failed')
+    } finally {
       setLoading(false)
-      return
     }
-
-    // Prefer the most recent unverified factor, fallback to any
-    const factor = factorsData.totp.find((f: any) => f.status === 'unverified') || factorsData.totp[0]
-    const factorId = factor.id
-
-    const { error: verifyError } = await supabase.auth.mfa.verify({
-      factorId,
-      code: verifyCode.trim(),
-      challengeId: (factor as any).challenge_id || '',
-    })
-
-    setLoading(false)
-
-    if (verifyError) {
-      setError(verifyError.message)
-      return
-    }
-
-    setSuccess(true)
-    setQrUri(null)
-    setSecret(null)
-    setVerifyCode('')
-    loadFactors() // Refresh status
   }
 
   return (
@@ -99,7 +107,7 @@ export default function MFASettings() {
       <h1 className="text-2xl font-bold">Multi-Factor Authentication (TOTP)</h1>
 
       {success ? (
-        <div className="p-4 border rounded-lg bg-green-50 border-green-200 text-green-800">
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
           MFA is now enabled! Your authenticator app provides an extra layer of security.
         </div>
       ) : (
@@ -120,7 +128,6 @@ export default function MFASettings() {
             <div className="space-y-6 border rounded-lg p-6 bg-white shadow-sm">
               <p className="font-medium text-center">Scan this QR code with your authenticator app:</p>
 
-              {/* FIXED QR RENDER – direct SVG, no cropping */}
               <div className="flex justify-center items-center bg-white p-6 rounded-lg border border-gray-200 max-w-[280px] mx-auto">
                 <div 
                   className="w-full max-w-[240px] h-auto"
@@ -138,7 +145,7 @@ export default function MFASettings() {
               <Input
                 placeholder="Enter 6-digit code"
                 value={verifyCode}
-                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))} // only digits
+                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))}
                 maxLength={6}
                 className="text-center text-xl tracking-widest font-mono"
                 disabled={loading}
@@ -155,7 +162,7 @@ export default function MFASettings() {
           )}
 
           {error && (
-            <div className="p-4 border rounded-lg bg-red-50 border-red-200 text-red-800">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}
             </div>
           )}
