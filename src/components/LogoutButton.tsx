@@ -23,7 +23,7 @@ export function LogoutButton() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut({ scope: 'global' }) // invalidate all sessions
-    router.replace('/login') // hard redirect to login form
+    router.replace('/') // hard redirect to login form
     router.refresh() // clear any stale data
   }
 
