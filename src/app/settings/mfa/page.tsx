@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client' // your browser client
-import { QRCodeSVG } from 'qrcode.react' // ← FIXED: named import (SVG version)
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -30,7 +29,7 @@ export default function MFASettings() {
       return
     }
 
-    const factors = data?.all || []
+    // Check if any verified TOTP factor exists
     setSuccess(!!data?.totp?.some(f => f.status === 'verified'))
   }
 
@@ -53,8 +52,10 @@ export default function MFASettings() {
     }
 
     if (data?.totp?.qr_code) {
-      setQrUri(data.totp.qr_code) // SVG string
+      setQrUri(data.totp.qr_code) // This is the SVG string – render directly
       setSecret(data.totp.secret)
+    } else {
+      setError('No QR code returned from Supabase')
     }
   }
 
@@ -64,12 +65,12 @@ export default function MFASettings() {
 
     const { data: factorsData, error: listError } = await supabase.auth.mfa.listFactors()
     if (listError || !factorsData?.totp?.length) {
-      setError('No pending factor found')
+      setError('No pending or active TOTP factor found')
       setLoading(false)
       return
     }
 
-    // Prefer unverified → fallback to first
+    // Prefer the most recent unverified factor, fallback to any
     const factor = factorsData.totp.find((f: any) => f.status === 'unverified') || factorsData.totp[0]
     const factorId = factor.id
 
@@ -90,7 +91,7 @@ export default function MFASettings() {
     setQrUri(null)
     setSecret(null)
     setVerifyCode('')
-    loadFactors() // refresh
+    loadFactors() // Refresh status
   }
 
   return (
@@ -98,50 +99,49 @@ export default function MFASettings() {
       <h1 className="text-2xl font-bold">Multi-Factor Authentication (TOTP)</h1>
 
       {success ? (
-        <div className="p-4 border rounded-lg bg-green-50 text-green-800">
+        <div className="p-4 border rounded-lg bg-green-50 border-green-200 text-green-800">
           MFA is now enabled! Your authenticator app provides an extra layer of security.
         </div>
       ) : (
         <>
           <p className="text-muted-foreground">
-            Protect your portfolio data by adding an authenticator app (Google Authenticator, Authy, Microsoft Authenticator, etc.).
+            Add an authenticator app (Google Authenticator, Authy, etc.) for extra security.
           </p>
 
-          <Button 
-            onClick={enroll} 
+          <Button
+            onClick={enroll}
             disabled={!!qrUri || loading}
             className="w-full"
           >
-            {loading ? 'Processing...' : qrUri ? 'QR Ready' : 'Enable MFA'}
+            {loading ? 'Processing...' : qrUri ? 'QR Code Ready' : 'Enable MFA'}
           </Button>
 
           {qrUri && (
-            <div className="space-y-4 border rounded-lg p-6 bg-muted/40">
-              <p className="font-medium">Scan this QR code:</p>
-              <div className="flex justify-center py-4">
-                <QRCodeSVG 
-                  value={qrUri} 
-                  size={200} 
-                  level="M" // Medium error correction – good balance
-                />
-              </div>
+            <div className="space-y-6 border rounded-lg p-6 bg-white shadow-sm">
+              <p className="font-medium text-center">Scan this QR code with your authenticator app:</p>
+
+              {/* DIRECT SVG RENDER – this is the fix */}
+              <div
+                className="flex justify-center items-center bg-white p-4 rounded border"
+                dangerouslySetInnerHTML={{ __html: qrUri }}
+              />
 
               <p className="text-sm text-muted-foreground text-center">
-                Or manually enter this secret key:<br/>
-                <strong className="font-mono break-all">{secret}</strong>
+                Or manually enter this secret key:<br />
+                <strong className="font-mono break-all select-all">{secret}</strong>
               </p>
 
               <Input
                 placeholder="Enter 6-digit code"
                 value={verifyCode}
-                onChange={e => setVerifyCode(e.target.value.replace(/\D/g, ''))} // only digits
+                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))} // only digits
                 maxLength={6}
-                className="text-center text-xl tracking-widest"
+                className="text-center text-xl tracking-widest font-mono"
                 disabled={loading}
               />
 
-              <Button 
-                onClick={verify} 
+              <Button
+                onClick={verify}
                 className="w-full"
                 disabled={verifyCode.length !== 6 || loading}
               >
@@ -151,7 +151,7 @@ export default function MFASettings() {
           )}
 
           {error && (
-            <div className="p-4 border rounded-lg bg-red-50 text-red-800">
+            <div className="p-4 border rounded-lg bg-red-50 border-red-200 text-red-800">
               {error}
             </div>
           )}
@@ -159,7 +159,7 @@ export default function MFASettings() {
       )}
 
       {loading && !qrUri && (
-        <p className="text-center text-sm text-muted-foreground">Loading factors...</p>
+        <p className="text-center text-sm text-muted-foreground">Loading MFA status...</p>
       )}
     </div>
   )
