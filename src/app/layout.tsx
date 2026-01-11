@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ChatDrawer } from '@/components/ChatDrawer';
 import { useChatStore } from '@/store/chatStore';
 import { GrokChatTrigger } from '@/components/GrokChatTrigger';
+import { LogoutButton } from '@/components/LogoutButton'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,7 +19,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
               <div className="flex items-center gap-4">
                 <span className="text-sm text-muted-foreground">Personal Portfolio Tracker</span>
-                  <GrokChatTrigger />
+                <GrokChatTrigger />
+                <LogoutButton /> {/* ← NEW: Add this line */}
               </div>
           </div>
         </nav>

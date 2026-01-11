@@ -52,7 +52,7 @@ export default function MFASettings() {
     }
 
     if (data?.totp?.qr_code) {
-      setQrUri(data.totp.qr_code) // This is the SVG string – render directly
+      setQrUri(data.totp.qr_code) // SVG string from Supabase
       setSecret(data.totp.secret)
     } else {
       setError('No QR code returned from Supabase')
@@ -120,15 +120,19 @@ export default function MFASettings() {
             <div className="space-y-6 border rounded-lg p-6 bg-white shadow-sm">
               <p className="font-medium text-center">Scan this QR code with your authenticator app:</p>
 
-              {/* DIRECT SVG RENDER – this is the fix */}
-              <div
-                className="flex justify-center items-center bg-white p-4 rounded border"
-                dangerouslySetInnerHTML={{ __html: qrUri }}
-              />
+              {/* FIXED QR RENDER – direct SVG, no cropping */}
+              <div className="flex justify-center items-center bg-white p-6 rounded-lg border border-gray-200 max-w-[280px] mx-auto">
+                <div 
+                  className="w-full max-w-[240px] h-auto"
+                  dangerouslySetInnerHTML={{ __html: qrUri }}
+                />
+              </div>
 
               <p className="text-sm text-muted-foreground text-center">
                 Or manually enter this secret key:<br />
-                <strong className="font-mono break-all select-all">{secret}</strong>
+                <strong className="font-mono break-all select-all bg-gray-100 px-1 py-0.5 rounded">
+                  {secret}
+                </strong>
               </p>
 
               <Input
