@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { formatUSD } from '@/lib/formatters';
 import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
 import { cn } from '@/lib/utils';
-import { createClient } from '@/lib/supabase/client'; // Your browser client
+import { createClient } from '@/lib/supabase/client';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7'];
 
@@ -50,7 +50,7 @@ const PRESETS = [
 export default function DashboardHome() {
   const supabase = createClient();
 
-  // Core states (unchanged)
+  // Core states from original
   const [lens, setLens] = useState('total');
   const [availableValues, setAvailableValues] = useState<string[]>([]);
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
@@ -72,7 +72,7 @@ export default function DashboardHome() {
   const [mfaCode, setMfaCode] = useState('');
   const [mfaError, setMfaError] = useState<string | null>(null);
 
-  // Fetch lens values
+  // Fetch distinct values for lens
   useEffect(() => {
     if (lens === 'total') {
       setAvailableValues([]);
@@ -90,9 +90,9 @@ export default function DashboardHome() {
         const data = await res.json();
         const vals = data.values || [];
         setAvailableValues(vals);
-        setSelectedValues(vals); // default all
+        setSelectedValues(vals); // default to all
       } catch (err) {
-        console.error('Failed to load values:', err);
+        console.error('Failed to load lens values:', err);
       } finally {
         setValuesLoading(false);
       }
@@ -100,24 +100,24 @@ export default function DashboardHome() {
     fetchValues();
   }, [lens]);
 
-  // MFA check + core data fetch
+  // MFA check + data load
   useEffect(() => {
     const initialize = async () => {
-      // 1. Check MFA status first
+      // MFA assurance level check
       const { data: aalData, error: aalErr } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
       if (aalErr) {
         console.error('AAL check failed:', aalErr);
-        setMfaStatus('none'); // fallback
+        setMfaStatus('none');
       } else {
         const { currentLevel, nextLevel } = aalData ?? {};
         if (currentLevel === 'aal1' && nextLevel === 'aal2') {
           setMfaStatus('prompt');
         } else {
-          setMfaStatus('verified'); // or 'none' if no factors
+          setMfaStatus('verified');
         }
       }
 
-      // 2. Only load dashboard data if MFA ok (or not required)
+      // Load data only if MFA allows
       if (mfaStatus !== 'prompt') {
         await loadDashboardData();
       }
@@ -218,7 +218,7 @@ export default function DashboardHome() {
       if (error) throw error;
 
       setMfaStatus('verified');
-      await loadDashboardData(); // now safe to load data
+      await loadDashboardData();
     } catch (err: any) {
       setMfaError(err.message || 'Verification failed');
     }
@@ -253,7 +253,7 @@ export default function DashboardHome() {
     );
   }
 
-  // Normal dashboard (MFA passed or not required)
+  // Normal dashboard view (MFA cleared)
   return (
     <main className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-8">
@@ -268,13 +268,135 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* Controls – unchanged but grouped tighter */}
+      {/* Full controls section – restored from original */}
       <div className="flex flex-wrap gap-4 mb-8 items-end">
-        {/* ... (Lens, Values selector, Aggregate toggle, Preset, Custom dates, Metric, Benchmarks – same as before) */}
-        {/* For brevity, copy your original controls block here – no changes needed */}
+        {/* Lens */}
+        <div>
+          <Label className="text-sm font-medium">Slice by</Label>
+          <Select value={lens} onValueChange={setLens}>
+            <SelectTrigger className="w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LENSES.map(l => (
+                <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Multi-Select Values */}
+        {lens !== 'total' && (
+          <div className="min-w-64">
+            <Label className="text-sm font-medium">
+              Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  {selectedValues.length === availableValues.length ? 'All selected' :
+                   selectedValues.length === 0 ? 'None selected' :
+                   `${selectedValues.length} selected`}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandInput placeholder="Search..." />
+                  <CommandList>
+                    <CommandEmpty>No values found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableValues.map(val => (
+                        <CommandItem key={val} onSelect={() => toggleValue(val)}>
+                          <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(val) ? "opacity-100" : "opacity-0")} />
+                          {val || 'Untagged'}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+
+        {/* Aggregate Toggle */}
+        {lens !== 'total' && selectedValues.length > 1 && (
+          <div className="flex items-center gap-2">
+            <Switch checked={aggregate} onCheckedChange={setAggregate} />
+            <Label>Aggregate selected</Label>
+          </div>
+        )}
+
+        {/* Period Preset */}
+        <div>
+          <Label className="text-sm font-medium">Period Preset</Label>
+          <Select value={preset} onValueChange={setPreset}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRESETS.map(p => (
+                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Custom Start */}
+        <div>
+          <Label className="text-sm font-medium">Custom Start</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {customStart ? format(customStart, 'PPP') : 'Select'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent>
+              <Calendar mode="single" selected={customStart} onSelect={setCustomStart} />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Custom End */}
+        <div>
+          <Label className="text-sm font-medium">Custom End</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {customEnd ? format(customEnd, 'PPP') : 'Select'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent>
+              <Calendar mode="single" selected={customEnd} onSelect={setCustomEnd} />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Return Metric */}
+        <div>
+          <Label className="text-sm font-medium">Return Metric</Label>
+          <Select value={metric} onValueChange={(v: 'twr' | 'mwr') => setMetric(v)}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="twr">TWR</SelectItem>
+              <SelectItem value="mwr">MWR</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Benchmarks */}
+        <div className="flex items-center gap-2">
+          <Switch checked={showBenchmarks} onCheckedChange={setShowBenchmarks} />
+          <Label>Show Benchmarks</Label>
+        </div>
       </div>
 
-      {/* Info popover – unchanged */}
+      {/* Disclaimer */}
       <Popover>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="sm" className="mb-4">
@@ -283,7 +405,8 @@ export default function DashboardHome() {
         </PopoverTrigger>
         <PopoverContent>
           <p className="text-sm">
-            Performance attribution assumes asset tags have been stable over time. Historical gains may reflect current tags if assets moved categories.
+            Performance attribution assumes asset tags (sub-portfolio, geography, etc.) have been stable over time. 
+            If you have moved assets between categories, historical gains may be attributed to the current tag.
           </p>
         </PopoverContent>
       </Popover>
@@ -294,11 +417,11 @@ export default function DashboardHome() {
         <div className="text-center py-12 text-muted-foreground">Select at least one value to view data.</div>
       ) : (
         <>
-          {/* Allocations Card */}
+          {/* Allocations */}
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>
-                Current Allocation {aggregate ? '(Aggregated)' : '(Separate)'}
+                Current Allocation {aggregate ? '(Aggregated)' : '(Separate Comparison)'}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -358,7 +481,7 @@ export default function DashboardHome() {
             </CardContent>
           </Card>
 
-          {/* Performance Card */}
+          {/* Performance */}
           <Card>
             <CardHeader>
               <CardTitle>Performance ({preset.toUpperCase()} • {metric.toUpperCase()})</CardTitle>
