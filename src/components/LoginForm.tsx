@@ -49,7 +49,26 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 w-80">
-      {/* Email + Password inputs unchanged */}
+      <div>
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="password">Password</Label>
+        <Input
+          id="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+      </div>
       {error && <p className="text-red-500">{error}</p>}
       <Button type="submit" className="w-full">{isSignUp ? 'Sign Up' : 'Log In'}</Button>
 
