@@ -1,88 +1,97 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'; // ← Add Suspense import
-import { useSearchParams, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useEffect, useState, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 function ResetPasswordContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
-  const [verified, setVerified] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+  const [verified, setVerified] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
 
   useEffect(() => {
     const verifyRecovery = async () => {
-      setLoading(true);
-      const hash = searchParams.get('code');
-      const type = searchParams.get('type');
-      if (hash && type === 'recovery') {
-        const { error } = await supabase.auth.verifyOtp({
-          type: 'recovery',
-          token_hash: hash,
-        });
-        if (error) {
-          setError(error.message.replace(/[<>\"'&]/g, ''));
-        } else {
-          setVerified(true);
-        }
-      } else {
-        setError('Invalid or missing recovery token.');
-      }
-      setLoading(false);
-    };
+      setLoading(true)
+      setError(null)
 
-    verifyRecovery();
-  }, [searchParams]);
+      const token = searchParams.get('token')   // Supabase uses 'token' for recovery
+      const type = searchParams.get('type')
+
+      if (!token || type !== 'recovery') {
+        setError('Invalid or missing recovery token.')
+        setLoading(false)
+        return
+      }
+
+      const { error } = await supabase.auth.verifyOtp({
+        type: 'recovery',
+        token_hash: token,  // full hash from URL
+      })
+
+      if (error) {
+        console.error('Verify OTP error:', error)
+        setError(error.message || 'Failed to verify reset link. Try requesting a new one.')
+      } else {
+        setVerified(true)
+      }
+      setLoading(false)
+    }
+
+    verifyRecovery()
+  }, [searchParams])
 
   const handleUpdate = async () => {
-    setError('');
+    setError(null)
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
+      setError('Passwords do not match.')
+      return
     }
     if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
+      setError('Password must be at least 6 characters.')
+      return
     }
 
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
     if (error) {
-      setError(error.message.replace(/[<>\"'&]/g, ''));
+      setError(error.message || 'Failed to update password.')
     } else {
-      setSuccess(true);
-      setTimeout(() => router.push('/login'), 3000);
+      setSuccess(true)
+      setTimeout(() => router.push('/login'), 3000)
     }
-  };
+  }
 
   if (loading) {
-    return <div className="container mx-auto p-6 text-center">Verifying recovery link...</div>;
+    return <div className="container mx-auto p-6 text-center">Verifying reset link...</div>
   }
 
   if (!verified) {
     return (
       <div className="container mx-auto max-w-md p-6">
         <h1 className="text-2xl font-bold mb-4">Invalid Link</h1>
-        <p className="text-red-500">{error}</p>
-        <Button variant="link" onClick={() => router.push('/login')}>Back to Login</Button>
+        <p className="text-red-500 mb-4">{error}</p>
+        <Button variant="link" onClick={() => router.push('/login')}>
+          Back to Login
+        </Button>
       </div>
-    );
+    )
   }
 
   if (success) {
     return (
       <div className="container mx-auto max-w-md p-6 text-center">
         <h1 className="text-2xl font-bold mb-4">Password Updated</h1>
-        <p>Your password has been reset successfully. Redirecting to login...</p>
+        <p>Success! Redirecting to login...</p>
       </div>
-    );
+    )
   }
 
   return (
@@ -107,9 +116,11 @@ function ResetPasswordContent() {
         />
       </div>
       {error && <p className="text-red-500 text-sm">{error}</p>}
-      <Button onClick={handleUpdate} className="w-full">Update Password</Button>
+      <Button onClick={handleUpdate} className="w-full" disabled={loading}>
+        Update Password
+      </Button>
     </div>
-  );
+  )
 }
 
 export default function ResetPassword() {
@@ -117,5 +128,5 @@ export default function ResetPassword() {
     <Suspense fallback={<div className="container mx-auto p-6 text-center">Loading...</div>}>
       <ResetPasswordContent />
     </Suspense>
-  );
+  )
 }
