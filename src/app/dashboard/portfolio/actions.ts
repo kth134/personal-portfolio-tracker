@@ -37,7 +37,7 @@ export async function refreshAssetPrices() {
   }
 
   // Step 4: Finnhub for stocks – fetch one by one
-  let stockPricesData: Record<string, number | null> = {};
+  const stockPricesData: Record<string, number | null> = {};
   if (stockTickers.length > 0) {
     const finnhubKey = process.env.FINNHUB_API_KEY;
     if (!finnhubKey) {

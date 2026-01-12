@@ -285,8 +285,8 @@ export async function POST(req: Request) {
     });
 
     // Lines and metrics
-    let lines: { key: string; name: string }[] = [];
-    let metrics: { key: string; totalReturn: number; annualized: number; netGain: number }[] = [];
+    const lines: { key: string; name: string }[] = [];
+    const metrics: { key: string; totalReturn: number; annualized: number; netGain: number }[] = [];
 
     const keys = aggregate && groups.size > 1 ? ['Portfolio'] : Array.from(groups.keys());
     keys.forEach(key => {

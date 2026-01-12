@@ -460,6 +460,11 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
 }
 
 export async function askGrok(query: string, isSandbox: boolean, prevSandboxState?: any) {
+  // Input validation and sanitization
+  if (!query || typeof query !== 'string' || query.trim().length === 0 || query.length > 1000) {
+    throw new Error('Invalid query: must be a non-empty string under 1000 characters.');
+  }
+  const sanitizedQuery = query.trim().replace(/[<>\"'&]/g, ''); // Basic XSS prevention
   const cookieStore = await cookies();
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -478,7 +483,7 @@ export async function askGrok(query: string, isSandbox: boolean, prevSandboxStat
   const summary = await getPortfolioSummary(isSandbox, prevSandboxState?.changes);
 
   // NEW: Run server-side deep analysis (never leaves server)
-  const deepAnalysis = await performDeepPortfolioAnalysis(supabase, userId, query);
+  const deepAnalysis = await performDeepPortfolioAnalysis(supabase, userId, sanitizedQuery);
 
   const safePromptData = {
     ...summary,
@@ -543,9 +548,9 @@ Important reminders:
 
 Respond conversationally but professionally—no fluff.`;
 
-  let messages: any[] = [
+  const messages: any[] = [
     { role: "system", content: systemPrompt },
-    { role: "user", content: query }
+    { role: "user", content: sanitizedQuery }
   ];
 
   try {
@@ -580,13 +585,13 @@ Respond conversationally but professionally—no fluff.`;
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`Grok API request failed: Status ${response.status}, Response: ${errorText}`);
+        console.error(`Grok API request failed: Status ${response.status}, Response: ${errorText}, User: ${userId}`);
         throw new Error(`Grok API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
       if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-        console.error(`Invalid Grok API response: ${JSON.stringify(data)}`);
+        console.error(`Invalid Grok API response: ${JSON.stringify(data)}, User: ${userId}`);
         throw new Error('No valid choices in Grok API response');
       }
 
@@ -612,7 +617,7 @@ Respond conversationally but professionally—no fluff.`;
       // Tool handling (web_search)
       for (const toolCall of message.tool_calls) {
         const func = toolCall.function;
-        console.log('Tool call received:', func.name, 'arguments:', func.arguments);
+        console.log('Tool call received:', func.name, 'arguments:', func.arguments, `User: ${userId}`);
         let args: { query?: string } = {};
         try {
           args = func.arguments ? JSON.parse(func.arguments) : {};
@@ -647,13 +652,13 @@ Respond conversationally but professionally—no fluff.`;
           const cacheTime = 10 * 60 * 1000;
           let result = '';
           const { data: cacheData, error: cacheError } = await supabase
-            .from('search_cache')
-            .select('result, updated_at')
-            .eq('query', args.query)
-            .single();
+          .from('search_cache').select('result, updated_at')
+          .eq('user_id', userId)
+          .eq('query', args.query)
+         .single();
 
           if (cacheError && cacheError.code !== 'PGRST116') {
-            console.error('Cache query error:', cacheError);
+            console.error('Cache query error:', cacheError, `User: ${userId}`);
           }
 
           if (cacheData) {
@@ -699,17 +704,14 @@ Respond conversationally but professionally—no fluff.`;
             }
 
             const { error: upsertError } = await supabase
-              .from('search_cache')
-              .upsert(
-                {
-                  query: args.query,
-                  result,
-                  updated_at: new Date().toISOString()
-                },
-                { onConflict: 'query' }
-              );
+            .from('search_cache').upsert({
+              user_id: userId,
+              query: args.query,
+              result,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id, query' });  // Change onConflict to composite key
 
-            if (upsertError) console.error('Cache upsert error:', upsertError);
+            if (upsertError) console.error('Cache upsert error:', upsertError, `User: ${userId}`);
           }
 
           messages.push({
@@ -722,7 +724,7 @@ Respond conversationally but professionally—no fluff.`;
       }
     }
   } catch (error) {
-    console.error('Error in askGrok:', error);
+    console.error('Error in askGrok:', error, `User: ${userId}`);
     throw error;
   }
 }

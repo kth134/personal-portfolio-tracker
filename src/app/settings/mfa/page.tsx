@@ -14,6 +14,8 @@ export default function MFASettings() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [verifyAttempts, setVerifyAttempts] = useState(0)
+  const [lastAttempt, setLastAttempt] = useState(0)
 
   useEffect(() => {
     loadFactors()
@@ -25,7 +27,9 @@ export default function MFASettings() {
     setLoading(false)
 
     if (error) {
-      setError(error.message)
+      const sanitizedError = error.message.replace(/[<>\"'&]/g, '')
+      setError(sanitizedError)
+      console.error('MFA load error:', sanitizedError)
       return
     }
 
@@ -45,7 +49,9 @@ export default function MFASettings() {
     setLoading(false)
 
     if (error) {
-      setError(error.message)
+      const sanitizedError = error.message.replace(/[<>\"'&]/g, '')
+      setError(sanitizedError)
+      console.error('MFA enroll error:', sanitizedError)
       return
     }
 
@@ -60,6 +66,14 @@ export default function MFASettings() {
   const verify = async () => {
     setError(null)
     setLoading(true)
+
+    // Basic client-side rate limiting: max 5 attempts per minute
+    const now = Date.now()
+    if (verifyAttempts >= 5 && now - lastAttempt < 60000) {
+      setError('Too many verification attempts. Please wait 1 minute.')
+      setLoading(false)
+      return
+    }
 
     try {
       // Step 1: List factors to get the pending one
@@ -94,9 +108,14 @@ export default function MFASettings() {
       setQrUri(null)
       setSecret(null)
       setVerifyCode('')
+      setVerifyAttempts(0) // Reset on success
       loadFactors() // refresh
     } catch (err: any) {
-      setError(err.message || 'Verification failed')
+      const sanitizedError = (err.message || 'Verification failed').replace(/[<>\"'&]/g, '') // Basic sanitization
+      setError(sanitizedError)
+      setVerifyAttempts(prev => prev + 1)
+      setLastAttempt(Date.now())
+      console.error('MFA verification error:', sanitizedError) // Log without sensitive data
     } finally {
       setLoading(false)
     }
@@ -131,7 +150,7 @@ export default function MFASettings() {
               <div className="flex justify-center items-center bg-white p-6 rounded-lg border border-gray-200 max-w-[280px] mx-auto">
                 <div 
                   className="w-full max-w-[240px] h-auto"
-                  dangerouslySetInnerHTML={{ __html: qrUri }}
+                  dangerouslySetInnerHTML={{ __html: qrUri.replace(/<script[^>]*>.*?<\/script>/gi, '') }} // Strip any scripts
                 />
               </div>
 

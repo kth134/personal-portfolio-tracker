@@ -13,8 +13,10 @@ export default function LoginForm() {
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
   const [error, setError] = useState('')
+  const [loginAttempts, setLoginAttempts] = useState(0)
+  const [lastLoginAttempt, setLastLoginAttempt] = useState(0)
   const router = useRouter()
-  const supabase = createClient()  // ← create here (or in useEffect if preferred)
+  const supabase = createClient()
 
   const handleSocialLogin = async () => {
     setError('')
@@ -24,26 +26,58 @@ export default function LoginForm() {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
-    if (error) setError(error.message)
+    if (error) {
+      const sanitizedError = error.message.replace(/[<>\"'&]/g, '')
+      setError(sanitizedError)
+      console.error('OAuth error:', sanitizedError)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
+    // Basic client-side rate limiting: max 5 attempts per minute
+    const now = Date.now()
+    if (loginAttempts >= 5 && now - lastLoginAttempt < 60000) {
+      setError('Too many login attempts. Please wait 1 minute.')
+      return
+    }
+
+    // Basic input validation
+    if (!email.trim() || !password.trim()) {
+      setError('Email and password are required.')
+      return
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.')
+      return
+    }
+
+    setLoginAttempts(prev => prev + 1)
+    setLastLoginAttempt(now)
+
     if (isSignUp) {
-      const { data, error } = await supabase.auth.signUp({ email, password })
+      const { data, error } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password })
       if (error) {
-        setError(error.message)
+        const sanitizedError = error.message.replace(/[<>\"'&]/g, '')
+        setError(sanitizedError)
+        console.error('Sign up error:', sanitizedError)
       } else if (data.session) {
         router.push('/dashboard')
       } else {
         setError('Check email for confirmation link. Then log in.')
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setError(error.message)
-      else router.push('/dashboard')
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
+      if (error) {
+        const sanitizedError = error.message.replace(/[<>\"'&]/g, '')
+        setError(sanitizedError)
+        console.error('Sign in error:', sanitizedError)
+      } else {
+        setLoginAttempts(0) // Reset on success
+        router.push('/dashboard')
+      }
     }
   }
 

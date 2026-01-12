@@ -118,10 +118,10 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     }
 
     list.sort((a, b) => {
-      let aVal: any = sortKey === 'account_name' ? a.account?.name ?? null :
+      const aVal: any = sortKey === 'account_name' ? a.account?.name ?? null :
                      sortKey === 'asset_ticker' ? a.asset?.ticker ?? null :
                      a[sortKey as keyof Transaction] ?? null
-      let bVal: any = sortKey === 'account_name' ? b.account?.name ?? null :
+      const bVal: any = sortKey === 'account_name' ? b.account?.name ?? null :
                      sortKey === 'asset_ticker' ? b.asset?.ticker ?? null :
                      b[sortKey as keyof Transaction] ?? null
 
