@@ -87,6 +87,7 @@ export default function DashboardHome() {
           method: 'POST',
           body: JSON.stringify({ lens }),
         });
+        if (!res.ok) throw new Error(`Failed to fetch values: ${res.status}`);
         const data = await res.json();
         const vals = data.values || [];
         setAvailableValues(vals);
@@ -100,31 +101,33 @@ export default function DashboardHome() {
     fetchValues();
   }, [lens]);
 
-  // MFA check + data load
+  // MFA check on mount
   useEffect(() => {
-    const initialize = async () => {
-      // MFA assurance level check
-      const { data: aalData, error: aalErr } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (aalErr) {
-        console.error('AAL check failed:', aalErr);
-        setMfaStatus('none');
-      } else {
+    const checkMfa = async () => {
+      try {
+        const { data: aalData, error: aalErr } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (aalErr) throw aalErr;
         const { currentLevel, nextLevel } = aalData ?? {};
         if (currentLevel === 'aal1' && nextLevel === 'aal2') {
           setMfaStatus('prompt');
         } else {
           setMfaStatus('verified');
         }
-      }
-
-      // Load data only if MFA allows
-      if (mfaStatus !== 'prompt') {
-        await loadDashboardData();
+      } catch (err) {
+        console.error('AAL check failed:', err);
+        setMfaStatus('none');
       }
     };
 
-    initialize();
-  }, [lens, selectedValues, aggregate, preset, customStart, customEnd, metric, showBenchmarks]);
+    checkMfa();
+  }, []);
+
+  // Load data when MFA verified or when dependencies change
+  useEffect(() => {
+    if (mfaStatus === 'verified') {
+      loadDashboardData();
+    }
+  }, [mfaStatus, lens, selectedValues, aggregate, preset, customStart, customEnd, metric, showBenchmarks]);
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -167,9 +170,12 @@ export default function DashboardHome() {
 
     try {
       const [allocRes, perfRes] = await Promise.all([
-        fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload) }),
-        fetch('/api/dashboard/performance', { method: 'POST', body: JSON.stringify(payload) }),
+        fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' }),
+        fetch('/api/dashboard/performance', { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' }),
       ]);
+
+      if (!allocRes.ok) throw new Error(`Allocations fetch failed: ${allocRes.status}`);
+      if (!perfRes.ok) throw new Error(`Performance fetch failed: ${perfRes.status}`);
 
       const allocData = await allocRes.json();
       const perfData = await perfRes.json();
@@ -218,7 +224,6 @@ export default function DashboardHome() {
       if (error) throw error;
 
       setMfaStatus('verified');
-      await loadDashboardData();
     } catch (err: any) {
       setMfaError(err.message || 'Verification failed');
     }

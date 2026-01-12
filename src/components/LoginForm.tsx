@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'  // ← new import
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,7 +12,9 @@ export default function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
+  const [showReset, setShowReset] = useState(false)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [loginAttempts, setLoginAttempts] = useState(0)
   const [lastLoginAttempt, setLastLoginAttempt] = useState(0)
   const router = useRouter()
@@ -36,6 +38,7 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setMessage('')
 
     // Basic client-side rate limiting: max 5 attempts per minute
     const now = Date.now()
@@ -66,7 +69,7 @@ export default function LoginForm() {
       } else if (data.session) {
         router.push('/dashboard')
       } else {
-        setError('Check email for confirmation link. Then log in.')
+        setMessage('Check email for confirmation link. Then log in.')
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
@@ -79,6 +82,50 @@ export default function LoginForm() {
         router.push('/dashboard')
       }
     }
+  }
+
+  const handleReset = async () => {
+    setError('')
+    setMessage('')
+    if (!email.trim()) {
+      setError('Enter your email to reset password.')
+      return
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+
+    if (error) {
+      const sanitizedError = error.message.replace(/[<>\"'&]/g, '')
+      setError(sanitizedError)
+      console.error('Reset password error:', sanitizedError)
+    } else {
+      setMessage('Check your email for the password reset link.')
+      setShowReset(false)
+    }
+  }
+
+  if (showReset) {
+    return (
+      <div className="space-y-4 w-80">
+        <h2 className="text-xl font-bold">Reset Password</h2>
+        <div>
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        {error && <p className="text-red-500">{error}</p>}
+        {message && <p className="text-green-500">{message}</p>}
+        <Button onClick={handleReset} className="w-full">Send Reset Email</Button>
+        <Button variant="secondary" onClick={() => setShowReset(false)} className="w-full">Back to Login</Button>
+      </div>
+    )
   }
 
   return (
@@ -104,7 +151,14 @@ export default function LoginForm() {
         />
       </div>
       {error && <p className="text-red-500">{error}</p>}
+      {message && <p className="text-green-500">{message}</p>}
       <Button type="submit" className="w-full">{isSignUp ? 'Sign Up' : 'Log In'}</Button>
+
+      <div className="text-center">
+        <Button variant="link" type="button" onClick={() => setShowReset(true)}>
+          Forgot password?
+        </Button>
+      </div>
 
       {/* Optional OR divider */}
       <div className="relative my-4">
