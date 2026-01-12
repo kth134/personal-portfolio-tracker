@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react'; // ← Add Suspense import
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-export default function ResetPassword() {
+function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [newPassword, setNewPassword] = useState('');
@@ -109,5 +109,13 @@ export default function ResetPassword() {
       {error && <p className="text-red-500 text-sm">{error}</p>}
       <Button onClick={handleUpdate} className="w-full">Update Password</Button>
     </div>
+  );
+}
+
+export default function ResetPassword() {
+  return (
+    <Suspense fallback={<div className="container mx-auto p-6 text-center">Loading...</div>}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
