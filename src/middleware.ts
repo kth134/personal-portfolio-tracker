@@ -4,11 +4,12 @@ import type { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
 export async function middleware(request: NextRequest) {
-  // Only apply to API routes
+  // Only protect API routes
   if (!request.nextUrl.pathname.startsWith('/api/')) {
     return NextResponse.next();
   }
 
+  // Create response object early so we can modify cookies
   let response = NextResponse.next();
 
   const supabase = createServerClient(
@@ -28,20 +29,17 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session if needed & get user
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  // This auto-refreshes the session if needed
+  const { data: { user }, error } = await supabase.auth.getUser();
 
   if (error || !user) {
-    console.log('[Middleware] Auth failed:', error?.message || 'No user');
+    console.log('[Middleware] Auth failed:', error?.message || 'No user found');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  console.log('[Middleware] Auth success for user:', user.id);
+  console.log('[Middleware] Auth success for user ID:', user.id);
 
-  // Your existing rate limiting (unchanged)
+  // ── Your existing rate limiting (unchanged) ──
   const clientIP =
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     request.headers.get('x-real-ip') ||
@@ -60,7 +58,6 @@ export async function middleware(request: NextRequest) {
 
   rateLimitStore.set(key, current + 1);
 
-  // Clean up old entries (unchanged)
   if (Math.random() < 0.01) {
     for (const [k, v] of rateLimitStore.entries()) {
       if (parseInt(k.split('-')[1]) * windowMs < now - windowMs) {
@@ -69,7 +66,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Important: Return the response with updated cookies
+  // Return the response WITH updated cookies
   return response;
 }
 
