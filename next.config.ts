@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
 
   async headers() {
-    // Supabase domains from your env
+    // Your real Supabase project domain (from env)
     const supabaseDomain = "nhiqvvrfdhgngwkjntix.supabase.co";
     const supabaseWildcard = "*.supabase.co";
 
@@ -17,18 +17,18 @@ const nextConfig: NextConfig = {
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js, React, shadcn/ui
-              "style-src 'self' 'unsafe-inline'",               // Tailwind, shadcn
-              "img-src 'self' data: blob: https:",              // Images/CDNs
-              "font-src 'self' data: https:",
-              // ── connect-src: only what your app actually calls ──
+              "style-src 'self' 'unsafe-inline'",               // Tailwind + shadcn
+              "img-src 'self' data: blob: https:",              // Images, CDNs
+              "font-src 'self' data: https:",                   // Fonts
+              // ── connect-src: exact domains your app uses ──
               `connect-src 'self` +
-                ` ${supabaseDomain} ${supabaseWildcard} wss://${supabaseDomain} wss://${supabaseWildcard}` + // Supabase auth + realtime (future-proof)
+                ` ${supabaseDomain} ${supabaseWildcard} wss://${supabaseDomain} wss://${supabaseWildcard}` + // Supabase (auth, DB, realtime)
                 ` https://api.coingecko.com https://*.coingecko.com` +           // CoinGecko prices
                 ` https://api.polygon.io` +                                      // Polygon API
                 ` https://finnhub.io` +                                          // Finnhub quotes
-                ` https://api.x.ai` +                                            // Grok chat integration
+                ` https://api.x.ai` +                                            // Grok API
                 ` https://google.serper.dev` +                                   // Serper search
-                ` https://*.vercel-scripts.com https://vercel.live` +            // Vercel analytics/speed
+                ` https://*.vercel-scripts.com https://vercel.live` +            // Vercel analytics/speed insights
                 "';",
               "frame-src 'self'",
               "frame-ancestors 'none'",
