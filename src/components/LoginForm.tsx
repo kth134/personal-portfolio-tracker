@@ -72,11 +72,30 @@ export default function LoginForm() {
         setMessage('Check email for confirmation link. Then log in.')
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
+      // Clear any stale local session before attempting sign-in
+      // This prevents the client from trying to refresh an invalid/old token first
+      await supabase.auth.signOut({ scope: 'local' })
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      })
+
       if (error) {
-        const sanitizedError = error.message.replace(/[<>\"'&]/g, '')
-        setError(sanitizedError)
-        console.error('Sign in error:', sanitizedError)
+        let displayError = error.message.replace(/[<>\"'&]/g, '')
+
+        // Detect refresh-token related errors and show friendlier message
+        if (
+          displayError.includes('refresh_token_not_found') ||
+          displayError.includes('Invalid Refresh Token') ||
+          displayError.includes('Session expired') ||
+          displayError.includes('Already Used')
+        ) {
+          displayError = 'Session issue detected (possibly stale cookies). Try again, or clear browser cookies/site data and retry.'
+        }
+
+        setError(displayError)
+        console.error('Sign in error:', error.message, error)
       } else {
         setLoginAttempts(0) // Reset on success
         router.push('/dashboard')
