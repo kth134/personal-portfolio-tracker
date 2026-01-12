@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
 
   async headers() {
-    // Your real Supabase project domain (from env)
+    // Supabase from your env.local
     const supabaseDomain = "nhiqvvrfdhgngwkjntix.supabase.co";
     const supabaseWildcard = "*.supabase.co";
 
@@ -16,20 +16,12 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js, React, shadcn/ui
-              "style-src 'self' 'unsafe-inline'",               // Tailwind + shadcn
-              "img-src 'self' data: blob: https:",              // Images, CDNs
-              "font-src 'self' data: https:",                   // Fonts
-              // ── connect-src: exact domains your app uses ──
-              `connect-src 'self` +
-                ` ${supabaseDomain} ${supabaseWildcard} wss://${supabaseDomain} wss://${supabaseWildcard}` + // Supabase (auth, DB, realtime)
-                ` https://api.coingecko.com https://*.coingecko.com` +           // CoinGecko prices
-                ` https://api.polygon.io` +                                      // Polygon API
-                ` https://finnhub.io` +                                          // Finnhub quotes
-                ` https://api.x.ai` +                                            // Grok API
-                ` https://google.serper.dev` +                                   // Serper search
-                ` https://*.vercel-scripts.com https://vercel.live` +            // Vercel analytics/speed insights
-                "';",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js hydration, shadcn/ui
+              "style-src 'self' 'unsafe-inline'",               // Tailwind/shadcn
+              "img-src 'self' data: blob: https:",              // images
+              "font-src 'self' data: https:",                   // fonts
+              // connect-src — exact, space-separated, no invalid sources
+              `connect-src 'self' ${supabaseDomain} ${supabaseWildcard} wss://${supabaseDomain} wss://${supabaseWildcard} https://api.coingecko.com https://*.coingecko.com https://api.polygon.io https://finnhub.io https://api.x.ai https://google.serper.dev https://*.vercel-scripts.com https://vercel.live;`,
               "frame-src 'self'",
               "frame-ancestors 'none'",
               "object-src 'none'",
