@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { formatUSD } from '@/lib/formatters';
+import Papa from 'papaparse';
 
 
 type Account = { id: string; name: string; type: string }
@@ -51,7 +52,14 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const [open, setOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [deletingTx, setDeletingTx] = useState<Transaction | null>(null)
-
+  const [isImporting, setIsImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState<{
+    total: number;
+    current: number;
+    successes: number;
+    failures: number;
+    errors: string[];
+  } | null>(null);
   // Search & sort
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<keyof Transaction | 'account_name' | 'asset_ticker'>('date')
@@ -178,6 +186,55 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     setOpen(true)
   }
 
+  const handleDownloadTemplate = () => {
+    // Build dynamic lists
+    const accountList = accounts.length > 0
+      ? accounts.map(acc => `# - ${acc.name} (${acc.type || 'N/A'})`).join('\n')
+      : '# - (No accounts yet—add some in the app first)';
+
+    const assetList = assets.length > 0
+      ? assets.map(ast => `# - ${ast.ticker}${ast.name ? ` - ${ast.name}` : ''}`).join('\n')
+      : '# - (No assets yet—add some in the app first)';
+
+    const templateContent = `
+# Transaction Import CSV Template
+# - Date: Required, format YYYY-MM-DD
+# - Account: Required, exact account name (case-insensitive). See list below.
+# - Asset: Required for Buy/Sell/Dividend (ticker, case-insensitive); blank for others. See list below.
+# - Type: Required (Buy, Sell, Dividend, Deposit, Withdrawal, Interest)
+# - Quantity: For Buy/Sell (positive number)
+# - PricePerUnit: For Buy/Sell (positive number)
+# - Amount: For Dividend/Interest/Deposit/Withdrawal (positive; auto-negated for Withdrawal)
+# - Fees: Optional (number, defaults to 0)
+# - Notes: Optional (string)
+# - FundingSource: For Buy only (cash or external; defaults to cash)
+# Sort rows oldest to newest for best results (FIFO sells).
+# Empty lines skipped. Headers case-insensitive.
+
+# Available Accounts:
+${accountList}
+
+# Available Assets:
+${assetList}
+
+Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
+2024-01-17,KH Traditional IRA,FBTC,Buy,4.38604,37.25,,0,Initial buy,external
+2025-01-02,AH Roth IRA,FBTC,Sell,31.437,88.47,,0,Partial sell,
+2025-03-01,KH Traditional IRA,,Dividend,, ,50.00,0,Quarterly dividend,
+2025-04-01,KH Traditional IRA,,Deposit,, ,1000.00,0,Monthly contribution,
+    `.trim();
+
+    const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'transaction-import-template.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const supabase = createClient()
@@ -342,6 +399,252 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     }
   }
 
+  const processSingleTransaction = async (
+  txInput: {
+    date: string;
+    account_id: string;
+    asset_id: string | null;
+    type: Transaction['type'];
+    quantity?: number;
+    price_per_unit?: number;
+    amount?: number;
+    fees?: number;
+    notes?: string;
+    funding_source?: 'cash' | 'external';
+  }
+) => {
+  const supabase = createClient();
+
+  let qty: number | null = txInput.quantity ?? null;
+  let prc: number | null = txInput.price_per_unit ?? null;
+  let amt = txInput.amount ?? 0;
+  const fs = txInput.fees ?? 0;
+
+  // Normalize amount sign for Withdrawals
+  if (txInput.type === 'Withdrawal') amt = -Math.abs(amt);
+
+  const txData = {
+    account_id: txInput.account_id,
+    asset_id: txInput.asset_id,
+    date: txInput.date,
+    type: txInput.type,
+    quantity: qty,
+    price_per_unit: prc,
+    amount: amt,
+    fees: fs || null,
+    notes: txInput.notes || null,
+    funding_source: txInput.type === 'Buy' ? (txInput.funding_source || 'cash') : null,
+  };
+
+  // Insert transaction
+  const { data: newTx, error: txError } = await supabase
+    .from('transactions')
+    .insert(txData)
+    .select('*')
+    .single();
+
+  if (txError) throw txError;
+
+  // Handle Buy logic (tax lot + optional auto-deposit)
+  if (txInput.type === 'Buy' && qty && prc && txInput.asset_id) {
+    if (txInput.funding_source === 'external') {
+      const depositAmt = Math.abs(amt);
+      await supabase.from('transactions').insert({
+        account_id: txInput.account_id,
+        asset_id: null,
+        date: txInput.date,
+        type: 'Deposit',
+        amount: depositAmt,
+        notes: `Auto-deposit for external buy of ${txInput.asset_id}`,
+      });
+    }
+
+    const basis_per_unit = Math.abs(amt) / qty;
+    await supabase.from('tax_lots').insert({
+      account_id: txInput.account_id,
+      asset_id: txInput.asset_id,
+      purchase_date: txInput.date,
+      quantity: qty,
+      cost_basis_per_unit: basis_per_unit,
+      remaining_quantity: qty,
+    });
+  }
+
+  // Handle Sell logic (FIFO depletion + realized gain)
+  else if (txInput.type === 'Sell' && qty && prc && txInput.asset_id) {
+    const { data: lots, error: lotsError } = await supabase
+      .from('tax_lots')
+      .select('*')
+      .eq('account_id', txInput.account_id)
+      .eq('asset_id', txInput.asset_id)
+      .gt('remaining_quantity', 0)
+      .order('purchase_date', { ascending: true });
+
+    if (lotsError || !lots?.length) throw new Error('No open tax lots for this sell');
+
+    let remainingToSell = qty;
+    let basisSold = 0;
+
+    for (const lot of lots) {
+      if (remainingToSell <= 0) break;
+      const deplete = Math.min(remainingToSell, lot.remaining_quantity);
+      basisSold += deplete * lot.cost_basis_per_unit;
+      remainingToSell -= deplete;
+
+      if (lot.remaining_quantity - deplete > 0) {
+        await supabase
+          .from('tax_lots')
+          .update({ remaining_quantity: lot.remaining_quantity - deplete })
+          .eq('id', lot.id);
+      } else {
+        await supabase.from('tax_lots').delete().eq('id', lot.id);
+      }
+    }
+
+    if (remainingToSell > 0) throw new Error('Insufficient shares in tax lots');
+
+    const proceeds = qty * prc - fs;
+    const realized_gain = proceeds - basisSold;
+
+    await supabase
+      .from('transactions')
+      .update({ realized_gain })
+      .eq('id', newTx.id);
+  }
+
+  return newTx;
+};
+
+const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  setIsImporting(true);
+  setImportStatus(null);
+
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: 'greedy',
+    transformHeader: (h) => h.trim().toLowerCase().replace(/\s+/g, ''),
+    complete: async (results) => {
+      const { data: rows, errors: parseErrors } = results;
+      if (parseErrors.length > 0) {
+        alert(`CSV parsing issues:\n${parseErrors.map(e => e.message).join('\n')}`);
+        setIsImporting(false);
+        return;
+      }
+
+      const total = rows.length;
+      if (total > 2000) {
+        if (!confirm(`Large file: ${total} rows.\nThis may take 10–60+ seconds.\nProceed?`)) {
+          setIsImporting(false);
+          return;
+        }
+      }
+
+      const progress = {
+        total,
+        current: 0,
+        successes: 0,
+        failures: 0,
+        errors: [] as string[],
+      };
+      setImportStatus(progress);
+
+      // Quick date order warning
+      const dates = rows.map((r: any) => r.date || r.Date).filter(Boolean);
+      if (dates.length > 1 && new Date(dates[0]) > new Date(dates[1])) {
+        alert("Heads up: CSV doesn't appear sorted oldest → newest.\nFIFO sells may fail if buys come after. Consider sorting first.");
+      }
+
+      for (const [index, rawRow] of (rows as any[]).entries()) {
+        progress.current = index + 1;
+        setImportStatus({ ...progress });
+
+        try {
+          const row = Object.fromEntries(
+            Object.entries(rawRow).map(([k, v]) => [k.toLowerCase(), v?.toString().trim()])
+          );
+
+          const dateStr = row.date || '';
+          const accountName = row.account || '';
+          const assetTicker = row.asset || row.ticker || '';
+          const typeRaw = row.type || '';
+
+          if (!dateStr || !accountName || !typeRaw) {
+            throw new Error('Missing required: date, account, type');
+          }
+
+          const type = typeRaw.charAt(0).toUpperCase() + typeRaw.slice(1).toLowerCase() as Transaction['type'];
+          if (!['Buy','Sell','Dividend','Deposit','Withdrawal','Interest'].includes(type)) {
+            throw new Error(`Invalid type: ${typeRaw}`);
+          }
+
+          const account = accounts.find(a => a.name.toLowerCase() === accountName.toLowerCase());
+          if (!account) throw new Error(`Account not found: "${accountName}"`);
+
+          let assetId: string | null = null;
+          if (['Buy','Sell','Dividend'].includes(type)) {
+            if (!assetTicker) throw new Error('Asset required for Buy/Sell/Dividend');
+            const asset = assets.find(a => a.ticker.toLowerCase() === assetTicker.toLowerCase());
+            if (!asset) throw new Error(`Asset not found: "${assetTicker}"`);
+            assetId = asset.id;
+          }
+
+          const parsedDate = parseISO(dateStr);
+          if (isNaN(parsedDate.getTime())) throw new Error('Invalid date');
+
+          await processSingleTransaction({
+            date: format(parsedDate, 'yyyy-MM-dd'),
+            account_id: account.id,
+            asset_id: assetId,
+            type,
+            quantity: row.quantity ? Number(row.quantity) : undefined,
+            price_per_unit: row.priceperunit ? Number(row.priceperunit) : undefined,
+            amount: row.amount ? Number(row.amount) : undefined,
+            fees: row.fees ? Number(row.fees) : undefined,
+            notes: row.notes || undefined,
+            funding_source: row.fundingsource === 'external' ? 'external' : 'cash',
+          });
+
+          progress.successes++;
+        } catch (err: any) {
+          progress.failures++;
+          progress.errors.push(`Row ${index + 2}: ${err.message || 'Unknown error'}`);
+        }
+      }
+
+      setImportStatus({ ...progress, current: total });
+      setIsImporting(false);
+
+      if (progress.successes > 0) {
+        router.refresh(); // Reload transactions & tax lots
+      }
+
+      // Show summary
+      setTimeout(() => {
+        alert(
+          `Import complete!\n` +
+          `Success: ${progress.successes}\n` +
+          `Failed: ${progress.failures}${progress.errors.length ? ` (${progress.errors.length} with details)` : ''}\n\n` +
+          (progress.errors.length ? 'First few errors:\n' + progress.errors.slice(0, 5).join('\n') : '')
+        );
+      }, 300);
+
+      // Auto-hide progress bar
+      setTimeout(() => {
+        setImportStatus(null);
+      }, 4000);
+    },
+    error: (err) => {
+      alert('Failed to read CSV: ' + err.message);
+      setIsImporting(false);
+    },
+  });
+
+  e.target.value = ''; // Reset input
+};
+
   const handleDelete = async () => {
     if (!deletingTx) return
     const supabase = createClient()
@@ -389,13 +692,49 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     <main className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Transactions</h1>
-          <div className="flex gap-4 items-center">
+          <div className="flex gap-4 items-center flex-wrap">
           <Input
             placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-64"
           />
+          
+          {/* Import Button */}
+          <Button 
+            variant="outline" 
+            onClick={() => document.getElementById('csv-import-input')?.click()}
+            disabled={isImporting}
+          >
+            Import CSV
+          </Button>
+          
+          <input
+            id="csv-import-input"
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleCsvImport}
+          />
+
+          <Button variant="outline" onClick={handleDownloadTemplate}>
+            Download Template
+          </Button>
+
+          {importStatus && (
+            <div className="mt-4 p-4 bg-muted rounded-lg">
+              <div className="flex justify-between text-sm mb-1">
+                <span>Importing {importStatus.current} / {importStatus.total}</span>
+                <span>{importStatus.successes} ok · {importStatus.failures} failed</span>
+              </div>
+              <div className="w-full bg-secondary rounded-full h-2.5">
+                <div
+                  className="bg-primary h-2.5 rounded-full transition-all"
+                  style={{ width: `${(importStatus.current / importStatus.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
           <Dialog open={open} onOpenChange={(isOpen) => {
             setOpen(isOpen)
             if (!isOpen) resetForm()
@@ -415,7 +754,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
                 </div>
               )}
 
-                            <form onSubmit={handleSubmit} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 {/* 1. Type - now first */}
                 <div className="space-y-2">
                   <Label>Type <span className="text-red-500">*</span></Label>
