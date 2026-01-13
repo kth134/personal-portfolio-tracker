@@ -214,18 +214,24 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
 
     const templateContent = `
 # Transaction Import CSV Template
-# - Date: Required, format YYYY-MM-DD
-# - Account: Required, exact account name (case-insensitive). See list below.
-# - Asset: Required for Buy/Sell/Dividend (ticker, case-insensitive); blank for others. See list below.
-# - Type: Required (Buy, Sell, Dividend, Deposit, Withdrawal, Interest)
-# - Quantity: For Buy/Sell (positive number)
-# - PricePerUnit: For Buy/Sell (positive number)
-# - Amount: For Dividend/Interest/Deposit/Withdrawal (positive; auto-negated for Withdrawal)
-# - Fees: Optional (number, defaults to 0)
-# - Notes: Optional (string)
-# - FundingSource: For Buy only (cash or external; defaults to cash)
-# Sort rows oldest to newest for best results (FIFO sells).
-# Empty lines skipped. Headers case-insensitive.
+# IMPORTANT TIPS:
+# - Date: Required, format YYYY-MM-DD (e.g., 2024-01-17)
+# - Account: Required, exact account name (case-insensitive). Must match one of your existing accounts.
+# - Asset: Required for Buy/Sell/Dividend (ticker, case-insensitive); leave blank for Deposit/Withdrawal/Interest.
+# - Type: Required—one of: Buy, Sell, Dividend, Deposit, Withdrawal, Interest (case-insensitive).
+# - Quantity: For Buy/Sell—positive number (e.g., 4.38604). App auto-cleans formats like $1,234.56 or (1234.56).
+# - PricePerUnit: For Buy/Sell—positive number (e.g., 37.25). App auto-cleans $ and ,.
+# - Amount: For Dividend/Interest/Deposit/Withdrawal—positive number; auto-negated for Withdrawal/Buy if provided as negative.
+#   For Buy/Sell, optional—if omitted, calculated from Quantity * PricePerUnit +/- Fees.
+# - Fees: Optional—number, defaults to 0. App auto-cleans formats.
+# - Notes: Optional—string for details.
+# - FundingSource: For Buy only—'cash' or 'external' (defaults to 'cash'). 'external' auto-creates a Deposit.
+# Best Practices:
+# - Sort rows oldest to newest (FIFO accuracy for sells).
+# - Empty/comment lines (#) skipped. Headers case-insensitive, spaces ok (e.g., "Price Per Unit").
+# - Numbers: App auto-strips $ and ,—e.g., "$1,234.56" → 1234.56. Negatives ok for Amount (e.g., -$100 for Buy).
+# - Test small batches first. If errors, check console or validation messages.
+# - Duplicate columns (e.g., two 'Amount')? App uses the last one—avoid if possible.
 # Available Accounts:
 ${accountList}
 # Available Assets:
@@ -235,7 +241,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
 2025-01-02,AH Roth IRA,FBTC,Sell,31.437,88.47,,0,Partial sell,
 2025-03-01,KH Traditional IRA,,Dividend,,,50.00,0,Quarterly dividend,
 2025-04-01,KH Traditional IRA,,Deposit,,,1000.00,0,Monthly contribution,
-    `.trim()
+`.trim();
 
     const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -427,13 +433,22 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         // Client-side validation + collection
         const validatedRows: ValidatedRow[] = []
         const validationErrors: string[] = []
-
+        const cleanNumber = (val: string | undefined, preserveSign = false): number | undefined => {
+          if (!val) return undefined;
+          const cleaned = val.replace(/[$,]/g, '').trim();
+          const num = Number(cleaned);
+          if (isNaN(num)) return undefined;
+          return preserveSign ? num : Math.abs(num);
+        };
         for (const [index, rawRow] of (rows as any[]).entries()) {
           try {
             const row = Object.fromEntries(
-              Object.entries(rawRow).map(([k, v]) => [k.toLowerCase(), v?.toString().trim()])
-            )
-
+            Object.entries(rawRow).map(([k, v]) => [k.toLowerCase(), v?.toString().trim()])
+);
+            const quantity = cleanNumber(row.quantity);
+            const price_per_unit = cleanNumber(row.priceperunit);
+            const amount = cleanNumber(row.amount, true);     // preserve sign
+            const fees = cleanNumber(row.fees, true) ?? 0;  // preserve sign, fallback 0
             const dateStr = row.date || ''
             const accountName = row.account || ''
             const assetTicker = row.asset || row.ticker || ''
@@ -462,18 +477,18 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             const parsedDate = parseISO(dateStr)
             if (isNaN(parsedDate.getTime())) throw new Error('Invalid date (use YYYY-MM-DD)')
 
-            validatedRows.push({
-              date: format(parsedDate, 'yyyy-MM-dd'),
-              account_id: account.id,
-              asset_id: assetId,
-              type: txType,
-              quantity: row.quantity ? Number(row.quantity) : undefined,
-              price_per_unit: row.priceperunit ? Number(row.priceperunit) : undefined,
-              amount: row.amount ? Number(row.amount) : undefined,
-              fees: row.fees ? Number(row.fees) : undefined,
-              notes: row.notes || undefined,
-              funding_source: row.fundingsource === 'external' ? 'external' : 'cash',
-            })
+          validatedRows.push({
+            date: format(parsedDate, 'yyyy-MM-dd'),
+            account_id: account.id,
+            asset_id: assetId,
+            type: txType,
+            quantity, // cleaned
+            price_per_unit, // cleaned
+            amount, // cleaned
+            fees, // cleaned
+            notes: row.notes || undefined,
+            funding_source: row.fundingsource === 'external' ? 'external' : 'cash',
+          });
           } catch (err: any) {
             validationErrors.push(`Row ${index + 2}: ${err.message}`)
           }
@@ -916,12 +931,15 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
           <div className="space-y-4">
             <p>Follow these steps for a smooth import:</p>
             <ul className="list-disc pl-5 space-y-2 text-sm">
-              <li>Download the template — it lists your current accounts/assets.</li>
-              <li>Sort rows oldest → newest for accurate FIFO handling.</li>
+              <li>Download the template—it lists your current accounts/assets and detailed tips.</li>
+              <li>Sort rows oldest → newest for accurate FIFO handling on sells.</li>
               <li>Match account names and asset tickers exactly (case-insensitive).</li>
               <li>Required: Date (YYYY-MM-DD), Account, Type.</li>
               <li>For Buy/Sell/Dividend: include Asset ticker.</li>
-              <li>Test with a few rows first.</li>
+              <li>Numbers can include $ and ,—the app auto-cleans them (e.g., "$1,234.56" → 1234.56).</li>
+              <li>Negatives ok for Amount (e.g., -$100 for buys)—app handles.</li>
+              <li>Avoid duplicate columns (e.g., two 'Amount')—app uses last one.</li>
+              <li>Test with a few rows first. If errors, check for missing fields or invalid dates.</li>
             </ul>
             <div className="flex items-center space-x-2">
               <Checkbox id="dont-show" checked={dontShowAgain} onCheckedChange={(c) => setDontShowAgain(!!c)} />
