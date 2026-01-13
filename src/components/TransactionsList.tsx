@@ -583,20 +583,14 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             Download CSV Template
           </Button>
 
-          {importStatus && (
-            <div className="mt-4 p-4 bg-muted rounded-lg">
-              <div className="flex justify-between text-sm mb-1">
-                <span>Importing {importStatus.current} / {importStatus.total}</span>
-                <span>{importStatus.successes} ok · {importStatus.failures} failed</span>
+            {isImporting && (
+              <div className="mt-4 p-4 bg-muted rounded-lg text-center">
+                <p className="text-sm font-medium">Processing import on server...</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  This can take 30–90 seconds for large files. Do not refresh or close the tab.
+                </p>
               </div>
-              <div className="w-full bg-secondary rounded-full h-2.5">
-                <div
-                  className="bg-primary h-2.5 rounded-full transition-all"
-                  style={{ width: `${(importStatus.current / importStatus.total) * 100}%` }}
-                />
-              </div>
-            </div>
-          )}
+            )}
 
           <Dialog open={open} onOpenChange={(isOpen) => {
             setOpen(isOpen)
