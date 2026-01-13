@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Create response object early so we can modify cookies
-  let response = NextResponse.next();
+  const response = NextResponse.next();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

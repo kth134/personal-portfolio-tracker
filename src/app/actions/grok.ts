@@ -548,7 +548,7 @@ Important reminders:
 
 Respond conversationally but professionally—no fluff.`;
 
-  let messages: any[] = [
+  const messages: any[] = [
     { role: "system", content: systemPrompt },
     { role: "user", content: query }
   ];
