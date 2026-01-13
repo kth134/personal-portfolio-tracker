@@ -1,9 +1,23 @@
 'use client'
-
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Calendar } from '@/components/ui/calendar'
+import { CalendarIcon, Check, ChevronsUpDown, Edit2, Trash2, ArrowUpDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { formatUSD } from '@/lib/formatters'
 import Papa from 'papaparse'
 
 // Server actions
@@ -11,7 +25,6 @@ import { serverCreateBuyWithLot, serverProcessSellFifo } from '@/app/actions/tra
 
 type Account = { id: string; name: string; type: string }
 type Asset = { id: string; ticker: string; name?: string }
-
 type Transaction = {
   id: string
   date: string
@@ -23,7 +36,7 @@ type Transaction = {
   realized_gain?: number | null
   notes?: string | null
   account_id: string
-  asset_id: string | null  // allow null
+  asset_id: string | null
   account: { name: string; type?: string } | null
   asset: { ticker: string; name?: string } | null
   funding_source?: 'cash' | 'external' | null
@@ -49,10 +62,12 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     errors: string[]
   } | null>(null)
 
+  // Search & sort
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<keyof Transaction | 'account_name' | 'asset_ticker'>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
+  // Form state
   const [accounts, setAccounts] = useState<Account[]>([])
   const [assets, setAssets] = useState<Asset[]>([])
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
@@ -66,7 +81,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const [notes, setNotes] = useState('')
   const [fundingSource, setFundingSource] = useState<'cash' | 'external'>('cash')
 
-  // Help modal
+  // Help modal state
   const [showImportHelp, setShowImportHelp] = useState(false)
   const [dontShowAgain, setDontShowAgain] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
@@ -75,13 +90,13 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const disableSelects = !!editingTx
   const disableCriticalFields = isBuyOrSellEdit
 
-  // Fix localStorage access (run in useEffect only)
+  // Load help-seen flag
   useEffect(() => {
     const seen = localStorage.getItem('csv-import-help-seen')
     setShowImportHelp(!seen)
   }, [])
 
-  // Fetch data
+  // Fetch accounts & assets
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClient()
@@ -93,7 +108,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     fetchData()
   }, [])
 
-  // Clear fields on type change
+  // Clear conditional fields when type changes
   useEffect(() => {
     if (['Dividend', 'Interest'].includes(type)) {
       setQuantity('')
@@ -103,14 +118,14 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     } else {
       setQuantity('')
       setPrice('')
+      setDividendAmount('')
     }
     if (type !== 'Buy') setFundingSource('cash')
   }, [type])
 
-  // Search + sort
+  // Search + sort effect
   useEffect(() => {
     let list = [...transactions]
-
     if (search) {
       const low = search.toLowerCase()
       list = list.filter(tx =>
@@ -121,27 +136,22 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         tx.type.toLowerCase().includes(low)
       )
     }
-
     list.sort((a, b) => {
-      const aVal = sortKey === 'account_name' ? a.account?.name ?? null :
-                   sortKey === 'asset_ticker' ? a.asset?.ticker ?? null :
-                   a[sortKey as keyof Transaction] ?? null
-      const bVal = sortKey === 'account_name' ? b.account?.name ?? null :
-                   sortKey === 'asset_ticker' ? b.asset?.ticker ?? null :
-                   b[sortKey as keyof Transaction] ?? null
-
+      const aVal: any = sortKey === 'account_name' ? a.account?.name ?? null :
+                     sortKey === 'asset_ticker' ? a.asset?.ticker ?? null :
+                     a[sortKey as keyof Transaction] ?? null
+      const bVal: any = sortKey === 'account_name' ? b.account?.name ?? null :
+                     sortKey === 'asset_ticker' ? b.asset?.ticker ?? null :
+                     b[sortKey as keyof Transaction] ?? null
       if (aVal === null) return 1
       if (bVal === null) return -1
-
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return sortDir === 'asc' ? aVal - bVal : bVal - aVal
       }
-
       const aStr = String(aVal).toLowerCase()
       const bStr = String(bVal).toLowerCase()
       return sortDir === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr)
     })
-
     setDisplayTransactions(list)
   }, [transactions, search, sortKey, sortDir])
 
@@ -186,31 +196,44 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const handleDownloadTemplate = () => {
     const accountList = accounts.length > 0
       ? accounts.map(acc => `# - ${acc.name} (${acc.type || 'N/A'})`).join('\n')
-      : '# - (No accounts yet—add some first)'
-
+      : '# - (No accounts yet—add some in the app first)'
     const assetList = assets.length > 0
       ? assets.map(ast => `# - ${ast.ticker}${ast.name ? ` - ${ast.name}` : ''}`).join('\n')
-      : '# - (No assets yet—add some first)'
+      : '# - (No assets yet—add some in the app first)'
 
-    const content = `
+    const templateContent = `
 # Transaction Import CSV Template
-# ... (your full template header remains unchanged)
+# - Date: Required, format YYYY-MM-DD
+# - Account: Required, exact account name (case-insensitive). See list below.
+# - Asset: Required for Buy/Sell/Dividend (ticker, case-insensitive); blank for others. See list below.
+# - Type: Required (Buy, Sell, Dividend, Deposit, Withdrawal, Interest)
+# - Quantity: For Buy/Sell (positive number)
+# - PricePerUnit: For Buy/Sell (positive number)
+# - Amount: For Dividend/Interest/Deposit/Withdrawal (positive; auto-negated for Withdrawal)
+# - Fees: Optional (number, defaults to 0)
+# - Notes: Optional (string)
+# - FundingSource: For Buy only (cash or external; defaults to cash)
+# Sort rows oldest to newest for best results (FIFO sells).
+# Empty lines skipped. Headers case-insensitive.
 # Available Accounts:
 ${accountList}
-
 # Available Assets:
 ${assetList}
-
 Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
 2024-01-17,KH Traditional IRA,FBTC,Buy,4.38604,37.25,,0,Initial buy,external
+2025-01-02,AH Roth IRA,FBTC,Sell,31.437,88.47,,0,Partial sell,
+2025-03-01,KH Traditional IRA,,Dividend,,,50.00,0,Quarterly dividend,
+2025-04-01,KH Traditional IRA,,Deposit,,,1000.00,0,Monthly contribution,
     `.trim()
 
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+    const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
     link.download = 'transaction-import-template.csv'
+    document.body.appendChild(link)
     link.click()
+    document.body.removeChild(link)
     URL.revokeObjectURL(url)
   }
 
@@ -267,30 +290,37 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
       let updatedTx: Transaction
 
       if (editingTx) {
-        // Edit remains client-side (no lot changes allowed)
+        // Edit: only simple fields (no lot changes)
         const { data, error } = await supabase
           .from('transactions')
           .update(txData)
           .eq('id', editingTx.id)
-          .select('*, account:accounts(name, type), asset:assets(ticker, name)')
+          .select(`
+            *,
+            account:accounts (name, type),
+            asset:assets (ticker, name)
+          `)
           .single()
         if (error) throw error
         updatedTx = data
       } else {
-        // Insert transaction client-side
+        // New transaction: insert first
         const { data: newTx, error: txErr } = await supabase
           .from('transactions')
           .insert(txData)
-          .select('*, account:accounts(name, type), asset:assets(ticker, name)')
+          .select(`
+            *,
+            account:accounts (name, type),
+            asset:assets (ticker, name)
+          `)
           .single()
         if (txErr) throw txErr
-        updatedTx = newTx
+        updatedTx = newTx!
 
-        // Offload Buy/Sell post-processing to server
+        // Then handle tax-sensitive logic on server
         if (type === 'Buy' && qty && prc && selectedAsset) {
           const { data: { user } } = await supabase.auth.getUser()
           if (!user) throw new Error('Not authenticated')
-
           await serverCreateBuyWithLot(
             {
               account_id: selectedAccount.id,
@@ -308,7 +338,6 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         } else if (type === 'Sell' && qty && prc && selectedAsset) {
           const { data: { user } } = await supabase.auth.getUser()
           if (!user) throw new Error('Not authenticated')
-
           await serverProcessSellFifo(
             {
               account_id: selectedAccount.id,
@@ -331,32 +360,31 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
       } else {
         setTransactions([updatedTx, ...transactions])
       }
-
       setOpen(false)
       resetForm()
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error(err)
-      alert('Error: ' + (err instanceof Error ? err.message : 'Unknown error'))
+      alert('Error: ' + err.message)
     }
   }
 
-  // CSV import — now delegates Buy/Sell logic to server actions
-  const processSingleTransaction = async (txInput: {
-    date: string
-    account_id: string
-    asset_id: string | null
-    type: Transaction['type']
-    quantity?: number
-    price_per_unit?: number
-    amount?: number
-    fees?: number
-    notes?: string
-    funding_source?: 'cash' | 'external'
-  }) => {
+  const processSingleTransaction = async (
+    txInput: {
+      date: string
+      account_id: string
+      asset_id: string | null
+      type: Transaction['type']
+      quantity?: number
+      price_per_unit?: number
+      amount?: number
+      fees?: number
+      notes?: string
+      funding_source?: 'cash' | 'external'
+    }
+  ) => {
     const supabase = createClient()
-
-    const qty = txInput.quantity ?? null
-    const prc = txInput.price_per_unit ?? null
+    let qty: number | null = txInput.quantity ?? null
+    let prc: number | null = txInput.price_per_unit ?? null
     let amt = txInput.amount ?? 0
     const fs = txInput.fees ?? 0
 
@@ -380,14 +408,11 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
       .insert(txData)
       .select('*')
       .single()
-
     if (txError) throw txError
 
-    // Delegate tax-sensitive logic
     if (txInput.type === 'Buy' && qty && prc && txInput.asset_id) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
-
       await serverCreateBuyWithLot(
         {
           account_id: txInput.account_id,
@@ -405,7 +430,6 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
     } else if (txInput.type === 'Sell' && qty && prc && txInput.asset_id) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
-
       await serverProcessSellFifo(
         {
           account_id: txInput.account_id,
@@ -424,7 +448,6 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
     return newTx
   }
 
-  // handleCsvImport remains almost identical — just uses the updated processSingleTransaction
   const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -441,20 +464,20 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         return
       }
 
-      const lines = text.split(/\r?\n/).filter(line => {
-        const trimmed = line.trim()
-        return trimmed !== '' && !trimmed.startsWith('#')
-      })
-
+      const lines = text
+        .split(/\r?\n/)
+        .filter(line => {
+          const trimmed = line.trim()
+          return trimmed !== '' && !trimmed.startsWith('#')
+        })
       const cleanedCsv = lines.join('\n')
 
       Papa.parse(cleanedCsv, {
         header: true,
         skipEmptyLines: 'greedy',
-        transformHeader: h => h.trim().toLowerCase().replace(/\s+/g, ''),
+        transformHeader: (h) => h.trim().toLowerCase().replace(/\s+/g, ''),
         complete: async (results) => {
           const { data: rows, errors: parseErrors } = results
-
           if (parseErrors.length > 0) {
             alert(`CSV parsing issues:\n${parseErrors.map(e => e.message).join('\n')}`)
             setIsImporting(false)
@@ -468,26 +491,35 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             return
           }
 
-          if (total > 2000 && !confirm(`Large file (${total} rows). Proceed?`)) {
-            setIsImporting(false)
-            return
+          if (total > 2000) {
+            if (!confirm(`Large file: ${total} rows. This may take a while. Proceed?`)) {
+              setIsImporting(false)
+              return
+            }
           }
 
-          const progress = { total, current: 0, successes: 0, failures: 0, errors: [] as string[] }
+          const progress = {
+            total,
+            current: 0,
+            successes: 0,
+            failures: 0,
+            errors: [] as string[],
+          }
           setImportStatus(progress)
 
-          const dates = rows.map((r) => (r as Record<string, unknown>).date).filter(Boolean) as string[]
+          // Simple date order warning
+          const dates = (rows as any[]).map(r => r.date || r.Date).filter(Boolean)
           if (dates.length > 1 && new Date(dates[0]) > new Date(dates[1])) {
-            alert("CSV not sorted oldest → newest. FIFO may be inaccurate.")
+            alert("Warning: CSV does not appear sorted oldest → newest. FIFO sells may be inaccurate.")
           }
 
-          for (const [index, rawRow] of (rows as unknown[]).entries()) {
+          for (const [index, rawRow] of (rows as any[]).entries()) {
             progress.current = index + 1
             setImportStatus({ ...progress })
 
             try {
               const row = Object.fromEntries(
-                Object.entries(rawRow as Record<string, unknown>).map(([k, v]) => [k.toLowerCase(), v?.toString().trim()])
+                Object.entries(rawRow).map(([k, v]) => [k.toLowerCase(), v?.toString().trim()])
               )
 
               const dateStr = row.date || ''
@@ -496,27 +528,27 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
               const typeRaw = row.type || ''
 
               if (!dateStr || !accountName || !typeRaw) {
-                throw new Error('Missing date, account, or type')
+                throw new Error('Missing required: date, account, type')
               }
 
               const txType = typeRaw.charAt(0).toUpperCase() + typeRaw.slice(1).toLowerCase() as Transaction['type']
-              if (!['Buy','Sell','Dividend','Deposit','Withdrawal','Interest'].includes(txType)) {
+              if (!['Buy', 'Sell', 'Dividend', 'Deposit', 'Withdrawal', 'Interest'].includes(txType)) {
                 throw new Error(`Invalid type: ${typeRaw}`)
               }
 
               const account = accounts.find(a => a.name.toLowerCase() === accountName.toLowerCase())
-              if (!account) throw new Error(`Account "${accountName}" not found`)
+              if (!account) throw new Error(`Account not found: "${accountName}"`)
 
               let assetId: string | null = null
-              if (['Buy','Sell','Dividend'].includes(txType)) {
-                if (!assetTicker) throw new Error('Asset required for this type')
+              if (['Buy', 'Sell', 'Dividend'].includes(txType)) {
+                if (!assetTicker) throw new Error('Asset required for Buy/Sell/Dividend')
                 const asset = assets.find(a => a.ticker.toLowerCase() === assetTicker.toLowerCase())
-                if (!asset) throw new Error(`Asset "${assetTicker}" not found`)
+                if (!asset) throw new Error(`Asset not found: "${assetTicker}"`)
                 assetId = asset.id
               }
 
               const parsedDate = parseISO(dateStr)
-              if (isNaN(parsedDate.getTime())) throw new Error('Invalid date (use YYYY-MM-DD)')
+              if (isNaN(parsedDate.getTime())) throw new Error('Invalid date format (use YYYY-MM-DD)')
 
               await processSingleTransaction({
                 date: format(parsedDate, 'yyyy-MM-dd'),
@@ -528,37 +560,40 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                 amount: row.amount ? Number(row.amount) : undefined,
                 fees: row.fees ? Number(row.fees) : undefined,
                 notes: row.notes || undefined,
-                funding_source: row.fundingsource?.toLowerCase() === 'external' ? 'external' : 'cash',
+                funding_source: row.fundingsource === 'external' ? 'external' : 'cash',
               })
 
               progress.successes++
-            } catch (err: unknown) {
+            } catch (err: any) {
               progress.failures++
-              progress.errors.push(`Row ${index + 2}: ${err instanceof Error ? err.message : 'Unknown error'}`)
+              progress.errors.push(`Row ${index + 2}: ${err.message || 'Unknown error'}`)
             }
           }
 
           setImportStatus({ ...progress, current: total })
           setIsImporting(false)
 
-          if (progress.successes > 0) router.refresh()
+          if (progress.successes > 0) {
+            router.refresh()
+          }
 
           setTimeout(() => {
             alert(
-              `Import complete!\nSuccess: ${progress.successes}\nFailed: ${progress.failures}` +
-              (progress.errors.length ? ` (${progress.errors.length} errors)\n\nFirst errors:\n${progress.errors.slice(0,5).join('\n')}` : '')
+              `Import complete!\n` +
+              `Success: ${progress.successes}\n` +
+              `Failed: ${progress.failures}${progress.errors.length ? ` (${progress.errors.length} errors)` : ''}\n\n` +
+              (progress.errors.length ? 'First few errors:\n' + progress.errors.slice(0, 5).join('\n') : '')
             )
-          }, 400)
+          }, 300)
 
-          setTimeout(() => setImportStatus(null), 6000)
+          setTimeout(() => setImportStatus(null), 5000)
         },
-        error: (err: unknown) => {
-          alert('CSV parse failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
+        error: (err: any) => {
+          alert('Failed to parse CSV: ' + err.message)
           setIsImporting(false)
         },
       })
     }
-
     reader.readAsText(file)
     e.target.value = ''
   }
@@ -566,23 +601,20 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
   const handleDelete = async () => {
     if (!deletingTx) return
     const supabase = createClient()
-
     try {
-      // Delete warning logic remains client-side
       if (deletingTx.type === 'Buy') {
-        // ... existing alert logic
+        alert('Buy deleted. Tax lot cleanup is not automatic if shares were partially sold. Review Tax Lots page manually if needed.')
       } else if (deletingTx.type === 'Sell') {
-        // ... existing alert
+        alert('Sell deleted. Sold shares are not automatically restored. Manually adjust remaining_quantity on oldest tax lots if needed.')
       }
 
       await supabase.from('transactions').delete().eq('id', deletingTx.id)
-
       setTransactions(transactions.filter(t => t.id !== deletingTx.id))
       router.refresh()
       setDeletingTx(null)
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error(err)
-      alert('Delete failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
+      alert('Delete failed: ' + err.message)
     }
   }
 
@@ -605,8 +637,392 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
 
   return (
     <main className="container mx-auto py-8">
-      {/* ... entire JSX remains 100% unchanged from your provided file ... */}
-      {/* Including table, dialog, alert dialog, help modal — nothing touched here */}
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Transactions</h1>
+        <div className="flex gap-4 items-center flex-wrap">
+          <Input
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-64"
+          />
+
+          <Button
+            variant="outline"
+            onClick={handleImportClick}
+            disabled={isImporting}
+          >
+            Import CSV
+          </Button>
+
+          <input
+            id="csv-import-input"
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleCsvImport}
+          />
+
+          <Button variant="outline" onClick={handleDownloadTemplate}>
+            Download CSV Template
+          </Button>
+
+          {importStatus && (
+            <div className="mt-4 p-4 bg-muted rounded-lg">
+              <div className="flex justify-between text-sm mb-1">
+                <span>Importing {importStatus.current} / {importStatus.total}</span>
+                <span>{importStatus.successes} ok · {importStatus.failures} failed</span>
+              </div>
+              <div className="w-full bg-secondary rounded-full h-2.5">
+                <div
+                  className="bg-primary h-2.5 rounded-full transition-all"
+                  style={{ width: `${(importStatus.current / importStatus.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <Dialog open={open} onOpenChange={(isOpen) => {
+            setOpen(isOpen)
+            if (!isOpen) resetForm()
+          }}>
+            <DialogTrigger asChild>
+              <Button>Add Transaction</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingTx ? 'Edit' : 'Add'} Transaction</DialogTitle>
+              </DialogHeader>
+
+              {isBuyOrSellEdit && (
+                <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-900 p-4 mb-6 rounded">
+                  <p className="font-medium">Important</p>
+                  <p className="text-sm">Editing quantity, price, fees, date, account, asset, or type on Buy/Sell transactions is disabled to preserve tax lot accuracy. Delete and re-add if needed.</p>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Type <span className="text-red-500">*</span></Label>
+                  <Select value={type} onValueChange={(v) => setType(v as typeof type)} disabled={disableSelects}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Buy">Buy</SelectItem>
+                      <SelectItem value="Sell">Sell</SelectItem>
+                      <SelectItem value="Dividend">Dividend</SelectItem>
+                      <SelectItem value="Deposit">Deposit</SelectItem>
+                      <SelectItem value="Withdrawal">Withdrawal</SelectItem>
+                      <SelectItem value="Interest">Interest</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Account <span className="text-red-500">*</span></Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" className="w-full justify-between" disabled={disableSelects}>
+                        {selectedAccount ? `${selectedAccount.name} (${selectedAccount.type})` : 'Select account...'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Search accounts..." />
+                        <CommandList>
+                          <CommandEmpty>No accounts found.</CommandEmpty>
+                          <CommandGroup>
+                            {accounts.map((acc) => (
+                              <CommandItem
+                                key={acc.id}
+                                onSelect={() => setSelectedAccount(acc)}
+                              >
+                                <Check className={cn("mr-2 h-4 w-4", selectedAccount?.id === acc.id ? "opacity-100" : "opacity-0")} />
+                                {acc.name} ({acc.type})
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {['Buy', 'Sell', 'Dividend'].includes(type) && (
+                  <div className="space-y-2">
+                    <Label>Asset <span className="text-red-500">*</span></Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" role="combobox" className="w-full justify-between" disabled={disableSelects}>
+                          {selectedAsset
+                            ? `${selectedAsset.ticker}${selectedAsset.name ? ` - ${selectedAsset.name}` : ''}`
+                            : 'Select asset...'}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="Search assets..." />
+                          <CommandList>
+                            <CommandEmpty>No assets found.</CommandEmpty>
+                            <CommandGroup>
+                              {assets.map((ast) => (
+                                <CommandItem
+                                  key={ast.id}
+                                  onSelect={() => setSelectedAsset(ast)}
+                                >
+                                  <Check className={cn("mr-2 h-4 w-4", selectedAsset?.id === ast.id ? "opacity-100" : "opacity-0")} />
+                                  {ast.ticker}{ast.name ? ` - ${ast.name}` : ''}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Date <span className="text-red-500">*</span></Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
+                        disabled={disableCriticalFields}
+                      >
+                        {date ? format(date, "PPP") : "Pick a date"}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {type === 'Buy' && (
+                  <div className="space-y-2">
+                    <Label>Funding Source <span className="text-red-500">*</span></Label>
+                    <Select value={fundingSource} onValueChange={(v: 'cash' | 'external') => setFundingSource(v)} disabled={disableCriticalFields}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cash">Cash Balance</SelectItem>
+                        <SelectItem value="external">External (e.g., contribution)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {['Buy', 'Sell'].includes(type) && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Quantity <span className="text-red-500">*</span></Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={quantity}
+                        onChange={(e) => setQuantity(e.target.value)}
+                        disabled={disableCriticalFields}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Price per Unit <span className="text-red-500">*</span></Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        disabled={disableCriticalFields}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {['Dividend', 'Interest', 'Deposit', 'Withdrawal'].includes(type) && (
+                  <div className="space-y-2">
+                    <Label>Amount <span className="text-red-500">*</span></Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={dividendAmount}
+                      onChange={(e) => setDividendAmount(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Fees (optional)</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={fees}
+                      onChange={(e) => setFees(e.target.value)}
+                      disabled={disableCriticalFields}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Notes (optional)</Label>
+                  <Textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-4">
+                  <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">
+                    {editingTx ? 'Save Changes' : 'Add'} Transaction
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {displayTransactions.length > 0 ? (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="cursor-pointer" onClick={() => toggleSort('date')}>
+                Date <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="cursor-pointer" onClick={() => toggleSort('account_name')}>
+                Account <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="cursor-pointer" onClick={() => toggleSort('asset_ticker')}>
+                Asset <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="cursor-pointer" onClick={() => toggleSort('type')}>
+                Type <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead>Funding Source</TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('quantity')}>
+                Quantity <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('price_per_unit')}>
+                Price/Unit <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('amount')}>
+                Amount <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('fees')}>
+                Fees <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('realized_gain')}>
+                Realized G/L <ArrowUpDown className="inline h-4 w-4" />
+              </TableHead>
+              <TableHead>Notes</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {displayTransactions.map((tx) => (
+              <TableRow key={tx.id}>
+                <TableCell>{tx.date}</TableCell>
+                <TableCell>{tx.account?.name || '-'}</TableCell>
+                <TableCell>
+                  {tx.asset?.ticker || '-'}
+                  {tx.asset?.name && ` - ${tx.asset.name}`}
+                </TableCell>
+                <TableCell>{tx.type}</TableCell>
+                <TableCell>{tx.funding_source || '-'}</TableCell>
+                <TableCell className="text-right">
+                  {tx.quantity != null ? Number(tx.quantity).toFixed(8) : '-'}
+                </TableCell>
+                <TableCell className="text-right">
+                  {tx.price_per_unit != null ? formatUSD(tx.price_per_unit) : '-'}
+                </TableCell>
+                <TableCell className="text-right">
+                  {tx.amount != null ? formatUSD(tx.amount) : '-'}
+                </TableCell>
+                <TableCell className="text-right">
+                  {tx.fees != null ? formatUSD(tx.fees) : '-'}
+                </TableCell>
+                <TableCell className={cn(
+                  "text-right font-medium",
+                  tx.realized_gain != null && tx.realized_gain > 0 ? 'text-green-600' :
+                  tx.realized_gain != null && tx.realized_gain < 0 ? 'text-red-600' : ''
+                )}>
+                  {tx.realized_gain != null ? formatUSD(tx.realized_gain) : '-'}
+                </TableCell>
+                <TableCell className="max-w-xs truncate">{tx.notes || '-'}</TableCell>
+                <TableCell className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(tx)}>
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDeletingTx(tx)}>
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <p className="text-muted-foreground">No transactions yet. Add one to get started!</p>
+      )}
+
+      <AlertDialog open={!!deletingTx} onOpenChange={(o) => !o && setDeletingTx(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this {deletingTx?.type} transaction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingTx?.type === 'Buy' && (
+                <>The matching tax lot will only be removed automatically if no shares have been sold from it. Otherwise, clean up manually on the Tax Lots page.</>
+              )}
+              {deletingTx?.type === 'Sell' && (
+                <>Sold shares will not be automatically restored. Manually adjust remaining_quantity on oldest lots (FIFO order) if needed.</>
+              )}
+              {['Dividend', 'Interest', 'Deposit', 'Withdrawal'].includes(deletingTx?.type || '') && <>This has no tax-lot impact.</>}
+              <br /><br />
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>CSV Import Instructions</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p>Follow these steps for a smooth import:</p>
+            <ul className="list-disc pl-5 space-y-2 text-sm">
+              <li>Download the template — it lists your current accounts/assets.</li>
+              <li>Sort rows oldest → newest for accurate FIFO handling.</li>
+              <li>Match account names and asset tickers exactly (case-insensitive).</li>
+              <li>Required: Date (YYYY-MM-DD), Account, Type.</li>
+              <li>For Buy/Sell/Dividend: include Asset ticker.</li>
+              <li>Test with a few rows first.</li>
+            </ul>
+            <div className="flex items-center space-x-2">
+              <Checkbox id="dont-show" checked={dontShowAgain} onCheckedChange={(c) => setDontShowAgain(!!c)} />
+              <label htmlFor="dont-show" className="text-sm text-muted-foreground">Don't show again</label>
+            </div>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button onClick={handleHelpClose}>Got it, proceed</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }
