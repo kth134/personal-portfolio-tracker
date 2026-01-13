@@ -19,9 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatUSD } from '@/lib/formatters'
 import Papa from 'papaparse'
-
-// Server actions
-import { serverCreateBuyWithLot, serverProcessSellFifo } from '@/app/actions/transactionactions'
+import { serverCreateBuyWithLot, serverProcessSellFifo, serverBulkImportTransactions } from '@/app/actions/transactionactions'
 
 type Account = { id: string; name: string; type: string }
 type Asset = { id: string; ticker: string; name?: string }
@@ -40,6 +38,19 @@ type Transaction = {
   account: { name: string; type?: string } | null
   asset: { ticker: string; name?: string } | null
   funding_source?: 'cash' | 'external' | null
+}
+
+type ValidatedRow = {
+  date: string
+  account_id: string
+  asset_id: string | null
+  type: 'Buy' | 'Sell' | 'Dividend' | 'Deposit' | 'Withdrawal' | 'Interest'
+  quantity?: number
+  price_per_unit?: number
+  amount?: number
+  fees?: number
+  notes?: string
+  funding_source: 'cash' | 'external'
 }
 
 type TransactionsListProps = {
@@ -368,235 +379,140 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
     }
   }
 
-  const processSingleTransaction = async (
-    txInput: {
-      date: string
-      account_id: string
-      asset_id: string | null
-      type: Transaction['type']
-      quantity?: number
-      price_per_unit?: number
-      amount?: number
-      fees?: number
-      notes?: string
-      funding_source?: 'cash' | 'external'
-    }
-  ) => {
-    const supabase = createClient()
-    let qty: number | null = txInput.quantity ?? null
-    let prc: number | null = txInput.price_per_unit ?? null
-    let amt = txInput.amount ?? 0
-    const fs = txInput.fees ?? 0
-
-    if (txInput.type === 'Withdrawal') amt = -Math.abs(amt)
-
-    const txData = {
-      account_id: txInput.account_id,
-      asset_id: txInput.asset_id,
-      date: txInput.date,
-      type: txInput.type,
-      quantity: qty,
-      price_per_unit: prc,
-      amount: amt,
-      fees: fs || null,
-      notes: txInput.notes || null,
-      funding_source: txInput.type === 'Buy' ? (txInput.funding_source || 'cash') : null,
-    }
-
-    const { data: newTx, error: txError } = await supabase
-      .from('transactions')
-      .insert(txData)
-      .select('*')
-      .single()
-    if (txError) throw txError
-
-    if (txInput.type === 'Buy' && qty && prc && txInput.asset_id) {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-      await serverCreateBuyWithLot(
-        {
-          account_id: txInput.account_id,
-          asset_id: txInput.asset_id,
-          date: txInput.date,
-          quantity: qty,
-          price_per_unit: prc,
-          amount: amt,
-          fees: fs,
-          notes: txInput.notes,
-          funding_source: txInput.funding_source,
-        },
-        user.id
-      )
-    } else if (txInput.type === 'Sell' && qty && prc && txInput.asset_id) {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-      await serverProcessSellFifo(
-        {
-          account_id: txInput.account_id,
-          asset_id: txInput.asset_id,
-          date: txInput.date,
-          quantity: qty,
-          price_per_unit: prc,
-          fees: fs,
-          notes: txInput.notes,
-          transaction_id: newTx.id,
-        },
-        user.id
-      )
-    }
-
-    return newTx
-  }
-
   const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const file = e.target.files?.[0]
+  if (!file) return
 
-    setIsImporting(true)
-    setImportStatus(null)
+  setIsImporting(true)
+  setImportStatus({ total: 0, current: 0, successes: 0, failures: 0, errors: [] })
 
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      const text = event.target?.result as string
-      if (!text) {
-        alert('Empty file')
-        setIsImporting(false)
-        return
-      }
-
-      const lines = text
-        .split(/\r?\n/)
-        .filter(line => {
-          const trimmed = line.trim()
-          return trimmed !== '' && !trimmed.startsWith('#')
-        })
-      const cleanedCsv = lines.join('\n')
-
-      Papa.parse(cleanedCsv, {
-        header: true,
-        skipEmptyLines: 'greedy',
-        transformHeader: (h) => h.trim().toLowerCase().replace(/\s+/g, ''),
-        complete: async (results) => {
-          const { data: rows, errors: parseErrors } = results
-          if (parseErrors.length > 0) {
-            alert(`CSV parsing issues:\n${parseErrors.map(e => e.message).join('\n')}`)
-            setIsImporting(false)
-            return
-          }
-
-          const total = rows.length
-          if (total === 0) {
-            alert('No data rows found')
-            setIsImporting(false)
-            return
-          }
-
-          if (total > 2000) {
-            if (!confirm(`Large file: ${total} rows. This may take a while. Proceed?`)) {
-              setIsImporting(false)
-              return
-            }
-          }
-
-          const progress = {
-            total,
-            current: 0,
-            successes: 0,
-            failures: 0,
-            errors: [] as string[],
-          }
-          setImportStatus(progress)
-
-          // Simple date order warning
-          const dates = (rows as any[]).map(r => r.date || r.Date).filter(Boolean)
-          if (dates.length > 1 && new Date(dates[0]) > new Date(dates[1])) {
-            alert("Warning: CSV does not appear sorted oldest → newest. FIFO sells may be inaccurate.")
-          }
-
-          for (const [index, rawRow] of (rows as any[]).entries()) {
-            progress.current = index + 1
-            setImportStatus({ ...progress })
-
-            try {
-              const row = Object.fromEntries(
-                Object.entries(rawRow).map(([k, v]) => [k.toLowerCase(), v?.toString().trim()])
-              )
-
-              const dateStr = row.date || ''
-              const accountName = row.account || ''
-              const assetTicker = row.asset || row.ticker || ''
-              const typeRaw = row.type || ''
-
-              if (!dateStr || !accountName || !typeRaw) {
-                throw new Error('Missing required: date, account, type')
-              }
-
-              const txType = typeRaw.charAt(0).toUpperCase() + typeRaw.slice(1).toLowerCase() as Transaction['type']
-              if (!['Buy', 'Sell', 'Dividend', 'Deposit', 'Withdrawal', 'Interest'].includes(txType)) {
-                throw new Error(`Invalid type: ${typeRaw}`)
-              }
-
-              const account = accounts.find(a => a.name.toLowerCase() === accountName.toLowerCase())
-              if (!account) throw new Error(`Account not found: "${accountName}"`)
-
-              let assetId: string | null = null
-              if (['Buy', 'Sell', 'Dividend'].includes(txType)) {
-                if (!assetTicker) throw new Error('Asset required for Buy/Sell/Dividend')
-                const asset = assets.find(a => a.ticker.toLowerCase() === assetTicker.toLowerCase())
-                if (!asset) throw new Error(`Asset not found: "${assetTicker}"`)
-                assetId = asset.id
-              }
-
-              const parsedDate = parseISO(dateStr)
-              if (isNaN(parsedDate.getTime())) throw new Error('Invalid date format (use YYYY-MM-DD)')
-
-              await processSingleTransaction({
-                date: format(parsedDate, 'yyyy-MM-dd'),
-                account_id: account.id,
-                asset_id: assetId,
-                type: txType,
-                quantity: row.quantity ? Number(row.quantity) : undefined,
-                price_per_unit: row.priceperunit ? Number(row.priceperunit) : undefined,
-                amount: row.amount ? Number(row.amount) : undefined,
-                fees: row.fees ? Number(row.fees) : undefined,
-                notes: row.notes || undefined,
-                funding_source: row.fundingsource === 'external' ? 'external' : 'cash',
-              })
-
-              progress.successes++
-            } catch (err: any) {
-              progress.failures++
-              progress.errors.push(`Row ${index + 2}: ${err.message || 'Unknown error'}`)
-            }
-          }
-
-          setImportStatus({ ...progress, current: total })
-          setIsImporting(false)
-
-          if (progress.successes > 0) {
-            router.refresh()
-          }
-
-          setTimeout(() => {
-            alert(
-              `Import complete!\n` +
-              `Success: ${progress.successes}\n` +
-              `Failed: ${progress.failures}${progress.errors.length ? ` (${progress.errors.length} errors)` : ''}\n\n` +
-              (progress.errors.length ? 'First few errors:\n' + progress.errors.slice(0, 5).join('\n') : '')
-            )
-          }, 300)
-
-          setTimeout(() => setImportStatus(null), 5000)
-        },
-        error: (err: any) => {
-          alert('Failed to parse CSV: ' + err.message)
-          setIsImporting(false)
-        },
-      })
+  const reader = new FileReader()
+  reader.onload = async (event) => {
+    const text = event.target?.result as string
+    if (!text) {
+      alert('Empty file')
+      setIsImporting(false)
+      return
     }
-    reader.readAsText(file)
-    e.target.value = ''
+
+    const lines = text
+      .split(/\r?\n/)
+      .filter(line => {
+        const trimmed = line.trim()
+        return trimmed !== '' && !trimmed.startsWith('#')
+      })
+    const cleanedCsv = lines.join('\n')
+
+    Papa.parse(cleanedCsv, {
+      header: true,
+      skipEmptyLines: 'greedy',
+      transformHeader: (h) => h.trim().toLowerCase().replace(/\s+/g, ''),
+      complete: async (results) => {
+        const { data: rows, errors: parseErrors } = results
+        if (parseErrors.length > 0) {
+          alert(`CSV parsing issues:\n${parseErrors.map(e => e.message).join('\n')}`)
+          setIsImporting(false)
+          return
+        }
+
+        const total = rows.length
+        if (total === 0) {
+          alert('No data rows found')
+          setIsImporting(false)
+          return
+        }
+
+        setImportStatus({ total, current: 0, successes: 0, failures: 0, errors: [] })
+
+        // Client-side validation + collection
+        const validatedRows: ValidatedRow[] = []
+        const validationErrors: string[] = []
+
+        for (const [index, rawRow] of (rows as any[]).entries()) {
+          try {
+            const row = Object.fromEntries(
+              Object.entries(rawRow).map(([k, v]) => [k.toLowerCase(), v?.toString().trim()])
+            )
+
+            const dateStr = row.date || ''
+            const accountName = row.account || ''
+            const assetTicker = row.asset || row.ticker || ''
+            const typeRaw = row.type || ''
+
+            if (!dateStr || !accountName || !typeRaw) {
+              throw new Error('Missing required: date, account, type')
+            }
+
+            const txType = typeRaw.charAt(0).toUpperCase() + typeRaw.slice(1).toLowerCase() as Transaction['type']
+            if (!['Buy','Sell','Dividend','Deposit','Withdrawal','Interest'].includes(txType)) {
+              throw new Error(`Invalid type: ${typeRaw}`)
+            }
+
+            const account = accounts.find(a => a.name.toLowerCase() === accountName.toLowerCase())
+            if (!account) throw new Error(`Account not found: "${accountName}"`)
+
+            let assetId: string | null = null
+            if (['Buy','Sell','Dividend'].includes(txType)) {
+              if (!assetTicker) throw new Error('Asset required for Buy/Sell/Dividend')
+              const asset = assets.find(a => a.ticker.toLowerCase() === assetTicker.toLowerCase())
+              if (!asset) throw new Error(`Asset not found: "${assetTicker}"`)
+              assetId = asset.id
+            }
+
+            const parsedDate = parseISO(dateStr)
+            if (isNaN(parsedDate.getTime())) throw new Error('Invalid date (use YYYY-MM-DD)')
+
+            validatedRows.push({
+              date: format(parsedDate, 'yyyy-MM-dd'),
+              account_id: account.id,
+              asset_id: assetId,
+              type: txType,
+              quantity: row.quantity ? Number(row.quantity) : undefined,
+              price_per_unit: row.priceperunit ? Number(row.priceperunit) : undefined,
+              amount: row.amount ? Number(row.amount) : undefined,
+              fees: row.fees ? Number(row.fees) : undefined,
+              notes: row.notes || undefined,
+              funding_source: row.fundingsource === 'external' ? 'external' : 'cash',
+            })
+          } catch (err: any) {
+            validationErrors.push(`Row ${index + 2}: ${err.message}`)
+          }
+        }
+
+        if (validationErrors.length > 0) {
+          alert(`Validation failed:\n${validationErrors.slice(0, 20).join('\n')}${validationErrors.length > 20 ? `\n...and ${validationErrors.length - 20} more` : ''}`)
+          setIsImporting(false)
+          return
+        }
+
+        // All valid → bulk import on server
+        try {
+          const supabase = createClient()
+          const { data: { user } } = await supabase.auth.getUser()
+          if (!user) throw new Error('Not authenticated')
+
+          alert('All rows validated! Starting server-side import (this may take 30-60 seconds for large files)...')
+
+          const result = await serverBulkImportTransactions(validatedRows, user.id)
+
+          router.refresh()
+          alert(`Success! Imported ${result.imported} transactions with tax lots processed.`)
+        } catch (err: any) {
+          alert(`Server import failed:\n${err.message}`)
+        } finally {
+          setIsImporting(false)
+          setImportStatus(null)
+        }
+      },
+      error: (err: any) => {
+        alert('CSV parse failed: ' + err.message)
+        setIsImporting(false)
+      },
+    })
   }
+  reader.readAsText(file)
+  e.target.value = ''
+}
 
   const handleDelete = async () => {
     if (!deletingTx) return
