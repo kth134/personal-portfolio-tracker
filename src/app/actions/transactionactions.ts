@@ -208,7 +208,7 @@ export async function serverBulkImportTransactions(rows: ValidatedRow[], userId:
       if (row.type === 'Buy' && row.quantity && row.price_per_unit && row.asset_id) {
         if (row.funding_source === 'external') {
           const depositAmt = Math.abs(amt)
-          await supabase.from('transactions').insert({
+          const { error: depErr } = await supabase.from('transactions').insert({
             account_id: row.account_id,
             asset_id: null,
             date: row.date,
@@ -217,6 +217,7 @@ export async function serverBulkImportTransactions(rows: ValidatedRow[], userId:
             notes: `Auto-deposit for external buy`,
             user_id: userId,
           })
+          if (depErr) throw depErr
         }
 
         const basis_per_unit = Math.abs(amt) / row.quantity
