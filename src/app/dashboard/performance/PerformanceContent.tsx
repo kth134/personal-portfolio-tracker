@@ -188,9 +188,8 @@ function PerformanceContent() {
               metrics.unrealized +
               (row.realized_gain || 0) +
               (row.dividends || 0) +
-              (row.interest || 0) -
-              (row.fees || 0);
-
+              (row.interest || 0);
+              
             let displayName = row.grouping_id;
 
             if (lens === 'asset') {
