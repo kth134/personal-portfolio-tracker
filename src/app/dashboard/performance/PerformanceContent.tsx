@@ -351,8 +351,6 @@ function PerformanceContent() {
                   </TableCell>
                   <TableCell className="text-right">{formatUSD(row.realized_gain)}</TableCell>
                   <TableCell className="text-right">{formatUSD(row.dividends)}</TableCell>
-                  <TableCell className="text-right">{formatUSD(row.interest)}</TableCell>
-                  <TableCell className="text-right">{formatUSD(-row.fees)}</TableCell>
                   <TableCell
                     className={cn(
                       "text-right font-medium",
