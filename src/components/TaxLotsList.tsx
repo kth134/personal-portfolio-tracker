@@ -52,7 +52,7 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
   const [basisPerUnit, setBasisPerUnit] = useState('')
   const [remainingQuantity, setRemainingQuantity] = useState('')
   type SortKey = 'account' | 'asset' | 'date' | 'origQty' | 'basisUnit' | 'remainQty' | 'totalBasis'
-  const [sortKey, setSortKey] = useState<SortKey>('date')
+  const [sortKey, setSortKey] = useState<SortKey>('remainQty')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   // Fetch accounts & assets
   useEffect(() => {

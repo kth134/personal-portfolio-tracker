@@ -28,6 +28,5 @@ export default async function TransactionManagementPage() {
     `)
     .eq('user_id', user.id)
     .order('purchase_date', { ascending: false })
-    .gt('remaining_quantity', 0)
   return <TransactionManagement initialTransactions={transactions || []} initialTaxLots={taxLots || []} />
 }
