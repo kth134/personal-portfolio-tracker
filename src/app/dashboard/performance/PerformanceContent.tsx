@@ -313,7 +313,7 @@ function PerformanceContent() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
-          <div className="grid grid-cols-[1.3fr_1fr_1.3fr] items-center mt-6 gap-8">
+          <div className="grid grid-cols-[1.5fr_0.8fr_1.5fr] items-center mt-6 gap-8">
             <div>
               <CardTitle>Total Portfolio Value</CardTitle>
               <p className="text-2xl font-bold text-black mt-2">
