@@ -123,9 +123,9 @@ export default function PortfolioHoldingsClient({
   const renderTable = (holding: Holding, isClosed = false) => (
     <TableRow key={holding.asset_id}>
       <TableCell className="w-32 font-medium min-w-0">
-        <div className="flex flex-col">
-          <span className="font-bold text-sm">{holding.ticker}</span>
-          {holding.name && <span className="text-xs text-muted-foreground">{holding.name}</span>}
+        <div className="flex flex-col overflow-hidden">
+          <span className="font-bold text-sm truncate">{holding.ticker}</span>
+          {holding.name && <span className="text-xs text-muted-foreground truncate">{holding.name}</span>}
         </div>
       </TableCell>
       <TableCell className="text-right w-20">
