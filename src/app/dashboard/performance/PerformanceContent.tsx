@@ -114,66 +114,70 @@ function PerformanceContent() {
         if (lotsError) throw lotsError;
 
         // 3. Get unique tickers and latest prices
-                const tickers = [
-                  ...new Set(
-                    (lotsData || [])
-                      .map((lot: any) => {
-                        const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
-                        return asset?.ticker;
-                      })
-                      .filter(Boolean)
-                  ),
-                ];
-        
-                const { data: pricesData } = await supabase
-                  .from('asset_prices')
-                  .select('ticker, price')
-                  .in('ticker', tickers)
-                  .order('timestamp', { ascending: false });
-        
-                const latestPrices = new Map<string, number>(
-                  (pricesData || []).map(p => [p.ticker, Number(p.price)])
-                );
-        
-                // 4. Aggregate by lens: unrealized gain + current market value
-                const metricsMap = new Map<string, { unrealized: number; marketValue: number; currentPrice?: number }>();
-        
-                lotsData?.forEach((lot: any) => {
-                  const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
-        
-                  const qty   = Number(lot.remaining_quantity);
-                  const basis = Number(lot.cost_basis_per_unit);
-                  const price = latestPrices.get(asset?.ticker || '') || 0;
-        
-                  const unrealThis   = qty * (price - basis);
-                  const marketThis   = qty * price;
-        
-                  let groupId: string | null = null;
-        
-                  switch (lens) {
-                    case 'asset':           groupId = lot.asset_id; break;
-                    case 'account':         groupId = lot.account_id; break;
-                    case 'sub_portfolio':   groupId = asset?.sub_portfolio_id || null; break;
-                    case 'asset_type':      groupId = asset?.asset_type || null; break;
-                    case 'asset_subtype':   groupId = asset?.asset_subtype || null; break;
-                    case 'geography':       groupId = asset?.geography || null; break;
-                    case 'size_tag':        groupId = asset?.size_tag || null; break;
-                    case 'factor_tag':      groupId = asset?.factor_tag || null; break;
-                  }
-        
-                  if (!groupId) return;
-        
-                  const current = metricsMap.get(groupId) || { unrealized: 0, marketValue: 0 };
-                  current.unrealized  += unrealThis;
-                  current.marketValue += marketThis;
-        
-                  // For asset lens only → store current price (we take the first/last seen)
-                  if (lens === 'asset' && !current.currentPrice) {
-                    current.currentPrice = price;
-                  }
-        
-                  metricsMap.set(groupId, current);
-                });
+        const tickers = [
+          ...new Set(
+            (lotsData || [])
+              .map((lot: any) => {
+                const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+                return asset?.ticker;
+              })
+              .filter(Boolean)
+          ),
+        ];
+
+        const { data: pricesData } = await supabase
+          .from('asset_prices')
+          .select('ticker, price, timestamp')
+          .in('ticker', tickers)
+          .order('timestamp', { ascending: false });
+
+        // Fixed: Build latestPrices by setting only if not set (first encounter is latest per ticker)
+        const latestPrices = new Map<string, number>();
+        pricesData?.forEach((p: any) => {
+          if (!latestPrices.has(p.ticker)) {
+            latestPrices.set(p.ticker, Number(p.price));
+          }
+        });
+
+        // 4. Aggregate by lens: unrealized gain + current market value
+        const metricsMap = new Map<string, { unrealized: number; marketValue: number; currentPrice?: number }>();
+
+        lotsData?.forEach((lot: any) => {
+          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+
+          const qty   = Number(lot.remaining_quantity);
+          const basis = Number(lot.cost_basis_per_unit);
+          const price = latestPrices.get(asset?.ticker || '') || 0;
+
+          const unrealThis   = qty * (price - basis);
+          const marketThis   = qty * price;
+
+          let groupId: string | null = null;
+
+          switch (lens) {
+            case 'asset':           groupId = lot.asset_id; break;
+            case 'account':         groupId = lot.account_id; break;
+            case 'sub_portfolio':   groupId = asset?.sub_portfolio_id || null; break;
+            case 'asset_type':      groupId = asset?.asset_type || null; break;
+            case 'asset_subtype':   groupId = asset?.asset_subtype || null; break;
+            case 'geography':       groupId = asset?.geography || null; break;
+            case 'size_tag':        groupId = asset?.size_tag || null; break;
+            case 'factor_tag':      groupId = asset?.factor_tag || null; break;
+          }
+
+          if (!groupId) return;
+
+          const current = metricsMap.get(groupId) || { unrealized: 0, marketValue: 0 };
+          current.unrealized  += unrealThis;
+          current.marketValue += marketThis;
+
+          // For asset lens only → store current price (we take the first/last seen)
+          if (lens === 'asset' && !current.currentPrice) {
+            current.currentPrice = price;
+          }
+
+          metricsMap.set(groupId, current);
+        });
 
         // 5. Combine with summaries + human-readable names
         const enhanced = await Promise.all(
