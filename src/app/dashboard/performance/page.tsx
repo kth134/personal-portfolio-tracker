@@ -105,7 +105,7 @@ export default function PerformancePage() {
           .in('ticker', tickers)
           .order('timestamp', { ascending: false });
 
-        const latestPrices = new Map((pricesData ?? []).map((p: any) => [p.ticker, p.price]));
+        const latestPrices = new Map((pricesData || []).map((p: any) => [p.ticker, p.price]));
 
         // Aggregate unrealized by lens
         lotsData.forEach((lot: any) => {
