@@ -35,7 +35,8 @@ export async function GET() {
     // CoinGecko fetch (no API key needed) – unchanged
     if (cryptoTickers.length) {
       const cgIds = cryptoTickers.map((t: any) => idMap[t] || t.toLowerCase());
-      const cgUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd`;
+      const cgBaseUrl = process.env.COINGECKO_BASE_URL || 'https://api.coingecko.com';
+      const cgUrl = `${cgBaseUrl}/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd`;
       const cgResponse = await fetch(cgUrl);
       if (!cgResponse.ok) {
         console.error(`CoinGecko error: ${cgResponse.statusText} for tickers ${cgIds.join(',')}`);
@@ -63,7 +64,8 @@ export async function GET() {
         // Primary: Finnhub /quote
         let price: number | undefined;
         let source = 'finnhub';
-        const finnhubUrl = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`;
+        const finnhubBaseUrl = process.env.FINNHUB_BASE_URL || 'https://finnhub.io';
+        const finnhubUrl = `${finnhubBaseUrl}/api/v1/quote?symbol=${ticker}&token=${apiKey}`;
         const finnhubResponse = await fetch(finnhubUrl);
         if (finnhubResponse.ok) {
           const finnhubData = await finnhubResponse.json();
@@ -75,7 +77,8 @@ export async function GET() {
         // Fallback: If Finnhub price invalid (e.g., for mutual funds), try Yahoo Finance
         if (!price || price <= 0) {
           source = 'yahoo';
-          const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${ticker}`;
+          const yahooBaseUrl = process.env.YAHOO_BASE_URL || 'https://query1.finance.yahoo.com';
+          const yahooUrl = `${yahooBaseUrl}/v7/finance/quote?symbols=${ticker}`;
           console.log(`Attempting Yahoo fallback for ${ticker}`);
           const yahooResponse = await fetch(yahooUrl, {
             headers: {

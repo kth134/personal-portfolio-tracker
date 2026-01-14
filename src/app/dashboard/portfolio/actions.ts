@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers' // ← Add this import
 
 export async function refreshAssetPrices() {
   const supabase = await createClient()
@@ -22,12 +23,21 @@ export async function refreshAssetPrices() {
     return { success: true, message: 'No tickers found in holdings.' }
   }
 
-  // Step 2: Call the internal /api/fetch-prices route using RELATIVE path
+  // Step 2: Build absolute URL for internal API route
+  const requestHeaders = await headers()
+  const host = requestHeaders.get('host') || 'localhost:3000'
+  const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https'
+  const apiUrl = `${protocol}://${host}/api/fetch-prices`
+
+  // Step 3: Call the internal API route
   try {
-    const response = await fetch('/api/fetch-prices', {
+    const response = await fetch(apiUrl, {
       method: 'GET',
-      cache: 'no-store', // Ensure fresh execution
-      // No need for custom headers; Supabase auth cookie is automatically forwarded in server context
+      cache: 'no-store',
+      headers: {
+        // Forward cookies/headers if needed (Supabase auth flows through)
+        cookie: requestHeaders.get('cookie') || '',
+      },
     })
 
     if (!response.ok) {
@@ -46,7 +56,7 @@ export async function refreshAssetPrices() {
       return { success: false, message: result.error || 'Unknown error from price fetch' }
     }
 
-    // Success → revalidate the portfolio page to show new prices
+    // Success → revalidate to show updated prices
     revalidatePath('/dashboard/portfolio')
 
     return {
