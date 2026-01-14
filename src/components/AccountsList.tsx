@@ -134,7 +134,8 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
                 <SelectContent>
                   <SelectItem value="Roth IRA">Roth IRA</SelectItem>
                   <SelectItem value="Traditional IRA">Traditional IRA</SelectItem>
-                  <SelectItem value="Taxable">Taxable</SelectItem>
+                  <SelectItem value="401k">401k</SelectItem>
+                  <SelectItem value="Brokerage">Brokerage</SelectItem>
                   <SelectItem value="HSA">HSA</SelectItem>
                   <SelectItem value="Cold Storage">Cold Storage</SelectItem>
                   {/* Add more common types as needed */}
