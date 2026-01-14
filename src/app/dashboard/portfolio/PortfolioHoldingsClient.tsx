@@ -122,24 +122,24 @@ export default function PortfolioHoldingsClient({
 
   const renderTable = (holding: Holding, isClosed = false) => (
     <TableRow key={holding.asset_id}>
-      <TableCell className="font-medium min-w-0">
+      <TableCell className="w-32 font-medium min-w-0">
         <div className="flex flex-col">
           <span className="font-bold text-sm">{holding.ticker}</span>
           {holding.name && <span className="text-xs text-muted-foreground">{holding.name}</span>}
         </div>
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell className="text-right w-20">
         {holding.asset_id === 'cash' || isClosed ? '-' : holding.total_quantity.toFixed(8)}
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell className="text-right w-20">
         {holding.asset_id === 'cash' || isClosed ? '-' : formatUSD(holding.total_basis / (holding.total_quantity || 1))}
       </TableCell>
-      <TableCell className="text-right">{formatUSD(holding.total_basis)}</TableCell>
-      <TableCell className="text-right">
+      <TableCell className="text-right w-24">{formatUSD(holding.total_basis)}</TableCell>
+      <TableCell className="text-right w-20">
         {holding.asset_id === 'cash' || isClosed ? '-' : formatUSD(holding.current_price || 0)}
       </TableCell>
-      <TableCell className="text-right">{formatUSD(holding.current_value || 0)}</TableCell>
-      <TableCell className={cn("text-right", (holding.unrealized_gain ?? 0) > 0 ? "text-green-600" : "text-red-600")}>
+      <TableCell className="text-right w-24">{formatUSD(holding.current_value || 0)}</TableCell>
+      <TableCell className={cn("text-right w-28", (holding.unrealized_gain ?? 0) > 0 ? "text-green-600" : "text-red-600")}>
         {formatUSD(holding.unrealized_gain ?? 0)}
       </TableCell>
     </TableRow>
@@ -190,25 +190,25 @@ export default function PortfolioHoldingsClient({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="cursor-pointer min-w-0 whitespace-nowrap" onClick={() => handleSort('ticker')}>Asset</TableHead>
-                        <TableHead className="text-right cursor-pointer whitespace-nowrap" onClick={() => handleSort('quantity')}>Quantity</TableHead>
-                        <TableHead className="text-right cursor-pointer whitespace-nowrap" onClick={() => handleSort('avgBasis')}>Avg Basis</TableHead>
-                        <TableHead className="text-right cursor-pointer whitespace-nowrap" onClick={() => handleSort('totalBasis')}>Total Basis</TableHead>
-                        <TableHead className="text-right cursor-pointer whitespace-nowrap" onClick={() => handleSort('currPrice')}>Curr Price</TableHead>
-                        <TableHead className="text-right cursor-pointer whitespace-nowrap" onClick={() => handleSort('currValue')}>Curr Value</TableHead>
-                        <TableHead className="text-right cursor-pointer whitespace-nowrap" onClick={() => handleSort('unrealGain')}>Unreal Gain/Loss</TableHead>
+                        <TableHead className="cursor-pointer min-w-0 w-32 whitespace-nowrap" onClick={() => handleSort('ticker')}>Asset</TableHead>
+                        <TableHead className="text-right cursor-pointer w-20 whitespace-nowrap" onClick={() => handleSort('quantity')}>Quantity</TableHead>
+                        <TableHead className="text-right cursor-pointer w-20 whitespace-nowrap" onClick={() => handleSort('avgBasis')}>Avg Basis</TableHead>
+                        <TableHead className="text-right cursor-pointer w-24 whitespace-nowrap" onClick={() => handleSort('totalBasis')}>Total Basis</TableHead>
+                        <TableHead className="text-right cursor-pointer w-20 whitespace-nowrap" onClick={() => handleSort('currPrice')}>Curr Price</TableHead>
+                        <TableHead className="text-right cursor-pointer w-24 whitespace-nowrap" onClick={() => handleSort('currValue')}>Curr Value</TableHead>
+                        <TableHead className="text-right cursor-pointer w-28 whitespace-nowrap" onClick={() => handleSort('unrealGain')}>Unreal Gain/Loss</TableHead>
                       </TableRow>
                     </TableHeader>
                   <TableBody>
                     {sortedHoldings.map(holding => renderTable(holding, false))}
                     <TableRow className="font-bold border-t">
-                      <TableCell>Subtotal for {group.key}</TableCell>
-                      <TableCell className="text-right" /> {/* Blank for Quantity */}
-                      <TableCell className="text-right" /> {/* Blank for Avg Basis */}
-                      <TableCell className="text-right">{formatUSD(group.total_basis)}</TableCell>
-                      <TableCell className="text-right" /> {/* Blank for Curr Price */}
-                      <TableCell className="text-right">{formatUSD(group.total_value)}</TableCell>
-                      <TableCell className={cn("text-right", group.unrealized_gain > 0 ? "text-green-600" : "text-red-600")}>
+                      <TableCell className="w-32">Subtotal for {group.key}</TableCell>
+                      <TableCell className="text-right w-20" /> {/* Blank for Quantity */}
+                      <TableCell className="text-right w-20" /> {/* Blank for Avg Basis */}
+                      <TableCell className="text-right w-24">{formatUSD(group.total_basis)}</TableCell>
+                      <TableCell className="text-right w-20" /> {/* Blank for Curr Price */}
+                      <TableCell className="text-right w-24">{formatUSD(group.total_value)}</TableCell>
+                      <TableCell className={cn("text-right w-28", group.unrealized_gain > 0 ? "text-green-600" : "text-red-600")}>
                         {formatUSD(group.unrealized_gain)}
                       </TableCell>
                     </TableRow>
@@ -227,24 +227,24 @@ export default function PortfolioHoldingsClient({
           {/* Show aggregated Cash Balance only in Sub-Portfolio view */}
           {viewBy === 'subportfolio' && (
             <TableRow className="font-bold bg-muted/50">
-              <TableCell>Cash Balance</TableCell>
-              <TableCell className="text-right" /> {/* Quantity */}
-              <TableCell className="text-right" /> {/* Avg Basis */}
-              <TableCell className="text-right">{formatUSD(cash)}</TableCell>
-              <TableCell className="text-right" /> {/* Curr Price - blank */}
-              <TableCell className="text-right">{formatUSD(cash)}</TableCell> {/* Curr Value */}
-              <TableCell className="text-right">$0.00</TableCell> {/* Unreal G/L */}
+              <TableCell className="w-32">Cash Balance</TableCell>
+              <TableCell className="text-right w-20" /> {/* Quantity */}
+              <TableCell className="text-right w-20" /> {/* Avg Basis */}
+              <TableCell className="text-right w-24">{formatUSD(cash)}</TableCell>
+              <TableCell className="text-right w-20" /> {/* Curr Price - blank */}
+              <TableCell className="text-right w-24">{formatUSD(cash)}</TableCell> {/* Curr Value */}
+              <TableCell className="text-right w-28">$0.00</TableCell> {/* Unreal G/L */}
             </TableRow>
           )}
           <TableRow className="font-bold text-lg">
-            <TableCell>Portfolio Total</TableCell>
-            <TableCell className="text-right" />
-            <TableCell className="text-right" />
-            <TableCell className="text-right">{formatUSD(grandTotalBasis)}</TableCell>
-            <TableCell className="text-right" />
-            <TableCell className="text-right">{formatUSD(grandTotalValue)}</TableCell>
+            <TableCell className="w-32">Portfolio Total</TableCell>
+            <TableCell className="text-right w-20" />
+            <TableCell className="text-right w-20" />
+            <TableCell className="text-right w-24">{formatUSD(grandTotalBasis)}</TableCell>
+            <TableCell className="text-right w-20" />
+            <TableCell className="text-right w-24">{formatUSD(grandTotalValue)}</TableCell>
             <TableCell className={cn(
-              "text-right",
+              "text-right w-28",
               overallUnrealized > 0 ? "text-green-600" : overallUnrealized < 0 ? "text-red-600" : ""
             )}>
               {formatUSD(overallUnrealized)}
