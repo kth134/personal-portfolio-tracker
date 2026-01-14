@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { formatUSD } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { refreshAssetPrices } from '../portfolio/actions';
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
 const LENSES = [
   { value: 'asset', label: 'Asset' },
@@ -46,6 +47,67 @@ function PerformanceContent() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState<string>('display_name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Sorted summaries
+  const sortedSummaries = useMemo(() => {
+    return [...summaries].sort((a, b) => {
+      let aVal: any = a[sortColumn];
+      let bVal: any = b[sortColumn];
+
+      // Handle null/undefined values
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return sortDirection === 'asc' ? -1 : 1;
+      if (bVal == null) return sortDirection === 'asc' ? 1 : -1;
+
+      // Handle string sorting
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [summaries, sortColumn, sortDirection]);
+
+  // Handle column sorting
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Get sort icon for column
+  const getSortIcon = (column: string) => {
+    if (sortColumn !== column) {
+      return <ChevronsUpDown className="ml-2 h-4 w-4" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ChevronUp className="ml-2 h-4 w-4" />
+      : <ChevronDown className="ml-2 h-4 w-4" />;
+  };
+
+  // Calculate totals
+  const totals = useMemo(() => {
+    return summaries.reduce(
+      (acc, row) => ({
+        market_value: acc.market_value + (row.market_value || 0),
+        unrealized_gain: acc.unrealized_gain + (row.unrealized_gain || 0),
+        realized_gain: acc.realized_gain + (row.realized_gain || 0),
+        dividends: acc.dividends + (row.dividends || 0),
+        net_gain: acc.net_gain + (row.net_gain || 0),
+      }),
+      { market_value: 0, unrealized_gain: 0, realized_gain: 0, dividends: 0, net_gain: 0 }
+    );
+  }, [summaries]);
 
   const handleRefreshPrices = async () => {
     setRefreshing(true);
@@ -245,122 +307,217 @@ function PerformanceContent() {
 
   return (
     <main className="p-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+      <div className="mb-8">
         <h1 className="text-3xl font-bold">Performance Reports</h1>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">View by:</span>
-            <Select value={lens} onValueChange={setLens}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select lens" />
-              </SelectTrigger>
-              <SelectContent>
-                {LENSES.map((l) => (
-                  <SelectItem key={l.value} value={l.value}>
-                    {l.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            onClick={handleRefreshPrices}
-            disabled={refreshing || loading}
-            variant="outline"
-            size="sm"
-          >
-            {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-          </Button>
-          {refreshMessage && (
-            <span className={cn("text-sm", refreshMessage.includes('failed') ? "text-red-600" : "text-green-600")}>
-              {refreshMessage}
-            </span>
-          )}
-        </div>
       </div>
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Net Gain/Loss Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <CardTitle className="text-center">Portfolio Performance Summary</CardTitle>
+          <div className="flex justify-between items-start mt-6">
             <div>
-              <p className="text-sm text-muted-foreground">Net Gain/Loss</p>
-              <p className={cn("text-2xl font-bold", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
+              <CardTitle>Total Portfolio Value</CardTitle>
+              <p className="text-2xl font-bold text-black mt-2">
+                {formatUSD(totals.market_value)}
+              </p>
+            </div>
+            <div className="text-right">
+              <CardTitle>Net Gain/Loss</CardTitle>
+              <p className={cn("text-2xl font-bold mt-2", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
                 {formatUSD(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
               </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Unrealized Gain/Loss</p>
-              <p className={cn("text-2xl font-bold", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
-                {formatUSD(totalUnrealized)} {totalUnrealized >= 0 ? '▲' : '▼'}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Realized + Income - Fees</p>
-              <p className="text-2xl font-bold">
-                {formatUSD(totalNet - totalUnrealized)}
-              </p>
+              <div className="mt-4 space-y-1 text-sm">
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">Unrealized G/L</p>
+                  <p className={cn("font-medium", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
+                    {formatUSD(totalUnrealized)}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">Realized G/L</p>
+                  <p className={cn("font-medium", (totalNet - totalUnrealized) >= 0 ? "text-green-600" : "text-red-600")}>
+                    {formatUSD(totalNet - totalUnrealized)}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">Income</p>
+                  <p className={cn("font-medium", totals.dividends >= 0 ? "text-green-600" : "text-red-600")}>
+                    {formatUSD(totals.dividends)}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </CardContent>
+        </CardHeader>
       </Card>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">View by:</span>
+          <Select value={lens} onValueChange={setLens}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select lens" />
+            </SelectTrigger>
+            <SelectContent>
+              {LENSES.map((l) => (
+                <SelectItem key={l.value} value={l.value}>
+                  {l.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          onClick={handleRefreshPrices}
+          disabled={refreshing || loading}
+          size="sm"
+        >
+          {refreshing ? 'Refreshing...' : 'Refresh Prices'}
+        </Button>
+        {refreshMessage && (
+          <span className={cn("text-sm", refreshMessage.includes('failed') ? "text-red-600" : "text-green-600")}>
+            {refreshMessage}
+          </span>
+        )}
+      </div>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{lens.replace('_', ' ').toUpperCase()}</TableHead>
-              {lens === 'asset' && <TableHead className="text-right">Current Price</TableHead>}
-              <TableHead className="text-right">Market Value</TableHead>
-              <TableHead className="text-right">Unrealized G/L</TableHead>
-              <TableHead className="text-right">Realized Gain</TableHead>
-              <TableHead className="text-right">Dividends</TableHead>
-              <TableHead className="text-right font-bold">Net Gain/Loss</TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort('display_name')}
+              >
+                <div className="flex items-center">
+                  {lens.replace('_', ' ').toUpperCase()}
+                  {getSortIcon('display_name')}
+                </div>
+              </TableHead>
+              {lens === 'asset' && (
+                <TableHead 
+                  className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort('current_price')}
+                >
+                  <div className="flex items-center justify-end">
+                    Current Price
+                    {getSortIcon('current_price')}
+                  </div>
+                </TableHead>
+              )}
+              <TableHead 
+                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort('market_value')}
+              >
+                <div className="flex items-center justify-end">
+                  Market Value
+                  {getSortIcon('market_value')}
+                </div>
+              </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort('unrealized_gain')}
+              >
+                <div className="flex items-center justify-end">
+                  Unrealized G/L
+                  {getSortIcon('unrealized_gain')}
+                </div>
+              </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort('realized_gain')}
+              >
+                <div className="flex items-center justify-end">
+                  Realized Gain
+                  {getSortIcon('realized_gain')}
+                </div>
+              </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort('dividends')}
+              >
+                <div className="flex items-center justify-end">
+                  Dividends
+                  {getSortIcon('dividends')}
+                </div>
+              </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold"
+                onClick={() => handleSort('net_gain')}
+              >
+                <div className="flex items-center justify-end">
+                  Net Gain/Loss
+                  {getSortIcon('net_gain')}
+                </div>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={lens === 'asset' ? 7 : 6} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
-            ) : summaries.length === 0 ? (
+            ) : sortedSummaries.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={lens === 'asset' ? 7 : 6} className="text-center py-8 text-muted-foreground">
                   No data yet for this lens. Add transactions to populate performance.
                 </TableCell>
               </TableRow>
             ) : (
-              summaries.map((row) => (
-                <TableRow key={row.grouping_id}>
-                  <TableCell className="font-medium">{row.display_name}</TableCell>
-                  {lens === 'asset' && (
-                    <TableCell className="text-right">
-                      {row.current_price != null ? formatUSD(row.current_price) : '-'}
+              <>
+                {sortedSummaries.map((row) => (
+                  <TableRow key={row.grouping_id}>
+                    <TableCell className="font-medium">{row.display_name}</TableCell>
+                    {lens === 'asset' && (
+                      <TableCell className="text-right">
+                        {row.current_price != null ? formatUSD(row.current_price) : '-'}
+                      </TableCell>
+                    )}
+                    <TableCell className="text-right">{formatUSD(row.market_value)}</TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-right",
+                        row.unrealized_gain > 0 ? "text-green-600" : row.unrealized_gain < 0 ? "text-red-600" : ""
+                      )}
+                    >
+                      {formatUSD(row.unrealized_gain)}
                     </TableCell>
-                  )}
-                  <TableCell className="text-right">{formatUSD(row.market_value)}</TableCell>
-                  <TableCell
+                    <TableCell className="text-right">{formatUSD(row.realized_gain)}</TableCell>
+                    <TableCell className="text-right">{formatUSD(row.dividends)}</TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-right font-medium",
+                        row.net_gain > 0 ? "text-green-600" : row.net_gain < 0 ? "text-red-600" : ""
+                      )}
+                    >
+                      {formatUSD(row.net_gain)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {/* Total row */}
+                <TableRow className="border-t-2 font-semibold bg-muted/50">
+                  <TableCell className="font-bold">Total</TableCell>
+                  {lens === 'asset' && <TableCell className="text-right">-</TableCell>}
+                  <TableCell className="text-right font-bold">{formatUSD(totals.market_value)}</TableCell>
+                  <TableCell 
                     className={cn(
-                      "text-right",
-                      row.unrealized_gain > 0 ? "text-green-600" : row.unrealized_gain < 0 ? "text-red-600" : ""
+                      "text-right font-bold",
+                      totals.unrealized_gain > 0 ? "text-green-600" : totals.unrealized_gain < 0 ? "text-red-600" : ""
                     )}
                   >
-                    {formatUSD(row.unrealized_gain)}
+                    {formatUSD(totals.unrealized_gain)}
                   </TableCell>
-                  <TableCell className="text-right">{formatUSD(row.realized_gain)}</TableCell>
-                  <TableCell className="text-right">{formatUSD(row.dividends)}</TableCell>
-                  <TableCell
+                  <TableCell className="text-right font-bold">{formatUSD(totals.realized_gain)}</TableCell>
+                  <TableCell className="text-right font-bold">{formatUSD(totals.dividends)}</TableCell>
+                  <TableCell 
                     className={cn(
-                      "text-right font-medium",
-                      row.net_gain > 0 ? "text-green-600" : row.net_gain < 0 ? "text-red-600" : ""
+                      "text-right font-bold",
+                      totals.net_gain > 0 ? "text-green-600" : totals.net_gain < 0 ? "text-red-600" : ""
                     )}
                   >
-                    {formatUSD(row.net_gain)}
+                    {formatUSD(totals.net_gain)}
                   </TableCell>
                 </TableRow>
-              ))
+              </>
             )}
           </TableBody>
         </Table>
