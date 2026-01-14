@@ -142,36 +142,15 @@ function PerformanceContent() {
         const userId = user?.id;
         if (!userId) throw new Error("No user");
 
-        // 1. Fetch stored performance summaries (realized, income, fees)
-        const { data: summaryData, error: summaryError } = await supabase
-          .from('performance_summaries')
-          .select('grouping_id, realized_gain, dividends, interest, fees')
-          .eq('user_id', userId)
-          .eq('grouping_type', lens);
-
-        if (summaryError) throw summaryError;
-
-        // 2. Fetch all tax lots (including sold ones) to calculate total original investment
+        // Fetch all tax lots (including sold ones) to calculate total original investment and groupings
         const { data: allLotsData, error: allLotsError } = await supabase
-          .from('tax_lots')
-          .select('remaining_quantity, cost_basis_per_unit, quantity')
-          .eq('user_id', userId);
-
-        if (allLotsError) throw allLotsError;
-
-        // Calculate total original investment (sum of all cost bases from all lots)
-        const totalOriginalInvestment = allLotsData?.reduce((sum, lot) => {
-          return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
-        }, 0) || 0;
-
-        // 3. Fetch all open tax lots + joined asset data
-        const { data: lotsData, error: lotsError } = await supabase
           .from('tax_lots')
           .select(`
             asset_id,
             account_id,
             remaining_quantity,
             cost_basis_per_unit,
+            quantity,
             asset:assets (
               id,
               ticker,
@@ -184,15 +163,113 @@ function PerformanceContent() {
               sub_portfolio_id
             )
           `)
-          .gt('remaining_quantity', 0)
           .eq('user_id', userId);
 
-        if (lotsError) throw lotsError;
+        if (allLotsError) throw allLotsError;
 
-        // 4. Get unique tickers and latest prices
+        // Calculate total original investment (sum of all cost bases from all lots)
+        const totalOriginalInvestment = allLotsData?.reduce((sum, lot) => {
+          return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
+        }, 0) || 0;
+
+        // Get possible groupings based on lens
+        const possibleGroupings = new Map<string, { displayName: string }>();
+        allLotsData?.forEach((lot: any) => {
+          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+          let groupId: string | null = null;
+          let displayName = '';
+          switch (lens) {
+            case 'asset':
+              groupId = lot.asset_id;
+              displayName = asset ? `${asset.ticker}${asset.name ? ` - ${asset.name}` : ''}` : lot.asset_id;
+              break;
+            case 'account':
+              groupId = lot.account_id;
+              displayName = lot.account_id;
+              break;
+            case 'sub_portfolio':
+              groupId = asset?.sub_portfolio_id || null;
+              displayName = groupId || '(no sub-portfolio)';
+              break;
+            case 'asset_type':
+              groupId = asset?.asset_type || null;
+              displayName = groupId || '(no type)';
+              break;
+            case 'asset_subtype':
+              groupId = asset?.asset_subtype || null;
+              displayName = groupId || '(no subtype)';
+              break;
+            case 'geography':
+              groupId = asset?.geography || null;
+              displayName = groupId || '(no geography)';
+              break;
+            case 'size_tag':
+              groupId = asset?.size_tag || null;
+              displayName = groupId || '(no size)';
+              break;
+            case 'factor_tag':
+              groupId = asset?.factor_tag || null;
+              displayName = groupId || '(no factor)';
+              break;
+          }
+          if (groupId && !possibleGroupings.has(groupId)) {
+            possibleGroupings.set(groupId, { displayName });
+          }
+        });
+
+        // For account and sub_portfolio, fetch names
+        if (lens === 'account') {
+          const accountIds = Array.from(possibleGroupings.keys());
+          if (accountIds.length > 0) {
+            const { data: accounts } = await supabase
+              .from('accounts')
+              .select('id, name')
+              .in('id', accountIds);
+            accounts?.forEach(acc => {
+              if (possibleGroupings.has(acc.id)) {
+                possibleGroupings.get(acc.id)!.displayName = acc.name;
+              }
+            });
+          }
+        } else if (lens === 'sub_portfolio') {
+          const subIds = Array.from(possibleGroupings.keys());
+          if (subIds.length > 0) {
+            const { data: subs } = await supabase
+              .from('sub_portfolios')
+              .select('id, name')
+              .in('id', subIds);
+            subs?.forEach(sub => {
+              if (possibleGroupings.has(sub.id)) {
+                possibleGroupings.get(sub.id)!.displayName = sub.name;
+              }
+            });
+          }
+        }
+
+        // Fetch performance summaries for each grouping
+        const summaryPromises = Array.from(possibleGroupings.entries()).map(async ([groupId, group]) => {
+          const { data: summary } = await supabase
+            .from('performance_summaries')
+            .select('realized_gain, dividends, interest, fees')
+            .eq('user_id', userId)
+            .eq('grouping_type', lens)
+            .eq('grouping_id', groupId)
+            .single();
+          return {
+            grouping_id: groupId,
+            display_name: group.displayName,
+            summary: summary || { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
+          };
+        });
+        const groupingsWithSummary = await Promise.all(summaryPromises);
+
+        // Get open lots for metrics
+        const openLotsData = allLotsData.filter(lot => lot.remaining_quantity > 0);
+
+        // Get unique tickers and latest prices
         const tickers = [
           ...new Set(
-            (lotsData || [])
+            openLotsData
               .map((lot: any) => {
                 const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
                 return asset?.ticker;
@@ -207,7 +284,7 @@ function PerformanceContent() {
           .in('ticker', tickers)
           .order('timestamp', { ascending: false });
 
-        // Fixed: Build latestPrices by setting only if not set (first encounter is latest per ticker)
+        // Fixed: Build latestPrices
         const latestPrices = new Map<string, number>();
         pricesData?.forEach((p: any) => {
           if (!latestPrices.has(p.ticker)) {
@@ -215,105 +292,85 @@ function PerformanceContent() {
           }
         });
 
-        // 4. Aggregate by lens: unrealized gain + current market value
+        // Aggregate metrics by group from open lots
         const metricsMap = new Map<string, { unrealized: number; marketValue: number; currentPrice?: number }>();
-
-        lotsData?.forEach((lot: any) => {
+        openLotsData.forEach((lot: any) => {
           const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
-
-          const qty   = Number(lot.remaining_quantity);
+          const qty = Number(lot.remaining_quantity);
           const basis = Number(lot.cost_basis_per_unit);
           const price = latestPrices.get(asset?.ticker || '') || 0;
-
-          const unrealThis   = qty * (price - basis);
-          const marketThis   = qty * price;
-
+          const unrealThis = qty * (price - basis);
+          const marketThis = qty * price;
           let groupId: string | null = null;
-
           switch (lens) {
-            case 'asset':           groupId = lot.asset_id; break;
-            case 'account':         groupId = lot.account_id; break;
-            case 'sub_portfolio':   groupId = asset?.sub_portfolio_id || null; break;
-            case 'asset_type':      groupId = asset?.asset_type || null; break;
-            case 'asset_subtype':   groupId = asset?.asset_subtype || null; break;
-            case 'geography':       groupId = asset?.geography || null; break;
-            case 'size_tag':        groupId = asset?.size_tag || null; break;
-            case 'factor_tag':      groupId = asset?.factor_tag || null; break;
+            case 'asset': groupId = lot.asset_id; break;
+            case 'account': groupId = lot.account_id; break;
+            case 'sub_portfolio': groupId = asset?.sub_portfolio_id || null; break;
+            case 'asset_type': groupId = asset?.asset_type || null; break;
+            case 'asset_subtype': groupId = asset?.asset_subtype || null; break;
+            case 'geography': groupId = asset?.geography || null; break;
+            case 'size_tag': groupId = asset?.size_tag || null; break;
+            case 'factor_tag': groupId = asset?.factor_tag || null; break;
           }
-
           if (!groupId) return;
-
           const current = metricsMap.get(groupId) || { unrealized: 0, marketValue: 0 };
-          current.unrealized  += unrealThis;
+          current.unrealized += unrealThis;
           current.marketValue += marketThis;
-
-          // For asset lens only → store current price (we take the first/last seen)
+          // For asset lens only
           if (lens === 'asset' && !current.currentPrice) {
             current.currentPrice = price;
           }
-
           metricsMap.set(groupId, current);
         });
 
-        // 5. Combine with summaries + human-readable names
-        const enhanced = await Promise.all(
-          (summaryData || []).map(async (row: any) => {
-            const metrics = metricsMap.get(row.grouping_id) || { unrealized: 0, marketValue: 0, currentPrice: undefined };
+        // Calculate total cost basis by group from all lots
+        const costBasisByGroup = new Map<string, number>();
+        allLotsData.forEach((lot: any) => {
+          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+          const cost = Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity);
+          let groupId: string | null = null;
+          switch (lens) {
+            case 'asset': groupId = lot.asset_id; break;
+            case 'account': groupId = lot.account_id; break;
+            case 'sub_portfolio': groupId = asset?.sub_portfolio_id || null; break;
+            case 'asset_type': groupId = asset?.asset_type || null; break;
+            case 'asset_subtype': groupId = asset?.asset_subtype || null; break;
+            case 'geography': groupId = asset?.geography || null; break;
+            case 'size_tag': groupId = asset?.size_tag || null; break;
+            case 'factor_tag': groupId = asset?.factor_tag || null; break;
+          }
+          if (groupId) {
+            costBasisByGroup.set(groupId, (costBasisByGroup.get(groupId) || 0) + cost);
+          }
+        });
 
-            const net =
-              metrics.unrealized +
-              (row.realized_gain || 0) +
-              (row.dividends || 0) +
-              (row.interest || 0);
+        // Combine
+        const enhanced = groupingsWithSummary.map((row) => {
+          const metrics = metricsMap.get(row.grouping_id) || { unrealized: 0, marketValue: 0, currentPrice: undefined };
+          const summary = row.summary;
+          const net =
+            metrics.unrealized +
+            (summary.realized_gain || 0) +
+            (summary.dividends || 0) +
+            (summary.interest || 0);
+          const totalCostBasis = costBasisByGroup.get(row.grouping_id) || 0;
+          return {
+            ...row,
+            ...summary,
+            unrealized_gain: metrics.unrealized,
+            market_value: metrics.marketValue,
+            current_price: metrics.currentPrice,
+            net_gain: net,
+            total_cost_basis: totalCostBasis,
+            weight: 0, // Will be calculated after all data is processed
+            total_return_pct: totalCostBasis > 0 ? (net / totalCostBasis) * 100 : 0,
+          };
+        });
 
-            let displayName = row.grouping_id;
-
-            if (lens === 'asset') {
-              const { data: asset } = await supabase
-                .from('assets')
-                .select('ticker, name')
-                .eq('id', row.grouping_id)
-                .single();
-              displayName = asset ? `${asset.ticker}${asset.name ? ` - ${asset.name}` : ''}` : row.grouping_id;
-            } else if (lens === 'account') {
-              const { data: acc } = await supabase
-                .from('accounts')
-                .select('name')
-                .eq('id', row.grouping_id)
-                .single();
-              displayName = acc?.name || row.grouping_id;
-            } else if (lens === 'sub_portfolio') {
-              const { data: sub } = await supabase
-                .from('sub_portfolios')
-                .select('name')
-                .eq('id', row.grouping_id)
-                .single();
-              displayName = sub?.name || row.grouping_id;
-            } else {
-              // tags → use as-is
-              displayName = row.grouping_id || '(untagged)';
-            }
-
-            return {
-              ...row,
-              display_name: displayName,
-              unrealized_gain: metrics.unrealized,
-              market_value: metrics.marketValue,
-              current_price: metrics.currentPrice,
-              net_gain: net,
-              weight: 0, // Will be calculated after all data is processed
-              total_return_pct: 0, // Will be calculated after all data is processed
-            };
-          })
-        );
-
-        // Calculate weight and total return percentage
+        // Calculate weight
         const totalPortfolioValue = enhanced.reduce((sum, row) => sum + row.market_value, 0);
         enhanced.forEach(row => {
           row.weight = totalPortfolioValue > 0 ? (row.market_value / totalPortfolioValue) * 100 : 0;
-          // For individual rows, use their specific cost basis (this is still an approximation)
-          const costBasis = row.market_value - row.unrealized_gain;
-          row.total_return_pct = costBasis > 0 ? (row.net_gain / costBasis) * 100 : 0;
         });
 
         setSummaries(enhanced);
@@ -514,7 +571,7 @@ function PerformanceContent() {
             ) : (
               <>
                 {sortedSummaries.map((row) => (
-                  <TableRow key={row.grouping_id}>
+                  <TableRow key={row.grouping_id} className={lens === 'asset' && row.market_value === 0 ? "opacity-50" : ""}>
                     <TableCell className="font-medium">{row.display_name}</TableCell>
                     <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
                     {lens === 'asset' && (
