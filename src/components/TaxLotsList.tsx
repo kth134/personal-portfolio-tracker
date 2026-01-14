@@ -136,7 +136,6 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
           account:accounts (name),
           asset:assets (ticker, name)
         `)
-        .gt('remaining_quantity', 0)
 
       setTaxLots(refreshed || [])
       setOpen(false)
@@ -326,12 +325,13 @@ const sortedLots = [...taxLots].sort((a, b) => {
               <TableHead className="text-right cursor-pointer" onClick={() => handleSort('basisUnit')}>Basis/Unit</TableHead>
               <TableHead className="text-right cursor-pointer" onClick={() => handleSort('remainQty')}>Remaining Qty</TableHead>
               <TableHead className="cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Remaining Basis</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedLots.map((lot) => (
-              <TableRow key={lot.id}>
+              <TableRow key={lot.id} className={cn(lot.remaining_quantity === 0 && "opacity-60 bg-muted/20")}>
                 <TableCell>{lot.account?.name || '-'}</TableCell>
                 <TableCell>
                   {lot.asset?.ticker || '-'}
@@ -343,6 +343,16 @@ const sortedLots = [...taxLots].sort((a, b) => {
                 <TableCell className="text-right">{Number(lot.remaining_quantity).toFixed(8)}</TableCell>
                 <TableCell className="text-right">
                   {formatUSD(Number(lot.remaining_quantity) * Number(lot.cost_basis_per_unit))}
+                </TableCell>
+                <TableCell>
+                  <span className={cn(
+                    "px-2 py-1 rounded-full text-xs font-medium",
+                    lot.remaining_quantity === 0 
+                      ? "bg-red-100 text-red-800" 
+                      : "bg-green-100 text-green-800"
+                  )}>
+                    {lot.remaining_quantity === 0 ? "Depleted" : "Active"}
+                  </span>
                 </TableCell>
                 <TableCell className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={() => openEdit(lot)}>
