@@ -3,9 +3,7 @@
 import { useState, useEffect } from 'react';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { format, startOfYear, startOfQuarter, startOfMonth, startOfWeek, subYears, subQuarters } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -14,8 +12,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, Check, ChevronsUpDown, Info } from 'lucide-react';
+import { Check, ChevronsUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { formatUSD } from '@/lib/formatters';
 import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
@@ -35,18 +32,6 @@ const LENSES = [
   { value: 'factor_tag', label: 'Factor' },
 ];
 
-const PRESETS = [
-  { value: 'today', label: 'Today' },
-  { value: 'wtd', label: 'Week to Date' },
-  { value: 'mtd', label: 'Month to Date' },
-  { value: 'qtd', label: 'Quarter to Date' },
-  { value: 'prev_q', label: 'Previous Quarter' },
-  { value: 'ytd', label: 'Year to Date' },
-  { value: 'prev_y', label: 'Previous Year' },
-  { value: '3y', label: 'Trailing 3 Years' },
-  { value: '5y', label: 'Trailing 5 Years' },
-];
-
 export default function DashboardHome() {
   const supabase = createClient();
 
@@ -55,13 +40,7 @@ export default function DashboardHome() {
   const [availableValues, setAvailableValues] = useState<string[]>([]);
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
   const [aggregate, setAggregate] = useState(true);
-  const [preset, setPreset] = useState('ytd');
-  const [customStart, setCustomStart] = useState<Date | undefined>(undefined);
-  const [customEnd, setCustomEnd] = useState<Date | undefined>(undefined);
-  const [metric, setMetric] = useState<'twr' | 'mwr'>('twr');
-  const [showBenchmarks, setShowBenchmarks] = useState(false);
   const [allocations, setAllocations] = useState<any[]>([]);
-  const [performance, setPerformance] = useState<any>(null);
   const [drillItems, setDrillItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [valuesLoading, setValuesLoading] = useState(false);
@@ -127,61 +106,25 @@ export default function DashboardHome() {
     if (mfaStatus === 'verified') {
       loadDashboardData();
     }
-  }, [mfaStatus, lens, selectedValues, aggregate, preset, customStart, customEnd, metric, showBenchmarks]);
+  }, [mfaStatus, lens, selectedValues, aggregate]);
 
   const loadDashboardData = async () => {
     setLoading(true);
-    const today = new Date();
-    let start = customStart || today;
-    let end = customEnd || today;
-
-    if (!customStart && !customEnd) {
-      switch (preset) {
-        case 'today': start = today; break;
-        case 'wtd': start = startOfWeek(today); break;
-        case 'mtd': start = startOfMonth(today); break;
-        case 'qtd': start = startOfQuarter(today); break;
-        case 'prev_q':
-          start = subQuarters(startOfQuarter(today), 1);
-          end = subQuarters(startOfQuarter(today), 1);
-          break;
-        case 'ytd': start = startOfYear(today); break;
-        case 'prev_y':
-          start = subYears(startOfYear(today), 1);
-          end = subYears(startOfYear(today), 1);
-          break;
-        case '3y': start = subYears(today, 3); break;
-        case '5y': start = subYears(today, 5); break;
-      }
-    }
-
-    const startStr = format(start, 'yyyy-MM-dd');
-    const endStr = format(end, 'yyyy-MM-dd');
 
     const payload = {
       lens,
       selectedValues: lens === 'total' ? [] : selectedValues,
       aggregate,
-      start: startStr,
-      end: endStr,
-      metric,
-      benchmarks: showBenchmarks,
     };
 
     try {
-      const [allocRes, perfRes] = await Promise.all([
-        fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' }),
-        fetch('/api/dashboard/performance', { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' }),
-      ]);
+      const allocRes = await fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' });
 
       if (!allocRes.ok) throw new Error(`Allocations fetch failed: ${allocRes.status}`);
-      if (!perfRes.ok) throw new Error(`Performance fetch failed: ${perfRes.status}`);
 
       const allocData = await allocRes.json();
-      const perfData = await perfRes.json();
 
       setAllocations(allocData.allocations || []);
-      setPerformance(perfData);
     } catch (err) {
       console.error('Dashboard data fetch failed:', err);
     } finally {
@@ -243,7 +186,7 @@ export default function DashboardHome() {
         <Input
           placeholder="000000"
           value={mfaCode}
-          onChange={e => setMfaCode(e.target.value)}
+          onChange={(e: any) => setMfaCode(e.target.value)}
           maxLength={6}
           className="text-center text-2xl tracking-widest"
         />
@@ -332,97 +275,13 @@ export default function DashboardHome() {
             <Label>Aggregate selected</Label>
           </div>
         )}
-
-        {/* Period Preset */}
-        <div>
-          <Label className="text-sm font-medium">Period Preset</Label>
-          <Select value={preset} onValueChange={setPreset}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PRESETS.map(p => (
-                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Custom Start */}
-        <div>
-          <Label className="text-sm font-medium">Custom Start</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {customStart ? format(customStart, 'PPP') : 'Select'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent>
-              <Calendar mode="single" selected={customStart} onSelect={setCustomStart} />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        {/* Custom End */}
-        <div>
-          <Label className="text-sm font-medium">Custom End</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {customEnd ? format(customEnd, 'PPP') : 'Select'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent>
-              <Calendar mode="single" selected={customEnd} onSelect={setCustomEnd} />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        {/* Return Metric */}
-        <div>
-          <Label className="text-sm font-medium">Return Metric</Label>
-          <Select value={metric} onValueChange={(v: 'twr' | 'mwr') => setMetric(v)}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="twr">TWR</SelectItem>
-              <SelectItem value="mwr">MWR</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Benchmarks */}
-        <div className="flex items-center gap-2">
-          <Switch checked={showBenchmarks} onCheckedChange={setShowBenchmarks} />
-          <Label>Show Benchmarks</Label>
-        </div>
       </div>
-
-      {/* Disclaimer */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className="mb-4">
-            <Info className="mr-1 h-4 w-4" /> Note on slicing
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent>
-          <p className="text-sm">
-            Performance attribution assumes asset tags (sub-portfolio, geography, etc.) have been stable over time. 
-            If you have moved assets between categories, historical gains may be attributed to the current tag.
-          </p>
-        </PopoverContent>
-      </Popover>
-
       {loading ? (
         <div className="text-center py-12">Loading portfolio data...</div>
       ) : selectedValues.length === 0 && lens !== 'total' ? (
         <div className="text-center py-12 text-muted-foreground">Select at least one value to view data.</div>
       ) : (
         <>
-          {/* Allocations */}
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>
@@ -483,37 +342,6 @@ export default function DashboardHome() {
                   </Table>
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Performance */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Performance ({preset.toUpperCase()} • {metric.toUpperCase()})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={performance?.series || []}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis tickFormatter={(v) => `${v}%`} />
-                  <Tooltip formatter={(v: number | undefined) => v !== undefined ? `${v.toFixed(2)}%` : ''} />
-                  <Legend />
-                  {performance?.lines?.map((line: any, i: number) => (
-                    <Line
-                      key={i}
-                      type="monotone"
-                      dataKey={line.key}
-                      stroke={COLORS[i % COLORS.length]}
-                      name={line.name}
-                      dot={false}
-                    />
-                  ))}
-                  {showBenchmarks && performance?.benchmarks?.SPX && (
-                    <Line type="monotone" dataKey="SPX" stroke="#10b981" name="S&P 500" />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
             </CardContent>
           </Card>
         </>

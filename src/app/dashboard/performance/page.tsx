@@ -1,5 +1,8 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import {
   Table,
   TableBody,
@@ -15,110 +18,178 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatUSD } from '@/lib/formatters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatUSD } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 
-type SummaryRow = {
-  grouping_type: string;
-  grouping_id: string;
-  realized_gain: number;
-  dividends: number;
-  interest: number;
-  fees: number;
-  // Joined fields depending on type
-  name?: string;           // e.g., asset ticker/name, account name, sub-portfolio name
-};
+const LENSES = [
+  { value: 'asset', label: 'Asset' },
+  { value: 'account', label: 'Account' },
+  { value: 'sub_portfolio', label: 'Sub-Portfolio' },
+  { value: 'asset_type', label: 'Asset Type' },
+  { value: 'asset_subtype', label: 'Asset Subtype' },
+  { value: 'geography', label: 'Geography' },
+  { value: 'size_tag', label: 'Size' },
+  { value: 'factor_tag', label: 'Factor/Style' },
+];
 
-export default async function PerformancePage({
-  searchParams,
-}: {
-  searchParams: { lens?: string };
-}) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/');
+export default function PerformancePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const supabase = createClient();
 
-  const lens = searchParams.lens || 'asset'; // default to asset
+  const initialLens = searchParams.get('lens') || 'asset';
+  const [lens, setLens] = useState(initialLens);
+  const [summaries, setSummaries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Define join based on lens
-  let query: any = supabase
-    .from('performance_summaries')
-    .select(`
-      grouping_type,
-      grouping_id,
-      realized_gain,
-      dividends,
-      interest,
-      fees
-    `)
-    .eq('user_id', user.id)
-    .eq('grouping_type', lens);
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Update URL
+        const newParams = new URLSearchParams(searchParams.toString());
+        newParams.set('lens', lens);
+        router.replace(`/dashboard/performance?${newParams.toString()}`, { scroll: false });
 
-  // Add joins and name field
-  let nameField = 'name';
-  if (lens === 'asset') {
-    query = query.select(`
-      ...,
-      asset:assets!inner (ticker, name)
-    `);
-    nameField = 'asset.ticker || \' - \' || asset.name';
-  } else if (lens === 'account') {
-    query = query.select(`
-      ...,
-      account:accounts!inner (name)
-    `);
-    nameField = 'account.name';
-  } else if (lens === 'sub_portfolio') {
-    query = query.select(`
-      ...,
-      sub_portfolio:sub_portfolios!inner (name)
-    `);
-    nameField = 'sub_portfolio.name';
-  } else if (lens === 'asset_type' || lens === 'asset_subtype' || lens === 'geography' || lens === 'size_tag' || lens === 'factor_tag') {
-    // For tag-based lenses, join assets and group by the tag
-    query = supabase
-      .from('performance_summaries')
-      .select(`
-        grouping_type,
-        grouping_id,
-        realized_gain,
-        dividends,
-        interest,
-        fees,
-        asset:assets!inner (${lens})
-      `)
-      .eq('user_id', user.id)
-      .eq('grouping_type', lens);
-    nameField = `asset.${lens}`;
-  }
+        const userId = (await supabase.auth.getUser()).data.user?.id;
 
-  const { data: summaries, error } = await query;
+        // Step 1: Fetch stored summaries (realized, dividends, etc.)
+        let summaryQuery = supabase
+          .from('performance_summaries')
+          .select(`
+            grouping_id,
+            realized_gain,
+            dividends,
+            interest,
+            fees
+          `)
+          .eq('user_id', userId)
+          .eq('grouping_type', lens);
 
-  if (error) {
-    console.error(error);
-    return <div>Error loading performance data</div>;
-  }
+        const { data: summaryData, error: summaryError } = await summaryQuery;
+        if (summaryError) throw summaryError;
 
-  // Calculate net gain per row
-  const rows = summaries?.map((row: any) => {
-    const net = 
-      (row.realized_gain || 0) +
-      (row.dividends || 0) +
-      (row.interest || 0) -
-      (row.fees || 0);
+        // Step 2: Fetch unrealized gains aggregated by the lens
+        let unrealizedMap = new Map<string, number>();
 
-    return {
-      ...row,
-      net_gain: net,
-      display_name: row.asset?.ticker 
-        ? `${row.asset.ticker} ${row.asset.name ? `- ${row.asset.name}` : ''}`
-        : row.account?.name || row.sub_portfolio?.name || row.asset?.[lens] || row.grouping_id,
+        // Base query for unrealized: sum (remaining_qty * (current_price - cost_basis_per_unit))
+        let unrealizedQuery = supabase
+          .from('tax_lots')
+          .select(`
+            asset_id,
+            account_id,
+            remaining_quantity,
+            cost_basis_per_unit,
+            asset:assets (
+              ticker,
+              sub_portfolio_id,
+              asset_type,
+              asset_subtype,
+              geography,
+              size_tag,
+              factor_tag
+            )
+          `)
+          .gt('remaining_quantity', 0)
+          .eq('user_id', userId);
+
+        const { data: lotsData, error: lotsError } = await unrealizedQuery;
+        if (lotsError) throw lotsError;
+
+        // Fetch all latest prices
+        const tickers = [...new Set(lotsData.map((lot: any) => lot.asset.ticker))];
+        const { data: pricesData } = await supabase
+          .from('asset_prices')
+          .select('ticker, price')
+          .in('ticker', tickers)
+          .order('timestamp', { ascending: false });
+
+        const latestPrices = new Map((pricesData ?? []).map((p: any) => [p.ticker, p.price]));
+
+        // Aggregate unrealized by lens
+        lotsData.forEach((lot: any) => {
+          const qty = Number(lot.remaining_quantity);
+          const basisPer = Number(lot.cost_basis_per_unit);
+          const price = latestPrices.get(lot.asset.ticker) || 0;
+          const unrealThis = qty * (price - basisPer);
+
+          let groupId: string | null = null;
+          switch (lens) {
+            case 'asset':
+              groupId = lot.asset_id;
+              break;
+            case 'account':
+              groupId = lot.account_id;
+              break;
+            case 'sub_portfolio':
+              groupId = lot.asset.sub_portfolio_id;
+              break;
+            case 'asset_type':
+              groupId = lot.asset.asset_type;
+              break;
+            case 'asset_subtype':
+              groupId = lot.asset.asset_subtype;
+              break;
+            case 'geography':
+              groupId = lot.asset.geography;
+              break;
+            case 'size_tag':
+              groupId = lot.asset.size_tag;
+              break;
+            case 'factor_tag':
+              groupId = lot.asset.factor_tag;
+              break;
+          }
+
+          if (groupId) {
+            unrealizedMap.set(groupId, (unrealizedMap.get(groupId) || 0) + unrealThis);
+          }
+        });
+
+        // Step 3: Combine summaries + unrealized + display names
+        let enhanced = [];
+        for (const row of summaryData) {
+          const unrealized = unrealizedMap.get(row.grouping_id) || 0;
+          const net = unrealized + (row.realized_gain || 0) + (row.dividends || 0) + (row.interest || 0) - (row.fees || 0);
+
+          // Fetch display name (human-readable)
+          let displayName = row.grouping_id;
+          if (lens === 'asset') {
+            const { data: asset } = await supabase.from('assets').select('ticker, name').eq('id', row.grouping_id).single();
+            displayName = asset ? `${asset.ticker}${asset.name ? ` - ${asset.name}` : ''}` : row.grouping_id;
+          } else if (lens === 'account') {
+            const { data: account } = await supabase.from('accounts').select('name').eq('id', row.grouping_id).single();
+            displayName = account?.name || row.grouping_id;
+          } else if (lens === 'sub_portfolio') {
+            const { data: sub } = await supabase.from('sub_portfolios').select('name').eq('id', row.grouping_id).single();
+            displayName = sub?.name || row.grouping_id;
+          } else {
+            // Tags: use the tag value directly as name
+            displayName = row.grouping_id;
+          }
+
+          enhanced.push({
+            ...row,
+            unrealized_gain: unrealized,
+            net_gain: net,
+            display_name: displayName,
+          });
+        }
+
+        setSummaries(enhanced);
+      } catch (err) {
+        console.error('Performance fetch error:', err);
+      } finally {
+        setLoading(false);
+      }
     };
-  }) || [];
 
-  // Grand total net gain
-  const totalNet = rows.reduce((sum: number, r: any) => sum + r.net_gain, 0);
+    fetchData();
+  }, [lens]);
+
+  const totalNet = summaries.reduce((sum, r) => sum + r.net_gain, 0);
+  const totalUnrealized = summaries.reduce((sum, r) => sum + r.unrealized_gain, 0);
 
   return (
     <main className="p-8">
@@ -126,19 +197,16 @@ export default async function PerformancePage({
         <h1 className="text-3xl font-bold">Performance Reports</h1>
         <div className="flex items-center gap-4">
           <span className="text-sm font-medium">View by:</span>
-          <Select defaultValue={lens}>
+          <Select value={lens} onValueChange={setLens}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Select lens" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="asset">Asset</SelectItem>
-              <SelectItem value="account">Account</SelectItem>
-              <SelectItem value="sub_portfolio">Sub-Portfolio</SelectItem>
-              <SelectItem value="asset_type">Asset Type</SelectItem>
-              <SelectItem value="asset_subtype">Asset Subtype</SelectItem>
-              <SelectItem value="geography">Geography</SelectItem>
-              <SelectItem value="size_tag">Size</SelectItem>
-              <SelectItem value="factor_tag">Factor/Style</SelectItem>
+              {LENSES.map((l) => (
+                <SelectItem key={l.value} value={l.value}>
+                  {l.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -149,14 +217,26 @@ export default async function PerformancePage({
           <CardTitle>Net Gain/Loss Summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
-            {formatUSD(totalNet)}
-            <span className={totalNet >= 0 ? 'text-green-600' : 'text-red-600'}>
-              {' '}
-              {totalNet >= 0 ? '▲' : '▼'}
-            </span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <p className="text-sm text-muted-foreground">Net Gain/Loss</p>
+              <p className={cn("text-2xl font-bold", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
+                {formatUSD(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Unrealized Gain/Loss</p>
+              <p className={cn("text-2xl font-bold", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
+                {formatUSD(totalUnrealized)} {totalUnrealized >= 0 ? '▲' : '▼'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Realized + Income - Fees</p>
+              <p className="text-2xl font-bold">
+                {formatUSD(totalNet - totalUnrealized)}
+              </p>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">Across all {lens.replace('_', ' ')}s</p>
         </CardContent>
       </Card>
 
@@ -165,6 +245,7 @@ export default async function PerformancePage({
           <TableHeader>
             <TableRow>
               <TableHead>{lens.replace('_', ' ').toUpperCase()}</TableHead>
+              <TableHead className="text-right">Unrealized G/L</TableHead>
               <TableHead className="text-right">Realized Gain</TableHead>
               <TableHead className="text-right">Dividends</TableHead>
               <TableHead className="text-right">Interest</TableHead>
@@ -173,58 +254,47 @@ export default async function PerformancePage({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row: any) => (
-              <TableRow key={row.grouping_id}>
-                <TableCell className="font-medium">{row.display_name || row.grouping_id}</TableCell>
-                <TableCell className="text-right">{formatUSD(row.realized_gain)}</TableCell>
-                <TableCell className="text-right">{formatUSD(row.dividends)}</TableCell>
-                <TableCell className="text-right">{formatUSD(row.interest)}</TableCell>
-                <TableCell className="text-right">{formatUSD(-row.fees)}</TableCell>
-                <TableCell
-                  className={cn(
-                    'text-right font-medium',
-                    row.net_gain > 0 ? 'text-green-600' : row.net_gain < 0 ? 'text-red-600' : ''
-                  )}
-                >
-                  {formatUSD(row.net_gain)}
-                </TableCell>
-              </TableRow>
-            ))}
-            {rows.length === 0 && (
+            {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  No data yet for this lens. Add transactions to see performance.
+                <TableCell colSpan={7} className="text-center py-8">
+                  Loading...
                 </TableCell>
               </TableRow>
+            ) : summaries.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  No data yet for this lens. Add transactions to populate performance.
+                </TableCell>
+              </TableRow>
+            ) : (
+              summaries.map((row) => (
+                <TableRow key={row.grouping_id}>
+                  <TableCell className="font-medium">{row.display_name}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right",
+                      row.unrealized_gain > 0 ? "text-green-600" : row.unrealized_gain < 0 ? "text-red-600" : ""
+                    )}
+                  >
+                    {formatUSD(row.unrealized_gain)}
+                  </TableCell>
+                  <TableCell className="text-right">{formatUSD(row.realized_gain)}</TableCell>
+                  <TableCell className="text-right">{formatUSD(row.dividends)}</TableCell>
+                  <TableCell className="text-right">{formatUSD(row.interest)}</TableCell>
+                  <TableCell className="text-right">{formatUSD(-row.fees)}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right font-medium",
+                      row.net_gain > 0 ? "text-green-600" : row.net_gain < 0 ? "text-red-600" : ""
+                    )}
+                  >
+                    {formatUSD(row.net_gain)}
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
-      </div>
-
-      {/* Placeholder for future TWR / MWR / Charts */}
-      <div className="mt-12 grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Time-Weighted Return (TWR)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">Coming soon</div>
-            <p className="text-sm text-muted-foreground mt-2">
-              Requires historical snapshots (daily/monthly portfolio values).
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Money-Weighted Return (MWR / IRR)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">Coming soon</div>
-            <p className="text-sm text-muted-foreground mt-2">
-              Accounts for timing of deposits/withdrawals.
-            </p>
-          </CardContent>
-        </Card>
       </div>
     </main>
   );
