@@ -131,8 +131,11 @@ export async function serverProcessSellFifo(input: SellInput, userId: string) {
         .eq('id', lot.id)
       if (upErr) throw upErr
     } else {
-      const { error: delErr } = await supabase.from('tax_lots').delete().eq('id', lot.id)
-      if (delErr) throw delErr
+      const { error: upErr } = await supabase
+        .from('tax_lots')
+        .update({ remaining_quantity: 0 })
+        .eq('id', lot.id)
+      if (upErr) throw upErr
     }
   }
 
@@ -263,8 +266,11 @@ export async function serverBulkImportTransactions(rows: ValidatedRow[], userId:
               .eq('id', lot.id)
             if (upErr) throw upErr
           } else {
-            const { error: delErr } = await supabase.from('tax_lots').delete().eq('id', lot.id)
-            if (delErr) throw delErr
+            const { error: upErr } = await supabase
+              .from('tax_lots')
+              .update({ remaining_quantity: 0 })
+              .eq('id', lot.id)
+            if (upErr) throw upErr
           }
         }
 
