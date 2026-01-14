@@ -189,7 +189,7 @@ function PerformanceContent() {
               (row.realized_gain || 0) +
               (row.dividends || 0) +
               (row.interest || 0);
-              
+
             let displayName = row.grouping_id;
 
             if (lens === 'asset') {
@@ -315,8 +315,6 @@ function PerformanceContent() {
               <TableHead className="text-right">Unrealized G/L</TableHead>
               <TableHead className="text-right">Realized Gain</TableHead>
               <TableHead className="text-right">Dividends</TableHead>
-              <TableHead className="text-right">Interest</TableHead>
-              <TableHead className="text-right">Fees</TableHead>
               <TableHead className="text-right font-bold">Net Gain/Loss</TableHead>
             </TableRow>
           </TableHeader>
