@@ -44,6 +44,7 @@ function PerformanceContent() {
   const initialLens = searchParams.get('lens') || 'asset';
   const [lens, setLens] = useState(initialLens);
   const [summaries, setSummaries] = useState<any[]>([]);
+  const [totalOriginalInvestment, setTotalOriginalInvestment] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
@@ -150,7 +151,20 @@ function PerformanceContent() {
 
         if (summaryError) throw summaryError;
 
-        // 2. Fetch all open tax lots + joined asset data
+        // 2. Fetch all tax lots (including sold ones) to calculate total original investment
+        const { data: allLotsData, error: allLotsError } = await supabase
+          .from('tax_lots')
+          .select('remaining_quantity, cost_basis_per_unit, quantity')
+          .eq('user_id', userId);
+
+        if (allLotsError) throw allLotsError;
+
+        // Calculate total original investment (sum of all cost bases from all lots)
+        const totalOriginalInvestment = allLotsData?.reduce((sum, lot) => {
+          return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
+        }, 0) || 0;
+
+        // 3. Fetch all open tax lots + joined asset data
         const { data: lotsData, error: lotsError } = await supabase
           .from('tax_lots')
           .select(`
@@ -175,7 +189,7 @@ function PerformanceContent() {
 
         if (lotsError) throw lotsError;
 
-        // 3. Get unique tickers and latest prices
+        // 4. Get unique tickers and latest prices
         const tickers = [
           ...new Set(
             (lotsData || [])
@@ -297,11 +311,13 @@ function PerformanceContent() {
         const totalPortfolioValue = enhanced.reduce((sum, row) => sum + row.market_value, 0);
         enhanced.forEach(row => {
           row.weight = totalPortfolioValue > 0 ? (row.market_value / totalPortfolioValue) * 100 : 0;
+          // For individual rows, use their specific cost basis (this is still an approximation)
           const costBasis = row.market_value - row.unrealized_gain;
           row.total_return_pct = costBasis > 0 ? (row.net_gain / costBasis) * 100 : 0;
         });
 
         setSummaries(enhanced);
+        setTotalOriginalInvestment(totalOriginalInvestment);
       } catch (err) {
         console.error('Performance fetch error:', err);
       } finally {
@@ -315,7 +331,7 @@ function PerformanceContent() {
   const totalNet = summaries.reduce((sum, r) => sum + r.net_gain, 0);
   const totalUnrealized = summaries.reduce((sum, r) => sum + r.unrealized_gain, 0);
   const totalCostBasis = summaries.reduce((sum, r) => sum + (r.market_value - r.unrealized_gain), 0);
-  const totalReturnPct = totalCostBasis > 0 ? (totalNet / totalCostBasis) * 100 : 0;
+  const totalReturnPct = totalOriginalInvestment > 0 ? (totalNet / totalOriginalInvestment) * 100 : 0;
 
   return (
     <main className="p-8">
@@ -406,6 +422,15 @@ function PerformanceContent() {
                   {getSortIcon('display_name')}
                 </div>
               </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort('weight')}
+              >
+                <div className="flex items-center justify-end">
+                  Weight
+                  {getSortIcon('weight')}
+                </div>
+              </TableHead>
               {lens === 'asset' && (
                 <TableHead 
                   className="text-right cursor-pointer hover:bg-muted/50 select-none"
@@ -424,15 +449,6 @@ function PerformanceContent() {
                 <div className="flex items-center justify-end">
                   Market Value
                   {getSortIcon('market_value')}
-                </div>
-              </TableHead>
-              <TableHead 
-                className="text-right cursor-pointer hover:bg-muted/50 select-none"
-                onClick={() => handleSort('weight')}
-              >
-                <div className="flex items-center justify-end">
-                  Weight
-                  {getSortIcon('weight')}
                 </div>
               </TableHead>
               <TableHead 
@@ -500,13 +516,13 @@ function PerformanceContent() {
                 {sortedSummaries.map((row) => (
                   <TableRow key={row.grouping_id}>
                     <TableCell className="font-medium">{row.display_name}</TableCell>
+                    <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
                     {lens === 'asset' && (
                       <TableCell className="text-right">
                         {row.current_price != null ? formatUSD(row.current_price) : '-'}
                       </TableCell>
                     )}
                     <TableCell className="text-right">{formatUSD(row.market_value)}</TableCell>
-                    <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
                     <TableCell
                       className={cn(
                         "text-right",
@@ -538,9 +554,9 @@ function PerformanceContent() {
                 {/* Total row */}
                 <TableRow className="border-t-2 font-semibold bg-muted/50">
                   <TableCell className="font-bold">Total</TableCell>
+                  <TableCell className="text-right font-bold">100.00%</TableCell>
                   {lens === 'asset' && <TableCell className="text-right">-</TableCell>}
                   <TableCell className="text-right font-bold">{formatUSD(totals.market_value)}</TableCell>
-                  <TableCell className="text-right font-bold">100.00%</TableCell>
                   <TableCell 
                     className={cn(
                       "text-right font-bold",
