@@ -313,7 +313,7 @@ function PerformanceContent() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
-          <div className="grid grid-cols-[1fr_1.5fr_1fr] items-center mt-6 gap-8">
+          <div className="grid grid-cols-[1.3fr_1fr_1.3fr] items-center mt-6 gap-8">
             <div>
               <CardTitle>Total Portfolio Value</CardTitle>
               <p className="text-2xl font-bold text-black mt-2">
@@ -326,22 +326,22 @@ function PerformanceContent() {
                 {formatUSD(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
               </p>
             </div>
-            <div className="text-right space-y-2 text-base">
+            <div className="text-right space-y-2 text-lg">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">Unrealized G/L</p>
-                <p className={cn("font-semibold", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
+                <p className={cn("font-bold", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSD(totalUnrealized)}
                 </p>
               </div>
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">Realized G/L</p>
-                <p className={cn("font-semibold", totals.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
+                <p className={cn("font-bold", totals.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSD(totals.realized_gain)}
                 </p>
               </div>
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">Income</p>
-                <p className={cn("font-semibold", totals.dividends >= 0 ? "text-green-600" : "text-red-600")}>
+                <p className={cn("font-bold", totals.dividends >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSD(totals.dividends)}
                 </p>
               </div>
