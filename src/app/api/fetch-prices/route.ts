@@ -4,7 +4,6 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     const supabase = await createClient();
-    // Fetch unique tickers from user's assets (scoped to user_id for multi-user future-proofing)
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Unauthorized');
 
@@ -12,10 +11,10 @@ export async function GET() {
       .from('assets')
       .select('ticker, asset_subtype')
       .eq('user_id', user.id);
+
     const idMap: Record<string, string> = {
       BTC: 'bitcoin',
       ETH: 'ethereum',
-      // Add more common ones as needed, e.g., SOL: 'solana', DOGE: 'dogecoin'
     };
     if (assetsError) throw assetsError;
 
@@ -25,23 +24,18 @@ export async function GET() {
       return NextResponse.json({ success: true, message: 'No assets' });
     }
 
-    // Split by type (assuming asset_subtype 'crypto' for CoinGecko, else Finnhub)
     const cryptoAssets = assets?.filter((a: any) => a.asset_subtype?.toLowerCase() === 'crypto') || [];
-    const cryptoTickers = cryptoAssets.map((a: any) => a.ticker.toUpperCase()); // Keep original for insert
+    const cryptoTickers = cryptoAssets.map((a: any) => a.ticker.toUpperCase());
 
     const stockAssets = assets?.filter((a: any) => a.asset_subtype?.toLowerCase() !== 'crypto') || [];
     const stockTickers = stockAssets.map((a: any) => a.ticker.toUpperCase());
 
-    // CoinGecko fetch (no API key needed) – unchanged
+    // CoinGecko for crypto (unchanged)
     if (cryptoTickers.length) {
       const cgIds = cryptoTickers.map((t: any) => idMap[t] || t.toLowerCase());
-      const cgBaseUrl = process.env.COINGECKO_BASE_URL || 'https://api.coingecko.com';
-      const cgUrl = `${cgBaseUrl}/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd`;
+      const cgUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd`;
       const cgResponse = await fetch(cgUrl);
-      if (!cgResponse.ok) {
-        console.error(`CoinGecko error: ${cgResponse.statusText} for tickers ${cgIds.join(',')}`);
-        console.error(`CoinGecko error: ${cgResponse.statusText}`);
-      } else {
+      if (cgResponse.ok) {
         const cgPrices = await cgResponse.json();
         for (let i = 0; i < cryptoTickers.length; i++) {
           const originalTicker = cryptoTickers[i];
@@ -52,46 +46,50 @@ export async function GET() {
             console.log(`Inserted CoinGecko price for ${originalTicker}: $${price}`);
           }
         }
+      } else {
+        console.error(`CoinGecko error: ${cgResponse.statusText}`);
       }
     }
 
-    // Finnhub fetch for stocks, ETFs, indices (replaces Polygon)
+    // Finnhub primary + Alpha Vantage fallback
     if (stockTickers.length) {
-      const apiKey = process.env.FINNHUB_API_KEY;
-      if (!apiKey) throw new Error('Missing FINNHUB_API_KEY');
+      const finnhubKey = process.env.FINNHUB_API_KEY;
+      const alphaKey = process.env.ALPHA_VANTAGE_API_KEY;
+      if (!finnhubKey) throw new Error('Missing FINNHUB_API_KEY');
+      if (!alphaKey) throw new Error('Missing ALPHA_VANTAGE_API_KEY for mutual fund fallback');
 
       for (const ticker of stockTickers) {
-        // Primary: Finnhub /quote
         let price: number | undefined;
         let source = 'finnhub';
-        const finnhubBaseUrl = process.env.FINNHUB_BASE_URL || 'https://finnhub.io';
-        const finnhubUrl = `${finnhubBaseUrl}/api/v1/quote?symbol=${ticker}&token=${apiKey}`;
+
+        // Finnhub primary
+        const finnhubUrl = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${finnhubKey}`;
         const finnhubResponse = await fetch(finnhubUrl);
         if (finnhubResponse.ok) {
           const finnhubData = await finnhubResponse.json();
-          price = finnhubData.c; // 'c' = current close price
+          price = finnhubData.c || finnhubData.pc || undefined;
         } else {
           console.error(`Finnhub failed for ${ticker}: ${finnhubResponse.status} ${await finnhubResponse.text()}`);
         }
 
-        // Fallback: If Finnhub price invalid (e.g., for mutual funds), try Yahoo Finance
+        // Alpha Vantage fallback (mutual funds + backup for others)
         if (!price || price <= 0) {
-          source = 'yahoo';
-          const yahooBaseUrl = process.env.YAHOO_BASE_URL || 'https://query1.finance.yahoo.com';
-          const yahooUrl = `${yahooBaseUrl}/v7/finance/quote?symbols=${ticker}`;
-          console.log(`Attempting Yahoo fallback for ${ticker}`);
-          const yahooResponse = await fetch(yahooUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          source = 'alphavantage';
+          console.log(`Attempting Alpha Vantage fallback for ${ticker}`);
+          const alphaUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${alphaKey}`;
+          const alphaResponse = await fetch(alphaUrl);
+          if (alphaResponse.ok) {
+            const alphaData = await alphaResponse.json();
+            const quote = alphaData['Global Quote'];
+            if (quote && quote['05. price']) {
+              price = parseFloat(quote['05. price']);
+              console.log(`Alpha Vantage price for ${ticker}: $${price}`);
+            } else {
+              console.warn(`No price data in Alpha Vantage response for ${ticker}`);
             }
-          });
-          if (yahooResponse.ok) {
-            const yahooData = await yahooResponse.json();
-            price = yahooData.quoteResponse?.result?.[0]?.regularMarketPrice;
-            console.log(`Yahoo price retrieved for ${ticker}: $${price}`);
           } else {
-            console.error(`Yahoo fallback failed for ${ticker}: ${yahooResponse.status} ${await yahooResponse.text()}`);
-            continue; // Skip if both fail
+            console.error(`Alpha Vantage failed for ${ticker}: ${alphaResponse.status} ${await alphaResponse.text()}`);
+            continue; // Skip insert if both fail
           }
         }
 
@@ -99,7 +97,7 @@ export async function GET() {
           await supabase.from('asset_prices').insert({ ticker, price, source });
           console.log(`Inserted ${source} price for ${ticker}: $${price}`);
         } else {
-          console.warn(`Invalid price for ${ticker}: ${price}`);
+          console.warn(`No valid price inserted for ${ticker}`);
         }
       }
     }
