@@ -32,11 +32,6 @@ type Holding = {
   current_price?: number
   current_value?: number
   unrealized_gain: number
-  realized_gain: number
-  dividends: number
-  interest: number
-  fees: number
-  net_gain: number
 }
 
 type GroupedHolding = {
@@ -45,12 +40,6 @@ type GroupedHolding = {
   total_basis: number
   total_value: number
   unrealized_gain: number
-  closed_net_gain: number
-  closed_realized: number
-  closed_dividends: number
-  closed_interest: number
-  closed_fees: number
-  total_net_gain: number
 }
 
 export default async function PortfolioPage() {
@@ -166,42 +155,11 @@ export default async function PortfolioPage() {
           current_price: currentPrice,
           current_value: valueThisLot,
           unrealized_gain: valueThisLot - basisThisLot,
-          realized_gain: 0,
-          dividends: 0,
-          interest: 0,
-          fees: 0,
-          net_gain: 0,
         })
       }
       investedCurrentValue += valueThisLot
     }
   }
-
-  // Compute net gains per asset (global, but we'll split in groups)
-  const perfMap = new Map<string, { realized: number, dividends: number, interest: number, fees: number, hasOpen: boolean }>()
-  transactions.forEach((tx: any) => {
-    if (!tx.asset_id) return
-    const key = tx.asset_id
-    if (!perfMap.has(key)) perfMap.set(key, { realized: 0, dividends: 0, interest: 0, fees: 0, hasOpen: false })
-    const perf = perfMap.get(key)!
-    perf.realized += Number(tx.realized_gain || 0)
-    if (tx.type === 'Dividend') perf.dividends += Number(tx.amount || 0)
-    if (tx.type === 'Interest') perf.interest += Number(tx.amount || 0)
-    perf.fees += Number(tx.fees || 0)
-  })
-  lots?.forEach(lot => {
-    const perf = perfMap.get(lot.asset_id)
-    if (perf) perf.hasOpen = true
-  })
-
-  holdingsMap.forEach(h => {
-    const perf = perfMap.get(h.asset_id) || { realized: 0, dividends: 0, interest: 0, fees: 0 }
-    h.realized_gain = perf.realized
-    h.dividends = perf.dividends
-    h.interest = perf.interest
-    h.fees = perf.fees
-    h.net_gain = h.unrealized_gain + h.realized_gain + h.dividends + h.interest - h.fees
-  })
 
   const investedHoldings: Holding[] = Array.from(holdingsMap.values()).map(h => ({
     ...h,
@@ -219,8 +177,6 @@ export default async function PortfolioPage() {
   if (lots?.length) {
     const accHoldings = new Map<string, { holdings: Map<string, Holding>, total_basis: 0, total_value: 0 }>()
     const subHoldings = new Map<string, { holdings: Map<string, Holding>, total_basis: 0, total_value: 0 }>()
-    const accClosed = new Map<string, { realized: 0, dividends: 0, interest: 0, fees: 0 }>()
-    const subClosed = new Map<string, { realized: 0, dividends: 0, interest: 0, fees: 0 }>()
 
     for (const lot of lots) {
       const assetKey = lot.asset_id
@@ -244,11 +200,6 @@ export default async function PortfolioPage() {
           current_price: currentPrice,
           current_value: 0,
           unrealized_gain: 0,
-          realized_gain: 0,
-          dividends: 0,
-          interest: 0,
-          fees: 0,
-          net_gain: 0,
         })
       }
       const accAsset = accGroup.holdings.get(assetKey)!
@@ -272,11 +223,6 @@ export default async function PortfolioPage() {
           current_price: currentPrice,
           current_value: 0,
           unrealized_gain: 0,
-          realized_gain: 0,
-          dividends: 0,
-          interest: 0,
-          fees: 0,
-          net_gain: 0,
         })
       }
       const subAsset = subGroup.holdings.get(assetKey)!
@@ -287,47 +233,6 @@ export default async function PortfolioPage() {
       subGroup.total_basis += basisThis
       subGroup.total_value += valueThis
     }
-
-    // Add net gains to holdings (per group, but since perf global, add to each group's asset holding)
-    holdingsMap.forEach((h, assetKey) => {
-      accHoldings.forEach(g => {
-        const accH = g.holdings.get(assetKey)
-        if (accH) {
-          accH.realized_gain = h.realized_gain
-          accH.dividends = h.dividends
-          accH.interest = h.interest
-          accH.fees = h.fees
-          accH.net_gain = accH.unrealized_gain + accH.realized_gain + accH.dividends + accH.interest - accH.fees
-        }
-      })
-      subHoldings.forEach(g => {
-        const subH = g.holdings.get(assetKey)
-        if (subH) {
-          subH.realized_gain = h.realized_gain
-          subH.dividends = h.dividends
-          subH.interest = h.interest
-          subH.fees = h.fees
-          subH.net_gain = subH.unrealized_gain + subH.realized_gain + subH.dividends + subH.interest - subH.fees
-        }
-      })
-    })
-
-    // Closed positions (global perf where !hasOpen)
-    perfMap.forEach((perf, assetKey) => {
-      if (perf.hasOpen) return
-      const assetDetail = initialAssets.find(a => a.id === assetKey)
-      if (!assetDetail) return
-      const subKey = assetDetail.sub_portfolio?.name || 'Untagged' // Assume asset has sub_portfolio_id, but need to map
-      // For account, since closed, need tx to find account_id - but if multiple, aggregate? For simplicity, skip per-account closed if no lot, or query tx for account
-      // To fix, group closed per asset per account from tx
-      // But to keep simple, for now, add closed to sub view only if sub known, skip account closed if no lot
-      if (!subClosed.has(subKey)) subClosed.set(subKey, { realized: 0, dividends: 0, interest: 0, fees: 0 })
-      const subC = subClosed.get(subKey)!
-      subC.realized += perf.realized
-      subC.dividends += perf.dividends
-      subC.interest += perf.interest
-      subC.fees += perf.fees
-    })
 
     // Add cash to accounts
     for (const [accId, bal] of cashBalances) {
@@ -343,11 +248,6 @@ export default async function PortfolioPage() {
         current_price: 1,
         current_value: bal,
         unrealized_gain: 0,
-        realized_gain: 0,
-        dividends: 0,
-        interest: 0,
-        fees: 0,
-        net_gain: 0,
       })
       accGroup.total_basis += bal
       accGroup.total_value += bal
@@ -359,12 +259,6 @@ export default async function PortfolioPage() {
       total_basis: g.total_basis,
       total_value: g.total_value,
       unrealized_gain: g.total_value - g.total_basis,
-      closed_net_gain: 0, // No closed for account view in this fix
-      closed_realized: 0,
-      closed_dividends: 0,
-      closed_interest: 0,
-      closed_fees: 0,
-      total_net_gain: Array.from(g.holdings.values()).reduce((sum, h) => sum + h.net_gain, 0),
     })))
     groupedBySubPortfolio.push(...Array.from(subHoldings, ([key, g]) => ({
       key,
@@ -372,16 +266,8 @@ export default async function PortfolioPage() {
       total_basis: g.total_basis,
       total_value: g.total_value,
       unrealized_gain: g.total_value - g.total_basis,
-      closed_net_gain: (subClosed.get(key)?.realized || 0) + (subClosed.get(key)?.dividends || 0) + (subClosed.get(key)?.interest || 0) - (subClosed.get(key)?.fees || 0),
-      closed_realized: subClosed.get(key)?.realized || 0,
-      closed_dividends: subClosed.get(key)?.dividends || 0,
-      closed_interest: subClosed.get(key)?.interest || 0,
-      closed_fees: subClosed.get(key)?.fees || 0,
-      total_net_gain: Array.from(g.holdings.values()).reduce((sum, h) => sum + h.net_gain, 0) + ((subClosed.get(key)?.realized || 0) + (subClosed.get(key)?.dividends || 0) + (subClosed.get(key)?.interest || 0) - (subClosed.get(key)?.fees || 0)),
     })))
   }
-
-  const overallNet = groupedByAccount.reduce((sum, g) => sum + g.total_net_gain, 0)
 
   return (
     <main className="p-8">
@@ -403,7 +289,6 @@ export default async function PortfolioPage() {
               grandTotalBasis={grandTotalBasis}
               grandTotalValue={grandTotalValue}
               overallUnrealized={overallUnrealized}
-              overallNet={overallNet}
             />
           ) : (
             <div className="text-center py-12 text-muted-foreground">
