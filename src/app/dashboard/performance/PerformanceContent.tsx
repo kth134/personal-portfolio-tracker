@@ -287,9 +287,19 @@ function PerformanceContent() {
               market_value: metrics.marketValue,
               current_price: metrics.currentPrice,
               net_gain: net,
+              weight: 0, // Will be calculated after all data is processed
+              total_return_pct: 0, // Will be calculated after all data is processed
             };
           })
         );
+
+        // Calculate weight and total return percentage
+        const totalPortfolioValue = enhanced.reduce((sum, row) => sum + row.market_value, 0);
+        enhanced.forEach(row => {
+          row.weight = totalPortfolioValue > 0 ? (row.market_value / totalPortfolioValue) * 100 : 0;
+          const costBasis = row.market_value - row.unrealized_gain;
+          row.total_return_pct = costBasis > 0 ? (row.net_gain / costBasis) * 100 : 0;
+        });
 
         setSummaries(enhanced);
       } catch (err) {
@@ -304,6 +314,8 @@ function PerformanceContent() {
 
   const totalNet = summaries.reduce((sum, r) => sum + r.net_gain, 0);
   const totalUnrealized = summaries.reduce((sum, r) => sum + r.unrealized_gain, 0);
+  const totalCostBasis = summaries.reduce((sum, r) => sum + (r.market_value - r.unrealized_gain), 0);
+  const totalReturnPct = totalCostBasis > 0 ? (totalNet / totalCostBasis) * 100 : 0;
 
   return (
     <main className="p-8">
@@ -324,6 +336,9 @@ function PerformanceContent() {
               <CardTitle>Net Gain/Loss</CardTitle>
               <p className={cn("text-2xl font-bold mt-2", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
                 {formatUSD(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
+              </p>
+              <p className={cn("text-sm mt-1", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
+                {totalReturnPct.toFixed(2)}% Total Return
               </p>
             </div>
             <div className="text-right space-y-2 text-lg">
@@ -413,6 +428,15 @@ function PerformanceContent() {
               </TableHead>
               <TableHead 
                 className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort('weight')}
+              >
+                <div className="flex items-center justify-end">
+                  Weight
+                  {getSortIcon('weight')}
+                </div>
+              </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer hover:bg-muted/50 select-none"
                 onClick={() => handleSort('unrealized_gain')}
               >
                 <div className="flex items-center justify-end">
@@ -447,18 +471,27 @@ function PerformanceContent() {
                   {getSortIcon('net_gain')}
                 </div>
               </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold"
+                onClick={() => handleSort('total_return_pct')}
+              >
+                <div className="flex items-center justify-end">
+                  Total Return %
+                  {getSortIcon('total_return_pct')}
+                </div>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={lens === 'asset' ? 7 : 6} className="text-center py-8">
+                <TableCell colSpan={lens === 'asset' ? 9 : 8} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : sortedSummaries.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={lens === 'asset' ? 7 : 6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={lens === 'asset' ? 9 : 8} className="text-center py-8 text-muted-foreground">
                   No data yet for this lens. Add transactions to populate performance.
                 </TableCell>
               </TableRow>
@@ -473,6 +506,7 @@ function PerformanceContent() {
                       </TableCell>
                     )}
                     <TableCell className="text-right">{formatUSD(row.market_value)}</TableCell>
+                    <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
                     <TableCell
                       className={cn(
                         "text-right",
@@ -491,6 +525,14 @@ function PerformanceContent() {
                     >
                       {formatUSD(row.net_gain)}
                     </TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-right font-medium",
+                        row.total_return_pct > 0 ? "text-green-600" : row.total_return_pct < 0 ? "text-red-600" : ""
+                      )}
+                    >
+                      {row.total_return_pct.toFixed(2)}%
+                    </TableCell>
                   </TableRow>
                 ))}
                 {/* Total row */}
@@ -498,6 +540,7 @@ function PerformanceContent() {
                   <TableCell className="font-bold">Total</TableCell>
                   {lens === 'asset' && <TableCell className="text-right">-</TableCell>}
                   <TableCell className="text-right font-bold">{formatUSD(totals.market_value)}</TableCell>
+                  <TableCell className="text-right font-bold">100.00%</TableCell>
                   <TableCell 
                     className={cn(
                       "text-right font-bold",
@@ -515,6 +558,14 @@ function PerformanceContent() {
                     )}
                   >
                     {formatUSD(totals.net_gain)}
+                  </TableCell>
+                  <TableCell 
+                    className={cn(
+                      "text-right font-bold",
+                      totalReturnPct > 0 ? "text-green-600" : totalReturnPct < 0 ? "text-red-600" : ""
+                    )}
+                  >
+                    {totalReturnPct.toFixed(2)}%
                   </TableCell>
                 </TableRow>
               </>
