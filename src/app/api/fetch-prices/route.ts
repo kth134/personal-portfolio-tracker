@@ -69,19 +69,25 @@ export async function GET() {
           const finnhubData = await finnhubResponse.json();
           price = finnhubData.c; // 'c' = current close price
         } else {
-          console.error(`Finnhub error for ${ticker}: ${finnhubResponse.statusText}`);
+          console.error(`Finnhub failed for ${ticker}: ${finnhubResponse.status} ${await finnhubResponse.text()}`);
         }
 
         // Fallback: If Finnhub price invalid (e.g., for mutual funds), try Yahoo Finance
         if (!price || price <= 0) {
           source = 'yahoo';
           const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${ticker}`;
-          const yahooResponse = await fetch(yahooUrl);
+          console.log(`Attempting Yahoo fallback for ${ticker}`);
+          const yahooResponse = await fetch(yahooUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+          });
           if (yahooResponse.ok) {
             const yahooData = await yahooResponse.json();
             price = yahooData.quoteResponse?.result?.[0]?.regularMarketPrice;
+            console.log(`Yahoo price retrieved for ${ticker}: $${price}`);
           } else {
-            console.error(`Yahoo fallback error for ${ticker}: ${yahooResponse.statusText}`);
+            console.error(`Yahoo fallback failed for ${ticker}: ${yahooResponse.status} ${await yahooResponse.text()}`);
             continue; // Skip if both fail
           }
         }
