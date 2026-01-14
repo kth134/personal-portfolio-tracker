@@ -197,6 +197,7 @@ export async function serverBulkImportTransactions(rows: ValidatedRow[], userId:
           fees: fs || null,
           notes: row.notes || null,
           funding_source: row.type === 'Buy' ? row.funding_source : null,
+          user_id: userId,
         })
         .select('id')
         .single()

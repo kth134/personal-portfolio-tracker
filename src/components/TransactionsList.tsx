@@ -291,6 +291,9 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
     }
 
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
       const txData = {
         account_id: selectedAccount.id,
         asset_id: selectedAsset?.id || null,
@@ -302,6 +305,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         fees: fs || null,
         notes: notes || null,
         funding_source: type === 'Buy' ? fundingSource : null,
+        user_id: user.id,
       }
 
       let updatedTx: Transaction
