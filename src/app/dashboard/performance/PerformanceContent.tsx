@@ -313,37 +313,37 @@ function PerformanceContent() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="text-center">Portfolio Performance Summary</CardTitle>
-          <div className="flex justify-between items-start mt-6">
+          <div className="grid grid-cols-3 items-center mt-6">
             <div>
               <CardTitle>Total Portfolio Value</CardTitle>
               <p className="text-2xl font-bold text-black mt-2">
                 {formatUSD(totals.market_value)}
               </p>
             </div>
-            <div className="text-right">
+            <div className="text-center">
               <CardTitle>Net Gain/Loss</CardTitle>
               <p className={cn("text-2xl font-bold mt-2", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
                 {formatUSD(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
               </p>
-              <div className="mt-4 space-y-1 text-sm">
-                <div className="text-center">
-                  <p className="text-xs text-muted-foreground">Unrealized G/L</p>
-                  <p className={cn("font-medium", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
-                    {formatUSD(totalUnrealized)}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-muted-foreground">Realized G/L</p>
-                  <p className={cn("font-medium", (totalNet - totalUnrealized) >= 0 ? "text-green-600" : "text-red-600")}>
-                    {formatUSD(totalNet - totalUnrealized)}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-muted-foreground">Income</p>
-                  <p className={cn("font-medium", totals.dividends >= 0 ? "text-green-600" : "text-red-600")}>
-                    {formatUSD(totals.dividends)}
-                  </p>
-                </div>
+            </div>
+            <div className="text-right space-y-1 text-sm">
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">Unrealized G/L</p>
+                <p className={cn("font-medium", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
+                  {formatUSD(totalUnrealized)}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">Realized G/L</p>
+                <p className={cn("font-medium", totals.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
+                  {formatUSD(totals.realized_gain)}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">Income</p>
+                <p className={cn("font-medium", totals.dividends >= 0 ? "text-green-600" : "text-red-600")}>
+                  {formatUSD(totals.dividends)}
+                </p>
               </div>
             </div>
           </div>
