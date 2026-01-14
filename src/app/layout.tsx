@@ -15,13 +15,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="flex gap-6">
               <Link href="/dashboard" className="font-semibold">Dashboard</Link>
               <Link href="/dashboard/portfolio">Portfolio</Link>
+              <Link href="/dashboard/performance">Performance</Link> {/* ← NEW */}
               <Link href="/dashboard/transactions">Transactions</Link>
             </div>
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">Personal Portfolio Tracker</span>
-                <GrokChatTrigger />
-                <LogoutButton /> {/* ← NEW: Add this line */}
-              </div>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">RAIN Portfolio Management</span>
+              <GrokChatTrigger />
+              <LogoutButton />
+            </div>
           </div>
         </nav>
         {children}
