@@ -60,17 +60,35 @@ export async function GET() {
       if (!apiKey) throw new Error('Missing FINNHUB_API_KEY');
 
       for (const ticker of stockTickers) {
+        // Primary: Finnhub /quote
+        let price: number | undefined;
+        let source = 'finnhub';
         const finnhubUrl = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`;
         const finnhubResponse = await fetch(finnhubUrl);
-        if (!finnhubResponse.ok) {
+        if (finnhubResponse.ok) {
+          const finnhubData = await finnhubResponse.json();
+          price = finnhubData.c; // 'c' = current close price
+        } else {
           console.error(`Finnhub error for ${ticker}: ${finnhubResponse.statusText}`);
-          continue; // Skip individual failures
         }
-        const finnhubData = await finnhubResponse.json();
-        const price = finnhubData.c; // 'c' = current close price
-        if (price && price > 0) { // Finnhub returns 0 if market closed or invalid
-          await supabase.from('asset_prices').insert({ ticker, price, source: 'finnhub' });
-          console.log(`Inserted Finnhub price for ${ticker}: $${price}`);
+
+        // Fallback: If Finnhub price invalid (e.g., for mutual funds), try Yahoo Finance
+        if (!price || price <= 0) {
+          source = 'yahoo';
+          const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${ticker}`;
+          const yahooResponse = await fetch(yahooUrl);
+          if (yahooResponse.ok) {
+            const yahooData = await yahooResponse.json();
+            price = yahooData.quoteResponse?.result?.[0]?.regularMarketPrice;
+          } else {
+            console.error(`Yahoo fallback error for ${ticker}: ${yahooResponse.statusText}`);
+            continue; // Skip if both fail
+          }
+        }
+
+        if (price && price > 0) {
+          await supabase.from('asset_prices').insert({ ticker, price, source });
+          console.log(`Inserted ${source} price for ${ticker}: $${price}`);
         } else {
           console.warn(`Invalid price for ${ticker}: ${price}`);
         }
