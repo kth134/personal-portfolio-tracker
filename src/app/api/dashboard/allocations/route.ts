@@ -23,6 +23,9 @@ let lotsQuery = supabase
 
 if (lens !== 'total' && selectedValues?.length > 0) {
   switch (lens) {
+    case 'asset':
+      lotsQuery = lotsQuery.in('asset_id', selectedValues);
+      break;
     case 'sub_portfolio':
       lotsQuery = lotsQuery.in('asset.sub_portfolio.name', selectedValues);
       break;

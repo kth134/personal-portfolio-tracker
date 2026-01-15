@@ -21,6 +21,9 @@ export async function POST(req: Request) {
     // Map lens to column (adjust if your asset tags are different)
     let column: string;
     switch (lens) {
+      case 'asset':
+        // For asset, return {value: id, label: display}
+        break;
       case 'sub_portfolio':
         column = 'sub_portfolio->sub_portfolios->name';
         query = query.select('asset:assets(sub_portfolio:sub_portfolios(name))');
@@ -46,21 +49,50 @@ export async function POST(req: Request) {
 
     // Extract values (handle nested joins)
     const valuesSet = new Set<string>();
-    data?.forEach((row: any) => {
-      let value: string | null = null;
-      if (lens === 'sub_portfolio') {
-        value = row.asset?.sub_portfolio?.name;
-      } else if (lens === 'account') {
-        value = row.account?.name;
-      } else {
-        value = row.asset?.[lens];
+    const valuesArray: {value: string, label: string}[] = [];
+    if (lens === 'asset') {
+      const assetSet = new Set<string>();
+      data?.forEach((row: any) => {
+        const asset = row.asset;
+        if (asset && !assetSet.has(asset.id)) {
+          assetSet.add(asset.id);
+          const label = `${asset.ticker}${asset.name ? ` - ${asset.name}` : ''}`;
+          valuesArray.push({ value: asset.id, label });
+        }
+      });
+    } else {
+      data?.forEach((row: any) => {
+        let value: string | null = null;
+        if (lens === 'sub_portfolio') {
+          value = row.asset?.sub_portfolio?.name;
+        } else if (lens === 'account') {
+          value = row.account?.name;
+        } else {
+          value = row.asset?.[lens];
+        }
+        if (value && !valuesSet.has(value)) {
+          valuesSet.add(value);
+          valuesArray.push({ value, label: value });
+        }
+      });
+      // Add Untagged if needed
+      if (data?.some((row: any) => {
+        let value: string | null = null;
+        if (lens === 'sub_portfolio') {
+          value = row.asset?.sub_portfolio?.name;
+        } else if (lens === 'account') {
+          value = row.account?.name;
+        } else {
+          value = row.asset?.[lens];
+        }
+        return !value;
+      })) {
+        valuesArray.push({ value: 'Untagged', label: 'Untagged' });
       }
-      if (value) valuesSet.add(value);
-      else valuesSet.add('Untagged');
-    });
+    }
 
-    const values = Array.from(valuesSet).sort();
-    return NextResponse.json({ values });
+    valuesArray.sort((a, b) => a.label.localeCompare(b.label));
+    return NextResponse.json({ values: valuesArray });
   } catch (err) {
     console.error('Values API error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

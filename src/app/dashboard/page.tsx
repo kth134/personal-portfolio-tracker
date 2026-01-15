@@ -39,7 +39,7 @@ export default function DashboardHome() {
 
   // Core states from original
   const [lens, setLens] = useState('total');
-  const [availableValues, setAvailableValues] = useState<string[]>([]);
+  const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([]);
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
   const [aggregate, setAggregate] = useState(true);
   const [allocations, setAllocations] = useState<any[]>([]);
@@ -72,9 +72,9 @@ export default function DashboardHome() {
         });
         if (!res.ok) throw new Error(`Failed to fetch values: ${res.status}`);
         const data = await res.json();
-        const vals = data.values || [];
+        const vals: {value: string, label: string}[] = data.values || [];
         setAvailableValues(vals);
-        setSelectedValues(vals); // default to all
+        setSelectedValues(vals.map(item => item.value)); // default to all
       } catch (err) {
         console.error('Failed to load lens values:', err);
       } finally {
@@ -173,13 +173,14 @@ export default function DashboardHome() {
 
         const { data: pricesData } = await supabase
           .from('asset_prices')
-          .select('ticker, price')
-          .in('ticker', tickers);
+          .select('ticker, price, timestamp')
+          .in('ticker', tickers)
+          .order('timestamp', { ascending: false });
 
         const latestPrices = new Map<string, number>();
         pricesData?.forEach((p: any) => {
           if (!latestPrices.has(p.ticker)) {
-            latestPrices.set(p.ticker, p.price);
+            latestPrices.set(p.ticker, Number(p.price));
           }
         });
 
@@ -324,7 +325,7 @@ export default function DashboardHome() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div>
-            <div className="flex justify-start mb-4 min-h-[3rem]">
+            <div className="flex justify-start mb-4 min-h-[4rem]">
               <Button onClick={handleRefresh} disabled={refreshing}>
                 {refreshing ? 'Refreshing...' : 'Refresh Prices'}
               </Button>
@@ -381,7 +382,7 @@ export default function DashboardHome() {
 
           <div>
             {/* Holdings slicers and aggregate toggle - right aligned */}
-            <div className="flex flex-wrap gap-4 justify-end items-end mb-4 min-h-[3rem]">
+            <div className="flex flex-wrap gap-4 justify-end items-end mb-4 min-h-[4rem]">
               {/* Lens */}
               <div>
                 <Label className="text-sm font-medium">Slice by</Label>
@@ -418,10 +419,10 @@ export default function DashboardHome() {
                         <CommandList>
                           <CommandEmpty>No values found.</CommandEmpty>
                           <CommandGroup>
-                            {availableValues.map(val => (
-                              <CommandItem key={val} onSelect={() => toggleValue(val)}>
-                                <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(val) ? "opacity-100" : "opacity-0")} />
-                                {val || 'Untagged'}
+                            {availableValues.map(item => (
+                              <CommandItem key={item.value} onSelect={() => toggleValue(item.value)}>
+                                <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />
+                                {item.label}
                               </CommandItem>
                             ))}
                           </CommandGroup>
