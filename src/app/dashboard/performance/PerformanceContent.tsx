@@ -298,7 +298,7 @@ function PerformanceContent() {
           const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
           const qty = Number(lot.remaining_quantity);
           const basis = Number(lot.cost_basis_per_unit);
-          const price = latestPrices.get(asset?.ticker || '') || 0;
+          const price = latestPrices.get(asset?.ticker || '') || 1;
           const unrealThis = qty * (price - basis);
           const marketThis = qty * price;
           let groupId: string | null = null;

@@ -69,6 +69,7 @@ export default function PortfolioHoldingsWithSlicers({
   const [valuesLoading, setValuesLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   useEffect(() => {
     if (lens === 'total') {
@@ -112,7 +113,7 @@ export default function PortfolioHoldingsWithSlicers({
       setLoading(false)
     }
     load()
-  }, [lens, selectedValues, aggregate])
+  }, [lens, selectedValues, aggregate, refreshTrigger])
 
   const toggleValue = (value: string) => {
     setSelectedValues(prev =>

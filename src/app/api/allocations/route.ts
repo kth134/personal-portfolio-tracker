@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
       const quantity = lot.remaining_quantity;
       const basisThis = quantity * lot.cost_basis_per_unit;
-      const price = Number(priceMap.get(asset.ticker)) || 0;
+      const price = Number(priceMap.get(asset.ticker)) || 1;
       const valueThis = quantity * price;
 
       if (!map.has(key)) {

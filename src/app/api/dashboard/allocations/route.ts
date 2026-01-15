@@ -184,7 +184,7 @@ filteredLots?.forEach((lot: Lot) => {
   const assetName = lot.asset.name;
   const qty = Number(lot.remaining_quantity);
   const basis = qty * Number(lot.cost_basis_per_unit);
-  const price = priceMap.get(ticker) || 0;
+  const price = priceMap.get(ticker) || 1;
   const value = qty * price;
   const unreal = value - basis;
 
