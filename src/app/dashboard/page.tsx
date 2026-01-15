@@ -291,17 +291,12 @@ export default function DashboardHome() {
     <main className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-bold">Portfolio Dashboard</h1>
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" asChild>
-            <a href="/settings/mfa">MFA Settings</a>
-          </Button>
-          <Button onClick={handleRefresh} disabled={refreshing}>
-            {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" asChild>
+          <a href="/settings/mfa">MFA Settings</a>
+        </Button>
       </div>
 
-      {/* Full controls section – restored from original */}
+      {/* Full controls section – moved to above allocation card */}
       <div className="flex flex-wrap gap-4 mb-8 items-end">
         {/* Lens */}
         <div>
@@ -367,94 +362,103 @@ export default function DashboardHome() {
         <div className="text-center py-12 text-muted-foreground">Select at least one value to view data.</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
-            <CardHeader>
-              <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
-              <div className="grid grid-cols-[1.5fr_0.8fr_1.5fr] items-center mt-6 gap-8">
-                <div className="ml-[25%]">
-                  <CardTitle>Total Portfolio Value</CardTitle>
-                  <p className="text-2xl font-bold text-black mt-2">
-                    {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <CardTitle>Net Gain/Loss</CardTitle>
-                  <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                    {performanceTotals ? formatUSD(performanceTotals.net_gain) : 'Loading...'}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <CardTitle>Total Return %</CardTitle>
-                  <p className={cn("text-2xl font-bold mt-2", performanceTotals?.total_return_pct >= 0 ? "text-green-600" : "text-red-600")}>
-                    {performanceTotals ? `${performanceTotals.total_return_pct.toFixed(2)}%` : 'Loading...'}
-                  </p>
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
-
-          <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
-            <CardHeader>
-              <CardTitle>
-                Current Allocation {aggregate ? '(Aggregated)' : '(Separate Comparison)'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={cn("gap-8", aggregate ? "grid md:grid-cols-1" : "grid md:grid-cols-2 lg:grid-cols-3")}>
-                {allocations.map((slice, idx) => (
-                  <div key={idx} className="space-y-4">
-                    <h4 className="font-medium text-center">{slice.key}</h4>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={slice.data}
-                          dataKey="value"
-                          nameKey="subkey"
-                          outerRadius={100}
-                          label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
-                          onClick={(data) => handlePieClick(data)}
-                        >
-                          {slice.data.map((_: any, i: number) => (
-                            <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSD(v) : ''} />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
+          <div>
+            <div className="mb-4 flex justify-end">
+              <Button onClick={handleRefresh} disabled={refreshing}>
+                {refreshing ? 'Refreshing...' : 'Refresh Prices'}
+              </Button>
+            </div>
+            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
+              <CardHeader>
+                <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
+                <div className="flex flex-col items-center mt-6 gap-8">
+                  <div>
+                    <CardTitle>Total Portfolio Value</CardTitle>
+                    <p className="text-2xl font-bold text-black mt-2">
+                      {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
+                    </p>
                   </div>
-                ))}
-              </div>
-
-              {drillItems.length > 0 && (
-                <div className="mt-8">
-                  <h3 className="text-lg font-semibold mb-4">Holdings in Selected Slice</h3>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Ticker</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead className="text-right">Quantity</TableHead>
-                        <TableHead className="text-right">Value</TableHead>
-                        <TableHead className="text-right">Net Gain</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {drillItems.map((item: any) => (
-                        <TableRow key={item.ticker}>
-                          <TableCell>{item.ticker}</TableCell>
-                          <TableCell>{item.name || '-'}</TableCell>
-                          <TableCell className="text-right">{item.quantity.toFixed(8)}</TableCell>
-                          <TableCell className="text-right">{formatUSD(item.value)}</TableCell>
-                          <TableCell className="text-right">{formatUSD(item.net_gain)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  <div>
+                    <CardTitle>Net Gain/Loss</CardTitle>
+                    <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
+                      {performanceTotals ? formatUSD(performanceTotals.net_gain) : 'Loading...'}
+                    </p>
+                  </div>
+                  <div>
+                    <CardTitle>Total Return %</CardTitle>
+                    <p className={cn("text-2xl font-bold mt-2", performanceTotals?.total_return_pct >= 0 ? "text-green-600" : "text-red-600")}>
+                      {performanceTotals ? `${performanceTotals.total_return_pct.toFixed(2)}%` : 'Loading...'}
+                    </p>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+            </Card>
+          </div>
+
+          <div>
+            <Card className="cursor-pointer mb-4" onClick={() => router.push('/dashboard/portfolio')}>
+              <CardHeader>
+                <CardTitle className="text-center text-4xl">
+                  Current Allocation {aggregate ? '(Aggregated)' : '(Separate Comparison)'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-8">
+                  {allocations.map((slice, idx) => (
+                    <div key={idx} className="space-y-4">
+                      <h4 className="font-medium text-center">{slice.key}</h4>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={slice.data}
+                            dataKey="value"
+                            nameKey="subkey"
+                            outerRadius={100}
+                            label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
+                            onClick={(data) => handlePieClick(data)}
+                          >
+                            {slice.data.map((_: any, i: number) => (
+                              <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSD(v) : ''} />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ))}
+                </div>
+
+                {drillItems.length > 0 && (
+                  <div className="mt-8">
+                    <h3 className="text-lg font-semibold mb-4">Holdings in Selected Slice</h3>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Ticker</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead className="text-right">Quantity</TableHead>
+                          <TableHead className="text-right">Value</TableHead>
+                          <TableHead className="text-right">Net Gain</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {drillItems.map((item: any) => (
+                          <TableRow key={item.ticker}>
+                            <TableCell>{item.ticker}</TableCell>
+                            <TableCell>{item.name || '-'}</TableCell>
+                            <TableCell className="text-right">{item.quantity.toFixed(8)}</TableCell>
+                            <TableCell className="text-right">{formatUSD(item.value)}</TableCell>
+                            <TableCell className="text-right">{formatUSD(item.net_gain)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
     </main>
