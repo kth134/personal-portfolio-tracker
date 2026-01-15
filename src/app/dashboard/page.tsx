@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Check, ChevronsUpDown } from 'lucide-react';
@@ -42,6 +43,7 @@ export default function DashboardHome() {
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
   const [aggregate, setAggregate] = useState(true);
   const [allocations, setAllocations] = useState<any[]>([]);
+  const [drillItems, setDrillItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [valuesLoading, setValuesLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -108,7 +110,7 @@ export default function DashboardHome() {
     if (mfaStatus === 'verified') {
       loadDashboardData();
     }
-  }, [mfaStatus, lens, selectedValues]);
+  }, [mfaStatus, lens, selectedValues, aggregate]);
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -127,6 +129,7 @@ export default function DashboardHome() {
       const allocData = await allocRes.json();
 
       setAllocations(allocData.allocations || []);
+      setDrillItems(allocData.allocations?.[0]?.items || []);
 
       // Fetch performance totals
       const { data: { user } } = await supabase.auth.getUser();
@@ -253,7 +256,7 @@ export default function DashboardHome() {
   };
 
   const handlePieClick = (data: any) => {
-    // Drill-down functionality removed
+    setDrillItems(data.items || []);
   };
 
   const handleMfaVerify = async () => {
@@ -432,16 +435,17 @@ export default function DashboardHome() {
               )}
 
               {/* Aggregate Toggle */}
-              <div className="flex items-center space-x-2">
-                <Label htmlFor="aggregate" className="text-sm font-medium">Aggregate</Label>
-                <Switch id="aggregate" checked={aggregate} onCheckedChange={setAggregate} />
-              </div>
+              {lens !== 'total' && selectedValues.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <Switch checked={aggregate} onCheckedChange={setAggregate} />
+                  <Label>Aggregate selected</Label>
+                </div>
+              )}
             </div>
             <Card className="mt-6 cursor-pointer mb-4" onClick={() => router.push('/dashboard/portfolio')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">
-                  Current Allocation
-                </CardTitle>
+                  Current Allocation {aggregate ? `(${lens === 'total' ? 'Portfolio' : LENSES.find(l => l.value === lens)?.label || 'Selection'} Level)` : '(Separate by Asset)'}                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 gap-8">

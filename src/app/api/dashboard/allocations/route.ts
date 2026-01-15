@@ -151,11 +151,6 @@ filteredLots?.forEach((lot: any) => {
     }
   }
 
-  // If not aggregating and has selected values, combine into one key
-  if (!aggregate && lens !== 'total' && selectedValues.length > 0) {
-    key = 'Combined';
-  }
-
   if (!groups.has(key)) {
     groups.set(key, { value: 0, net_gain: 0, tickers: new Map() });
   }
@@ -202,9 +197,33 @@ groups.forEach((group, key) => {
   });
 });
 
-    return NextResponse.json({ allocations });
-  } catch (err) {
-    console.error('Allocations API error:', err);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
-  }
+// Aggregate mode: show one pie at the *group/key* level (sub-portfolios, accounts, types, etc.)
+if (aggregate && allocations.length > 1) {
+  const combinedValue = allocations.reduce((sum, a) => sum + a.value, 0);
+  const combinedNetGain = allocations.reduce((sum, a) => sum + a.net_gain, 0);
+
+  const aggregatedData = allocations.map(a => ({
+    subkey: a.key,                      // ← use the group name (e.g. "Globally Diversified", "KH Traditional IRA", "US Large Blend", etc.)
+    value: a.value,
+    percentage: combinedValue > 0 ? (a.value / combinedValue) * 100 : 0,
+  }));
+
+  allocations = [{
+    key: 'Aggregated Selection',
+    value: combinedValue,
+    percentage: 1,
+    net_gain: combinedNetGain,
+    data: aggregatedData,               // ← now at slice level, not ticker level
+    items: allocations.map(a => ({      // optional: keep items for future drill-down if you want
+      key: a.key,
+      value: a.value,
+      net_gain: a.net_gain,
+      // could add child items later if needed
+    })),
+  }];
+}
+} catch (err: any) {
+  console.error(err);
+  return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 });
+}
 }
