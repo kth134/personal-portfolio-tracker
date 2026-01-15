@@ -67,20 +67,24 @@ export default async function PortfolioPage() {
     const fee = Number(tx.fees || 0)
     switch (tx.type) {
       case 'Buy':
-        if (tx.funding_source === 'cash') delta -= (amt + fee)
+        if (tx.funding_source === 'cash') {
+          delta -= (amt + fee)  // deduct purchase amount and fee from cash balance
+        } // else (including 'external'): no impact to cash balance
         break
       case 'Sell':
-        delta += (amt - fee)
+        delta += (amt - fee)  // increase cash balance by sale amount less fees
         break
       case 'Dividend':
+        delta += amt  // increase cash balance
+        break
       case 'Interest':
-        delta += amt
+        delta += amt  // increase cash balance
         break
       case 'Deposit':
-        delta += amt
+        delta += amt  // increase cash balance
         break
       case 'Withdrawal':
-        delta -= amt
+        delta -= amt  // decrease cash balance
         break
     }
     cashBalances.set(tx.account_id, current + delta)
