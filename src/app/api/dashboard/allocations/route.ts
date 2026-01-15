@@ -27,7 +27,7 @@ if (lens !== 'total' && selectedValues?.length > 0) {
       lotsQuery = lotsQuery.in('asset_id', selectedValues);
       break;
     case 'sub_portfolio':
-      lotsQuery = lotsQuery.in('asset.sub_portfolio.name', selectedValues);
+      lotsQuery = lotsQuery.in('sub_portfolio.name', selectedValues);
       break;
     case 'account':
       lotsQuery = lotsQuery.in('account.name', selectedValues);
@@ -61,8 +61,37 @@ if (!lots || lots.length === 0) {
 
 const typedLots = lots as any;
 
+// Filter lots based on selectedValues
+let filteredLots = typedLots;
+if (lens !== 'total' && selectedValues?.length > 0) {
+  filteredLots = typedLots.filter((lot: any) => {
+    const asset = lot.asset;
+    if (!asset) return false;
+    switch (lens) {
+      case 'asset':
+        return selectedValues.includes(asset.id);
+      case 'account':
+        return selectedValues.includes(lot.account?.name);
+      case 'sub_portfolio':
+        return selectedValues.includes(asset.sub_portfolio?.name);
+      case 'asset_type':
+        return selectedValues.includes(asset.asset_type);
+      case 'asset_subtype':
+        return selectedValues.includes(asset.asset_subtype);
+      case 'geography':
+        return selectedValues.includes(asset.geography);
+      case 'size_tag':
+        return selectedValues.includes(asset.size_tag);
+      case 'factor_tag':
+        return selectedValues.includes(asset.factor_tag);
+      default:
+        return true;
+    }
+  });
+}
+
     // Fetch latest prices (reuse your existing logic)
-    const tickers = [...new Set(typedLots?.map((l: any) => l.asset.ticker) || [])];
+    const tickers = [...new Set(filteredLots?.map((l: any) => l.asset.ticker) || [])];
     const { data: prices } = await supabase
       .from('asset_prices')
       .select('ticker, price')
@@ -96,7 +125,7 @@ const groups = new Map<string, {
 
 let totalValue = 0;
 
-typedLots?.forEach((lot: any) => {
+filteredLots?.forEach((lot: any) => {
   const ticker = lot.asset.ticker;
   const assetName = lot.asset.name;
   const qty = Number(lot.remaining_quantity);
