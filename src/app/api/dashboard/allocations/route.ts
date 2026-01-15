@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { lens, selectedValues, aggregate } = await req.json();
+    const { lens, selectedValues } = await req.json();
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -196,26 +196,6 @@ groups.forEach((group, key) => {
     items, // For drill-down
   });
 });
-
-// Aggregate mode: Combine if multiple groups and aggregate=true
-if (aggregate && allocations.length > 1) {
-  const combinedValue = allocations.reduce((sum, a) => sum + a.value, 0);
-  const combinedNetGain = allocations.reduce((sum, a) => sum + a.net_gain, 0);
-  const combinedData = allocations.flatMap(a => a.data);
-  const combinedItems = allocations.flatMap(a => a.items);
-
-  allocations = [{
-    key: 'Aggregated Selection',
-    value: combinedValue,
-    percentage: 1,
-    net_gain: combinedNetGain,
-    data: combinedData.map(d => ({
-      ...d,
-      percentage: combinedValue > 0 ? (d.value / combinedValue) * 100 : 0,
-    })),
-    items: combinedItems,
-  }];
-}
 
     return NextResponse.json({ allocations });
   } catch (err) {

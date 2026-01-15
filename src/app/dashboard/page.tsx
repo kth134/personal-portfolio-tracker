@@ -5,11 +5,9 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
 } from 'recharts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Check, ChevronsUpDown } from 'lucide-react';
@@ -41,9 +39,7 @@ export default function DashboardHome() {
   const [lens, setLens] = useState('total');
   const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([]);
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
-  const [aggregate, setAggregate] = useState(true);
   const [allocations, setAllocations] = useState<any[]>([]);
-  const [drillItems, setDrillItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [valuesLoading, setValuesLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -110,7 +106,7 @@ export default function DashboardHome() {
     if (mfaStatus === 'verified') {
       loadDashboardData();
     }
-  }, [mfaStatus, lens, selectedValues, aggregate]);
+  }, [mfaStatus, lens, selectedValues]);
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -118,7 +114,6 @@ export default function DashboardHome() {
     const payload = {
       lens,
       selectedValues: lens === 'total' ? [] : selectedValues,
-      aggregate,
     };
 
     try {
@@ -129,7 +124,6 @@ export default function DashboardHome() {
       const allocData = await allocRes.json();
 
       setAllocations(allocData.allocations || []);
-      setDrillItems(allocData.allocations?.[0]?.items || []);
 
       // Fetch performance totals
       const { data: { user } } = await supabase.auth.getUser();
@@ -256,7 +250,7 @@ export default function DashboardHome() {
   };
 
   const handlePieClick = (data: any) => {
-    setDrillItems(data.items || []);
+    // Drill-down functionality removed
   };
 
   const handleMfaVerify = async () => {
@@ -433,19 +427,11 @@ export default function DashboardHome() {
                   </Popover>
                 </div>
               )}
-
-              {/* Aggregate Toggle */}
-              {lens !== 'total' && selectedValues.length > 1 && (
-                <div className="flex items-center gap-2">
-                  <Switch checked={aggregate} onCheckedChange={setAggregate} />
-                  <Label>Aggregate selected</Label>
-                </div>
-              )}
             </div>
             <Card className="mt-6 cursor-pointer mb-4" onClick={() => router.push('/dashboard/portfolio')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">
-                  Current Allocation {aggregate ? '(Aggregated)' : '(Separate Comparison)'}
+                  Current Allocation
                 </CardTitle>
               </CardHeader>
               <CardContent>
