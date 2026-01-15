@@ -47,6 +47,7 @@ export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [valuesLoading, setValuesLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [performanceTotals, setPerformanceTotals] = useState<any>(null);
 
   // MFA states
@@ -182,9 +183,15 @@ export default function DashboardHome() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
+    setRefreshMessage(null);
     try {
-      await refreshAssetPrices();
-      window.location.reload();
+      const result = await refreshAssetPrices();
+      setRefreshMessage(result.message || 'Prices refreshed successfully!');
+      // Refetch data
+      loadDashboardData();
+    } catch (err) {
+      console.error('Refresh failed:', err);
+      setRefreshMessage('Error refreshing prices. Check console.');
     } finally {
       setRefreshing(false);
     }
@@ -267,12 +274,13 @@ export default function DashboardHome() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div>
-            <div className="flex justify-start mb-4 mt-6">
+            <div className="flex justify-start mb-4">
               <Button onClick={handleRefresh} disabled={refreshing}>
                 {refreshing ? 'Refreshing...' : 'Refresh Prices'}
               </Button>
+              {refreshMessage && <span className="ml-4 text-sm text-green-600">{refreshMessage}</span>}
             </div>
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
+            <Card className="mt-6 cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
                 <div className="grid grid-cols-2 gap-8 mt-6">
@@ -323,7 +331,7 @@ export default function DashboardHome() {
 
           <div>
             {/* Holdings slicers and aggregate toggle - right aligned */}
-            <div className="flex flex-wrap gap-4 justify-end items-end mb-4 mt-6">
+            <div className="flex flex-wrap gap-4 justify-end items-end mb-4">
               {/* Lens */}
               <div>
                 <Label className="text-sm font-medium">Slice by</Label>
@@ -382,7 +390,7 @@ export default function DashboardHome() {
                 </div>
               )}
             </div>
-            <Card className="cursor-pointer mb-4" onClick={() => router.push('/dashboard/portfolio')}>
+            <Card className="mt-6 cursor-pointer mb-4" onClick={() => router.push('/dashboard/portfolio')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">
                   Current Allocation {aggregate ? '(Aggregated)' : '(Separate Comparison)'}
