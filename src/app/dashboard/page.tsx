@@ -297,65 +297,6 @@ export default function DashboardHome() {
       </div>
 
       {/* Full controls section – moved to above allocation card */}
-      <div className="flex flex-wrap gap-4 mb-8 items-end">
-        {/* Lens */}
-        <div>
-          <Label className="text-sm font-medium">Slice by</Label>
-          <Select value={lens} onValueChange={setLens}>
-            <SelectTrigger className="w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LENSES.map(l => (
-                <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Multi-Select Values */}
-        {lens !== 'total' && (
-          <div className="min-w-64">
-            <Label className="text-sm font-medium">
-              Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
-            </Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-between">
-                  {selectedValues.length === availableValues.length ? 'All selected' :
-                   selectedValues.length === 0 ? 'None selected' :
-                   `${selectedValues.length} selected`}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0">
-                <Command>
-                  <CommandInput placeholder="Search..." />
-                  <CommandList>
-                    <CommandEmpty>No values found.</CommandEmpty>
-                    <CommandGroup>
-                      {availableValues.map(val => (
-                        <CommandItem key={val} onSelect={() => toggleValue(val)}>
-                          <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(val) ? "opacity-100" : "opacity-0")} />
-                          {val || 'Untagged'}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
-        )}
-
-        {/* Aggregate Toggle */}
-        {lens !== 'total' && selectedValues.length > 1 && (
-          <div className="flex items-center gap-2">
-            <Switch checked={aggregate} onCheckedChange={setAggregate} />
-            <Label>Aggregate selected</Label>
-          </div>
-        )}
-      </div>
       {loading ? (
         <div className="text-center py-12">Loading portfolio data...</div>
       ) : selectedValues.length === 0 && lens !== 'total' ? (
@@ -363,14 +304,14 @@ export default function DashboardHome() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div>
-            <div className="mb-4 flex justify-end">
-              <Button onClick={handleRefresh} disabled={refreshing}>
-                {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-              </Button>
-            </div>
             <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
               <CardHeader>
-                <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
+                <div className="flex justify-between items-center mb-4">
+                  <Button onClick={(e) => { e.stopPropagation(); handleRefresh(); }} disabled={refreshing}>
+                    {refreshing ? 'Refreshing...' : 'Refresh Prices'}
+                  </Button>
+                  <CardTitle className="text-center text-4xl flex-1">Portfolio Performance Summary</CardTitle>
+                </div>
                 <div className="flex flex-col items-center mt-6 gap-8">
                   <div>
                     <CardTitle>Total Portfolio Value</CardTitle>
@@ -396,6 +337,66 @@ export default function DashboardHome() {
           </div>
 
           <div>
+            {/* Holdings slicers and aggregate toggle - right aligned */}
+            <div className="flex flex-wrap gap-4 justify-end items-end mb-4">
+              {/* Lens */}
+              <div>
+                <Label className="text-sm font-medium">Slice by</Label>
+                <Select value={lens} onValueChange={setLens}>
+                  <SelectTrigger className="w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LENSES.map(l => (
+                      <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Multi-Select Values */}
+              {lens !== 'total' && (
+                <div className="min-w-64">
+                  <Label className="text-sm font-medium">
+                    Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
+                  </Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between">
+                        {selectedValues.length === availableValues.length ? 'All selected' :
+                         selectedValues.length === 0 ? 'None selected' :
+                         `${selectedValues.length} selected`}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Search..." />
+                        <CommandList>
+                          <CommandEmpty>No values found.</CommandEmpty>
+                          <CommandGroup>
+                            {availableValues.map(val => (
+                              <CommandItem key={val} onSelect={() => toggleValue(val)}>
+                                <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(val) ? "opacity-100" : "opacity-0")} />
+                                {val || 'Untagged'}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+
+              {/* Aggregate Toggle */}
+              {lens !== 'total' && selectedValues.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <Switch checked={aggregate} onCheckedChange={setAggregate} />
+                  <Label>Aggregate selected</Label>
+                </div>
+              )}
+            </div>
             <Card className="cursor-pointer mb-4" onClick={() => router.push('/dashboard/portfolio')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">
