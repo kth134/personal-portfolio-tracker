@@ -391,9 +391,9 @@ function PerformanceContent() {
   const totalReturnPct = totalOriginalInvestment > 0 ? (totalNet / totalOriginalInvestment) * 100 : 0;
 
   return (
-    <main className="p-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Performance Reports</h1>
+    <main className="p-4 md:p-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+        <h1 className="text-2xl md:text-3xl font-bold break-words">Performance Reports</h1>
         <Button
           onClick={handleRefreshPrices}
           disabled={refreshing || loading}
@@ -410,38 +410,38 @@ function PerformanceContent() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
-          <div className="grid grid-cols-[1.5fr_0.8fr_1.5fr] items-center mt-6 gap-8">
-            <div className="ml-[25%]">
-              <CardTitle>Total Portfolio Value</CardTitle>
-              <p className="text-2xl font-bold text-black mt-2">
+          <div className="grid grid-cols-1 md:grid-cols-[1.5fr_0.8fr_1.5fr] items-center mt-6 gap-8">
+            <div className="text-center md:text-left md:ml-[25%]">
+              <CardTitle className="break-words">Total Portfolio Value</CardTitle>
+              <p className="text-2xl font-bold text-black mt-2 break-words">
                 {formatUSD(totals.market_value)}
               </p>
             </div>
             <div className="text-center">
-              <CardTitle>Net Gain/Loss</CardTitle>
-              <p className={cn("text-2xl font-bold mt-2", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
+              <CardTitle className="break-words">Net Gain/Loss</CardTitle>
+              <p className={cn("text-2xl font-bold mt-2 break-words", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
                 {formatUSD(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
               </p>
-              <p className={cn("text-sm mt-1", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
+              <p className={cn("text-sm mt-1 break-words", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
                 {totalReturnPct.toFixed(2)}% Total Return
               </p>
             </div>
-            <div className="text-right space-y-2 text-lg">
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">Unrealized G/L</p>
-                <p className={cn("font-bold", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
+            <div className="text-center md:text-right space-y-2 text-lg">
+              <div>
+                <p className="text-sm text-muted-foreground break-words">Unrealized G/L</p>
+                <p className={cn("font-bold break-words", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSD(totalUnrealized)}
                 </p>
               </div>
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">Realized G/L</p>
-                <p className={cn("font-bold", totals.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
+              <div>
+                <p className="text-sm text-muted-foreground break-words">Realized G/L</p>
+                <p className={cn("font-bold break-words", totals.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSD(totals.realized_gain)}
                 </p>
               </div>
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">Income</p>
-                <p className={cn("font-bold", totals.dividends >= 0 ? "text-green-600" : "text-red-600")}>
+              <div>
+                <p className="text-sm text-muted-foreground break-words">Income</p>
+                <p className={cn("font-bold break-words", totals.dividends >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSD(totals.dividends)}
                 </p>
               </div>
@@ -483,7 +483,7 @@ function PerformanceContent() {
           <TableHeader>
             <TableRow>
               <TableHead 
-                className="cursor-pointer hover:bg-muted/50 select-none"
+                className="cursor-pointer hover:bg-muted/50 select-none w-48"
                 onClick={() => handleSort('display_name')}
               >
                 <div className="flex items-center">
@@ -525,7 +525,7 @@ function PerformanceContent() {
                 onClick={() => handleSort('unrealized_gain')}
               >
                 <div className="flex items-center justify-end">
-                  Unrealized G/L
+                  <span className="break-words">Unrealized G/L</span>
                   {getSortIcon('unrealized_gain')}
                 </div>
               </TableHead>
@@ -534,7 +534,7 @@ function PerformanceContent() {
                 onClick={() => handleSort('realized_gain')}
               >
                 <div className="flex items-center justify-end">
-                  Realized Gain
+                  <span className="break-words">Realized Gain</span>
                   {getSortIcon('realized_gain')}
                 </div>
               </TableHead>
@@ -552,7 +552,7 @@ function PerformanceContent() {
                 onClick={() => handleSort('net_gain')}
               >
                 <div className="flex items-center justify-end">
-                  Net Gain/Loss
+                  <span className="break-words">Net Gain/Loss</span>
                   {getSortIcon('net_gain')}
                 </div>
               </TableHead>
@@ -561,7 +561,7 @@ function PerformanceContent() {
                 onClick={() => handleSort('total_return_pct')}
               >
                 <div className="flex items-center justify-end">
-                  Total Return %
+                  <span className="break-words">Total Return %</span>
                   {getSortIcon('total_return_pct')}
                 </div>
               </TableHead>
@@ -584,13 +584,13 @@ function PerformanceContent() {
               <>
                 {sortedSummaries.map((row) => (
                   <TableRow key={row.grouping_id} className={lens === 'asset' && row.market_value === 0 ? "opacity-50" : ""}>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium w-48">
                       {lens === 'asset' ? (
                         <div className="flex flex-col">
-                          <span className="font-bold">{row.display_name.split(' - ')[0]}</span>
-                          {row.display_name.includes(' - ') && <span className="text-muted-foreground">{row.display_name.split(' - ')[1]}</span>}
+                          <span className="font-bold break-words">{row.display_name.split(' - ')[0]}</span>
+                          {row.display_name.includes(' - ') && <span className="text-muted-foreground break-words">{row.display_name.split(' - ')[1]}</span>}
                         </div>
-                      ) : row.display_name}
+                      ) : <span className="break-words">{row.display_name}</span>}
                     </TableCell>
                     <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
                     {lens === 'asset' && (
@@ -629,7 +629,7 @@ function PerformanceContent() {
                 ))}
                 {/* Total row */}
                 <TableRow className="border-t-2 font-semibold bg-muted/50">
-                  <TableCell className="font-bold">Total</TableCell>
+                  <TableCell className="font-bold break-words">Total</TableCell>
                   <TableCell className="text-right font-bold">100.00%</TableCell>
                   {lens === 'asset' && <TableCell className="text-right">-</TableCell>}
                   <TableCell className="text-right font-bold">{formatUSD(totals.market_value)}</TableCell>

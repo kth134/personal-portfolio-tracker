@@ -266,7 +266,7 @@ export default function PortfolioHoldingsWithSlicers({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Asset</TableHead>
+                <TableHead className="w-40">Asset</TableHead>
                 <TableHead className="text-right">Quantity</TableHead>
                 <TableHead className="text-right">Avg Basis</TableHead>
                 <TableHead className="text-right">Total Basis</TableHead>
@@ -277,10 +277,10 @@ export default function PortfolioHoldingsWithSlicers({
             <TableBody>
               {rows.map(row => (
                 <TableRow key={row.ticker}>
-                  <TableCell>
+                  <TableCell className="w-40">
                     <div className="flex flex-col">
-                      <span className="font-bold">{row.ticker}</span>
-                      <span className="text-muted-foreground">{row.name || '-'}</span>
+                      <span className="font-bold break-words">{row.ticker}</span>
+                      <span className="text-muted-foreground break-words">{row.name || '-'}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">{row.quantity.toFixed(4)}</TableCell>
@@ -309,7 +309,7 @@ export default function PortfolioHoldingsWithSlicers({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Asset</TableHead>
+                        <TableHead className="w-40">Asset</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
                         <TableHead className="text-right">Avg Basis</TableHead>
                         <TableHead className="text-right">Total Basis</TableHead>
@@ -320,10 +320,10 @@ export default function PortfolioHoldingsWithSlicers({
                     <TableBody>
                       {groupRows.map(row => (
                         <TableRow key={row.ticker}>
-                          <TableCell>
+                          <TableCell className="w-40">
                             <div className="flex flex-col">
-                              <span className="font-bold">{row.ticker}</span>
-                              <span className="text-muted-foreground">{row.name || '-'}</span>
+                              <span className="font-bold break-words">{row.ticker}</span>
+                              <span className="text-muted-foreground break-words">{row.name || '-'}</span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right">{row.quantity.toFixed(4)}</TableCell>
@@ -355,7 +355,7 @@ export default function PortfolioHoldingsWithSlicers({
         <Table>
           <TableBody>
             <TableRow className="font-bold bg-muted/50">
-              <TableCell>Holdings Total</TableCell>
+              <TableCell className="w-40">Holdings Total</TableCell>
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(selectedTotalBasis - cash)}</TableCell>
@@ -363,7 +363,7 @@ export default function PortfolioHoldingsWithSlicers({
               <TableCell className="text-right">{formatUSD(selectedTotalValue - cash)}</TableCell>
             </TableRow>
             <TableRow className="font-bold bg-muted/50">
-              <TableCell>Cash Balance</TableCell>
+              <TableCell className="w-40">Cash Balance</TableCell>
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(cash)}</TableCell>
@@ -371,7 +371,7 @@ export default function PortfolioHoldingsWithSlicers({
               <TableCell className="text-right">{formatUSD(cash)}</TableCell>
             </TableRow>
             <TableRow className="font-bold text-lg">
-              <TableCell>Portfolio Total</TableCell>
+              <TableCell className="w-40">Portfolio Total</TableCell>
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(selectedTotalBasis)}</TableCell>
