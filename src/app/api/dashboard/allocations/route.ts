@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { lens, selectedValues } = await req.json();
+    const { lens, selectedValues, aggregate } = await req.json();
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -149,6 +149,11 @@ filteredLots?.forEach((lot: any) => {
       case 'factor_tag': key = (lot.asset.factor_tag || 'Unknown').trim(); break;
       default: key = 'Unknown';
     }
+  }
+
+  // If not aggregating and has selected values, combine into one key
+  if (!aggregate && lens !== 'total' && selectedValues.length > 0) {
+    key = 'Combined';
   }
 
   if (!groups.has(key)) {

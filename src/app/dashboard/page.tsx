@@ -5,6 +5,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
 } from 'recharts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -39,6 +40,7 @@ export default function DashboardHome() {
   const [lens, setLens] = useState('total');
   const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([]);
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
+  const [aggregate, setAggregate] = useState(true);
   const [allocations, setAllocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [valuesLoading, setValuesLoading] = useState(false);
@@ -114,6 +116,7 @@ export default function DashboardHome() {
     const payload = {
       lens,
       selectedValues: lens === 'total' ? [] : selectedValues,
+      aggregate,
     };
 
     try {
@@ -427,6 +430,12 @@ export default function DashboardHome() {
                   </Popover>
                 </div>
               )}
+
+              {/* Aggregate Toggle */}
+              <div className="flex items-center space-x-2">
+                <Label htmlFor="aggregate" className="text-sm font-medium">Aggregate</Label>
+                <Switch id="aggregate" checked={aggregate} onCheckedChange={setAggregate} />
+              </div>
             </div>
             <Card className="mt-6 cursor-pointer mb-4" onClick={() => router.push('/dashboard/portfolio')}>
               <CardHeader>
