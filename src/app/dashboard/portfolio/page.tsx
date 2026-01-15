@@ -280,23 +280,23 @@ export default async function PortfolioPage() {
           <TabsTrigger value="assets">Assets</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="holdings">
-          {lots?.length ? (
-            <PortfolioHoldingsClient
-              groupedAccounts={groupedByAccount}
-              groupedSubs={groupedBySubPortfolio}
-              cash={totalCash}
-              grandTotalBasis={grandTotalBasis}
-              grandTotalValue={grandTotalValue}
-              overallUnrealized={overallUnrealized}
-            />
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <p className="text-lg mb-2">No holdings yet</p>
-              <p>Add a Buy transaction to see positions here.</p>
-            </div>
-          )}
-        </TabsContent>
+          <TabsContent value="holdings">
+            {lots?.length ? (
+              <PortfolioHoldingsClient
+                cash={totalCash}
+                grandTotalBasis={grandTotalBasis}
+                grandTotalValue={grandTotalValue}
+                overallUnrealized={overallUnrealized}
+                groupedAccounts={groupedByAccount}
+                groupedSubs={groupedBySubPortfolio}
+              />
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <p className="text-lg mb-2">No holdings yet</p>
+                <p>Add a Buy transaction to see positions here.</p>
+              </div>
+            )}
+          </TabsContent>
 
         <TabsContent value="accounts">
           <AccountsList initialAccounts={initialAccounts} />
