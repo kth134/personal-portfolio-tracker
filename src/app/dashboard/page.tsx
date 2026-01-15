@@ -129,6 +129,7 @@ export default function DashboardHome() {
       const allocData = await allocRes.json();
 
       setAllocations(allocData.allocations || []);
+      setDrillItems(allocData.allocations?.[0]?.items || []);
 
       // Fetch performance totals
       const { data: { user } } = await supabase.auth.getUser();
