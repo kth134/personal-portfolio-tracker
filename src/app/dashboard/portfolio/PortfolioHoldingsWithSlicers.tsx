@@ -1,4 +1,3 @@
-// src/app/dashboard/portfolio/PortfolioHoldingsWithSlicers.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -11,6 +10,9 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Check, ChevronsUpDown } from 'lucide-react'
 import { formatUSD } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 import { refreshAssetPrices } from './actions'
@@ -32,7 +34,7 @@ type AllocationSlice = {
   key: string
   value: number
   data: { subkey: string; value: number; percentage: number }[]
-  items?: { ticker?: string; name?: string; quantity?: number; value?: number; net_gain?: number; key?: string }[]
+  items?: { ticker?: string; name?: string; quantity?: number; value?: number; net_gain?: number; cost_basis?: number; unrealized?: number; key?: string }[]
 }
 
 type HoldingRow = {
@@ -44,17 +46,15 @@ type HoldingRow = {
   currPrice: number
   currValue: number
   unrealized: number
-  groupKey?: string // for separate mode grouping
+  groupKey?: string
 }
 
 export default function PortfolioHoldingsWithSlicers({
-  initialAllocations, // optional: server-passed fallback
   cash,
   grandTotalBasis,
   grandTotalValue,
   overallUnrealized,
 }: {
-  initialAllocations?: AllocationSlice[]
   cash: number
   grandTotalBasis: number
   grandTotalValue: number
@@ -64,11 +64,12 @@ export default function PortfolioHoldingsWithSlicers({
   const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([])
   const [selectedValues, setSelectedValues] = useState<string[]>([])
   const [aggregate, setAggregate] = useState(true)
-  const [allocations, setAllocations] = useState<AllocationSlice[]>(initialAllocations || [])
-  const [loading, setLoading] = useState(!initialAllocations)
+  const [allocations, setAllocations] = useState<AllocationSlice[]>([])
+  const [loading, setLoading] = useState(true)
+  const [valuesLoading, setValuesLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
 
-  // Fetch distinct values for lens (same as dashboard)
   useEffect(() => {
     if (lens === 'total') {
       setAvailableValues([])
@@ -77,19 +78,21 @@ export default function PortfolioHoldingsWithSlicers({
     }
 
     const fetchValues = async () => {
+      setValuesLoading(true)
       const res = await fetch('/api/dashboard/values', {
         method: 'POST',
         body: JSON.stringify({ lens }),
       })
+      if (!res.ok) throw new Error('Failed to fetch values')
       const data = await res.json()
       const vals = data.values || []
       setAvailableValues(vals)
-      setSelectedValues(vals.map((v: any) => v.value)) // default all
+      setSelectedValues(vals.map((item: any) => item.value))
+      setValuesLoading(false)
     }
     fetchValues()
   }, [lens])
 
-  // Load allocations when filters change
   useEffect(() => {
     const load = async () => {
       setLoading(true)
@@ -103,6 +106,7 @@ export default function PortfolioHoldingsWithSlicers({
         body: JSON.stringify(payload),
         cache: 'no-store',
       })
+      if (!res.ok) throw new Error('Failed to fetch allocations')
       const data = await res.json()
       setAllocations(data.allocations || [])
       setLoading(false)
@@ -118,71 +122,102 @@ export default function PortfolioHoldingsWithSlicers({
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await refreshAssetPrices()
-    // Re-trigger load after refresh
-    const payload = { lens, selectedValues: lens === 'total' ? [] : selectedValues, aggregate }
-    const res = await fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload) })
-    const data = await res.json()
-    setAllocations(data.allocations || [])
-    setRefreshing(false)
+    setRefreshMessage(null)
+    try {
+      const result = await refreshAssetPrices()
+      setRefreshMessage(result.message || 'Prices refreshed!')
+      // Reload allocations
+      const payload = { lens, selectedValues: lens === 'total' ? [] : selectedValues, aggregate }
+      const res = await fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload) })
+      const data = await res.json()
+      setAllocations(data.allocations || [])
+    } catch (err) {
+      setRefreshMessage('Error refreshing prices')
+    } finally {
+      setRefreshing(false)
+    }
   }
 
-  // Flatten holdings for table (aggregate or separate)
   const getTableRows = (): HoldingRow[] => {
-    if (aggregate) {
-      // Single aggregated view → all assets from all selected groups
-      const allItems = allocations.flatMap(a => a.items || [])
-      return allItems.map(item => ({
-        ticker: item.ticker || item.key || 'Unknown',
-        name: item.name || null,
-        quantity: item.quantity || 0,
-        avgBasis: item.value && item.quantity ? item.value / item.quantity : 0,
-        totalBasis: item.value || 0, // approximate; real basis not in allocations yet
-        currPrice: 0, // missing – see note below
-        currValue: item.value || 0,
-        unrealized: 0, // missing
-      }))
-    } else {
-      // Separate → return with groupKey for accordion
-      return allocations.flatMap(a =>
-        (a.items || []).map(item => ({
+    const rows: HoldingRow[] = []
+    allocations.forEach(slice => {
+      (slice.items || []).forEach(item => {
+        const currValue = item.value || 0
+        const totalBasis = item.cost_basis || 0
+        const quantity = item.quantity || 0
+        rows.push({
           ticker: item.ticker || item.key || 'Unknown',
           name: item.name || null,
-          quantity: item.quantity || 0,
-          avgBasis: item.value && item.quantity ? item.value / item.quantity : 0,
-          totalBasis: item.value || 0,
-          currPrice: 0,
-          currValue: item.value || 0,
-          unrealized: 0,
-          groupKey: a.key,
-        }))
-      )
-    }
+          quantity,
+          avgBasis: quantity > 0 ? totalBasis / quantity : 0,
+          totalBasis,
+          currPrice: quantity > 0 ? currValue / quantity : 0,
+          currValue,
+          unrealized: item.unrealized || (currValue - totalBasis),
+          groupKey: aggregate ? undefined : slice.key,
+        })
+      })
+    })
+    return rows
   }
 
   const rows = getTableRows()
 
+  const groupedRows = rows.reduce((acc, row) => {
+    const key = row.groupKey || 'Aggregated'
+    if (!acc.has(key)) acc.set(key, [])
+    acc.get(key)!.push(row)
+    return acc
+  }, new Map<string, HoldingRow[]>())
+
   return (
     <div className="space-y-8">
-      {/* Slicers – identical to dashboard */}
-      <div className="flex flex-wrap gap-4 items-end">
+      <div className="flex flex-wrap gap-4 items-end mb-4">
         <div>
-          <Label>Slice by</Label>
+          <Label className="text-sm font-medium">Slice by</Label>
           <Select value={lens} onValueChange={setLens}>
             <SelectTrigger className="w-56">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {LENSES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
+              {LENSES.map(l => (
+                <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
 
         {lens !== 'total' && (
           <div className="min-w-64">
-            <Label>Select {LENSES.find(l => l.value === lens)?.label}s</Label>
-            {/* Popover/Command multi-select – copy from dashboard/page.tsx */}
-            {/* ... paste the Popover + Command block here ... */}
+            <Label className="text-sm font-medium">
+              Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  {selectedValues.length === availableValues.length ? 'All selected' :
+                   selectedValues.length === 0 ? 'None selected' :
+                   `${selectedValues.length} selected`}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandInput placeholder="Search..." />
+                  <CommandList>
+                    <CommandEmpty>No values found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableValues.map(item => (
+                        <CommandItem key={item.value} onSelect={() => toggleValue(item.value)}>
+                          <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />
+                          {item.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         )}
 
@@ -196,11 +231,11 @@ export default function PortfolioHoldingsWithSlicers({
         <Button onClick={handleRefresh} disabled={refreshing}>
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}
         </Button>
+        {refreshMessage && <span className="text-sm text-green-600">{refreshMessage}</span>}
       </div>
 
-      {/* Pie Charts – identical rendering to dashboard */}
       {loading ? (
-        <div>Loading...</div>
+        <div className="text-center py-12">Loading portfolio data...</div>
       ) : (
         <div className="grid grid-cols-1 gap-8">
           {allocations.map((slice, idx) => (
@@ -219,7 +254,7 @@ export default function PortfolioHoldingsWithSlicers({
                       <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: number | undefined) => (v === undefined ? '' : formatUSD(v))} />
+                  <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSD(v) : ''} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -228,14 +263,13 @@ export default function PortfolioHoldingsWithSlicers({
         </div>
       )}
 
-      {/* Table – dynamic based on mode */}
       <div className="overflow-x-auto">
         {aggregate ? (
-          // Single table for aggregated view
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Asset</TableHead>
+                <TableHead>Ticker</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead className="text-right">Quantity</TableHead>
                 <TableHead className="text-right">Avg Basis</TableHead>
                 <TableHead className="text-right">Total Basis</TableHead>
@@ -247,7 +281,8 @@ export default function PortfolioHoldingsWithSlicers({
             <TableBody>
               {rows.map(row => (
                 <TableRow key={row.ticker}>
-                  <TableCell>{row.ticker} {row.name && <span className="text-xs text-muted-foreground">({row.name})</span>}</TableCell>
+                  <TableCell>{row.ticker}</TableCell>
+                  <TableCell>{row.name || '-'}</TableCell>
                   <TableCell className="text-right">{row.quantity.toFixed(4)}</TableCell>
                   <TableCell className="text-right">{formatUSD(row.avgBasis)}</TableCell>
                   <TableCell className="text-right">{formatUSD(row.totalBasis)}</TableCell>
@@ -261,14 +296,40 @@ export default function PortfolioHoldingsWithSlicers({
             </TableBody>
           </Table>
         ) : (
-          // Accordion grouped by slice key (same as current)
           <Accordion type="multiple">
-            {allocations.map(slice => (
-              <AccordionItem key={slice.key} value={slice.key}>
-                <AccordionTrigger>{slice.key}</AccordionTrigger>
+            {Array.from(groupedRows).map(([key, groupRows]) => (
+              <AccordionItem key={key} value={key}>
+                <AccordionTrigger>{key}</AccordionTrigger>
                 <AccordionContent>
                   <Table>
-                    {/* ... same header + rows filtered to this slice.key ... */}
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Ticker</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead className="text-right">Avg Basis</TableHead>
+                        <TableHead className="text-right">Total Basis</TableHead>
+                        <TableHead className="text-right">Curr Price</TableHead>
+                        <TableHead className="text-right">Curr Value</TableHead>
+                        <TableHead className="text-right">Unreal Gain/Loss</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {groupRows.map(row => (
+                        <TableRow key={row.ticker}>
+                          <TableCell>{row.ticker}</TableCell>
+                          <TableCell>{row.name || '-'}</TableCell>
+                          <TableCell className="text-right">{row.quantity.toFixed(4)}</TableCell>
+                          <TableCell className="text-right">{formatUSD(row.avgBasis)}</TableCell>
+                          <TableCell className="text-right">{formatUSD(row.totalBasis)}</TableCell>
+                          <TableCell className="text-right">{formatUSD(row.currPrice)}</TableCell>
+                          <TableCell className="text-right">{formatUSD(row.currValue)}</TableCell>
+                          <TableCell className={cn("text-right", row.unrealized >= 0 ? "text-green-600" : "text-red-600")}>
+                            {formatUSD(row.unrealized)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
                   </Table>
                 </AccordionContent>
               </AccordionItem>
@@ -277,8 +338,31 @@ export default function PortfolioHoldingsWithSlicers({
         )}
       </div>
 
-      {/* Footer totals – reuse your existing logic */}
-      {/* ... paste your grand total / cash row here ... */}
+      {/* Footer totals */}
+      <div className="overflow-x-auto mt-4">
+        <Table>
+          <TableBody>
+            <TableRow className="font-bold bg-muted/50">
+              <TableCell>Cash Balance</TableCell>
+              <TableCell colSpan={2} />
+              <TableCell className="text-right">{formatUSD(cash)}</TableCell>
+              <TableCell colSpan={2} />
+              <TableCell className="text-right">{formatUSD(cash)}</TableCell>
+              <TableCell className="text-right">$0.00</TableCell>
+            </TableRow>
+            <TableRow className="font-bold text-lg">
+              <TableCell>Portfolio Total</TableCell>
+              <TableCell colSpan={2} />
+              <TableCell className="text-right">{formatUSD(grandTotalBasis)}</TableCell>
+              <TableCell colSpan={2} />
+              <TableCell className="text-right">{formatUSD(grandTotalValue)}</TableCell>
+              <TableCell className={cn("text-right", overallUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
+                {formatUSD(overallUnrealized)}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }

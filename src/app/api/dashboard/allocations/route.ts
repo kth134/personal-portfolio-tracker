@@ -1,6 +1,60 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
+interface Asset {
+  id: string;
+  ticker: string;
+  name: string;
+  asset_type: string | null;
+  asset_subtype: string | null;
+  geography: string | null;
+  size_tag: string | null;
+  factor_tag: string | null;
+  sub_portfolios: { name: string } | null;
+}
+
+interface Account {
+  name: string;
+}
+
+interface Lot {
+  remaining_quantity: number;
+  cost_basis_per_unit: number;
+  asset_id: string;
+  asset: Asset;
+  account: Account;
+}
+
+interface Price {
+  ticker: string;
+  price: number;
+}
+
+interface Transaction {
+  asset_id: string;
+  realized_gain: number | null;
+  amount: number | null;
+  fees: number | null;
+  type: string;
+}
+
+interface TickerEntry {
+  quantity: number;
+  value: number;
+  net_gain: number;
+  name: string | null;
+  cost_basis: number;
+}
+
+interface AllocationItem {
+  key: string;
+  value: number;
+  percentage: number;
+  net_gain: number;
+  data: { subkey: string; value: number; percentage: number }[];
+  items: unknown[];
+}
+
 export async function POST(req: Request) {
   try {
     const { lens, selectedValues, aggregate } = await req.json();
@@ -59,12 +113,12 @@ if (!lots || lots.length === 0) {
   return NextResponse.json({ allocations: [] });
 }
 
-const typedLots = lots as any;
+const lotsTyped: Lot[] = lots as unknown as Lot[];
 
 // Filter lots based on selectedValues
-let filteredLots = typedLots;
+let filteredLots = lotsTyped;
 if (lens !== 'total' && selectedValues?.length > 0) {
-  filteredLots = typedLots.filter((lot: any) => {
+  filteredLots = lotsTyped.filter((lot: Lot) => {
     const asset = lot.asset;
     if (!asset) return false;
     switch (lens) {
@@ -91,14 +145,14 @@ if (lens !== 'total' && selectedValues?.length > 0) {
 }
 
     // Fetch latest prices (reuse your existing logic)
-    const tickers = [...new Set(filteredLots?.map((l: any) => l.asset.ticker) || [])];
+    const tickers = [...new Set(filteredLots?.map((l: Lot) => l.asset.ticker) || [])];
     const { data: prices } = await supabase
       .from('asset_prices')
       .select('ticker, price')
       .in('ticker', tickers)
       .order('timestamp', { ascending: false });
 
-    const priceMap = new Map(prices?.map((p: any) => [p.ticker, p.price]) || []);
+    const priceMap = new Map(prices?.map((p: Price) => [p.ticker, p.price]) || []);
 
     // Fetch transactions for realized/dividends/fees (all time, filtered if needed)
     const { data: transactions } = await supabase
@@ -108,7 +162,7 @@ if (lens !== 'total' && selectedValues?.length > 0) {
 
     // Aggregate net gains by asset_id
     const netGainByAsset = new Map<string, number>();
-    transactions?.forEach((tx: any) => {
+    transactions?.forEach((tx: Transaction) => {
       if (!tx.asset_id) return;
       let gain = (tx.realized_gain || 0);
       if (tx.type === 'Dividend' || tx.type === 'Interest') gain += (tx.amount || 0);
@@ -120,12 +174,12 @@ if (lens !== 'total' && selectedValues?.length > 0) {
 const groups = new Map<string, {
   value: number;
   net_gain: number;
-  tickers: Map<string, { quantity: number; value: number; net_gain: number; name: string | null }>;
+  tickers: Map<string, TickerEntry>;
 }>();
 
 let totalValue = 0;
 
-filteredLots?.forEach((lot: any) => {
+filteredLots?.forEach((lot: Lot) => {
   const ticker = lot.asset.ticker;
   const assetName = lot.asset.name;
   const qty = Number(lot.remaining_quantity);
@@ -134,22 +188,20 @@ filteredLots?.forEach((lot: any) => {
   const value = qty * price;
   const unreal = value - basis;
 
-  // Net gain for this lot (unreal + historical from transactions)
-  const lotNetGain = unreal + (netGainByAsset.get(lot.asset.id) || 0); // asset_id unique per ticker
+  const lotNetGain = unreal + (netGainByAsset.get(lot.asset.id) || 0);
 
-  let key = 'Total';
-  if (lens !== 'total') {
+  const key = lens === 'total' ? 'Total' : (() => {
     switch (lens) {
-      case 'sub_portfolio': key = (lot.asset.sub_portfolios?.name || 'No Sub-Portfolio').trim(); break;
-      case 'account': key = (lot.account?.name || 'Unknown').trim(); break;
-      case 'asset_type': key = (lot.asset.asset_type || 'Unknown').trim(); break;
-      case 'asset_subtype': key = (lot.asset.asset_subtype || 'Unknown').trim(); break;
-      case 'geography': key = (lot.asset.geography || 'Unknown').trim(); break;
-      case 'size_tag': key = (lot.asset.size_tag || 'Unknown').trim(); break;
-      case 'factor_tag': key = (lot.asset.factor_tag || 'Unknown').trim(); break;
-      default: key = 'Unknown';
+      case 'sub_portfolio': return (lot.asset.sub_portfolios?.name || 'No Sub-Portfolio').trim();
+      case 'account': return (lot.account?.name || 'Unknown').trim();
+      case 'asset_type': return (lot.asset.asset_type || 'Unknown').trim();
+      case 'asset_subtype': return (lot.asset.asset_subtype || 'Unknown').trim();
+      case 'geography': return (lot.asset.geography || 'Unknown').trim();
+      case 'size_tag': return (lot.asset.size_tag || 'Unknown').trim();
+      case 'factor_tag': return (lot.asset.factor_tag || 'Unknown').trim();
+      default: return 'Unknown';
     }
-  }
+  })();
 
   if (!groups.has(key)) {
     groups.set(key, { value: 0, net_gain: 0, tickers: new Map() });
@@ -157,12 +209,13 @@ filteredLots?.forEach((lot: any) => {
   const group = groups.get(key)!;
 
   if (!group.tickers.has(ticker)) {
-    group.tickers.set(ticker, { quantity: 0, value: 0, net_gain: 0, name: assetName });
+    group.tickers.set(ticker, { quantity: 0, value: 0, net_gain: 0, name: assetName, cost_basis: 0 });
   }
   const tickerEntry = group.tickers.get(ticker)!;
   tickerEntry.quantity += qty;
   tickerEntry.value += value;
   tickerEntry.net_gain += lotNetGain;
+  tickerEntry.cost_basis += basis;
 
   group.value += value;
   group.net_gain += lotNetGain;
@@ -170,7 +223,7 @@ filteredLots?.forEach((lot: any) => {
 });
 
  // Build response
-let allocations: any[] = [];
+let allocations: AllocationItem[] = [];
 
 groups.forEach((group, key) => {
   const tickerData = Array.from(group.tickers.entries()).map(([ticker, t]) => ({
@@ -185,6 +238,8 @@ groups.forEach((group, key) => {
     quantity: t.quantity,
     value: t.value,
     net_gain: t.net_gain,
+    cost_basis: t.cost_basis,
+    unrealized: t.value - t.cost_basis,
   }));
 
   allocations.push({
@@ -223,8 +278,8 @@ if (aggregate && allocations.length > 1) {
   }];
 }
 return NextResponse.json({ allocations });
-} catch (err: any) {
-  console.error(err);
-  return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 });
+} catch (err: unknown) {
+  const message = err instanceof Error ? err.message : 'Internal Server Error';
+  return NextResponse.json({ error: message }, { status: 500 });
 }
 }
