@@ -61,35 +61,50 @@ export default async function PortfolioPage() {
   const cashBalances = new Map<string, number>()
   transactions.forEach((tx: any) => {
     if (!tx.account_id) return
+    // Skip automatic deposits for external buys
+    if (tx.notes === 'Auto-deposit for external buy') {
+      console.log(`Skipping automatic deposit for external buy: ${tx.amount}`)
+      return
+    }
     const current = cashBalances.get(tx.account_id) || 0
     let delta = 0
     const amt = Number(tx.amount || 0)
     const fee = Number(tx.fees || 0)
+    console.log(`Processing transaction: ${tx.type}, funding_source: ${tx.funding_source}, amount: ${amt}, fees: ${fee}`)
     switch (tx.type) {
       case 'Buy':
         if (tx.funding_source === 'cash') {
           delta -= (amt + fee)  // deduct purchase amount and fee from cash balance
+          console.log(`Buy with cash: delta -= ${amt + fee}`)
         } // else (including 'external'): no impact to cash balance
         break
       case 'Sell':
         delta += (amt - fee)  // increase cash balance by sale amount less fees
+        console.log(`Sell: delta += ${amt - fee}`)
         break
       case 'Dividend':
         delta += amt  // increase cash balance
+        console.log(`Dividend: delta += ${amt}`)
         break
       case 'Interest':
         delta += amt  // increase cash balance
+        console.log(`Interest: delta += ${amt}`)
         break
       case 'Deposit':
         delta += amt  // increase cash balance
+        console.log(`Deposit: delta += ${amt}`)
         break
       case 'Withdrawal':
         delta -= amt  // decrease cash balance
+        console.log(`Withdrawal: delta -= ${amt}`)
         break
     }
-    cashBalances.set(tx.account_id, current + delta)
+    const newBalance = current + delta
+    cashBalances.set(tx.account_id, newBalance)
+    console.log(`Account ${tx.account_id} balance: ${current} + ${delta} = ${newBalance}`)
   })
   const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
+  console.log(`Total cash: ${totalCash}`)
 
   // Prices fetch
   const uniqueTickers = new Set(lots?.map(lot => lot.asset.ticker) || [])
