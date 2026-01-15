@@ -213,7 +213,7 @@ export default function DashboardHome() {
           { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
         ) || { realized_gain: 0, dividends: 0, interest: 0, fees: 0 };
 
-        const net = unrealized + summaryTotals.realized_gain + summaryTotals.dividends + summaryTotals.interest - summaryTotals.fees;
+        const net = unrealized + summaryTotals.realized_gain + summaryTotals.dividends + summaryTotals.interest;
         const totalReturnPct = totalOriginalInvestment > 0 ? (net / totalOriginalInvestment) * 100 : 0;
 
         setPerformanceTotals({
