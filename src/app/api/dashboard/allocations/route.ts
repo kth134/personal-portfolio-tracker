@@ -28,6 +28,7 @@ interface Lot {
 interface Price {
   ticker: string;
   price: number;
+  timestamp: string;
 }
 
 interface Transaction {
@@ -144,82 +145,20 @@ if (lens !== 'total' && selectedValues?.length > 0) {
   });
 }
 
-    // Fetch latest prices - live
+    // Fetch latest prices (reuse your existing logic)
     const tickers = [...new Set(filteredLots?.map((l: Lot) => l.asset.ticker) || [])];
-    const assetMap = new Map<string, string>();
-    filteredLots?.forEach((l: Lot) => {
-      assetMap.set(l.asset.ticker, l.asset.asset_subtype || '');
-    });
-
-    const cryptoTickers = tickers.filter(t => assetMap.get(t)?.toLowerCase() === 'crypto');
-    const stockTickers = tickers.filter(t => assetMap.get(t)?.toLowerCase() !== 'crypto');
+    const { data: pricesList } = await supabase
+      .from('asset_prices')
+      .select('ticker, price, timestamp')
+      .in('ticker', tickers)
+      .order('timestamp', { ascending: false });
 
     const priceMap = new Map<string, number>();
-
-    // Fetch crypto prices from CoinGecko
-    if (cryptoTickers.length > 0) {
-      const idMap: Record<string, string> = {
-        BTC: 'bitcoin',
-        ETH: 'ethereum',
-      };
-      const cgIds = cryptoTickers.map(t => idMap[t] || t.toLowerCase());
-      const cgUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd`;
-      try {
-        const cgResponse = await fetch(cgUrl);
-        if (cgResponse.ok) {
-          const cgPrices = await cgResponse.json();
-          cryptoTickers.forEach((ticker, i) => {
-            const cgId = cgIds[i];
-            const price = cgPrices[cgId]?.usd;
-            if (price) priceMap.set(ticker, price);
-          });
-        }
-      } catch (error) {
-        console.error('CoinGecko fetch error:', error);
+    pricesList?.forEach((p: any) => {
+      if (!priceMap.has(p.ticker)) {
+        priceMap.set(p.ticker, p.price);
       }
-    }
-
-    // Fetch stock prices from Finnhub
-    if (stockTickers.length > 0) {
-      const finnhubKey = process.env.FINNHUB_API_KEY;
-      const alphaKey = process.env.ALPHA_VANTAGE_API_KEY;
-      if (finnhubKey) {
-        for (const ticker of stockTickers) {
-          let price: number | undefined;
-          try {
-            const finnhubUrl = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${finnhubKey}`;
-            const finnhubResponse = await fetch(finnhubUrl);
-            if (finnhubResponse.ok) {
-              const finnhubData = await finnhubResponse.json();
-              price = finnhubData.c || finnhubData.pc;
-            }
-          } catch (error) {
-            console.error(`Finnhub fetch error for ${ticker}:`, error);
-          }
-
-          // Alpha Vantage fallback if no price from Finnhub
-          if ((!price || price <= 0) && alphaKey) {
-            try {
-              console.log(`Attempting Alpha Vantage fallback for ${ticker}`);
-              const alphaUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${alphaKey}`;
-              const alphaResponse = await fetch(alphaUrl);
-              if (alphaResponse.ok) {
-                const alphaData = await alphaResponse.json();
-                const quote = alphaData['Global Quote'];
-                if (quote && quote['05. price']) {
-                  price = parseFloat(quote['05. price']);
-                  console.log(`Alpha Vantage price for ${ticker}: $${price}`);
-                }
-              }
-            } catch (error) {
-              console.error(`Alpha Vantage fetch error for ${ticker}:`, error);
-            }
-          }
-
-          if (price && price > 0) priceMap.set(ticker, price);
-        }
-      }
-    }
+    });
 
     // Fetch transactions for realized/dividends/fees (all time, filtered if needed)
     const { data: transactions } = await supabase
