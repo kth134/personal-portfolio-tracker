@@ -15,7 +15,7 @@ let lotsQuery = supabase
     remaining_quantity,
     cost_basis_per_unit,
     asset_id,
-    asset:assets(id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolio:sub_portfolios(name)),
+    asset:assets(id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolios(name)),
     account:accounts(name)
   `)
   .gt('remaining_quantity', 0)
@@ -73,7 +73,7 @@ if (lens !== 'total' && selectedValues?.length > 0) {
       case 'account':
         return selectedValues.includes((lot.account?.name || 'Unknown').trim());
       case 'sub_portfolio':
-        return selectedValues.includes((asset.sub_portfolio?.name || 'No Sub-Portfolio').trim());
+        return selectedValues.includes((asset.sub_portfolios?.name || 'No Sub-Portfolio').trim());
       case 'asset_type':
         return selectedValues.includes((asset.asset_type || 'Unknown').trim());
       case 'asset_subtype':
@@ -140,7 +140,7 @@ filteredLots?.forEach((lot: any) => {
   let key = 'Total';
   if (lens !== 'total') {
     switch (lens) {
-      case 'sub_portfolio': key = (lot.asset.sub_portfolio?.name || 'No Sub-Portfolio').trim(); break;
+      case 'sub_portfolio': key = (lot.asset.sub_portfolios?.name || 'No Sub-Portfolio').trim(); break;
       case 'account': key = (lot.account?.name || 'Unknown').trim(); break;
       case 'asset_type': key = (lot.asset.asset_type || 'Unknown').trim(); break;
       case 'asset_subtype': key = (lot.asset.asset_subtype || 'Unknown').trim(); break;

@@ -26,7 +26,7 @@ export async function POST(req: Request) {
         break;
       case 'sub_portfolio':
         column = 'sub_portfolio->sub_portfolios->name';
-        query = query.select('asset:assets(sub_portfolio:sub_portfolios(name))');
+        query = query.select('asset:assets(sub_portfolios(name))');
         break;
       case 'account':
         column = 'account->accounts->name';
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       data?.forEach((row: any) => {
         let value: string | null = null;
         if (lens === 'sub_portfolio') {
-          value = (row.asset?.sub_portfolio?.name || '').trim();
+          value = (row.asset?.sub_portfolios?.name || '').trim();
         } else if (lens === 'account') {
           value = (row.account?.name || '').trim();
         } else {
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
       const hasNull = data?.some((row: any) => {
         let value: string | null = null;
         if (lens === 'sub_portfolio') {
-          value = (row.asset?.sub_portfolio?.name || '').trim();
+          value = (row.asset?.sub_portfolios?.name || '').trim();
         } else if (lens === 'account') {
           value = (row.account?.name || '').trim();
         } else {

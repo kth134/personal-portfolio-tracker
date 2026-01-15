@@ -475,33 +475,6 @@ export default function DashboardHome() {
                   ))}
                 </div>
 
-                {drillItems.length > 0 && (
-                  <div className="mt-8">
-                    <h3 className="text-lg font-semibold mb-4">Holdings in Selected Slice</h3>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Ticker</TableHead>
-                          <TableHead>Name</TableHead>
-                          <TableHead className="text-right">Quantity</TableHead>
-                          <TableHead className="text-right">Value</TableHead>
-                          <TableHead className="text-right">Net Gain</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {drillItems.map((item: any) => (
-                          <TableRow key={item.ticker}>
-                            <TableCell>{item.ticker}</TableCell>
-                            <TableCell>{item.name || '-'}</TableCell>
-                            <TableCell className="text-right">{item.quantity.toFixed(8)}</TableCell>
-                            <TableCell className="text-right">{formatUSD(item.value)}</TableCell>
-                            <TableCell className="text-right">{formatUSD(item.net_gain)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </div>
