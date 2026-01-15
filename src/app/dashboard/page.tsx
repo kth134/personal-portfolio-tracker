@@ -338,7 +338,7 @@ export default function DashboardHome() {
 
           <div>
             {/* Holdings slicers and aggregate toggle - right aligned */}
-            <div className="flex flex-wrap gap-4 justify-end items-end mb-4">
+            <div className="flex flex-wrap gap-4 justify-end items-end mb-4 mt-6">
               {/* Lens */}
               <div>
                 <Label className="text-sm font-medium">Slice by</Label>
