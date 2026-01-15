@@ -222,6 +222,7 @@ if (aggregate && allocations.length > 1) {
     })),
   }];
 }
+return NextResponse.json({ allocations });
 } catch (err: any) {
   console.error(err);
   return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 });
