@@ -27,7 +27,7 @@ if (lens !== 'total' && selectedValues?.length > 0) {
       lotsQuery = lotsQuery.in('asset_id', selectedValues);
       break;
     case 'sub_portfolio':
-      lotsQuery = lotsQuery.in('sub_portfolio.name', selectedValues);
+      lotsQuery = lotsQuery.in('asset.sub_portfolios.name', selectedValues);      
       break;
     case 'account':
       lotsQuery = lotsQuery.in('account.name', selectedValues);
