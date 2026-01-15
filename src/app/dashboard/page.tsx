@@ -133,81 +133,44 @@ export default function DashboardHome() {
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
       if (userId) {
+        // Fetch all tax lots to calculate total original investment
         const { data: allLotsData } = await supabase
           .from('tax_lots')
-          .select(`
-            asset_id,
-            account_id,
-            remaining_quantity,
-            cost_basis_per_unit,
-            quantity,
-            asset:assets (
-              id,
-              ticker,
-              name,
-              asset_type,
-              asset_subtype,
-              geography,
-              size_tag,
-              factor_tag,
-              sub_portfolio_id
-            )
-          `)
+          .select('cost_basis_per_unit, quantity, remaining_quantity')
           .eq('user_id', userId);
 
         const totalOriginalInvestment = allLotsData?.reduce((sum, lot) => {
           return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
         }, 0) || 0;
 
-        const openLots = allLotsData?.filter(lot => lot.remaining_quantity > 0) || [];
-        const tickers = [
-          ...new Set(
-            openLots.map((lot: any) => {
-              const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
-              return asset?.ticker;
-            }).filter(Boolean)
-          ),
-        ];
-
-        const { data: pricesData } = await supabase
-          .from('asset_prices')
-          .select('ticker, price')
-          .in('ticker', tickers);
-
-        const latestPrices = new Map<string, number>();
-        pricesData?.forEach((p: any) => {
-          if (!latestPrices.has(p.ticker)) {
-            latestPrices.set(p.ticker, p.price);
-          }
-        });
-
-        let marketValue = 0;
-        let costBasis = 0;
-        openLots.forEach((lot: any) => {
-          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
-          const qty = Number(lot.remaining_quantity);
-          const price = latestPrices.get(asset?.ticker || '') || 0;
-          marketValue += qty * price;
-          costBasis += qty * Number(lot.cost_basis_per_unit);
-        });
-
-        const { data: summary } = await supabase
+        // Fetch performance summaries for all assets
+        const { data: summaries } = await supabase
           .from('performance_summaries')
-          .select('realized_gain, dividends, interest, fees')
+          .select('realized_gain, dividends, interest, fees, unrealized_gain, market_value, net_gain')
           .eq('user_id', userId)
-          .eq('grouping_type', 'total')
-          .eq('grouping_id', 'total')
-          .single();
+          .eq('grouping_type', 'asset');
 
-        const summaryData = summary || { realized_gain: 0, dividends: 0, interest: 0, fees: 0 };
-        const unrealized = marketValue - costBasis;
-        const net = unrealized + (summaryData.realized_gain || 0) + (summaryData.dividends || 0) + (summaryData.interest || 0) - (summaryData.fees || 0);
-        const totalReturnPct = totalOriginalInvestment > 0 ? (net / totalOriginalInvestment) * 100 : 0;
+        // Sum all summaries for totals
+        const totals = summaries?.reduce(
+          (acc, row) => ({
+            market_value: acc.market_value + (row.market_value || 0),
+            unrealized_gain: acc.unrealized_gain + (row.unrealized_gain || 0),
+            realized_gain: acc.realized_gain + (row.realized_gain || 0),
+            dividends: acc.dividends + (row.dividends || 0),
+            net_gain: acc.net_gain + (row.net_gain || 0),
+          }),
+          { market_value: 0, unrealized_gain: 0, realized_gain: 0, dividends: 0, net_gain: 0 }
+        ) || { market_value: 0, unrealized_gain: 0, realized_gain: 0, dividends: 0, net_gain: 0 };
+
+        const totalReturnPct = totalOriginalInvestment > 0 ? (totals.net_gain / totalOriginalInvestment) * 100 : 0;
 
         setPerformanceTotals({
-          market_value: marketValue,
-          net_gain: net,
+          market_value: totals.market_value,
+          net_gain: totals.net_gain,
           total_return_pct: totalReturnPct,
+          unrealized_gain: totals.unrealized_gain,
+          realized_gain: totals.realized_gain,
+          dividends: totals.dividends,
         });
       }
     } catch (err) {
@@ -304,32 +267,54 @@ export default function DashboardHome() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div>
+            <div className="flex justify-start mb-4 mt-6">
+              <Button onClick={handleRefresh} disabled={refreshing}>
+                {refreshing ? 'Refreshing...' : 'Refresh Prices'}
+              </Button>
+            </div>
             <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
               <CardHeader>
-                <div className="flex justify-between items-center mb-4">
-                  <Button onClick={(e) => { e.stopPropagation(); handleRefresh(); }} disabled={refreshing}>
-                    {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-                  </Button>
-                  <CardTitle className="text-center text-4xl flex-1">Portfolio Performance Summary</CardTitle>
-                </div>
-                <div className="flex flex-col items-center mt-6 gap-8">
-                  <div>
-                    <CardTitle>Total Portfolio Value</CardTitle>
-                    <p className="text-2xl font-bold text-black mt-2">
-                      {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
-                    </p>
+                <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
+                <div className="grid grid-cols-2 gap-8 mt-6">
+                  <div className="space-y-8">
+                    <div>
+                      <CardTitle>Total Portfolio Value</CardTitle>
+                      <p className="text-2xl font-bold text-black mt-2">
+                        {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
+                      </p>
+                    </div>
+                    <div>
+                      <CardTitle>Net Gain/Loss</CardTitle>
+                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
+                        {performanceTotals ? formatUSD(performanceTotals.net_gain) : 'Loading...'}
+                      </p>
+                    </div>
+                    <div>
+                      <CardTitle>Total Return %</CardTitle>
+                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.total_return_pct >= 0 ? "text-green-600" : "text-red-600")}>
+                        {performanceTotals ? `${performanceTotals.total_return_pct.toFixed(2)}%` : 'Loading...'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle>Net Gain/Loss</CardTitle>
-                    <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                      {performanceTotals ? formatUSD(performanceTotals.net_gain) : 'Loading...'}
-                    </p>
-                  </div>
-                  <div>
-                    <CardTitle>Total Return %</CardTitle>
-                    <p className={cn("text-2xl font-bold mt-2", performanceTotals?.total_return_pct >= 0 ? "text-green-600" : "text-red-600")}>
-                      {performanceTotals ? `${performanceTotals.total_return_pct.toFixed(2)}%` : 'Loading...'}
-                    </p>
+                  <div className="space-y-8">
+                    <div>
+                      <CardTitle>Unrealized Gain</CardTitle>
+                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.unrealized_gain >= 0 ? "text-green-600" : "text-red-600")}>
+                        {performanceTotals ? formatUSD(performanceTotals.unrealized_gain) : 'Loading...'}
+                      </p>
+                    </div>
+                    <div>
+                      <CardTitle>Realized Gain</CardTitle>
+                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
+                        {performanceTotals ? formatUSD(performanceTotals.realized_gain) : 'Loading...'}
+                      </p>
+                    </div>
+                    <div>
+                      <CardTitle>Income</CardTitle>
+                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.dividends >= 0 ? "text-green-600" : "text-red-600")}>
+                        {performanceTotals ? formatUSD(performanceTotals.dividends) : 'Loading...'}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </CardHeader>
