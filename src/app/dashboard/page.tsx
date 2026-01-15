@@ -134,44 +134,94 @@ export default function DashboardHome() {
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
       if (userId) {
-        // Fetch all tax lots to calculate total original investment
+        // Fetch all tax lots to calculate total original investment and market values
         const { data: allLotsData } = await supabase
           .from('tax_lots')
-          .select('cost_basis_per_unit, quantity, remaining_quantity')
+          .select(`
+            asset_id,
+            account_id,
+            remaining_quantity,
+            cost_basis_per_unit,
+            quantity,
+            asset:assets (
+              id,
+              ticker,
+              name,
+              asset_type,
+              asset_subtype,
+              geography,
+              size_tag,
+              factor_tag,
+              sub_portfolio_id
+            )
+          `)
           .eq('user_id', userId);
 
         const totalOriginalInvestment = allLotsData?.reduce((sum, lot) => {
           return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
         }, 0) || 0;
 
-        // Fetch performance summaries for all assets
+        const openLots = allLotsData?.filter(lot => lot.remaining_quantity > 0) || [];
+        const tickers = [
+          ...new Set(
+            openLots.map((lot: any) => {
+              const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+              return asset?.ticker;
+            }).filter(Boolean)
+          ),
+        ];
+
+        const { data: pricesData } = await supabase
+          .from('asset_prices')
+          .select('ticker, price')
+          .in('ticker', tickers);
+
+        const latestPrices = new Map<string, number>();
+        pricesData?.forEach((p: any) => {
+          if (!latestPrices.has(p.ticker)) {
+            latestPrices.set(p.ticker, p.price);
+          }
+        });
+
+        let marketValue = 0;
+        let costBasis = 0;
+        openLots.forEach((lot: any) => {
+          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+          const qty = Number(lot.remaining_quantity);
+          const price = latestPrices.get(asset?.ticker || '') || 0;
+          marketValue += qty * price;
+          costBasis += qty * Number(lot.cost_basis_per_unit);
+        });
+
+        const unrealized = marketValue - costBasis;
+
+        // Fetch performance summaries for all assets to sum realized, dividends, etc.
         const { data: summaries } = await supabase
           .from('performance_summaries')
-          .select('realized_gain, dividends, interest, fees, unrealized_gain, market_value, net_gain')
+          .select('realized_gain, dividends, interest, fees')
           .eq('user_id', userId)
           .eq('grouping_type', 'asset');
 
-        // Sum all summaries for totals
-        const totals = summaries?.reduce(
+        const summaryTotals = summaries?.reduce(
           (acc, row) => ({
-            market_value: acc.market_value + (row.market_value || 0),
-            unrealized_gain: acc.unrealized_gain + (row.unrealized_gain || 0),
             realized_gain: acc.realized_gain + (row.realized_gain || 0),
             dividends: acc.dividends + (row.dividends || 0),
-            net_gain: acc.net_gain + (row.net_gain || 0),
+            interest: acc.interest + (row.interest || 0),
+            fees: acc.fees + (row.fees || 0),
           }),
-          { market_value: 0, unrealized_gain: 0, realized_gain: 0, dividends: 0, net_gain: 0 }
-        ) || { market_value: 0, unrealized_gain: 0, realized_gain: 0, dividends: 0, net_gain: 0 };
+          { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
+        ) || { realized_gain: 0, dividends: 0, interest: 0, fees: 0 };
 
-        const totalReturnPct = totalOriginalInvestment > 0 ? (totals.net_gain / totalOriginalInvestment) * 100 : 0;
+        const net = unrealized + summaryTotals.realized_gain + summaryTotals.dividends + summaryTotals.interest - summaryTotals.fees;
+        const totalReturnPct = totalOriginalInvestment > 0 ? (net / totalOriginalInvestment) * 100 : 0;
 
         setPerformanceTotals({
-          market_value: totals.market_value,
-          net_gain: totals.net_gain,
+          market_value: marketValue,
+          net_gain: net,
           total_return_pct: totalReturnPct,
-          unrealized_gain: totals.unrealized_gain,
-          realized_gain: totals.realized_gain,
-          dividends: totals.dividends,
+          unrealized_gain: unrealized,
+          realized_gain: summaryTotals.realized_gain,
+          dividends: summaryTotals.dividends,
         });
       }
     } catch (err) {
