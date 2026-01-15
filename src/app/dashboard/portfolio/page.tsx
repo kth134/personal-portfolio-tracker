@@ -102,22 +102,6 @@ export default async function PortfolioPage() {
     }
   })
 
-  // Compute totals (for footer)
-  let investedTotalBasis = 0
-  let investedCurrentValue = 0
-  if (lots?.length) {
-    for (const lot of lots) {
-      const qty = Number(lot.remaining_quantity)
-      const basisPer = Number(lot.cost_basis_per_unit)
-      investedTotalBasis += qty * basisPer
-      const currentPrice = latestPrices.get(lot.asset.ticker) || 0
-      investedCurrentValue += qty * currentPrice
-    }
-  }
-  const grandTotalBasis = investedTotalBasis + totalCash
-  const grandTotalValue = investedCurrentValue + totalCash
-  const overallUnrealized = grandTotalValue - grandTotalBasis
-
   return (
     <main className="p-8">
       <h1 className="text-3xl font-bold mb-8">Portfolio</h1>
@@ -133,9 +117,6 @@ export default async function PortfolioPage() {
           {lots?.length ? (
             <PortfolioHoldingsWithSlicers
               cash={totalCash}
-              grandTotalBasis={grandTotalBasis}
-              grandTotalValue={grandTotalValue}
-              overallUnrealized={overallUnrealized}
             />
           ) : (
             <div className="text-center py-12 text-muted-foreground">

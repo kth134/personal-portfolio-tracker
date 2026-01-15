@@ -51,14 +51,8 @@ type HoldingRow = {
 
 export default function PortfolioHoldingsWithSlicers({
   cash,
-  grandTotalBasis,
-  grandTotalValue,
-  overallUnrealized,
 }: {
   cash: number
-  grandTotalBasis: number
-  grandTotalValue: number
-  overallUnrealized: number
 }) {
   const [lens, setLens] = useState('total')
   const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([])
@@ -164,6 +158,9 @@ export default function PortfolioHoldingsWithSlicers({
 
   const rows = getTableRows()
 
+  const selectedTotalBasis = rows.reduce((sum, row) => sum + row.totalBasis, 0) + cash
+  const selectedTotalValue = rows.reduce((sum, row) => sum + row.currValue, 0) + cash
+
   const groupedRows = rows.reduce((acc, row) => {
     const key = row.groupKey || 'Aggregated'
     if (!acc.has(key)) acc.set(key, [])
@@ -238,11 +235,11 @@ export default function PortfolioHoldingsWithSlicers({
       {loading ? (
         <div className="text-center py-12">Loading portfolio data...</div>
       ) : (
-        <div className="grid grid-cols-1 gap-8">
+        <div className="flex flex-wrap gap-8 justify-center">
           {allocations.map((slice, idx) => (
-            <div key={idx} className="space-y-4">
+            <div key={idx} className="space-y-4 min-w-0 flex-shrink-0">
               <h4 className="font-medium text-center">{slice.key}</h4>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={300} minWidth={300}>
                 <PieChart>
                   <Pie
                     data={slice.data}
@@ -275,7 +272,6 @@ export default function PortfolioHoldingsWithSlicers({
                 <TableHead className="text-right">Total Basis</TableHead>
                 <TableHead className="text-right">Curr Price</TableHead>
                 <TableHead className="text-right">Curr Value</TableHead>
-                <TableHead className="text-right">Unreal Gain/Loss</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -292,11 +288,16 @@ export default function PortfolioHoldingsWithSlicers({
                   <TableCell className="text-right">{formatUSD(row.totalBasis)}</TableCell>
                   <TableCell className="text-right">{formatUSD(row.currPrice)}</TableCell>
                   <TableCell className="text-right">{formatUSD(row.currValue)}</TableCell>
-                  <TableCell className={cn("text-right", row.unrealized >= 0 ? "text-green-600" : "text-red-600")}>
-                    {formatUSD(row.unrealized)}
-                  </TableCell>
                 </TableRow>
               ))}
+              <TableRow className="font-semibold bg-muted/30">
+                <TableCell>Total</TableCell>
+                <TableCell className="text-right">{rows.reduce((sum, r) => sum + r.quantity, 0).toFixed(4)}</TableCell>
+                <TableCell className="text-right">-</TableCell>
+                <TableCell className="text-right">{formatUSD(rows.reduce((sum, r) => sum + r.totalBasis, 0))}</TableCell>
+                <TableCell className="text-right">-</TableCell>
+                <TableCell className="text-right">{formatUSD(rows.reduce((sum, r) => sum + r.currValue, 0))}</TableCell>
+              </TableRow>
             </TableBody>
           </Table>
         ) : (
@@ -314,7 +315,6 @@ export default function PortfolioHoldingsWithSlicers({
                         <TableHead className="text-right">Total Basis</TableHead>
                         <TableHead className="text-right">Curr Price</TableHead>
                         <TableHead className="text-right">Curr Value</TableHead>
-                        <TableHead className="text-right">Unreal Gain/Loss</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -331,11 +331,16 @@ export default function PortfolioHoldingsWithSlicers({
                           <TableCell className="text-right">{formatUSD(row.totalBasis)}</TableCell>
                           <TableCell className="text-right">{formatUSD(row.currPrice)}</TableCell>
                           <TableCell className="text-right">{formatUSD(row.currValue)}</TableCell>
-                          <TableCell className={cn("text-right", row.unrealized >= 0 ? "text-green-600" : "text-red-600")}>
-                            {formatUSD(row.unrealized)}
-                          </TableCell>
                         </TableRow>
                       ))}
+                      <TableRow className="font-semibold bg-muted/30">
+                        <TableCell>Sub-Total</TableCell>
+                        <TableCell className="text-right">{groupRows.reduce((sum, r) => sum + r.quantity, 0).toFixed(4)}</TableCell>
+                        <TableCell className="text-right">-</TableCell>
+                        <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.totalBasis, 0))}</TableCell>
+                        <TableCell className="text-right">-</TableCell>
+                        <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.currValue, 0))}</TableCell>
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </AccordionContent>
@@ -350,24 +355,28 @@ export default function PortfolioHoldingsWithSlicers({
         <Table>
           <TableBody>
             <TableRow className="font-bold bg-muted/50">
+              <TableCell>Holdings Total</TableCell>
+              <TableCell className="text-right">-</TableCell>
+              <TableCell className="text-right">-</TableCell>
+              <TableCell className="text-right">{formatUSD(selectedTotalBasis - cash)}</TableCell>
+              <TableCell className="text-right">-</TableCell>
+              <TableCell className="text-right">{formatUSD(selectedTotalValue - cash)}</TableCell>
+            </TableRow>
+            <TableRow className="font-bold bg-muted/50">
               <TableCell>Cash Balance</TableCell>
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(cash)}</TableCell>
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(cash)}</TableCell>
-              <TableCell className="text-right">$0.00</TableCell>
             </TableRow>
             <TableRow className="font-bold text-lg">
               <TableCell>Portfolio Total</TableCell>
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">-</TableCell>
-              <TableCell className="text-right">{formatUSD(grandTotalBasis)}</TableCell>
+              <TableCell className="text-right">{formatUSD(selectedTotalBasis)}</TableCell>
               <TableCell className="text-right">-</TableCell>
-              <TableCell className="text-right">{formatUSD(grandTotalValue)}</TableCell>
-              <TableCell className={cn("text-right", overallUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
-                {formatUSD(overallUnrealized)}
-              </TableCell>
+              <TableCell className="text-right">{formatUSD(selectedTotalValue)}</TableCell>
             </TableRow>
           </TableBody>
         </Table>
