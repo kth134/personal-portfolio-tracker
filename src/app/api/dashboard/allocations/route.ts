@@ -15,7 +15,7 @@ let lotsQuery = supabase
     remaining_quantity,
     cost_basis_per_unit,
     asset_id,
-    asset:assets(id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolios(name)),
+    asset:assets(id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolios!sub_portfolio_id(name)),
     account:accounts(name)
   `)
   .gt('remaining_quantity', 0)

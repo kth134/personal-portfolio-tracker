@@ -26,7 +26,7 @@ export async function POST(req: Request) {
         break;
       case 'sub_portfolio':
         column = 'sub_portfolio->sub_portfolios->name';
-        query = query.select('asset:assets(sub_portfolios(name))');
+        query = query.select('asset:assets(sub_portfolios!sub_portfolio_id(name))');
         break;
       case 'account':
         column = 'account->accounts->name';
