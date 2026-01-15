@@ -71,19 +71,19 @@ if (lens !== 'total' && selectedValues?.length > 0) {
       case 'asset':
         return selectedValues.includes(asset.id);
       case 'account':
-        return selectedValues.includes(lot.account?.name);
+        return selectedValues.includes((lot.account?.name || 'Unknown').trim());
       case 'sub_portfolio':
-        return selectedValues.includes(asset.sub_portfolio?.name);
+        return selectedValues.includes((asset.sub_portfolio?.name || 'No Sub-Portfolio').trim());
       case 'asset_type':
-        return selectedValues.includes(asset.asset_type);
+        return selectedValues.includes((asset.asset_type || 'Unknown').trim());
       case 'asset_subtype':
-        return selectedValues.includes(asset.asset_subtype);
+        return selectedValues.includes((asset.asset_subtype || 'Unknown').trim());
       case 'geography':
-        return selectedValues.includes(asset.geography);
+        return selectedValues.includes((asset.geography || 'Unknown').trim());
       case 'size_tag':
-        return selectedValues.includes(asset.size_tag);
+        return selectedValues.includes((asset.size_tag || 'Unknown').trim());
       case 'factor_tag':
-        return selectedValues.includes(asset.factor_tag);
+        return selectedValues.includes((asset.factor_tag || 'Unknown').trim());
       default:
         return true;
     }
@@ -140,14 +140,14 @@ filteredLots?.forEach((lot: any) => {
   let key = 'Total';
   if (lens !== 'total') {
     switch (lens) {
-      case 'sub_portfolio': key = lot.asset.sub_portfolio?.name || 'Untagged'; break;
-      case 'account': key = lot.account?.name || 'Untagged'; break;
-      case 'asset_type': key = lot.asset.asset_type || 'Untagged'; break;
-      case 'asset_subtype': key = lot.asset.asset_subtype || 'Untagged'; break;
-      case 'geography': key = lot.asset.geography || 'Untagged'; break;
-      case 'size_tag': key = lot.asset.size_tag || 'Untagged'; break;
-      case 'factor_tag': key = lot.asset.factor_tag || 'Untagged'; break;
-      default: key = 'Untagged';
+      case 'sub_portfolio': key = (lot.asset.sub_portfolio?.name || 'No Sub-Portfolio').trim(); break;
+      case 'account': key = (lot.account?.name || 'Unknown').trim(); break;
+      case 'asset_type': key = (lot.asset.asset_type || 'Unknown').trim(); break;
+      case 'asset_subtype': key = (lot.asset.asset_subtype || 'Unknown').trim(); break;
+      case 'geography': key = (lot.asset.geography || 'Unknown').trim(); break;
+      case 'size_tag': key = (lot.asset.size_tag || 'Unknown').trim(); break;
+      case 'factor_tag': key = (lot.asset.factor_tag || 'Unknown').trim(); break;
+      default: key = 'Unknown';
     }
   }
 

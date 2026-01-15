@@ -61,33 +61,36 @@ export async function POST(req: Request) {
         }
       });
     } else {
+      let fallback = 'Unknown';
+      if (lens === 'sub_portfolio') fallback = 'No Sub-Portfolio';
       data?.forEach((row: any) => {
         let value: string | null = null;
         if (lens === 'sub_portfolio') {
-          value = row.asset?.sub_portfolio?.name;
+          value = (row.asset?.sub_portfolio?.name || '').trim();
         } else if (lens === 'account') {
-          value = row.account?.name;
+          value = (row.account?.name || '').trim();
         } else {
-          value = row.asset?.[lens];
+          value = (row.asset?.[lens] || '').trim();
         }
         if (value && !valuesSet.has(value)) {
           valuesSet.add(value);
           valuesArray.push({ value, label: value });
         }
       });
-      // Add Untagged if needed
-      if (data?.some((row: any) => {
+      // Add fallback if needed
+      const hasNull = data?.some((row: any) => {
         let value: string | null = null;
         if (lens === 'sub_portfolio') {
-          value = row.asset?.sub_portfolio?.name;
+          value = (row.asset?.sub_portfolio?.name || '').trim();
         } else if (lens === 'account') {
-          value = row.account?.name;
+          value = (row.account?.name || '').trim();
         } else {
-          value = row.asset?.[lens];
+          value = (row.asset?.[lens] || '').trim();
         }
         return !value;
-      })) {
-        valuesArray.push({ value: 'Untagged', label: 'Untagged' });
+      });
+      if (hasNull) {
+        valuesArray.push({ value: fallback, label: fallback });
       }
     }
 
