@@ -18,6 +18,7 @@ import { formatUSD } from '@/lib/formatters';
 import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7'];
 
@@ -34,6 +35,7 @@ const LENSES = [
 
 export default function DashboardHome() {
   const supabase = createClient();
+  const router = useRouter();
 
   // Core states from original
   const [lens, setLens] = useState('total');
@@ -45,6 +47,7 @@ export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [valuesLoading, setValuesLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [performanceTotals, setPerformanceTotals] = useState<any>(null);
 
   // MFA states
   const [mfaStatus, setMfaStatus] = useState<'checking' | 'prompt' | 'verified' | 'none'>('checking');
@@ -125,6 +128,88 @@ export default function DashboardHome() {
       const allocData = await allocRes.json();
 
       setAllocations(allocData.allocations || []);
+
+      // Fetch performance totals
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+      if (userId) {
+        const { data: allLotsData } = await supabase
+          .from('tax_lots')
+          .select(`
+            asset_id,
+            account_id,
+            remaining_quantity,
+            cost_basis_per_unit,
+            quantity,
+            asset:assets (
+              id,
+              ticker,
+              name,
+              asset_type,
+              asset_subtype,
+              geography,
+              size_tag,
+              factor_tag,
+              sub_portfolio_id
+            )
+          `)
+          .eq('user_id', userId);
+
+        const totalOriginalInvestment = allLotsData?.reduce((sum, lot) => {
+          return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
+        }, 0) || 0;
+
+        const openLots = allLotsData?.filter(lot => lot.remaining_quantity > 0) || [];
+        const tickers = [
+          ...new Set(
+            openLots.map((lot: any) => {
+              const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+              return asset?.ticker;
+            }).filter(Boolean)
+          ),
+        ];
+
+        const { data: pricesData } = await supabase
+          .from('asset_prices')
+          .select('ticker, price')
+          .in('ticker', tickers);
+
+        const latestPrices = new Map<string, number>();
+        pricesData?.forEach((p: any) => {
+          if (!latestPrices.has(p.ticker)) {
+            latestPrices.set(p.ticker, p.price);
+          }
+        });
+
+        let marketValue = 0;
+        let costBasis = 0;
+        openLots.forEach((lot: any) => {
+          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+          const qty = Number(lot.remaining_quantity);
+          const price = latestPrices.get(asset?.ticker || '') || 0;
+          marketValue += qty * price;
+          costBasis += qty * Number(lot.cost_basis_per_unit);
+        });
+
+        const { data: summary } = await supabase
+          .from('performance_summaries')
+          .select('realized_gain, dividends, interest, fees')
+          .eq('user_id', userId)
+          .eq('grouping_type', 'total')
+          .eq('grouping_id', 'total')
+          .single();
+
+        const summaryData = summary || { realized_gain: 0, dividends: 0, interest: 0, fees: 0 };
+        const unrealized = marketValue - costBasis;
+        const net = unrealized + (summaryData.realized_gain || 0) + (summaryData.dividends || 0) + (summaryData.interest || 0) - (summaryData.fees || 0);
+        const totalReturnPct = totalOriginalInvestment > 0 ? (net / totalOriginalInvestment) * 100 : 0;
+
+        setPerformanceTotals({
+          market_value: marketValue,
+          net_gain: net,
+          total_return_pct: totalReturnPct,
+        });
+      }
     } catch (err) {
       console.error('Dashboard data fetch failed:', err);
     } finally {
@@ -281,8 +366,34 @@ export default function DashboardHome() {
       ) : selectedValues.length === 0 && lens !== 'total' ? (
         <div className="text-center py-12 text-muted-foreground">Select at least one value to view data.</div>
       ) : (
-        <>
-          <Card className="mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
+            <CardHeader>
+              <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
+              <div className="grid grid-cols-[1.5fr_0.8fr_1.5fr] items-center mt-6 gap-8">
+                <div className="ml-[25%]">
+                  <CardTitle>Total Portfolio Value</CardTitle>
+                  <p className="text-2xl font-bold text-black mt-2">
+                    {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <CardTitle>Net Gain/Loss</CardTitle>
+                  <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
+                    {performanceTotals ? formatUSD(performanceTotals.net_gain) : 'Loading...'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <CardTitle>Total Return %</CardTitle>
+                  <p className={cn("text-2xl font-bold mt-2", performanceTotals?.total_return_pct >= 0 ? "text-green-600" : "text-red-600")}>
+                    {performanceTotals ? `${performanceTotals.total_return_pct.toFixed(2)}%` : 'Loading...'}
+                  </p>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+
+          <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
             <CardHeader>
               <CardTitle>
                 Current Allocation {aggregate ? '(Aggregated)' : '(Separate Comparison)'}
@@ -344,7 +455,7 @@ export default function DashboardHome() {
               )}
             </CardContent>
           </Card>
-        </>
+        </div>
       )}
     </main>
   );

@@ -392,14 +392,26 @@ function PerformanceContent() {
 
   return (
     <main className="p-8">
-      <div className="mb-8">
+      <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Performance Reports</h1>
+        <Button
+          onClick={handleRefreshPrices}
+          disabled={refreshing || loading}
+          size="sm"
+        >
+          {refreshing ? 'Refreshing...' : 'Refresh Prices'}
+        </Button>
       </div>
+      {refreshMessage && (
+        <div className="mb-4 p-2 bg-green-100 text-green-800 rounded">
+          {refreshMessage}
+        </div>
+      )}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
           <div className="grid grid-cols-[1.5fr_0.8fr_1.5fr] items-center mt-6 gap-8">
-            <div>
+            <div className="ml-[25%]">
               <CardTitle>Total Portfolio Value</CardTitle>
               <p className="text-2xl font-bold text-black mt-2">
                 {formatUSD(totals.market_value)}
