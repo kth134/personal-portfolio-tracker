@@ -268,8 +268,7 @@ export default function PortfolioHoldingsWithSlicers({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Ticker</TableHead>
-                <TableHead>Name</TableHead>
+                <TableHead>Asset</TableHead>
                 <TableHead className="text-right">Quantity</TableHead>
                 <TableHead className="text-right">Avg Basis</TableHead>
                 <TableHead className="text-right">Total Basis</TableHead>
@@ -281,8 +280,12 @@ export default function PortfolioHoldingsWithSlicers({
             <TableBody>
               {rows.map(row => (
                 <TableRow key={row.ticker}>
-                  <TableCell>{row.ticker}</TableCell>
-                  <TableCell>{row.name || '-'}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-bold">{row.ticker}</span>
+                      <span className="text-muted-foreground">{row.name || '-'}</span>
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right">{row.quantity.toFixed(4)}</TableCell>
                   <TableCell className="text-right">{formatUSD(row.avgBasis)}</TableCell>
                   <TableCell className="text-right">{formatUSD(row.totalBasis)}</TableCell>
@@ -304,8 +307,7 @@ export default function PortfolioHoldingsWithSlicers({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Ticker</TableHead>
-                        <TableHead>Name</TableHead>
+                        <TableHead>Asset</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
                         <TableHead className="text-right">Avg Basis</TableHead>
                         <TableHead className="text-right">Total Basis</TableHead>
@@ -317,8 +319,12 @@ export default function PortfolioHoldingsWithSlicers({
                     <TableBody>
                       {groupRows.map(row => (
                         <TableRow key={row.ticker}>
-                          <TableCell>{row.ticker}</TableCell>
-                          <TableCell>{row.name || '-'}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-bold">{row.ticker}</span>
+                              <span className="text-muted-foreground">{row.name || '-'}</span>
+                            </div>
+                          </TableCell>
                           <TableCell className="text-right">{row.quantity.toFixed(4)}</TableCell>
                           <TableCell className="text-right">{formatUSD(row.avgBasis)}</TableCell>
                           <TableCell className="text-right">{formatUSD(row.totalBasis)}</TableCell>
@@ -344,17 +350,19 @@ export default function PortfolioHoldingsWithSlicers({
           <TableBody>
             <TableRow className="font-bold bg-muted/50">
               <TableCell>Cash Balance</TableCell>
-              <TableCell colSpan={2} />
+              <TableCell className="text-right">-</TableCell>
+              <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(cash)}</TableCell>
-              <TableCell colSpan={2} />
+              <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(cash)}</TableCell>
               <TableCell className="text-right">$0.00</TableCell>
             </TableRow>
             <TableRow className="font-bold text-lg">
               <TableCell>Portfolio Total</TableCell>
-              <TableCell colSpan={2} />
+              <TableCell className="text-right">-</TableCell>
+              <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(grandTotalBasis)}</TableCell>
-              <TableCell colSpan={2} />
+              <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(grandTotalValue)}</TableCell>
               <TableCell className={cn("text-right", overallUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
                 {formatUSD(overallUnrealized)}

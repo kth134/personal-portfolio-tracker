@@ -584,7 +584,14 @@ function PerformanceContent() {
               <>
                 {sortedSummaries.map((row) => (
                   <TableRow key={row.grouping_id} className={lens === 'asset' && row.market_value === 0 ? "opacity-50" : ""}>
-                    <TableCell className="font-medium">{row.display_name}</TableCell>
+                    <TableCell className="font-medium">
+                      {lens === 'asset' ? (
+                        <div className="flex flex-col">
+                          <span className="font-bold">{row.display_name.split(' - ')[0]}</span>
+                          {row.display_name.includes(' - ') && <span className="text-muted-foreground">{row.display_name.split(' - ')[1]}</span>}
+                        </div>
+                      ) : row.display_name}
+                    </TableCell>
                     <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
                     {lens === 'asset' && (
                       <TableCell className="text-right">
