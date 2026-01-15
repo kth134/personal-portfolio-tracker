@@ -324,7 +324,7 @@ export default function DashboardHome() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div>
-            <div className="flex justify-start mb-4">
+            <div className="flex justify-start mb-4 min-h-[3rem]">
               <Button onClick={handleRefresh} disabled={refreshing}>
                 {refreshing ? 'Refreshing...' : 'Refresh Prices'}
               </Button>
@@ -381,7 +381,7 @@ export default function DashboardHome() {
 
           <div>
             {/* Holdings slicers and aggregate toggle - right aligned */}
-            <div className="flex flex-wrap gap-4 justify-end items-end mb-4">
+            <div className="flex flex-wrap gap-4 justify-end items-end mb-4 min-h-[3rem]">
               {/* Lens */}
               <div>
                 <Label className="text-sm font-medium">Slice by</Label>
