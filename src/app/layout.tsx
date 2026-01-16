@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="flex gap-6">
               <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
                 <Image
-                  src="/logo.png"
+                  src="/small-logo.png"
                   alt="RAIN Logo"
                   width={180}
                   height={60}
