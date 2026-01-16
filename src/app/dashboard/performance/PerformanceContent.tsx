@@ -26,7 +26,7 @@ import { refreshAssetPrices } from '../portfolio/actions';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
 function calculateIRR(cashFlows: number[], dates: Date[]): number {
-  let guess = 0.1;
+  let guess = 0;
   const maxIter = 100;
   const precision = 1e-8;
   for (let i = 0; i < maxIter; i++) {
@@ -516,10 +516,10 @@ function PerformanceContent() {
           transactionsData.forEach((tx: any) => {
             let flow = 0;
             if (tx.type === 'Buy') {
-              if (tx.funding_source === 'cash') {
-                flow = (tx.amount || 0) - (tx.fees || 0);
-              } else {
+              if (tx.funding_source === 'external') {
                 flow = -(tx.amount || 0) - (tx.fees || 0);
+              } else {
+                flow = (tx.amount || 0) - (tx.fees || 0);
               }
             } else if (tx.type === 'Sell') {
               flow = (tx.amount || 0) - (tx.fees || 0);
