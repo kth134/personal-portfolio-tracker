@@ -14,21 +14,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <nav className="bg-background border-b px-4 py-3">
           <div className="container mx-auto flex justify-between items-center">
             <div className="flex gap-6">
-              <Link href="/dashboard" className="font-semibold">Dashboard</Link>
+              <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+                <Image
+                  src="/logo.png"
+                  alt="RAIN Logo"
+                  width={180}
+                  height={60}
+                  priority
+                  unoptimized
+                  className="h-8 w-auto object-contain"
+                />
+                Dashboard
+              </Link>
               <Link href="/dashboard/portfolio">Portfolio</Link>
               <Link href="/dashboard/performance">Performance</Link> {/* ← NEW */}
               <Link href="/dashboard/transactions">Transactions</Link>
             </div>
             <div className="flex items-center gap-4">
-              <Image
-                src="/logo.png"
-                alt="RAIN Logo"
-                width={180}
-                height={60}
-                priority
-                unoptimized
-                className="h-10 w-auto object-contain"
-              />
               <GrokChatTrigger />
               <LogoutButton />
             </div>
