@@ -24,6 +24,12 @@ import { formatUSD } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { refreshAssetPrices } from '../portfolio/actions';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 function calculateIRR(cashFlows: number[], dates: Date[]): number {
   let guess = 0;
@@ -449,20 +455,10 @@ function PerformanceContent() {
             // Add transaction cash flows
             groupTxs.forEach((tx: any) => {
               let flow = 0;
-              if (tx.type === 'Buy') {
-                if (tx.funding_source === 'cash') {
-                  flow = (tx.amount || 0) - (tx.fees || 0);
-                } else {
-                  flow = -(tx.amount || 0) - (tx.fees || 0);
-                }
-              } else if (tx.type === 'Sell') {
+              if (tx.type === 'Buy' || tx.type === 'Deposit') {
+                flow = -(tx.amount || 0) - (tx.fees || 0);
+              } else if (tx.type === 'Sell' || tx.type === 'Withdrawal' || tx.type === 'Dividend' || tx.type === 'Interest') {
                 flow = (tx.amount || 0) - (tx.fees || 0);
-              } else if (tx.type === 'Dividend' || tx.type === 'Interest') {
-                flow = tx.amount || 0;
-              } else if (tx.type === 'Deposit') {
-                flow = tx.amount || 0;
-              } else if (tx.type === 'Withdrawal') {
-                flow = tx.amount || 0;
               }
               if (flow !== 0) {
                 cashFlows.push(flow);
@@ -476,14 +472,12 @@ function PerformanceContent() {
               flowDates.push(new Date());
             }
 
-            if (cashFlows.length > 1) {
+            if (cashFlows.length < 2 || flowDates.some(d => isNaN(d.getTime()))) {
+              annualizedReturnPct = 0;
+            } else {
+              console.log(`Group ${row.grouping_id} cash flows:`, cashFlows, flowDates.map(d => d.toISOString()));
               const irr = calculateIRR(cashFlows, flowDates);
-              if (!isNaN(irr)) {
-                const years = flowDates.length > 1 
-                  ? (flowDates[flowDates.length - 1].getTime() - flowDates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000)
-                  : 1;
-                annualizedReturnPct = years > 0 ? (Math.pow(1 + irr, 1 / years) - 1) * 100 : irr * 100;
-              }
+              annualizedReturnPct = isNaN(irr) ? 0 : irr * 100;
             }
           }
 
@@ -518,15 +512,14 @@ function PerformanceContent() {
             if (tx.type === 'Buy') {
               if (tx.funding_source === 'external') {
                 flow = -(tx.amount || 0) - (tx.fees || 0);
-              } else {
-                flow = (tx.amount || 0) - (tx.fees || 0);
               }
+              // Skip internal buys for total portfolio IRR
             } else if (tx.type === 'Sell') {
               flow = (tx.amount || 0) - (tx.fees || 0);
             } else if (tx.type === 'Dividend' || tx.type === 'Interest') {
               flow = tx.amount || 0;
             } else if (tx.type === 'Deposit') {
-              flow = tx.amount || 0;
+              flow = -(tx.amount || 0);
             } else if (tx.type === 'Withdrawal') {
               flow = tx.amount || 0;
             }
@@ -542,14 +535,12 @@ function PerformanceContent() {
             allFlowDates.push(new Date());
           }
 
-          if (allCashFlows.length > 1) {
+          if (allCashFlows.length < 2 || allFlowDates.some(d => isNaN(d.getTime()))) {
+            totalAnnualizedReturnPct = 0;
+          } else {
+            console.log(`Total portfolio cash flows:`, allCashFlows, allFlowDates.map(d => d.toISOString()));
             const irr = calculateIRR(allCashFlows, allFlowDates);
-            if (!isNaN(irr)) {
-              const years = allFlowDates.length > 1 
-                ? (allFlowDates[allFlowDates.length - 1].getTime() - allFlowDates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000)
-                : 1;
-              totalAnnualizedReturnPct = years > 0 ? (Math.pow(1 + irr, 1 / years) - 1) * 100 : irr * 100;
-            }
+            totalAnnualizedReturnPct = isNaN(irr) ? 0 : irr * 100;
           }
         }
 
@@ -575,7 +566,8 @@ function PerformanceContent() {
   const totalReturnPct = totalOriginalInvestment > 0 ? (totalNet / totalOriginalInvestment) * 100 : 0;
 
   return (
-    <main className="p-4 md:p-8">
+    <TooltipProvider>
+      <main className="p-4 md:p-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <h1 className="text-2xl md:text-3xl font-bold break-words">Performance Reports</h1>
         <Button
@@ -753,10 +745,17 @@ function PerformanceContent() {
                 className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold"
                 onClick={() => handleSort('annualized_return_pct')}
               >
-                <div className="flex items-center justify-end">
-                  <span className="break-words">Annual Return %</span>
-                  {getSortIcon('annualized_return_pct')}
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center justify-end">
+                      <span className="break-words">IRR</span>
+                      {getSortIcon('annualized_return_pct')}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Annualized Internal Rate of Return (IRR) - considers timing and size of all cash flows for money-weighted performance.</p>
+                  </TooltipContent>
+                </Tooltip>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -875,6 +874,7 @@ function PerformanceContent() {
         </Table>
       </div>
     </main>
+    </TooltipProvider>
   );
 }
 
