@@ -226,6 +226,7 @@ function PerformanceContent() {
             amount,
             fees,
             funding_source,
+            notes,
             asset_id,
             account_id,
             asset:assets (
@@ -480,7 +481,9 @@ function PerformanceContent() {
             // Add transaction cash flows
             groupTxs.forEach((tx: any) => {
               let flow = 0;
-              if (tx.type === 'Buy' || tx.type === 'Deposit') {
+              if (tx.type === 'Buy') {
+                flow = -(tx.amount || 0) - (tx.fees || 0);
+              } else if (tx.type === 'Deposit' && tx.notes !== "Auto-deposit for external buy") {
                 flow = -(tx.amount || 0) - (tx.fees || 0);
               } else if (tx.type === 'Sell' || tx.type === 'Withdrawal' || tx.type === 'Dividend' || tx.type === 'Interest') {
                 flow = (tx.amount || 0) - (tx.fees || 0);
@@ -540,7 +543,7 @@ function PerformanceContent() {
             // Only external new money going in
             if (tx.type === 'Buy' && tx.funding_source === 'external') {
               flow = -(tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Deposit') {
+            } else if (tx.type === 'Deposit' && tx.notes !== "Auto-deposit for external buy") {
               flow = -(tx.amount || 0) - (tx.fees || 0);
             } 
             // Explicit money coming out
@@ -788,7 +791,7 @@ function PerformanceContent() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex items-center justify-end">
-                      <span className="break-words">IRR</span>
+                      <span className="break-words">Annualized IRR</span>
                       {getSortIcon('annualized_return_pct')}
                     </div>
                   </TooltipTrigger>
@@ -863,7 +866,18 @@ function PerformanceContent() {
                         row.annualized_return_pct > 0 ? "text-green-600" : row.annualized_return_pct < 0 ? "text-red-600" : ""
                       )}
                     >
-                      {row.irrSkipped ? "N/A" : row.annualized_return_pct.toFixed(2) + "%"}
+                      {row.irrSkipped ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>N/A</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Insufficient cash flows (e.g., single transaction) to calculate IRR.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        row.annualized_return_pct.toFixed(2) + "%"
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
