@@ -54,33 +54,38 @@ function ResetPasswordContent() {
 
   return (
     <div className="flex items-center justify-center min-h-screen">
-      <form onSubmit={handleSubmit} className="w-full max-w-md space-y-4">
-        <h1 className="text-2xl font-bold">Reset Password</h1>
-        {error && <p className="text-red-500">{error}</p>}
-        <div>
-          <Label htmlFor="password">New Password</Label>
-          <Input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+      <div className="w-full max-w-md space-y-4">
+        <div className="flex flex-col items-center mb-6">
+          <img src="/logo.png" alt="RAIN Logo" className="h-12 mb-4" />
         </div>
-        <div>
-          <Label htmlFor="confirmPassword">Confirm Password</Label>
-          <Input
-            id="confirmPassword"
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-          />
-        </div>
-        <Button type="submit" disabled={loading}>
-          {loading ? 'Updating...' : 'Update Password'}
-        </Button>
-      </form>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <h1 className="text-2xl font-bold">Reset Password</h1>
+          {error && <p className="text-red-500">{error}</p>}
+          <div>
+            <Label htmlFor="password">New Password</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+            />
+          </div>
+          <Button type="submit" disabled={loading}>
+            {loading ? 'Updating...' : 'Update Password'}
+          </Button>
+        </form>
+      </div>
     </div>
   )
 }

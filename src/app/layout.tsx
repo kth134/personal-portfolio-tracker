@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <img src="/logo.jpg" alt="RAIN Logo" className="h-6" />
+                <img src="/logo.png" alt="RAIN Logo" className="h-6" />
                 <span className="text-sm text-muted-foreground">RAIN Portfolio Management</span>
               </div>
               <GrokChatTrigger />
