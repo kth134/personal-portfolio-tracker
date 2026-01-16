@@ -32,22 +32,46 @@ import {
 } from '@/components/ui/tooltip';
 
 function calculateIRR(cashFlows: number[], dates: Date[]): number {
-  let guess = 0;
-  const maxIter = 100;
+  // Sort by date just in case
+  const sorted = dates.map((d, i) => ({ d, cf: cashFlows[i] }))
+    .sort((a, b) => a.d.getTime() - b.d.getTime());
+  const sortedDates = sorted.map(({ d }) => d);
+  const sortedCashFlows = sorted.map(({ cf }) => cf);
+
+  // Newton-Raphson (increased iter, better guess)
+  let guess = 0.1;  // Start higher for growth portfolios
+  const maxIter = 1000;
   const precision = 1e-8;
   for (let i = 0; i < maxIter; i++) {
     let npv = 0;
     let dnpv = 0;
-    cashFlows.forEach((cf, j) => {
-      const years = (dates[j].getTime() - dates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+    sortedCashFlows.forEach((cf, j) => {
+      const years = (sortedDates[j].getTime() - sortedDates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000);
       const denom = Math.pow(1 + guess, years);
       npv += cf / denom;
       dnpv -= years * cf / (denom * (1 + guess));
     });
     if (Math.abs(npv) < precision) return guess;
+    if (Math.abs(dnpv) < precision) break;  // Avoid div/0
     guess -= npv / dnpv;
+    if (guess < -0.99 || guess > 10) break;  // Bound extreme
   }
-  return NaN;
+
+  // Fallback to bisection if Newton fails
+  let low = -0.99;
+  let high = 5.0;  // Cap at 500% for stability with crypto-like returns
+  for (let i = 0; i < 100; i++) {
+    const mid = (low + high) / 2;
+    let npv = 0;
+    sortedCashFlows.forEach((cf, j) => {
+      const years = (sortedDates[j].getTime() - sortedDates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+      npv += cf / Math.pow(1 + mid, years);
+    });
+    if (Math.abs(npv) < precision) return mid;
+    if (npv > 0) low = mid;
+    else high = mid;
+  }
+  return NaN;  // Still fail? Rare
 }
 
 const LENSES = [
@@ -447,6 +471,7 @@ function PerformanceContent() {
 
           // Calculate annualized return using IRR
           let annualizedReturnPct = 0;
+          let irrSkipped = false;
           const groupTxs = transactionsByGroup.get(row.grouping_id) || [];
           if (groupTxs.length > 0 || metrics.marketValue > 0) {
             const cashFlows: number[] = [];
@@ -474,6 +499,7 @@ function PerformanceContent() {
 
             if (cashFlows.length < 2 || flowDates.some(d => isNaN(d.getTime()))) {
               annualizedReturnPct = 0;
+              irrSkipped = true;
             } else {
               console.log(`Group ${row.grouping_id} cash flows:`, cashFlows, flowDates.map(d => d.toISOString()));
               const irr = calculateIRR(cashFlows, flowDates);
@@ -492,6 +518,7 @@ function PerformanceContent() {
             weight: 0, // Will be calculated after all data is processed
             total_return_pct: totalCostBasis > 0 ? (net / totalCostBasis) * 100 : 0,
             annualized_return_pct: annualizedReturnPct,
+            irrSkipped,
           };
         });
 
@@ -501,7 +528,7 @@ function PerformanceContent() {
           row.weight = totalPortfolioValue > 0 ? (row.market_value / totalPortfolioValue) * 100 : 0;
         });
 
-        // Calculate total annualized return
+        // Calculate total annualized return (personal money-weighted, external flows only)
         let totalAnnualizedReturnPct = 0;
         if (transactionsData && transactionsData.length > 0) {
           const allCashFlows: number[] = [];
@@ -509,27 +536,26 @@ function PerformanceContent() {
 
           transactionsData.forEach((tx: any) => {
             let flow = 0;
-            if (tx.type === 'Buy') {
-              if (tx.funding_source === 'external') {
-                flow = -(tx.amount || 0) - (tx.fees || 0);
-              }
-              // Skip internal buys for total portfolio IRR
-            } else if (tx.type === 'Sell') {
-              flow = (tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Dividend' || tx.type === 'Interest') {
-              flow = tx.amount || 0;
+
+            // Only external new money going in
+            if (tx.type === 'Buy' && tx.funding_source === 'external') {
+              flow = -(tx.amount || 0) - (tx.fees || 0);
             } else if (tx.type === 'Deposit') {
-              flow = -(tx.amount || 0);
-            } else if (tx.type === 'Withdrawal') {
-              flow = tx.amount || 0;
+              flow = -(tx.amount || 0) - (tx.fees || 0);
+            } 
+            // Explicit money coming out
+            else if (tx.type === 'Withdrawal') {
+              flow = (tx.amount || 0) - (tx.fees || 0);
             }
+            // IMPORTANT: Do NOT add Sell, Dividend, Interest here — they are internal unless withdrawn
+
             if (flow !== 0) {
               allCashFlows.push(flow);
               allFlowDates.push(new Date(tx.date));
             }
           });
 
-          // Add current total portfolio value
+          // Terminal value (what everything is worth today)
           if (totalPortfolioValue > 0) {
             allCashFlows.push(totalPortfolioValue);
             allFlowDates.push(new Date());
@@ -538,7 +564,7 @@ function PerformanceContent() {
           if (allCashFlows.length < 2 || allFlowDates.some(d => isNaN(d.getTime()))) {
             totalAnnualizedReturnPct = 0;
           } else {
-            console.log(`Total portfolio cash flows:`, allCashFlows, allFlowDates.map(d => d.toISOString()));
+            console.log(`Total portfolio EXTERNAL cash flows:`, allCashFlows, allFlowDates.map(d => d.toISOString()));
             const irr = calculateIRR(allCashFlows, allFlowDates);
             totalAnnualizedReturnPct = isNaN(irr) ? 0 : irr * 100;
           }
@@ -837,7 +863,7 @@ function PerformanceContent() {
                         row.annualized_return_pct > 0 ? "text-green-600" : row.annualized_return_pct < 0 ? "text-red-600" : ""
                       )}
                     >
-                      {row.annualized_return_pct.toFixed(2)}%
+                      {row.irrSkipped ? "N/A" : row.annualized_return_pct.toFixed(2) + "%"}
                     </TableCell>
                   </TableRow>
                 ))}
