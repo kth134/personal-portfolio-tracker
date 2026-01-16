@@ -10,6 +10,7 @@ export default function MFASettings() {
 
   const [qrUri, setQrUri] = useState<string | null>(null)
   const [secret, setSecret] = useState<string | null>(null)
+  const [factorId, setFactorId] = useState<string | null>(null)
   const [verifyCode, setVerifyCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -40,6 +41,7 @@ export default function MFASettings() {
     setError(null)
     setQrUri(null)
     setSecret(null)
+    setFactorId(null)
     setLoading(true)
 
     const { data, error } = await supabase.auth.mfa.enroll({
@@ -55,11 +57,12 @@ export default function MFASettings() {
       return
     }
 
-    if (data?.totp?.qr_code) {
+    if (data?.totp?.qr_code && data.totp.secret && (data.totp as any).id) {
       setQrUri(data.totp.qr_code)
       setSecret(data.totp.secret)
+      setFactorId((data.totp as any).id)
     } else {
-      setError('No QR code returned from Supabase')
+      setError('Incomplete enrollment data returned from Supabase')
     }
   }
 
@@ -75,17 +78,14 @@ export default function MFASettings() {
       return
     }
 
+    if (!factorId) {
+      setError('No factor ID available – please enroll again')
+      setLoading(false)
+      return
+    }
+
     try {
-      // Step 1: List factors to get the pending one
-      const { data: factorsData, error: listError } = await supabase.auth.mfa.listFactors()
-      if (listError || !factorsData?.totp?.length) {
-        throw new Error('No TOTP factor found – try enrolling again')
-      }
-
-      const factor = factorsData.totp.find((f: any) => f.status === 'unverified') || factorsData.totp[0]
-      const factorId = factor.id
-
-      // Step 2: Challenge the factor to start verification session
+      // Step 1: Challenge the factor to start verification session
       const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
         factorId,
       })
@@ -95,7 +95,7 @@ export default function MFASettings() {
       const challengeId = challengeData?.id
       if (!challengeId) throw new Error('No challenge ID received')
 
-      // Step 3: Verify with code + challengeId
+      // Step 2: Verify with code + challengeId
       const { error: verifyError } = await supabase.auth.mfa.verify({
         factorId,
         challengeId,
@@ -107,6 +107,7 @@ export default function MFASettings() {
       setSuccess(true)
       setQrUri(null)
       setSecret(null)
+      setFactorId(null)
       setVerifyCode('')
       setVerifyAttempts(0) // Reset on success
       loadFactors() // refresh
@@ -137,13 +138,13 @@ export default function MFASettings() {
 
           <Button
             onClick={enroll}
-            disabled={!!qrUri || loading}
+            disabled={!!factorId || loading}
             className="w-full"
           >
-            {loading ? 'Processing...' : qrUri ? 'QR Code Ready' : 'Enable MFA'}
+            {loading ? 'Processing...' : factorId ? 'QR Code Ready' : 'Enable MFA'}
           </Button>
 
-          {qrUri && (
+          {factorId && qrUri && (
             <div className="space-y-6 border rounded-lg p-6 bg-white shadow-sm">
               <p className="font-medium text-center">Scan this QR code with your authenticator app:</p>
 
