@@ -55,6 +55,10 @@ export default function DashboardHome() {
   const [mfaCode, setMfaCode] = useState('');
   const [mfaError, setMfaError] = useState<string | null>(null);
 
+  // MFA setup prompt states
+  const [showMfaSetupPrompt, setShowMfaSetupPrompt] = useState(false);
+  const [dontAskAgain, setDontAskAgain] = useState(false);
+
   // Fetch distinct values for lens
   useEffect(() => {
     if (lens === 'total') {
@@ -93,6 +97,13 @@ export default function DashboardHome() {
         const { currentLevel, nextLevel } = aalData ?? {};
         if (currentLevel === 'aal1' && nextLevel === 'aal2') {
           setMfaStatus('prompt');
+        } else if (currentLevel === 'aal1') {
+          // MFA not set up, check if we should show setup prompt
+          const hasOptedOut = localStorage.getItem('mfa-setup-opted-out') === 'true';
+          if (!hasOptedOut) {
+            setShowMfaSetupPrompt(true);
+          }
+          setMfaStatus('verified'); // Allow access but show prompt
         } else {
           setMfaStatus('verified');
         }
@@ -279,10 +290,57 @@ export default function DashboardHome() {
     }
   };
 
+  const handleMfaSetupYes = () => {
+    if (dontAskAgain) {
+      localStorage.setItem('mfa-setup-opted-out', 'true');
+    }
+    window.location.href = '/settings/mfa';
+  };
+
+  const handleMfaSetupNo = () => {
+    if (dontAskAgain) {
+      localStorage.setItem('mfa-setup-opted-out', 'true');
+    }
+    setShowMfaSetupPrompt(false);
+  };
+
   // ── Render ──────────────────────────────────────────────────────────────
 
   if (mfaStatus === 'checking') {
     return <div className="container mx-auto p-6 text-center">Checking security...</div>;
+  }
+
+  if (showMfaSetupPrompt) {
+    return (
+      <div className="container mx-auto max-w-md p-6 space-y-6">
+        <h1 className="text-2xl font-bold">Enhance Your Security</h1>
+        <p className="text-muted-foreground">
+          Would you like to set up Multi-Factor Authentication (MFA) for added security on future logins?
+        </p>
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="dont-ask-again"
+              checked={dontAskAgain}
+              onChange={(e) => setDontAskAgain(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="dont-ask-again" className="text-sm text-muted-foreground">
+              Don't ask me this again
+            </label>
+          </div>
+          <div className="flex space-x-3">
+            <Button onClick={handleMfaSetupYes} className="flex-1">
+              Yes, Set Up MFA
+            </Button>
+            <Button onClick={handleMfaSetupNo} variant="outline" className="flex-1">
+              Not Now
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (mfaStatus === 'prompt') {

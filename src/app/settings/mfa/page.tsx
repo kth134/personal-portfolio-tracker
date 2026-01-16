@@ -1,13 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
+interface TOTPData {
+  id: string;
+  qr_code: string;
+  secret: string;
+  uri: string;
+  status: string;
+  type: string;
+}
+
 export default function MFASettings() {
   const supabase = createClient()
 
+  const [user, setUser] = useState<{ id: string } | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [qrUri, setQrUri] = useState<string | null>(null)
   const [secret, setSecret] = useState<string | null>(null)
   const [factorId, setFactorId] = useState<string | null>(null)
@@ -18,11 +29,9 @@ export default function MFASettings() {
   const [verifyAttempts, setVerifyAttempts] = useState(0)
   const [lastAttempt, setLastAttempt] = useState(0)
 
-  useEffect(() => {
-    loadFactors()
-  }, [])
+  const loadFactors = useCallback(async () => {
+    if (!user) return
 
-  const loadFactors = async () => {
     setLoading(true)
     const { data, error } = await supabase.auth.mfa.listFactors()
     setLoading(false)
@@ -35,9 +44,32 @@ export default function MFASettings() {
     }
 
     setSuccess(!!data?.totp?.some(f => f.status === 'verified'))
-  }
+  }, [user])
+
+  const checkAuth = useCallback(async () => {
+    setAuthLoading(true)
+    const { data: { user }, error } = await supabase.auth.getUser()
+    setAuthLoading(false)
+
+    if (error || !user) {
+      setError('Authentication required. Please log in to manage MFA settings.')
+      return
+    }
+
+    setUser(user)
+    loadFactors()
+  }, [loadFactors])
+
+  useEffect(() => {
+    checkAuth()
+  }, [checkAuth])
 
   const enroll = async () => {
+    if (!user) {
+      setError('Authentication required. Please log in to manage MFA settings.')
+      return
+    }
+
     setError(null)
     setQrUri(null)
     setSecret(null)
@@ -57,16 +89,22 @@ export default function MFASettings() {
       return
     }
 
-    if (data?.totp?.qr_code && data.totp.secret && (data.totp as any).id) {
+    if (data?.totp?.qr_code && data.totp.secret && (data.totp as TOTPData).id) {
       setQrUri(data.totp.qr_code)
       setSecret(data.totp.secret)
-      setFactorId((data.totp as any).id)
+      setFactorId((data.totp as TOTPData).id)
     } else {
       setError('Incomplete enrollment data returned from Supabase')
     }
   }
 
   const verify = async () => {
+    if (!user) {
+      setError('Authentication required. Please log in to manage MFA settings.')
+      setLoading(false)
+      return
+    }
+
     setError(null)
     setLoading(true)
 
@@ -111,8 +149,9 @@ export default function MFASettings() {
       setVerifyCode('')
       setVerifyAttempts(0) // Reset on success
       loadFactors() // refresh
-    } catch (err: any) {
-      const sanitizedError = (err.message || 'Verification failed').replace(/[<>\"'&]/g, '') // Basic sanitization
+    } catch (err: unknown) {
+      const error = err as Error
+      const sanitizedError = (error.message || 'Verification failed').replace(/[<>\"'&]/g, '') // Basic sanitization
       setError(sanitizedError)
       setVerifyAttempts(prev => prev + 1)
       setLastAttempt(Date.now())
@@ -126,7 +165,13 @@ export default function MFASettings() {
     <div className="max-w-md mx-auto space-y-6 p-6">
       <h1 className="text-2xl font-bold">Multi-Factor Authentication (TOTP)</h1>
 
-      {success ? (
+      {authLoading ? (
+        <p className="text-center text-sm text-muted-foreground">Checking authentication...</p>
+      ) : !user ? (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          Authentication required. Please log in to manage MFA settings.
+        </div>
+      ) : success ? (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
           MFA is now enabled! Your authenticator app provides an extra layer of security.
         </div>
@@ -138,7 +183,7 @@ export default function MFASettings() {
 
           <Button
             onClick={enroll}
-            disabled={!!factorId || loading}
+            disabled={!!factorId || loading || !user}
             className="w-full"
           >
             {loading ? 'Processing...' : factorId ? 'QR Code Ready' : 'Enable MFA'}
@@ -189,7 +234,7 @@ export default function MFASettings() {
         </>
       )}
 
-      {loading && !qrUri && (
+      {loading && !qrUri && user && (
         <p className="text-center text-sm text-muted-foreground">Loading MFA status...</p>
       )}
     </div>
