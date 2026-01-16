@@ -328,7 +328,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
 
     const subName = h.assets.subPortfolio?.name || 'Untagged';
     const key = `${h.assets.asset_type}-${subName}`;
-    const currentPrice = latestPrices.get(h.assets.ticker)?.price || 1;
+    const currentPrice = latestPrices.get(h.assets.ticker)?.price || 0;
     const currentValue = h.remaining_quantity * currentPrice;
     const totalCost = h.cost_basis_per_unit * h.remaining_quantity;
     const unrealizedGain = currentValue - totalCost;
@@ -383,7 +383,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   if (taxLots) {
     taxLots.forEach(l => {
       const ticker = l.assets?.ticker || '';
-      const currentPrice = latestPrices.get(ticker)?.price || 1;
+      const currentPrice = latestPrices.get(ticker)?.price || 0;
       const currentValue = l.remaining_quantity * currentPrice;
 
       // Account balance
