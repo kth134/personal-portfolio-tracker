@@ -195,6 +195,7 @@ function PerformanceContent() {
             type,
             amount,
             fees,
+            funding_source,
             asset_id,
             account_id,
             asset:assets (
@@ -449,15 +450,23 @@ function PerformanceContent() {
             groupTxs.forEach((tx: any) => {
               let flow = 0;
               if (tx.type === 'Buy') {
-              flow = (tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Sell') {
-              flow = (tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Dividend' || tx.type === 'Interest') {
-              flow = tx.amount || 0;
-            } else if (tx.type === 'Deposit') {
-              flow = tx.amount || 0;
-            } else if (tx.type === 'Withdrawal') {
-              flow = tx.amount || 0;
+                if (tx.funding_source === 'cash') {
+                  flow = (tx.amount || 0) - (tx.fees || 0);
+                } else {
+                  flow = -(tx.amount || 0) - (tx.fees || 0);
+                }
+              } else if (tx.type === 'Sell') {
+                flow = (tx.amount || 0) - (tx.fees || 0);
+              } else if (tx.type === 'Dividend' || tx.type === 'Interest') {
+                flow = tx.amount || 0;
+              } else if (tx.type === 'Deposit') {
+                flow = tx.amount || 0;
+              } else if (tx.type === 'Withdrawal') {
+                flow = tx.amount || 0;
+              }
+              if (flow !== 0) {
+                cashFlows.push(flow);
+                flowDates.push(new Date(tx.date));
               }
             });
 
@@ -507,7 +516,11 @@ function PerformanceContent() {
           transactionsData.forEach((tx: any) => {
             let flow = 0;
             if (tx.type === 'Buy') {
-              flow = (tx.amount || 0) - (tx.fees || 0);
+              if (tx.funding_source === 'cash') {
+                flow = (tx.amount || 0) - (tx.fees || 0);
+              } else {
+                flow = -(tx.amount || 0) - (tx.fees || 0);
+              }
             } else if (tx.type === 'Sell') {
               flow = (tx.amount || 0) - (tx.fees || 0);
             } else if (tx.type === 'Dividend' || tx.type === 'Interest') {
