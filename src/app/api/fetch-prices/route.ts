@@ -30,28 +30,51 @@ export async function GET() {
     const stockAssets = assets?.filter((a: any) => a.asset_subtype?.toLowerCase() !== 'crypto') || [];
     const stockTickers = stockAssets.map((a: any) => a.ticker.toUpperCase());
 
-    // CoinGecko for crypto (unchanged)
+    const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min - adjust as needed (e.g., 1h for less volatility)
+
+    // Helper to check if recent price exists
+    async function hasRecentPrice(ticker: string): Promise<boolean> {
+      const { data: recent } = await supabase
+        .from('asset_prices')
+        .select('timestamp')
+        .eq('ticker', ticker)
+        .order('timestamp', { ascending: false })
+        .limit(1);
+      if (!recent?.[0]) return false;
+      const age = Date.now() - new Date(recent[0].timestamp).getTime();
+      return age < CACHE_TTL_MS;
+    }
+
+    // CoinGecko for crypto
     if (cryptoTickers.length) {
-      const cgIds = cryptoTickers.map((t: any) => idMap[t] || t.toLowerCase());
-      const cgUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd`;
-      const cgResponse = await fetch(cgUrl);
-      if (cgResponse.ok) {
-        const cgPrices = await cgResponse.json();
-        for (let i = 0; i < cryptoTickers.length; i++) {
-          const originalTicker = cryptoTickers[i];
-          const cgId = cgIds[i];
-          const price = cgPrices[cgId]?.usd;
-          if (price) {
-            await supabase.from('asset_prices').insert({ ticker: originalTicker, price, source: 'coingecko' });
-            console.log(`Inserted CoinGecko price for ${originalTicker}: $${price}`);
+      const toFetch: string[] = [];
+      for (const t of cryptoTickers) {
+        if (!(await hasRecentPrice(t))) toFetch.push(t);
+      }
+      if (toFetch.length) {
+        const cgIds = toFetch.map(t => idMap[t] || t.toLowerCase());
+        const cgUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd`;
+        const cgResponse = await fetch(cgUrl);
+        if (cgResponse.ok) {
+          const cgPrices = await cgResponse.json();
+          for (let i = 0; i < toFetch.length; i++) {
+            const originalTicker = toFetch[i];
+            const cgId = cgIds[i];
+            const price = cgPrices[cgId]?.usd;
+            if (price) {
+              await supabase.from('asset_prices').insert({ ticker: originalTicker, price, source: 'coingecko' });
+              console.log(`Inserted CoinGecko price for ${originalTicker}: $${price}`);
+            }
           }
+        } else {
+          console.error(`CoinGecko error: ${cgResponse.statusText}`);
         }
       } else {
-        console.error(`CoinGecko error: ${cgResponse.statusText}`);
+        console.log('All crypto prices cached; skipping fetch');
       }
     }
 
-    // Finnhub primary + Alpha Vantage fallback
+    // Finnhub primary + Alpha Vantage fallback for stocks
     if (stockTickers.length) {
       const finnhubKey = process.env.FINNHUB_API_KEY;
       const alphaKey = process.env.ALPHA_VANTAGE_API_KEY;
@@ -59,6 +82,11 @@ export async function GET() {
       if (!alphaKey) throw new Error('Missing ALPHA_VANTAGE_API_KEY for mutual fund fallback');
 
       for (const ticker of stockTickers) {
+        if (await hasRecentPrice(ticker)) {
+          console.log(`Recent price cached for ${ticker}; skipping fetch`);
+          continue;
+        }
+
         let price: number | undefined;
         let source = 'finnhub';
 
@@ -72,7 +100,7 @@ export async function GET() {
           console.error(`Finnhub failed for ${ticker}: ${finnhubResponse.status} ${await finnhubResponse.text()}`);
         }
 
-        // Alpha Vantage fallback (mutual funds + backup for others)
+        // Alpha Vantage fallback
         if (!price || price <= 0) {
           source = 'alphavantage';
           console.log(`Attempting Alpha Vantage fallback for ${ticker}`);
