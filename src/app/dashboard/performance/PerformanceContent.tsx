@@ -25,6 +25,25 @@ import { cn } from '@/lib/utils';
 import { refreshAssetPrices } from '../portfolio/actions';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
+function calculateIRR(cashFlows: number[], dates: Date[]): number {
+  let guess = 0.1;
+  const maxIter = 100;
+  const precision = 1e-8;
+  for (let i = 0; i < maxIter; i++) {
+    let npv = 0;
+    let dnpv = 0;
+    cashFlows.forEach((cf, j) => {
+      const years = (dates[j].getTime() - dates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+      const denom = Math.pow(1 + guess, years);
+      npv += cf / denom;
+      dnpv -= years * cf / (denom * (1 + guess));
+    });
+    if (Math.abs(npv) < precision) return guess;
+    guess -= npv / dnpv;
+  }
+  return NaN;
+}
+
 const LENSES = [
   { value: 'asset', label: 'Asset' },
   { value: 'account', label: 'Account' },
@@ -48,6 +67,7 @@ function PerformanceContent() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+  const [totalAnnualizedReturnPct, setTotalAnnualizedReturnPct] = useState<number>(0);
 
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string>('display_name');
@@ -167,6 +187,30 @@ function PerformanceContent() {
 
         if (allLotsError) throw allLotsError;
 
+        // Fetch all transactions for IRR calculation
+        const { data: transactionsData, error: txError } = await supabase
+          .from('transactions')
+          .select(`
+            date,
+            type,
+            amount,
+            fees,
+            asset_id,
+            account_id,
+            asset:assets (
+              asset_type,
+              asset_subtype,
+              geography,
+              size_tag,
+              factor_tag,
+              sub_portfolio_id
+            )
+          `)
+          .eq('user_id', userId)
+          .order('date');
+
+        if (txError) throw txError;
+
         // Calculate total original investment (sum of all cost bases from all lots)
         const totalOriginalInvestment = allLotsData?.reduce((sum, lot) => {
           return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
@@ -214,6 +258,45 @@ function PerformanceContent() {
           }
           if (groupId && !possibleGroupings.has(groupId)) {
             possibleGroupings.set(groupId, { displayName });
+          }
+        });
+
+        // Group transactions by the same grouping logic
+        const transactionsByGroup = new Map<string, any[]>();
+        (transactionsData || []).forEach((tx: any) => {
+          const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset;
+          let groupId: string | null = null;
+          switch (lens) {
+            case 'asset':
+              groupId = tx.asset_id;
+              break;
+            case 'account':
+              groupId = tx.account_id;
+              break;
+            case 'sub_portfolio':
+              groupId = asset?.sub_portfolio_id || null;
+              break;
+            case 'asset_type':
+              groupId = asset?.asset_type || null;
+              break;
+            case 'asset_subtype':
+              groupId = asset?.asset_subtype || null;
+              break;
+            case 'geography':
+              groupId = asset?.geography || null;
+              break;
+            case 'size_tag':
+              groupId = asset?.size_tag || null;
+              break;
+            case 'factor_tag':
+              groupId = asset?.factor_tag || null;
+              break;
+          }
+          if (groupId) {
+            if (!transactionsByGroup.has(groupId)) {
+              transactionsByGroup.set(groupId, []);
+            }
+            transactionsByGroup.get(groupId)!.push(tx);
           }
         });
 
@@ -354,6 +437,47 @@ function PerformanceContent() {
             (summary.dividends || 0) +
             (summary.interest || 0);
           const totalCostBasis = costBasisByGroup.get(row.grouping_id) || 0;
+
+          // Calculate annualized return using IRR
+          let annualizedReturnPct = 0;
+          const groupTxs = transactionsByGroup.get(row.grouping_id) || [];
+          if (groupTxs.length > 0 || metrics.marketValue > 0) {
+            const cashFlows: number[] = [];
+            const flowDates: Date[] = [];
+
+            // Add transaction cash flows
+            groupTxs.forEach((tx: any) => {
+              let flow = 0;
+              if (tx.type === 'Buy') {
+              flow = (tx.amount || 0) - (tx.fees || 0);
+            } else if (tx.type === 'Sell') {
+              flow = (tx.amount || 0) - (tx.fees || 0);
+            } else if (tx.type === 'Dividend' || tx.type === 'Interest') {
+              flow = tx.amount || 0;
+            } else if (tx.type === 'Deposit') {
+              flow = tx.amount || 0;
+            } else if (tx.type === 'Withdrawal') {
+              flow = tx.amount || 0;
+              }
+            });
+
+            // Add current market value as final cash flow
+            if (metrics.marketValue > 0) {
+              cashFlows.push(metrics.marketValue);
+              flowDates.push(new Date());
+            }
+
+            if (cashFlows.length > 1) {
+              const irr = calculateIRR(cashFlows, flowDates);
+              if (!isNaN(irr)) {
+                const years = flowDates.length > 1 
+                  ? (flowDates[flowDates.length - 1].getTime() - flowDates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000)
+                  : 1;
+                annualizedReturnPct = years > 0 ? (Math.pow(1 + irr, 1 / years) - 1) * 100 : irr * 100;
+              }
+            }
+          }
+
           return {
             ...row,
             ...summary,
@@ -364,6 +488,7 @@ function PerformanceContent() {
             total_cost_basis: totalCostBasis,
             weight: 0, // Will be calculated after all data is processed
             total_return_pct: totalCostBasis > 0 ? (net / totalCostBasis) * 100 : 0,
+            annualized_return_pct: annualizedReturnPct,
           };
         });
 
@@ -372,6 +497,52 @@ function PerformanceContent() {
         enhanced.forEach(row => {
           row.weight = totalPortfolioValue > 0 ? (row.market_value / totalPortfolioValue) * 100 : 0;
         });
+
+        // Calculate total annualized return
+        let totalAnnualizedReturnPct = 0;
+        if (transactionsData && transactionsData.length > 0) {
+          const allCashFlows: number[] = [];
+          const allFlowDates: Date[] = [];
+
+          transactionsData.forEach((tx: any) => {
+            let flow = 0;
+            if (tx.type === 'Buy') {
+              flow = (tx.amount || 0) - (tx.fees || 0);
+            } else if (tx.type === 'Sell') {
+              flow = (tx.amount || 0) - (tx.fees || 0);
+            } else if (tx.type === 'Dividend' || tx.type === 'Interest') {
+              flow = tx.amount || 0;
+            } else if (tx.type === 'Deposit') {
+              flow = tx.amount || 0;
+            } else if (tx.type === 'Withdrawal') {
+              flow = tx.amount || 0;
+            }
+            if (flow !== 0) {
+              allCashFlows.push(flow);
+              allFlowDates.push(new Date(tx.date));
+            }
+          });
+
+          // Add current total portfolio value
+          if (totalPortfolioValue > 0) {
+            allCashFlows.push(totalPortfolioValue);
+            allFlowDates.push(new Date());
+          }
+
+          if (allCashFlows.length > 1) {
+            const irr = calculateIRR(allCashFlows, allFlowDates);
+            if (!isNaN(irr)) {
+              const years = allFlowDates.length > 1 
+                ? (allFlowDates[allFlowDates.length - 1].getTime() - allFlowDates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000)
+                : 1;
+              totalAnnualizedReturnPct = years > 0 ? (Math.pow(1 + irr, 1 / years) - 1) * 100 : irr * 100;
+            }
+          }
+        }
+
+        setSummaries(enhanced);
+        setTotalOriginalInvestment(totalOriginalInvestment);
+        setTotalAnnualizedReturnPct(totalAnnualizedReturnPct);
 
         setSummaries(enhanced);
         setTotalOriginalInvestment(totalOriginalInvestment);
@@ -565,18 +736,27 @@ function PerformanceContent() {
                   {getSortIcon('total_return_pct')}
                 </div>
               </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold"
+                onClick={() => handleSort('annualized_return_pct')}
+              >
+                <div className="flex items-center justify-end">
+                  <span className="break-words">Annual Return %</span>
+                  {getSortIcon('annualized_return_pct')}
+                </div>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={lens === 'asset' ? 9 : 8} className="text-center py-8">
+                <TableCell colSpan={lens === 'asset' ? 10 : 9} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : sortedSummaries.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={lens === 'asset' ? 9 : 8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={lens === 'asset' ? 10 : 9} className="text-center py-8 text-muted-foreground">
                   No data yet for this lens. Add transactions to populate performance.
                 </TableCell>
               </TableRow>
@@ -625,6 +805,14 @@ function PerformanceContent() {
                     >
                       {row.total_return_pct.toFixed(2)}%
                     </TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-right font-medium",
+                        row.annualized_return_pct > 0 ? "text-green-600" : row.annualized_return_pct < 0 ? "text-red-600" : ""
+                      )}
+                    >
+                      {row.annualized_return_pct.toFixed(2)}%
+                    </TableCell>
                   </TableRow>
                 ))}
                 {/* Total row */}
@@ -658,6 +846,14 @@ function PerformanceContent() {
                     )}
                   >
                     {totalReturnPct.toFixed(2)}%
+                  </TableCell>
+                  <TableCell 
+                    className={cn(
+                      "text-right font-bold",
+                      totalAnnualizedReturnPct > 0 ? "text-green-600" : totalAnnualizedReturnPct < 0 ? "text-red-600" : ""
+                    )}
+                  >
+                    {totalAnnualizedReturnPct.toFixed(2)}%
                   </TableCell>
                 </TableRow>
               </>

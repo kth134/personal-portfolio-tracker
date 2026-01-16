@@ -1,132 +1,93 @@
 'use client'
 
 import { useEffect, useState, Suspense } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 function ResetPasswordContent() {
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const [newPassword, setNewPassword] = useState('')
+  const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  const [verified, setVerified] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   useEffect(() => {
-    const verifyRecovery = async () => {
-      setLoading(true)
-      setError(null)
+    const accessToken = searchParams.get('access_token')
+    const refreshToken = searchParams.get('refresh_token')
+    const type = searchParams.get('type')
 
-      const accessToken = searchParams.get('access_token')
-      const refreshToken = searchParams.get('refresh_token')
-      const type = searchParams.get('type')
-
-      if (!accessToken || !refreshToken || type !== 'recovery') {
-        setError('Invalid or missing recovery token.')
-        setLoading(false)
-        return
-      }
-
-      const { error } = await supabase.auth.setSession({
+    if (type === 'recovery' && accessToken && refreshToken) {
+      // Set the session with the recovery tokens
+      supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken,
+      }).then(({ error }) => {
+        if (error) {
+          setError('Invalid or expired recovery link.')
+        }
       })
-
-      if (error) {
-        console.error('Set session error:', error)
-        setError(error.message || 'Failed to verify reset link. Try requesting a new one.')
-      } else {
-        setVerified(true)
-      }
-      setLoading(false)
+    } else {
+      setError('Invalid or missing recovery token.')
     }
+  }, [searchParams, supabase.auth])
 
-    verifyRecovery()
-  }, [searchParams])
-
-  const handleUpdate = async () => {
-    setError(null)
-    if (newPassword !== confirmPassword) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (password !== confirmPassword) {
       setError('Passwords do not match.')
       return
     }
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters.')
-      return
-    }
-
-    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setLoading(true)
+    const { error } = await supabase.auth.updateUser({ password })
+    setLoading(false)
     if (error) {
-      setError(error.message || 'Failed to update password.')
+      setError(error.message)
     } else {
-      setSuccess(true)
-      setTimeout(() => router.push('/dashboard'), 3000)
+      router.push('/dashboard') // Redirect to dashboard after successful reset
     }
-  }
-
-  if (loading) {
-    return <div className="container mx-auto p-6 text-center">Verifying reset link...</div>
-  }
-
-  if (!verified) {
-    return (
-      <div className="container mx-auto max-w-md p-6">
-        <h1 className="text-2xl font-bold mb-4">Invalid Link</h1>
-        <p className="text-red-500 mb-4">{error}</p>
-        <Button variant="link" onClick={() => router.push('/login')}>
-          Back to Login
-        </Button>
-      </div>
-    )
-  }
-
-  if (success) {
-    return (
-      <div className="container mx-auto max-w-md p-6 text-center">
-        <h1 className="text-2xl font-bold mb-4">Password Updated</h1>
-        <p>Success! Redirecting to login...</p>
-      </div>
-    )
   }
 
   return (
-    <div className="container mx-auto max-w-md p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Set New Password</h1>
-      <div>
-        <Label htmlFor="new-password">New Password</Label>
-        <Input
-          id="new-password"
-          type="password"
-          value={newPassword}
-          onChange={e => setNewPassword(e.target.value)}
-        />
-      </div>
-      <div>
-        <Label htmlFor="confirm-password">Confirm Password</Label>
-        <Input
-          id="confirm-password"
-          type="password"
-          value={confirmPassword}
-          onChange={e => setConfirmPassword(e.target.value)}
-        />
-      </div>
-      {error && <p className="text-red-500 text-sm">{error}</p>}
-      <Button onClick={handleUpdate} className="w-full" disabled={loading}>
-        Update Password
-      </Button>
+    <div className="flex items-center justify-center min-h-screen">
+      <form onSubmit={handleSubmit} className="w-full max-w-md space-y-4">
+        <h1 className="text-2xl font-bold">Reset Password</h1>
+        {error && <p className="text-red-500">{error}</p>}
+        <div>
+          <Label htmlFor="password">New Password</Label>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="confirmPassword">Confirm Password</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
+        </div>
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Updating...' : 'Update Password'}
+        </Button>
+      </form>
     </div>
   )
 }
 
-export default function ResetPassword() {
+export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="container mx-auto p-6 text-center">Loading...</div>}>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
       <ResetPasswordContent />
     </Suspense>
   )
