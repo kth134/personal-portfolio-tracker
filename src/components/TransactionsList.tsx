@@ -969,9 +969,8 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                 </TableCell>
                 <TableCell>{tx.date}</TableCell>
                 <TableCell>{tx.account?.name || '-'}</TableCell>
-                <TableCell className="break-words">
+                <TableCell className="w-16 break-words">
                   {tx.asset?.ticker || '-'}
-                  {tx.asset?.name && ` - ${tx.asset.name}`}
                 </TableCell>
                 <TableCell>{tx.type}</TableCell>
                 <TableCell>{tx.funding_source || '-'}</TableCell>

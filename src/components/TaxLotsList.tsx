@@ -420,9 +420,8 @@ const handleSort = (key: SortKey) => {
                   />
                 </TableCell>
                 <TableCell>{lot.account?.name || '-'}</TableCell>
-                <TableCell className="break-words">
+                <TableCell className="w-16 break-words">
                   {lot.asset?.ticker || '-'}
-                  {lot.asset?.name && ` - ${lot.asset.name}`}
                 </TableCell>
                 <TableCell>{lot.purchase_date}</TableCell>
                 <TableCell className="text-right">{Number(lot.quantity).toFixed(8)}</TableCell>
