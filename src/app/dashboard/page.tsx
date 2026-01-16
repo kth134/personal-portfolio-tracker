@@ -93,20 +93,26 @@ export default function DashboardHome() {
     const checkMfa = async () => {
       try {
         const { data: aalData, error: aalErr } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        console.log('AAL check result:', { aalData, error: aalErr });
         if (aalErr) throw aalErr;
         const { currentLevel, nextLevel } = aalData ?? {};
+        console.log('MFA levels:', { currentLevel, nextLevel });
         if (currentLevel === 'aal1' && nextLevel === 'aal2') {
+          console.log('Setting MFA status to prompt');
           setMfaStatus('prompt');
         } else if (currentLevel === 'aal1') {
           // MFA not set up, check if we should show setup prompt
           const hasOptedOut = localStorage.getItem('mfa-setup-opted-out') === 'true';
           const promptShownThisSession = sessionStorage.getItem('mfa-setup-prompt-shown') === 'true';
+          console.log('MFA setup check:', { hasOptedOut, promptShownThisSession, currentLevel, nextLevel });
           if (!hasOptedOut && !promptShownThisSession) {
+            console.log('Showing MFA setup prompt');
             setShowMfaSetupPrompt(true);
             sessionStorage.setItem('mfa-setup-prompt-shown', 'true');
           }
           setMfaStatus('verified'); // Allow access but show prompt
         } else {
+          console.log('MFA already set up or other state');
           setMfaStatus('verified');
         }
       } catch (err) {
