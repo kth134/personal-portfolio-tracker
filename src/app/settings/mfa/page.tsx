@@ -30,8 +30,6 @@ export default function MFASettings() {
   const [lastAttempt, setLastAttempt] = useState(0)
 
   const loadFactors = useCallback(async () => {
-    if (!user) return
-
     setLoading(true)
     const { data, error } = await supabase.auth.mfa.listFactors()
     setLoading(false)
@@ -44,7 +42,7 @@ export default function MFASettings() {
     }
 
     setSuccess(!!data?.totp?.some(f => f.status === 'verified'))
-  }, [user])
+  }, []) // Remove user dependency
 
   const checkAuth = useCallback(async () => {
     setAuthLoading(true)
@@ -58,7 +56,7 @@ export default function MFASettings() {
 
     setUser(user)
     loadFactors()
-  }, [loadFactors])
+  }, []) // Remove loadFactors dependency
 
   useEffect(() => {
     checkAuth()
