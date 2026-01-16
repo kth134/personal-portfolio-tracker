@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -474,6 +475,9 @@ export async function askGrok(query: string, isSandbox: boolean, prevSandboxStat
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Unauthorized');
   const userId = user.id;
+
+  // Refresh prices to ensure up-to-date data
+  await refreshAssetPrices();
 
   const summary = await getPortfolioSummary(isSandbox, prevSandboxState?.changes);
 
