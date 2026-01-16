@@ -81,6 +81,10 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   // Mass actions
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([])
   const [selectAll, setSelectAll] = useState(false)
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [bulkForm, setBulkForm] = useState({
+    notes: ''
+  })
 
   // Form state
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -215,6 +219,39 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
       router.refresh()
     } catch (err: any) {
       alert('Bulk delete failed: ' + err.message)
+    }
+  }
+
+  const handleBulkEdit = () => {
+    if (selectedTransactions.length === 0) return
+    setBulkEditOpen(true)
+  }
+
+  const handleBulkEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (selectedTransactions.length === 0) return
+
+    const supabase = createClient()
+    const updateData: any = {}
+    if (bulkForm.notes) updateData.notes = bulkForm.notes
+
+    if (Object.keys(updateData).length === 0) {
+      alert('Please enter notes to update')
+      return
+    }
+
+    try {
+      await supabase.from('transactions').update(updateData).in('id', selectedTransactions)
+      // Update local state
+      setTransactions(transactions.map(tx => 
+        selectedTransactions.includes(tx.id) ? { ...tx, ...updateData } : tx
+      ))
+      setBulkEditOpen(false)
+      setBulkForm({ notes: '' })
+      setSelectedTransactions([])
+      setSelectAll(false)
+    } catch (err: any) {
+      alert('Bulk edit failed: ' + err.message)
     }
   }
 
@@ -630,6 +667,9 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
               <span className="text-sm text-muted-foreground">
                 {selectedTransactions.length} selected
               </span>
+              <Button variant="outline" size="sm" onClick={handleBulkEdit}>
+                Edit Selected
+              </Button>
               <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
                 Delete Selected
               </Button>
@@ -876,7 +916,8 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
       </div>
 
       {displayTransactions.length > 0 ? (
-        <Table>
+        <div className="overflow-x-auto">
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead>
@@ -966,6 +1007,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             ))}
           </TableBody>
         </Table>
+        </div>
       ) : (
         <p className="text-muted-foreground">No transactions yet. Add one to get started!</p>
       )}
@@ -1019,6 +1061,29 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
           <div className="flex justify-end mt-4">
             <Button onClick={handleHelpClose}>Got it, proceed</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Edit {selectedTransactions.length} Transactions</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleBulkEditSubmit} className="space-y-4">
+            <div>
+              <Label>Notes (leave empty to keep current)</Label>
+              <Textarea 
+                value={bulkForm.notes} 
+                onChange={e => setBulkForm({...bulkForm, notes: e.target.value})} 
+                placeholder="Update notes for all selected transactions"
+                rows={3}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit">Update Selected</Button>
+              <Button type="button" variant="outline" onClick={() => setBulkEditOpen(false)}>Cancel</Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </main>

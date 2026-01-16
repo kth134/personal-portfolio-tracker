@@ -389,7 +389,8 @@ const handleSort = (key: SortKey) => {
 
       {/* Tax Lots Table */}
       {taxLots.length > 0 ? (
-        <Table>
+        <div className="overflow-x-auto">
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead>
@@ -466,6 +467,7 @@ const handleSort = (key: SortKey) => {
             ))}
           </TableBody>
         </Table>
+        </div>
       ) : (
         <p className="text-muted-foreground">No tax lots yet—add buys to create them.</p>
       )}

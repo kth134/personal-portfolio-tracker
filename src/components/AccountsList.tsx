@@ -30,6 +30,11 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
   const [search, setSearch] = useState('')
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([])
   const [selectAll, setSelectAll] = useState(false)
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [bulkForm, setBulkForm] = useState({
+    type: '',
+    tax_status: ''
+  })
 
   // Dynamic options
   const [institutions, setInstitutions] = useState<string[]>([])
@@ -124,6 +129,40 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
       setSelectAll(false)
     } catch (err: any) {
       alert('Bulk delete failed: ' + err.message)
+    }
+  }
+
+  const handleBulkEdit = () => {
+    if (selectedAccounts.length === 0) return
+    setBulkEditOpen(true)
+  }
+
+  const handleBulkEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (selectedAccounts.length === 0) return
+
+    const supabase = createClient()
+    const updateData: any = {}
+    if (bulkForm.type) updateData.type = bulkForm.type
+    if (bulkForm.tax_status) updateData.tax_status = bulkForm.tax_status
+
+    if (Object.keys(updateData).length === 0) {
+      alert('Please select at least one field to update')
+      return
+    }
+
+    try {
+      await supabase.from('accounts').update(updateData).in('id', selectedAccounts)
+      // Update local state
+      setAccounts(accounts.map(acc => 
+        selectedAccounts.includes(acc.id) ? { ...acc, ...updateData } : acc
+      ))
+      setBulkEditOpen(false)
+      setBulkForm({ type: '', tax_status: '' })
+      setSelectedAccounts([])
+      setSelectAll(false)
+    } catch (err: any) {
+      alert('Bulk edit failed: ' + err.message)
     }
   }
 
@@ -257,6 +296,48 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
         </DialogContent>
       </Dialog>
 
+      <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Edit {selectedAccounts.length} Accounts</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleBulkEditSubmit} className="space-y-4">
+            <div>
+              <Label>Type (leave empty to keep current)</Label>
+              <Select value={bulkForm.type} onValueChange={v => setBulkForm({...bulkForm, type: v})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Update type for all selected" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Roth IRA">Roth IRA</SelectItem>
+                  <SelectItem value="Traditional IRA">Traditional IRA</SelectItem>
+                  <SelectItem value="401k">401k</SelectItem>
+                  <SelectItem value="Brokerage">Brokerage</SelectItem>
+                  <SelectItem value="HSA">HSA</SelectItem>
+                  <SelectItem value="Cold Storage">Cold Storage</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Tax Status (leave empty to keep current)</Label>
+              <Select value={bulkForm.tax_status} onValueChange={v => setBulkForm({...bulkForm, tax_status: v})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Update tax status for all selected" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Tax-Advantaged">Tax-Advantaged</SelectItem>
+                  <SelectItem value="Taxable">Taxable</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit">Update Selected</Button>
+              <Button type="button" variant="outline" onClick={() => setBulkEditOpen(false)}>Cancel</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex gap-4 items-center mb-4">
         <Input
           placeholder="Search accounts..."
@@ -270,6 +351,9 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
             <span className="text-sm text-muted-foreground">
               {selectedAccounts.length} selected
             </span>
+            <Button variant="outline" size="sm" onClick={handleBulkEdit}>
+              Edit Selected
+            </Button>
             <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
               Delete Selected
             </Button>
@@ -277,7 +361,8 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
         )}
       </div>
 
-      <Table>
+      <div className="overflow-x-auto">
+        <Table>
         <TableHeader>
           <TableRow>
             <TableHead>
@@ -310,9 +395,9 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
                   onCheckedChange={(checked) => handleSelectAccount(acc.id, checked as boolean)}
                 />
               </TableCell>
-              <TableCell>{acc.name}</TableCell>
+              <TableCell className="break-words whitespace-normal max-w-xs">{acc.name}</TableCell>
               <TableCell>{acc.type}</TableCell>
-              <TableCell>{acc.institution || '-'}</TableCell>
+              <TableCell className="break-words whitespace-normal max-w-xs">{acc.institution || '-'}</TableCell>
               <TableCell>{acc.tax_status || '-'}</TableCell>
               <TableCell className="space-x-2">
                 <Button variant="outline" className="text-blue-600 border-blue-600 hover:bg-blue-50 h-8 px-3 text-xs" onClick={() => handleEdit(acc)}>
@@ -326,6 +411,7 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
           ))}
         </TableBody>
       </Table>
+      </div>
     </>
   )
 }

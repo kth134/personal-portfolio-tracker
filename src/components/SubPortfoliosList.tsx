@@ -40,6 +40,12 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
   const [search, setSearch] = useState('')
   const [selectedSubs, setSelectedSubs] = useState<string[]>([])
   const [selectAll, setSelectAll] = useState(false)
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [bulkForm, setBulkForm] = useState({
+    objective: '',
+    manager: '',
+    notes: ''
+  })
 
   useEffect(() => {
     if (editingSub) {
@@ -120,6 +126,41 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
       setSelectAll(false)
     } catch (err: any) {
       alert('Bulk delete failed: ' + err.message)
+    }
+  }
+
+  const handleBulkEdit = () => {
+    if (selectedSubs.length === 0) return
+    setBulkEditOpen(true)
+  }
+
+  const handleBulkEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (selectedSubs.length === 0) return
+
+    const supabase = createClient()
+    const updateData: any = {}
+    if (bulkForm.objective) updateData.objective = bulkForm.objective
+    if (bulkForm.manager) updateData.manager = bulkForm.manager
+    if (bulkForm.notes) updateData.notes = bulkForm.notes
+
+    if (Object.keys(updateData).length === 0) {
+      alert('Please select at least one field to update')
+      return
+    }
+
+    try {
+      await supabase.from('sub_portfolios').update(updateData).in('id', selectedSubs)
+      // Update local state
+      setSubPortfolios(subPortfolios.map(sub => 
+        selectedSubs.includes(sub.id) ? { ...sub, ...updateData } : sub
+      ))
+      setBulkEditOpen(false)
+      setBulkForm({ objective: '', manager: '', notes: '' })
+      setSelectedSubs([])
+      setSelectAll(false)
+    } catch (err: any) {
+      alert('Bulk edit failed: ' + err.message)
     }
   }
 
@@ -204,6 +245,48 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
         </DialogContent>
       </Dialog>
 
+      <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Edit {selectedSubs.length} Sub-Portfolios</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleBulkEditSubmit} className="space-y-4">
+            <div>
+              <Label>Objective (leave empty to keep current)</Label>
+              <Input 
+                value={bulkForm.objective} 
+                onChange={e => setBulkForm({...bulkForm, objective: e.target.value})} 
+                placeholder="Update objective for all selected"
+              />
+            </div>
+            <div>
+              <Label>Manager (leave empty to keep current)</Label>
+              <Select value={bulkForm.manager} onValueChange={v => setBulkForm({...bulkForm, manager: v})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Update manager for all selected" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="self-managed">Self-Managed</SelectItem>
+                  <SelectItem value="advisor-managed">Advisor-Managed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Notes (leave empty to keep current)</Label>
+              <Input 
+                value={bulkForm.notes} 
+                onChange={e => setBulkForm({...bulkForm, notes: e.target.value})} 
+                placeholder="Update notes for all selected"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit">Update Selected</Button>
+              <Button type="button" variant="outline" onClick={() => setBulkEditOpen(false)}>Cancel</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex gap-4 mb-4">
         <Input
           placeholder="Search sub-portfolios..."
@@ -212,13 +295,19 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
           className="max-w-sm"
         />
         {selectedSubs.length > 0 && (
-          <Button variant="destructive" onClick={handleBulkDelete}>
-            Delete Selected ({selectedSubs.length})
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleBulkEdit}>
+              Edit Selected ({selectedSubs.length})
+            </Button>
+            <Button variant="destructive" onClick={handleBulkDelete}>
+              Delete Selected ({selectedSubs.length})
+            </Button>
+          </div>
         )}
       </div>
 
-      <Table>
+      <div className="overflow-x-auto">
+        <Table>
         <TableHeader>
           <TableRow>
             <TableHead>
@@ -244,11 +333,11 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
                   onCheckedChange={(checked) => handleSelectSub(sub.id, checked as boolean)}
                 />
               </TableCell>
-              <TableCell>{sub.name}</TableCell>
+              <TableCell className="break-words whitespace-normal max-w-xs">{sub.name}</TableCell>
               <TableCell>{sub.target_allocation || '-'}</TableCell>
-              <TableCell>{sub.objective || '-'}</TableCell>
+              <TableCell className="break-words whitespace-normal max-w-xs">{sub.objective || '-'}</TableCell>
               <TableCell>{sub.manager || '-'}</TableCell>
-              <TableCell>{sub.notes || '-'}</TableCell>
+              <TableCell className="break-words whitespace-normal max-w-xs">{sub.notes || '-'}</TableCell>
               <TableCell>
                 <Button variant="outline" onClick={() => setEditingSub(sub)}>Edit</Button>
                 <Button variant="destructive" onClick={() => handleDelete(sub.id)}>Delete</Button>
@@ -257,6 +346,7 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
           ))}
         </TableBody>
       </Table>
+      </div>
     </>
   )
 }

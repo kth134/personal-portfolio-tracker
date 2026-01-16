@@ -51,6 +51,15 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
   const [search, setSearch] = useState('')
   const [selectedAssets, setSelectedAssets] = useState<string[]>([])
   const [selectAll, setSelectAll] = useState(false)
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [bulkForm, setBulkForm] = useState({
+    asset_type: '',
+    asset_subtype: '',
+    geography: '',
+    factor_tag: '',
+    size_tag: '',
+    notes: ''
+  })
 
   // Sub-portfolios: id-name pairs
   const [subPortfolios, setSubPortfolios] = useState<{ id: string; name: string }[]>([])
@@ -164,6 +173,44 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
       setSelectAll(false)
     } catch (err: any) {
       alert('Bulk delete failed: ' + err.message)
+    }
+  }
+
+  const handleBulkEdit = () => {
+    if (selectedAssets.length === 0) return
+    setBulkEditOpen(true)
+  }
+
+  const handleBulkEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (selectedAssets.length === 0) return
+
+    const supabase = createClient()
+    const updateData: any = {}
+    if (bulkForm.asset_type) updateData.asset_type = bulkForm.asset_type
+    if (bulkForm.asset_subtype) updateData.asset_subtype = bulkForm.asset_subtype
+    if (bulkForm.geography) updateData.geography = bulkForm.geography
+    if (bulkForm.factor_tag) updateData.factor_tag = bulkForm.factor_tag
+    if (bulkForm.size_tag) updateData.size_tag = bulkForm.size_tag
+    if (bulkForm.notes) updateData.notes = bulkForm.notes
+
+    if (Object.keys(updateData).length === 0) {
+      alert('Please select at least one field to update')
+      return
+    }
+
+    try {
+      await supabase.from('assets').update(updateData).in('id', selectedAssets)
+      // Update local state
+      setAssets(assets.map(asset => 
+        selectedAssets.includes(asset.id) ? { ...asset, ...updateData } : asset
+      ))
+      setBulkEditOpen(false)
+      setBulkForm({ asset_type: '', asset_subtype: '', geography: '', factor_tag: '', size_tag: '', notes: '' })
+      setSelectedAssets([])
+      setSelectAll(false)
+    } catch (err: any) {
+      alert('Bulk edit failed: ' + err.message)
     }
   }
 
@@ -360,6 +407,104 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
         </DialogContent>
       </Dialog>
 
+      <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bulk Edit {selectedAssets.length} Assets</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleBulkEditSubmit} className="space-y-4">
+            <div>
+              <Label>Asset Type (leave empty to keep current)</Label>
+              <Select value={bulkForm.asset_type} onValueChange={v => setBulkForm({...bulkForm, asset_type: v})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Update asset type for all selected" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Equity">Equity</SelectItem>
+                  <SelectItem value="Commodities">Commodities</SelectItem>
+                  <SelectItem value="Fixed Income">Fixed Income</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Asset Sub-Type (leave empty to keep current)</Label>
+              <Select value={bulkForm.asset_subtype} onValueChange={v => setBulkForm({...bulkForm, asset_subtype: v})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Update sub-type for all selected" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Index Fund">Index Fund</SelectItem>
+                  <SelectItem value="Public Stock">Public Stock</SelectItem>
+                  <SelectItem value="Private Stock">Private Stock</SelectItem>
+                  <SelectItem value="Gold">Gold</SelectItem>
+                  <SelectItem value="Crypto">Crypto</SelectItem>
+                  <SelectItem value="Bond">Bond</SelectItem>
+                  <SelectItem value="Preferred Stock">Preferred Stock</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Geography (leave empty to keep current)</Label>
+              <Select value={bulkForm.geography} onValueChange={v => setBulkForm({...bulkForm, geography: v})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Update geography for all selected" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Global">Global</SelectItem>
+                  <SelectItem value="US">US</SelectItem>
+                  <SelectItem value="International Emerging Markets">International Emerging Markets</SelectItem>
+                  <SelectItem value="International Developed Markets">International Developed Markets</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Factor Tag (leave empty to keep current)</Label>
+              <Select value={bulkForm.factor_tag} onValueChange={v => setBulkForm({...bulkForm, factor_tag: v})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Update factor for all selected" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Value">Value</SelectItem>
+                  <SelectItem value="Blend">Blend</SelectItem>
+                  <SelectItem value="Growth">Growth</SelectItem>
+                  <SelectItem value="Momentum">Momentum</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Size Tag (leave empty to keep current)</Label>
+              <Select value={bulkForm.size_tag} onValueChange={v => setBulkForm({...bulkForm, size_tag: v})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Update size for all selected" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Large">Large</SelectItem>
+                  <SelectItem value="Mid">Mid</SelectItem>
+                  <SelectItem value="Small">Small</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Notes (leave empty to keep current)</Label>
+              <Input 
+                value={bulkForm.notes} 
+                onChange={e => setBulkForm({...bulkForm, notes: e.target.value})} 
+                placeholder="Update notes for all selected"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit">Update Selected</Button>
+              <Button type="button" variant="outline" onClick={() => setBulkEditOpen(false)}>Cancel</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex gap-4 items-center mb-4">
         <Input
           placeholder="Search assets..."
@@ -373,6 +518,9 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
             <span className="text-sm text-muted-foreground">
               {selectedAssets.length} selected
             </span>
+            <Button variant="outline" size="sm" onClick={handleBulkEdit}>
+              Edit Selected
+            </Button>
             <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
               Delete Selected
             </Button>
@@ -380,7 +528,8 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
         )}
       </div>
 
-      <Table>
+      <div className="overflow-x-auto">
+        <Table>
         <TableHeader>
           <TableRow>
             <TableHead>
@@ -429,14 +578,14 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
                 />
               </TableCell>
               <TableCell>{asset.ticker}</TableCell>
-              <TableCell>{asset.name || '-'}</TableCell>
-              <TableCell>{subMap.get(asset.sub_portfolio_id || '') || '-'}</TableCell>
+              <TableCell className="break-words whitespace-normal max-w-xs">{asset.name || '-'}</TableCell>
+              <TableCell className="break-words whitespace-normal max-w-xs">{subMap.get(asset.sub_portfolio_id || '') || '-'}</TableCell>
               <TableCell>{asset.asset_type || '-'}</TableCell>
               <TableCell>{asset.asset_subtype || '-'}</TableCell>
               <TableCell>{asset.geography || '-'}</TableCell>
               <TableCell>{asset.factor_tag || '-'}</TableCell>
               <TableCell>{asset.size_tag || '-'}</TableCell>
-              <TableCell>{asset.notes || '-'}</TableCell>
+              <TableCell className="break-words whitespace-normal max-w-xs">{asset.notes || '-'}</TableCell>
               <TableCell className="space-x-2">
                 <Button variant="outline" className="text-blue-600 border-blue-600 hover:bg-blue-50 h-8 px-3 text-xs" onClick={() => handleEdit(asset)}>
                   Edit
@@ -449,6 +598,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
           ))}
         </TableBody>
       </Table>
+      </div>
     </>
   )
 }
