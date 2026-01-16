@@ -232,11 +232,50 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   // Fetch transactions (full history, but limit to last 100 for sanity; add param if needed)
   const { data: transactions, error: txError } = await supabase
     .from('transactions')
-    .select('id, account_id, asset_id, type, date, quantity, price_per_unit, fees, notes')
+    .select('id, account_id, asset_id, type, date, quantity, price_per_unit, fees, notes, funding_source')
     .eq('user_id', userId)
     .order('date', { ascending: false })
     .limit(100); // Adjustable; full could be too much
   if (txError) throw txError;
+
+  // Compute cash balances
+  const cashBalances = new Map<string, number>()
+  transactions.forEach((tx: any) => {
+    if (!tx.account_id) return
+    // Skip automatic deposits for external buys
+    if (tx.notes === 'Auto-deposit for external buy') {
+      return
+    }
+    const current = cashBalances.get(tx.account_id) || 0
+    let delta = 0
+    const amt = Number(tx.amount || 0)
+    const fee = Number(tx.fees || 0)
+    switch (tx.type) {
+      case 'Buy':
+        if (tx.funding_source === 'cash') {
+          delta -= (amt + fee)  // deduct purchase amount and fee from cash balance
+        } // else (including 'external'): no impact to cash balance
+        break
+      case 'Sell':
+        delta += (amt - fee)  // increase cash balance by sale amount less fees
+        break
+      case 'Dividend':
+        delta += amt  // increase cash balance
+        break
+      case 'Interest':
+        delta += amt  // increase cash balance
+        break
+      case 'Deposit':
+        delta += amt  // increase cash balance
+        break
+      case 'Withdrawal':
+        delta -= amt  // decrease cash balance
+        break
+    }
+    const newBalance = current + delta
+    cashBalances.set(tx.account_id, newBalance)
+  })
+  const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
 
   // Fetch glide_path (full)
   let glidePath: GlidePathItem[] = [];
@@ -344,7 +383,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     return { asset_type: assetType, sub_name: subName, value };
   });
 
-  const totalValue = holdings.reduce((sum, h) => sum + h.value, 0);
+  const totalValue = holdings.reduce((sum, h) => sum + h.value, 0) + totalCash;
 
   // Allocations – now enriched with sub-portfolio metadata
   const allocations = holdings.map(h => {
@@ -412,6 +451,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
 
   let summary = {
     totalValue: Math.round(totalValue / 1000) * 1000,
+    cash: Math.round(totalCash),
     allocations: allocations.map(a => ({
       ...a,
       value: Math.round(a.value),
@@ -708,19 +748,28 @@ Respond conversationally but professionally—no fluff.`;
               result = 'No results found.';
             }
 
-            const { error: upsertError } = await supabase
+            // Upsert: try insert first, if unique constraint fails, update
+            const { error: insertError } = await supabase
               .from('search_cache')
-              .upsert(
-                {
-                  user_id: userId,  // FIX: Added for per-user caching
-                  query: args.query,
-                  result,
-                  updated_at: new Date().toISOString()
-                },
-                { onConflict: 'user_id,query' }  // FIX: Changed to composite key
-              );
+              .insert({
+                user_id: userId,
+                query: args.query,
+                result,
+                updated_at: new Date().toISOString()
+              });
 
-            if (upsertError) console.error('Cache upsert error:', upsertError);
+            if (insertError) {
+              if (insertError.code === '23505') { // unique_violation
+                const { error: updateError } = await supabase
+                  .from('search_cache')
+                  .update({ result, updated_at: new Date().toISOString() })
+                  .eq('user_id', userId)
+                  .eq('query', args.query);
+                if (updateError) console.error('Cache update error:', updateError);
+              } else {
+                console.error('Cache insert error:', insertError);
+              }
+            }
           }
 
           messages.push({
