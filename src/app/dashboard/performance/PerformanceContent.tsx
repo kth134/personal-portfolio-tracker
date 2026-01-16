@@ -727,19 +727,33 @@ function PerformanceContent() {
                 className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold"
                 onClick={() => handleSort('net_gain')}
               >
-                <div className="flex items-center justify-end">
-                  <span className="break-words">Net Gain/Loss</span>
-                  {getSortIcon('net_gain')}
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center justify-end">
+                      <span className="break-words">Net Gain/Loss</span>
+                      {getSortIcon('net_gain')}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Total net gain or loss including unrealized gains/losses, realized gains, and income (dividends/interest).</p>
+                  </TooltipContent>
+                </Tooltip>
               </TableHead>
               <TableHead 
                 className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold"
                 onClick={() => handleSort('total_return_pct')}
               >
-                <div className="flex items-center justify-end">
-                  <span className="break-words">Total Return %</span>
-                  {getSortIcon('total_return_pct')}
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center justify-end">
+                      <span className="break-words">Total Return %</span>
+                      {getSortIcon('total_return_pct')}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Total return percentage based on net gain divided by total cost basis (simple return, not annualized).</p>
+                  </TooltipContent>
+                </Tooltip>
               </TableHead>
               <TableHead 
                 className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold"
