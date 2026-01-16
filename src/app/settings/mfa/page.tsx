@@ -74,6 +74,40 @@ export default function MFASettings() {
     setFactorId(null)
     setLoading(true)
 
+    // First, check for existing unverified TOTP factors
+    const { data: existingFactors, error: listError } = await supabase.auth.mfa.listFactors()
+    
+    if (listError) {
+      console.error('Failed to list existing factors:', listError)
+      setLoading(false)
+      setError('Failed to check existing MFA factors')
+      return
+    }
+
+    const existingUnverifiedTotp = existingFactors?.totp?.find((f: any) => f.status === 'unverified')
+
+    if (existingUnverifiedTotp) {
+      // Reuse existing unverified factor
+      console.log('Found existing unverified TOTP factor, reusing it')
+      setFactorId(existingUnverifiedTotp.id)
+      // For existing factors, we need to generate a new challenge to get QR code
+      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: existingUnverifiedTotp.id,
+      })
+
+      if (challengeError) {
+        console.error('Failed to challenge existing factor:', challengeError)
+        setLoading(false)
+        setError('Failed to setup existing MFA factor')
+        return
+      }
+
+      // Note: challenge doesn't return QR code, we need to unenroll and re-enroll
+      // For now, let's unenroll the existing factor and create a new one
+      await supabase.auth.mfa.unenroll({ factorId: existingUnverifiedTotp.id })
+    }
+
+    // Now enroll a new TOTP factor
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: 'totp',
     })
