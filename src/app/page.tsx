@@ -17,7 +17,7 @@ export default async function Home() {
           width={180}
           height={60}
           unoptimized
-          className="h-24 mb-4"
+          className="h-48 mb-4"
         />
       </div>
       <LoginForm />
