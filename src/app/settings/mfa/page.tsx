@@ -80,6 +80,8 @@ export default function MFASettings() {
 
     setLoading(false)
 
+    console.log('MFA enroll response:', { data, error }) // Debug log
+
     if (error) {
       const sanitizedError = error.message.replace(/[<>\"'&]/g, '')
       setError(sanitizedError)
@@ -87,12 +89,26 @@ export default function MFASettings() {
       return
     }
 
-    if (data?.totp?.qr_code && data.totp.secret && (data.totp as TOTPData).id) {
-      setQrUri(data.totp.qr_code)
-      setSecret(data.totp.secret)
-      setFactorId((data.totp as TOTPData).id)
+    if (data?.totp) {
+      const totp = data.totp as any // Type assertion to access id
+      const missingFields = []
+      
+      if (!totp.qr_code) missingFields.push('qr_code')
+      if (!totp.secret) missingFields.push('secret') 
+      if (!totp.id) missingFields.push('id')
+      
+      if (missingFields.length > 0) {
+        console.error('Missing fields in enrollment response:', missingFields)
+        setError(`Incomplete enrollment data: missing ${missingFields.join(', ')}`)
+        return
+      }
+      
+      setQrUri(totp.qr_code)
+      setSecret(totp.secret)
+      setFactorId(totp.id)
     } else {
-      setError('Incomplete enrollment data returned from Supabase')
+      console.error('No TOTP data in enrollment response')
+      setError('No TOTP data returned from Supabase')
     }
   }
 
