@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Check, ChevronsUpDown, ArrowUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -24,6 +25,11 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
   // Sorting states
   const [sortColumn, setSortColumn] = useState<keyof Account | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  // Search & mass actions
+  const [search, setSearch] = useState('')
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([])
+  const [selectAll, setSelectAll] = useState(false)
 
   // Dynamic options
   const [institutions, setInstitutions] = useState<string[]>([])
@@ -72,7 +78,54 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
     if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
     if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
     return 0
+  }).filter(account => {
+    if (!search) return true
+    const low = search.toLowerCase()
+    return (
+      account.name.toLowerCase().includes(low) ||
+      account.type.toLowerCase().includes(low) ||
+      (account.institution || '').toLowerCase().includes(low) ||
+      (account.tax_status || '').toLowerCase().includes(low)
+    )
   })
+
+  // Update select all
+  useEffect(() => {
+    const allSelected = sortedAccounts.length > 0 && selectedAccounts.length === sortedAccounts.length
+    setSelectAll(allSelected)
+  }, [selectedAccounts, sortedAccounts])
+
+  const handleSelectAccount = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedAccounts(prev => [...prev, id])
+    } else {
+      setSelectedAccounts(prev => prev.filter(accId => accId !== id))
+    }
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedAccounts(sortedAccounts.map(acc => acc.id))
+    } else {
+      setSelectedAccounts([])
+    }
+    setSelectAll(checked)
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedAccounts.length === 0) return
+    if (!confirm(`Delete ${selectedAccounts.length} accounts? This cannot be undone.`)) return
+
+    const supabase = createClient()
+    try {
+      await supabase.from('accounts').delete().in('id', selectedAccounts)
+      setAccounts(accounts.filter(a => !selectedAccounts.includes(a.id)))
+      setSelectedAccounts([])
+      setSelectAll(false)
+    } catch (err: any) {
+      alert('Bulk delete failed: ' + err.message)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -204,9 +257,35 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
         </DialogContent>
       </Dialog>
 
+      <div className="flex gap-4 items-center mb-4">
+        <Input
+          placeholder="Search accounts..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-64"
+        />
+
+        {selectedAccounts.length > 0 && (
+          <div className="flex gap-2 items-center">
+            <span className="text-sm text-muted-foreground">
+              {selectedAccounts.length} selected
+            </span>
+            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+              Delete Selected
+            </Button>
+          </div>
+        )}
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>
+              <Checkbox
+                checked={selectAll}
+                onCheckedChange={handleSelectAll}
+              />
+            </TableHead>
             <TableHead className="cursor-pointer" onClick={() => handleSort('name')}>
               Name <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
@@ -225,6 +304,12 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
         <TableBody>
           {sortedAccounts.map(acc => (
             <TableRow key={acc.id}>
+              <TableCell>
+                <Checkbox
+                  checked={selectedAccounts.includes(acc.id)}
+                  onCheckedChange={(checked) => handleSelectAccount(acc.id, checked as boolean)}
+                />
+              </TableCell>
               <TableCell>{acc.name}</TableCell>
               <TableCell>{acc.type}</TableCell>
               <TableCell>{acc.institution || '-'}</TableCell>

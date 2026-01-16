@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, ArrowUpDown } from 'lucide-react'
 import { formatUSD } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 import { refreshAssetPrices } from './actions'
@@ -65,6 +65,10 @@ export default function PortfolioHoldingsWithSlicers({
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState<keyof HoldingRow | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
   useEffect(() => {
     if (lens === 'total') {
       setAvailableValues([])
@@ -115,6 +119,15 @@ export default function PortfolioHoldingsWithSlicers({
     )
   }
 
+  const handleSort = (column: keyof HoldingRow) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
   const handleRefresh = async () => {
     setRefreshing(true)
     setRefreshMessage(null)
@@ -153,6 +166,22 @@ export default function PortfolioHoldingsWithSlicers({
         })
       })
     })
+
+    // Sort rows if sorting is active
+    if (sortColumn) {
+      rows.sort((a, b) => {
+        const aVal = a[sortColumn!] ?? ''
+        const bVal = b[sortColumn!] ?? ''
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
+        }
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+        }
+        return 0
+      })
+    }
+
     return rows
   }
 
@@ -266,12 +295,12 @@ export default function PortfolioHoldingsWithSlicers({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-32">Asset</TableHead>
-                <TableHead className="text-right">Quantity</TableHead>
-                <TableHead className="text-right">Avg Basis</TableHead>
-                <TableHead className="text-right">Total Basis</TableHead>
-                <TableHead className="text-right">Curr Price</TableHead>
-                <TableHead className="text-right">Curr Value</TableHead>
+                <TableHead className="w-32 cursor-pointer" onClick={() => handleSort('ticker')}>Asset <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('quantity')}>Quantity <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('avgBasis')}>Avg Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currPrice')}>Curr Price <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currValue')}>Curr Value <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -309,12 +338,12 @@ export default function PortfolioHoldingsWithSlicers({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-32">Asset</TableHead>
-                        <TableHead className="text-right">Quantity</TableHead>
-                        <TableHead className="text-right">Avg Basis</TableHead>
-                        <TableHead className="text-right">Total Basis</TableHead>
-                        <TableHead className="text-right">Curr Price</TableHead>
-                        <TableHead className="text-right">Curr Value</TableHead>
+                        <TableHead className="w-32 cursor-pointer" onClick={() => handleSort('ticker')}>Asset <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('quantity')}>Quantity <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('avgBasis')}>Avg Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currPrice')}>Curr Price <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currValue')}>Curr Value <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>

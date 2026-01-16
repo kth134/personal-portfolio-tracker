@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Check, ChevronsUpDown, ArrowUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -45,6 +46,11 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
   // Sorting states
   const [sortColumn, setSortColumn] = useState<keyof Asset | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  // Search & mass actions
+  const [search, setSearch] = useState('')
+  const [selectedAssets, setSelectedAssets] = useState<string[]>([])
+  const [selectAll, setSelectAll] = useState(false)
 
   // Sub-portfolios: id-name pairs
   const [subPortfolios, setSubPortfolios] = useState<{ id: string; name: string }[]>([])
@@ -107,7 +113,59 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
     if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
     if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
     return 0
+  }).filter(asset => {
+    if (!search) return true
+    const low = search.toLowerCase()
+    return (
+      asset.ticker.toLowerCase().includes(low) ||
+      (asset.name || '').toLowerCase().includes(low) ||
+      subMap.get(asset.sub_portfolio_id || '')?.toLowerCase().includes(low) ||
+      (asset.asset_type || '').toLowerCase().includes(low) ||
+      (asset.asset_subtype || '').toLowerCase().includes(low) ||
+      (asset.geography || '').toLowerCase().includes(low) ||
+      (asset.factor_tag || '').toLowerCase().includes(low) ||
+      (asset.size_tag || '').toLowerCase().includes(low) ||
+      (asset.notes || '').toLowerCase().includes(low)
+    )
   })
+
+  // Update select all
+  useEffect(() => {
+    const allSelected = sortedAssets.length > 0 && selectedAssets.length === sortedAssets.length
+    setSelectAll(allSelected)
+  }, [selectedAssets, sortedAssets])
+
+  const handleSelectAsset = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedAssets(prev => [...prev, id])
+    } else {
+      setSelectedAssets(prev => prev.filter(assetId => assetId !== id))
+    }
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedAssets(sortedAssets.map(asset => asset.id))
+    } else {
+      setSelectedAssets([])
+    }
+    setSelectAll(checked)
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedAssets.length === 0) return
+    if (!confirm(`Delete ${selectedAssets.length} assets? This cannot be undone.`)) return
+
+    const supabase = createClient()
+    try {
+      await supabase.from('assets').delete().in('id', selectedAssets)
+      setAssets(assets.filter(a => !selectedAssets.includes(a.id)))
+      setSelectedAssets([])
+      setSelectAll(false)
+    } catch (err: any) {
+      alert('Bulk delete failed: ' + err.message)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -302,9 +360,35 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
         </DialogContent>
       </Dialog>
 
+      <div className="flex gap-4 items-center mb-4">
+        <Input
+          placeholder="Search assets..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-64"
+        />
+
+        {selectedAssets.length > 0 && (
+          <div className="flex gap-2 items-center">
+            <span className="text-sm text-muted-foreground">
+              {selectedAssets.length} selected
+            </span>
+            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+              Delete Selected
+            </Button>
+          </div>
+        )}
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>
+              <Checkbox
+                checked={selectAll}
+                onCheckedChange={handleSelectAll}
+              />
+            </TableHead>
             <TableHead className="cursor-pointer" onClick={() => handleSort('ticker')}>
               Ticker <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
@@ -338,6 +422,12 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
         <TableBody>
           {sortedAssets.map(asset => (
             <TableRow key={asset.id}>
+              <TableCell>
+                <Checkbox
+                  checked={selectedAssets.includes(asset.id)}
+                  onCheckedChange={(checked) => handleSelectAsset(asset.id, checked as boolean)}
+                />
+              </TableCell>
               <TableCell>{asset.ticker}</TableCell>
               <TableCell>{asset.name || '-'}</TableCell>
               <TableCell>{subMap.get(asset.sub_portfolio_id || '') || '-'}</TableCell>

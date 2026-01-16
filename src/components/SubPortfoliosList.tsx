@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ArrowUpDown } from 'lucide-react'
 
 type SubPortfolio = {
@@ -34,6 +35,11 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
   // Sorting
   const [sortColumn, setSortColumn] = useState<keyof SubPortfolio | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  // Search & mass actions
+  const [search, setSearch] = useState('')
+  const [selectedSubs, setSelectedSubs] = useState<string[]>([])
+  const [selectAll, setSelectAll] = useState(false)
 
   useEffect(() => {
     if (editingSub) {
@@ -67,7 +73,55 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
     if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
     if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
     return 0
+  }).filter(sub => {
+    if (!search) return true
+    const low = search.toLowerCase()
+    return (
+      sub.name.toLowerCase().includes(low) ||
+      (sub.target_allocation?.toString() || '').includes(low) ||
+      (sub.objective || '').toLowerCase().includes(low) ||
+      (sub.manager || '').toLowerCase().includes(low) ||
+      (sub.notes || '').toLowerCase().includes(low)
+    )
   })
+
+  // Update select all
+  useEffect(() => {
+    const allSelected = sortedSubs.length > 0 && selectedSubs.length === sortedSubs.length
+    setSelectAll(allSelected)
+  }, [selectedSubs, sortedSubs])
+
+  const handleSelectSub = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedSubs(prev => [...prev, id])
+    } else {
+      setSelectedSubs(prev => prev.filter(subId => subId !== id))
+    }
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedSubs(sortedSubs.map(sub => sub.id))
+    } else {
+      setSelectedSubs([])
+    }
+    setSelectAll(checked)
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedSubs.length === 0) return
+    if (!confirm(`Delete ${selectedSubs.length} sub-portfolios? This cannot be undone.`)) return
+
+    const supabase = createClient()
+    try {
+      await supabase.from('sub_portfolios').delete().in('id', selectedSubs)
+      setSubPortfolios(subPortfolios.filter(s => !selectedSubs.includes(s.id)))
+      setSelectedSubs([])
+      setSelectAll(false)
+    } catch (err: any) {
+      alert('Bulk delete failed: ' + err.message)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -150,9 +204,29 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
         </DialogContent>
       </Dialog>
 
+      <div className="flex gap-4 mb-4">
+        <Input
+          placeholder="Search sub-portfolios..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-sm"
+        />
+        {selectedSubs.length > 0 && (
+          <Button variant="destructive" onClick={handleBulkDelete}>
+            Delete Selected ({selectedSubs.length})
+          </Button>
+        )}
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>
+              <Checkbox
+                checked={selectAll}
+                onCheckedChange={handleSelectAll}
+              />
+            </TableHead>
             <TableHead onClick={() => handleSort('name')}>Name <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
             <TableHead onClick={() => handleSort('target_allocation')}>Target % <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
             <TableHead onClick={() => handleSort('objective')}>Objective <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
@@ -164,6 +238,12 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
         <TableBody>
           {sortedSubs.map(sub => (
             <TableRow key={sub.id}>
+              <TableCell>
+                <Checkbox
+                  checked={selectedSubs.includes(sub.id)}
+                  onCheckedChange={(checked) => handleSelectSub(sub.id, checked as boolean)}
+                />
+              </TableCell>
               <TableCell>{sub.name}</TableCell>
               <TableCell>{sub.target_allocation || '-'}</TableCell>
               <TableCell>{sub.objective || '-'}</TableCell>

@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Calendar } from '@/components/ui/calendar'
-import { CalendarIcon, Check, ChevronsUpDown, Edit2, Trash2 } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { CalendarIcon, Check, ChevronsUpDown, Edit2, Trash2, ArrowUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
@@ -54,6 +55,11 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
   type SortKey = 'account' | 'asset' | 'date' | 'origQty' | 'basisUnit' | 'remainQty' | 'totalBasis'
   const [sortKey, setSortKey] = useState<SortKey>('remainQty')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  // Search & mass actions
+  const [search, setSearch] = useState('')
+  const [selectedLots, setSelectedLots] = useState<string[]>([])
+  const [selectAll, setSelectAll] = useState(false)
   // Fetch accounts & assets
   useEffect(() => {
     const fetchData = async () => {
@@ -165,42 +171,90 @@ const handleSort = (key: SortKey) => {
   }
 }
 
-const sortedLots = [...taxLots].sort((a, b) => {
-  let va: any, vb: any
-  switch (sortKey) {
-    case 'account':
-      va = a.account?.name || ''
-      vb = b.account?.name || ''
-      break
-    case 'asset':
-      va = a.asset?.ticker || ''
-      vb = b.asset?.ticker || ''
-      break
-    case 'date':
-      va = a.purchase_date
-      vb = b.purchase_date
-      break
-    case 'origQty':
-      va = a.quantity
-      vb = b.quantity
-      break
-    case 'basisUnit':
-      va = a.cost_basis_per_unit
-      vb = b.cost_basis_per_unit
-      break
-    case 'remainQty':
-      va = a.remaining_quantity
-      vb = b.remaining_quantity
-      break
-    case 'totalBasis':
-      va = a.remaining_quantity * a.cost_basis_per_unit
-      vb = b.remaining_quantity * b.cost_basis_per_unit
-      break
+  const handleSelectLot = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedLots(prev => [...prev, id])
+    } else {
+      setSelectedLots(prev => prev.filter(lotId => lotId !== id))
+    }
   }
-  if (va < vb) return sortDir === 'asc' ? -1 : 1
-  if (va > vb) return sortDir === 'asc' ? 1 : -1
-  return 0
-})
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedLots(filteredLots.map(lot => lot.id))
+    } else {
+      setSelectedLots([])
+    }
+    setSelectAll(checked)
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedLots.length === 0) return
+    if (!confirm(`Delete ${selectedLots.length} tax lots? This cannot be undone.`)) return
+
+    const supabase = createClient()
+    try {
+      await supabase.from('tax_lots').delete().in('id', selectedLots)
+      setTaxLots(taxLots.filter(l => !selectedLots.includes(l.id)))
+      setSelectedLots([])
+      setSelectAll(false)
+    } catch (err: any) {
+      alert('Bulk delete failed: ' + err.message)
+    }
+  }
+
+  const filteredLots = [...taxLots].sort((a, b) => {
+    let va: any, vb: any
+    switch (sortKey) {
+      case 'account':
+        va = a.account?.name || ''
+        vb = b.account?.name || ''
+        break
+      case 'asset':
+        va = a.asset?.ticker || ''
+        vb = b.asset?.ticker || ''
+        break
+      case 'date':
+        va = a.purchase_date
+        vb = b.purchase_date
+        break
+      case 'origQty':
+        va = a.quantity
+        vb = b.quantity
+        break
+      case 'basisUnit':
+        va = a.cost_basis_per_unit
+        vb = b.cost_basis_per_unit
+        break
+      case 'remainQty':
+        va = a.remaining_quantity
+        vb = b.remaining_quantity
+        break
+      case 'totalBasis':
+        va = a.remaining_quantity * a.cost_basis_per_unit
+        vb = b.remaining_quantity * b.cost_basis_per_unit
+        break
+    }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1
+    if (va > vb) return sortDir === 'asc' ? 1 : -1
+    return 0
+  }).filter(lot => {
+    if (!search) return true
+    const low = search.toLowerCase()
+    return (
+      lot.account?.name?.toLowerCase().includes(low) ||
+      lot.asset?.ticker?.toLowerCase().includes(low) ||
+      lot.asset?.name?.toLowerCase().includes(low) ||
+      lot.purchase_date.includes(low)
+    )
+  })
+
+  // Update select all
+  useEffect(() => {
+    const allSelected = filteredLots.length > 0 && selectedLots.length === filteredLots.length
+    setSelectAll(allSelected)
+  }, [selectedLots, filteredLots])
+
   return (
     <main>
       <div className="flex justify-between items-center mb-8">
@@ -313,27 +367,59 @@ const sortedLots = [...taxLots].sort((a, b) => {
         </Dialog>
       </div>
 
+      <div className="flex gap-4 items-center mb-4">
+        <Input
+          placeholder="Search tax lots..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-64"
+        />
+
+        {selectedLots.length > 0 && (
+          <div className="flex gap-2 items-center">
+            <span className="text-sm text-muted-foreground">
+              {selectedLots.length} selected
+            </span>
+            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+              Delete Selected
+            </Button>
+          </div>
+        )}
+      </div>
+
       {/* Tax Lots Table */}
       {taxLots.length > 0 ? (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="cursor-pointer" onClick={() => handleSort('account')}>Account</TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort('asset')}>Asset</TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort('date')}>Purchase Date</TableHead>
-              <TableHead className="text-right cursor-pointer" onClick={() => handleSort('origQty')}>Original Qty</TableHead>
-              <TableHead className="text-right cursor-pointer" onClick={() => handleSort('basisUnit')}>Basis/Unit</TableHead>
-              <TableHead className="text-right cursor-pointer" onClick={() => handleSort('remainQty')}>Remaining Qty</TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Remaining Basis</TableHead>
+              <TableHead>
+                <Checkbox
+                  checked={selectAll}
+                  onCheckedChange={handleSelectAll}
+                />
+              </TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('account')}>Account <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('asset')}>Asset <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('date')}>Purchase Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => handleSort('origQty')}>Original Qty <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => handleSort('basisUnit')}>Basis/Unit <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="text-right cursor-pointer" onClick={() => handleSort('remainQty')}>Remaining Qty <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Remaining Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedLots.map((lot) => (
+            {filteredLots.map((lot) => (
               <TableRow key={lot.id} className={cn(lot.remaining_quantity === 0 && "opacity-60 bg-muted/20")}>
-                <TableCell>{lot.account?.name || '-'}</TableCell>
                 <TableCell>
+                  <Checkbox
+                    checked={selectedLots.includes(lot.id)}
+                    onCheckedChange={(checked) => handleSelectLot(lot.id, checked as boolean)}
+                  />
+                </TableCell>
+                <TableCell>{lot.account?.name || '-'}</TableCell>
+                <TableCell className="break-words">
                   {lot.asset?.ticker || '-'}
                   {lot.asset?.name && ` - ${lot.asset.name}`}
                 </TableCell>

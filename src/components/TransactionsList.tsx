@@ -78,6 +78,10 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const [sortKey, setSortKey] = useState<keyof Transaction | 'account_name' | 'asset_ticker'>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
+  // Mass actions
+  const [selectedTransactions, setSelectedTransactions] = useState<string[]>([])
+  const [selectAll, setSelectAll] = useState(false)
+
   // Form state
   const [accounts, setAccounts] = useState<Account[]>([])
   const [assets, setAssets] = useState<Asset[]>([])
@@ -166,12 +170,51 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     setDisplayTransactions(list)
   }, [transactions, search, sortKey, sortDir])
 
+  // Update select all state
+  useEffect(() => {
+    const allSelected = displayTransactions.length > 0 && selectedTransactions.length === displayTransactions.length
+    setSelectAll(allSelected)
+  }, [selectedTransactions, displayTransactions])
+
   const toggleSort = (key: typeof sortKey) => {
     if (sortKey === key) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
     } else {
       setSortKey(key)
       setSortDir('desc')
+    }
+  }
+
+  const handleSelectTransaction = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedTransactions(prev => [...prev, id])
+    } else {
+      setSelectedTransactions(prev => prev.filter(txId => txId !== id))
+    }
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedTransactions(displayTransactions.map(tx => tx.id))
+    } else {
+      setSelectedTransactions([])
+    }
+    setSelectAll(checked)
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedTransactions.length === 0) return
+    if (!confirm(`Delete ${selectedTransactions.length} transactions? This cannot be undone.`)) return
+
+    const supabase = createClient()
+    try {
+      await supabase.from('transactions').delete().in('id', selectedTransactions)
+      setTransactions(transactions.filter(t => !selectedTransactions.includes(t.id)))
+      setSelectedTransactions([])
+      setSelectAll(false)
+      router.refresh()
+    } catch (err: any) {
+      alert('Bulk delete failed: ' + err.message)
     }
   }
 
@@ -582,6 +625,17 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             className="w-64"
           />
 
+          {selectedTransactions.length > 0 && (
+            <div className="flex gap-2 items-center">
+              <span className="text-sm text-muted-foreground">
+                {selectedTransactions.length} selected
+              </span>
+              <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                Delete Selected
+              </Button>
+            </div>
+          )}
+
           <Button
             variant="outline"
             onClick={handleImportClick}
@@ -825,6 +879,12 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>
+                <Checkbox
+                  checked={selectAll}
+                  onCheckedChange={handleSelectAll}
+                />
+              </TableHead>
               <TableHead className="cursor-pointer" onClick={() => toggleSort('date')}>
                 Date <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
@@ -860,9 +920,15 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
           <TableBody>
             {displayTransactions.map((tx) => (
               <TableRow key={tx.id}>
+                <TableCell>
+                  <Checkbox
+                    checked={selectedTransactions.includes(tx.id)}
+                    onCheckedChange={(checked) => handleSelectTransaction(tx.id, checked as boolean)}
+                  />
+                </TableCell>
                 <TableCell>{tx.date}</TableCell>
                 <TableCell>{tx.account?.name || '-'}</TableCell>
-                <TableCell>
+                <TableCell className="break-words">
                   {tx.asset?.ticker || '-'}
                   {tx.asset?.name && ` - ${tx.asset.name}`}
                 </TableCell>
@@ -887,7 +953,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                 )}>
                   {tx.realized_gain != null ? formatUSD(tx.realized_gain) : '-'}
                 </TableCell>
-                <TableCell className="max-w-xs truncate">{tx.notes || '-'}</TableCell>
+                <TableCell className="break-words">{tx.notes || '-'}</TableCell>
                 <TableCell className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={() => openEdit(tx)}>
                     <Edit2 className="h-4 w-4" />

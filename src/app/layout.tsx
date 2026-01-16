@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import './globals.css';
 import { Button } from '@/components/ui/button';
 import { ChatDrawer } from '@/components/ChatDrawer';
@@ -20,7 +21,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <img src="/logo.png" alt="RAIN Logo" className="h-6" />
+                <Image
+                  src="/logo.png"
+                  alt="RAIN Logo"
+                  width={180}
+                  height={60}
+                  priority
+                  className="h-10 w-auto object-contain"
+                />
                 <span className="text-sm text-muted-foreground">RAIN Portfolio Management</span>
               </div>
               <GrokChatTrigger />
