@@ -9,7 +9,10 @@ export default async function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
-      <h1 className="text-4xl font-bold mb-8">Portfolio Tracker</h1>
+      <div className="flex flex-col items-center mb-8">
+        <img src="/logo.jpg" alt="RAIN Logo" className="h-16 mb-4" />
+        <h1 className="text-4xl font-bold">RAIN Portfolio Management</h1>
+      </div>
       <LoginForm />
     </main>
   )
