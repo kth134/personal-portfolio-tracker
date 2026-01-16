@@ -95,8 +95,8 @@ export default function MFASettings() {
       
       if (!totp.qr_code) missingFields.push('qr_code')
       if (!totp.secret) missingFields.push('secret') 
-      if (!totp.id) missingFields.push('id')
       
+      // ID is optional - we'll get it from listFactors if not provided
       if (missingFields.length > 0) {
         console.error('Missing fields in enrollment response:', missingFields)
         setError(`Incomplete enrollment data: missing ${missingFields.join(', ')}`)
@@ -105,7 +105,28 @@ export default function MFASettings() {
       
       setQrUri(totp.qr_code)
       setSecret(totp.secret)
-      setFactorId(totp.id)
+      
+      // If ID is provided, use it; otherwise, we'll get it from listFactors
+      if (totp.id) {
+        setFactorId(totp.id)
+      } else {
+        // Fallback: list factors to find the newly enrolled one
+        console.log('ID not provided in enrollment, listing factors...')
+        const { data: factorsData, error: listError } = await supabase.auth.mfa.listFactors()
+        if (listError) {
+          console.error('Failed to list factors after enrollment:', listError)
+          setError('Failed to retrieve enrollment data')
+          return
+        }
+        
+        const newFactor = factorsData?.totp?.find((f: any) => f.status === 'unverified')
+        if (newFactor?.id) {
+          setFactorId(newFactor.id)
+        } else {
+          setError('Could not find enrolled MFA factor')
+          return
+        }
+      }
     } else {
       console.error('No TOTP data in enrollment response')
       setError('No TOTP data returned from Supabase')
