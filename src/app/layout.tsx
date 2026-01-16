@@ -27,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   width={180}
                   height={60}
                   priority
+                  unoptimized
                   className="h-10 w-auto object-contain"
                 />
                 <span className="text-sm text-muted-foreground">RAIN Portfolio Management</span>
