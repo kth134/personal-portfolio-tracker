@@ -20,18 +20,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/dashboard/transactions">Transactions</Link>
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Image
-                  src="/logo.png"
-                  alt="RAIN Logo"
-                  width={180}
-                  height={60}
-                  priority
-                  unoptimized
-                  className="h-10 w-auto object-contain"
-                />
-                <span className="text-sm text-muted-foreground">RAIN Portfolio Management</span>
-              </div>
+              <Image
+                src="/logo.png"
+                alt="RAIN Logo"
+                width={180}
+                height={60}
+                priority
+                unoptimized
+                className="h-10 w-auto object-contain"
+              />
               <GrokChatTrigger />
               <LogoutButton />
             </div>

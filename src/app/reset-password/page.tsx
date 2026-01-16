@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import Image from 'next/image'
 
 function ResetPasswordContent() {
   const [password, setPassword] = useState('')
@@ -56,7 +57,14 @@ function ResetPasswordContent() {
     <div className="flex items-center justify-center min-h-screen">
       <div className="w-full max-w-md space-y-4">
         <div className="flex flex-col items-center mb-6">
-          <img src="/logo.png" alt="RAIN Logo" className="h-12 mb-4" />
+          <Image
+            src="/logo.png"
+            alt="RAIN Logo"
+            width={180}
+            height={60}
+            unoptimized
+            className="h-24 mb-4"
+          />
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <h1 className="text-2xl font-bold">Reset Password</h1>

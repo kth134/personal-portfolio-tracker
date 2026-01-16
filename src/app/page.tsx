@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import LoginForm from '@/components/LoginForm'
+import Image from 'next/image'
 
 export default async function Home() {
   const supabase = await createClient()
@@ -10,8 +11,14 @@ export default async function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="flex flex-col items-center mb-8">
-        <img src="/logo.png" alt="RAIN Logo" className="h-16 mb-4" />
-        <h1 className="text-4xl font-bold">RAIN Portfolio Management</h1>
+        <Image
+          src="/logo.png"
+          alt="RAIN Logo"
+          width={180}
+          height={60}
+          unoptimized
+          className="h-24 mb-4"
+        />
       </div>
       <LoginForm />
     </main>
