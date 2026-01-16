@@ -100,8 +100,10 @@ export default function DashboardHome() {
         } else if (currentLevel === 'aal1') {
           // MFA not set up, check if we should show setup prompt
           const hasOptedOut = localStorage.getItem('mfa-setup-opted-out') === 'true';
-          if (!hasOptedOut) {
+          const promptShownThisSession = sessionStorage.getItem('mfa-setup-prompt-shown') === 'true';
+          if (!hasOptedOut && !promptShownThisSession) {
             setShowMfaSetupPrompt(true);
+            sessionStorage.setItem('mfa-setup-prompt-shown', 'true');
           }
           setMfaStatus('verified'); // Allow access but show prompt
         } else {
