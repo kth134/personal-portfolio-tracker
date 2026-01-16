@@ -60,10 +60,9 @@ function ResetPasswordContent() {
           <Image
             src="/logo.png"
             alt="RAIN Logo"
-            width={180}
-            height={60}
+            width={360}
+            height={120}
             unoptimized
-            className="h-48 mb-4"
           />
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">

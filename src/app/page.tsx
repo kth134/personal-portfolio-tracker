@@ -14,10 +14,9 @@ export default async function Home() {
         <Image
           src="/logo.png"
           alt="RAIN Logo"
-          width={180}
-          height={60}
+          width={360}
+          height={120}
           unoptimized
-          className="h-48 mb-4"
         />
       </div>
       <LoginForm />
