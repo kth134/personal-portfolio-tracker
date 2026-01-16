@@ -140,9 +140,9 @@ export default function MFASettings() {
       setQrUri(totp.qr_code)
       setSecret(totp.secret)
       
-      // If ID is provided, use it; otherwise, we'll get it from listFactors
-      if (totp.id) {
-        setFactorId(totp.id)
+      // If ID is provided at the top level, use it; otherwise, we'll get it from listFactors
+      if (data.id) {
+        setFactorId(data.id)
       } else {
         // Fallback: list factors to find the newly enrolled one
         console.log('ID not provided in enrollment, listing factors...')
