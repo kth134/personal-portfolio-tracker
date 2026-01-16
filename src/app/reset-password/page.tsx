@@ -23,22 +23,23 @@ function ResetPasswordContent() {
       setLoading(true)
       setError(null)
 
-      const token = searchParams.get('token')   // Supabase uses 'token' for recovery
+      const accessToken = searchParams.get('access_token')
+      const refreshToken = searchParams.get('refresh_token')
       const type = searchParams.get('type')
 
-      if (!token || type !== 'recovery') {
+      if (!accessToken || !refreshToken || type !== 'recovery') {
         setError('Invalid or missing recovery token.')
         setLoading(false)
         return
       }
 
-      const { error } = await supabase.auth.verifyOtp({
-        type: 'recovery',
-        token_hash: token,  // full hash from URL
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
       })
 
       if (error) {
-        console.error('Verify OTP error:', error)
+        console.error('Set session error:', error)
         setError(error.message || 'Failed to verify reset link. Try requesting a new one.')
       } else {
         setVerified(true)
@@ -65,7 +66,7 @@ function ResetPasswordContent() {
       setError(error.message || 'Failed to update password.')
     } else {
       setSuccess(true)
-      setTimeout(() => router.push('/login'), 3000)
+      setTimeout(() => router.push('/dashboard'), 3000)
     }
   }
 
