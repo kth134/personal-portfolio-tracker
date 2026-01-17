@@ -12,7 +12,7 @@ export default async function Home() {
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="flex flex-col items-center mb-8">
         <Image
-          src="/logo.png"
+          src="/small-logo.png"
           alt="RAIN Logo"
           width={360}
           height={120}

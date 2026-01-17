@@ -22,9 +22,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   height={60}
                   priority
                   unoptimized
-                  className="h-8 w-auto object-contain"
+                  className="h-10 w-auto object-contain"
                 />
-                Dashboard
               </Link>
               <Link href="/dashboard/portfolio">Portfolio</Link>
               <Link href="/dashboard/performance">Performance</Link> {/* ← NEW */}

@@ -58,7 +58,7 @@ function ResetPasswordContent() {
       <div className="w-full max-w-md space-y-4">
         <div className="flex flex-col items-center mb-6">
           <Image
-            src="/logo.png"
+            src="/small-logo.png"
             alt="RAIN Logo"
             width={360}
             height={120}
