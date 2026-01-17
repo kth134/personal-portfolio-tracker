@@ -682,15 +682,6 @@ function PerformanceContent() {
               <p className={cn("text-2xl font-bold mt-2 break-words", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
                 {formatUSD(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
               </p>
-              <p className={cn("text-sm mt-1 break-words", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
-                {totalReturnPct.toFixed(2)}% Total Return
-              </p>
-            </div>
-            <div className="text-center">
-              <CardTitle className="break-words">IRR</CardTitle>
-              <p className={cn("text-2xl font-bold mt-2 break-words", totalAnnualizedReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
-                {totalAnnualizedReturnPct.toFixed(2)}%
-              </p>
             </div>
             <div className="text-center space-y-2 text-lg">
               <div>
@@ -711,6 +702,15 @@ function PerformanceContent() {
                   {formatUSD(totals.dividends)}
                 </p>
               </div>
+            </div>
+            <div className="text-center">
+              <CardTitle className="break-words">Annualized IRR</CardTitle>
+              <p className={cn("text-2xl font-bold mt-2 break-words", totalAnnualizedReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
+                {totalAnnualizedReturnPct.toFixed(2)}%
+              </p>
+              <p className={cn("text-sm mt-1 break-words", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
+                {totalReturnPct.toFixed(2)}% Total Return
+              </p>
             </div>
           </div>
         </CardHeader>
@@ -800,7 +800,7 @@ function PerformanceContent() {
                 onClick={() => handleSort('realized_gain')}
               >
                 <div className="flex items-center justify-end">
-                  <span className="break-words">Realized Gain</span>
+                  <span className="break-words">Realized G/L</span>
                   {getSortIcon('realized_gain')}
                 </div>
               </TableHead>
@@ -903,7 +903,14 @@ function PerformanceContent() {
                     >
                       {formatUSD(row.unrealized_gain)}
                     </TableCell>
-                    <TableCell className="text-right">{formatUSD(row.realized_gain)}</TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-right",
+                        row.realized_gain > 0 ? "text-green-600" : row.realized_gain < 0 ? "text-red-600" : ""
+                      )}
+                    >
+                      {formatUSD(row.realized_gain)}
+                    </TableCell>
                     <TableCell className="text-right">{formatUSD(row.dividends)}</TableCell>
                     <TableCell
                       className={cn(

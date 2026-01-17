@@ -922,7 +922,7 @@ export default function DashboardHome() {
                         </p>
                       </div>
                       <div>
-                        <CardTitle>IRR</CardTitle>
+                        <CardTitle>Annualized IRR</CardTitle>
                         <p className={cn("text-2xl font-bold mt-2", (performanceTotals?.irr_pct || 0) >= 0 ? "text-green-600" : "text-red-600")}>
                           {performanceTotals ? `${(performanceTotals.irr_pct || 0).toFixed(2)}%` : 'Loading...'}
                         </p>
@@ -930,13 +930,13 @@ export default function DashboardHome() {
                     </div>
                     <div className="space-y-8">
                       <div>
-                        <CardTitle>Unrealized Gain</CardTitle>
+                        <CardTitle>Unrealized G/L</CardTitle>
                         <p className={cn("text-2xl font-bold mt-2", performanceTotals?.unrealized_gain >= 0 ? "text-green-600" : "text-red-600")}>
                           {performanceTotals ? formatUSD(performanceTotals.unrealized_gain) : 'Loading...'}
                         </p>
                       </div>
                       <div>
-                        <CardTitle>Realized Gain</CardTitle>
+                        <CardTitle>Realized G/L</CardTitle>
                         <p className={cn("text-2xl font-bold mt-2", performanceTotals?.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
                           {performanceTotals ? formatUSD(performanceTotals.realized_gain) : 'Loading...'}
                         </p>
@@ -1088,13 +1088,13 @@ export default function DashboardHome() {
                   </div>
                   <div className="space-y-8">
                     <div>
-                      <CardTitle>Unrealized Gain</CardTitle>
+                      <CardTitle>Unrealized G/L</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", performanceTotals?.unrealized_gain >= 0 ? "text-green-600" : "text-red-600")}>
                         {performanceTotals ? formatUSD(performanceTotals.unrealized_gain) : 'Loading...'}
                       </p>
                     </div>
                     <div>
-                      <CardTitle>Realized Gain</CardTitle>
+                      <CardTitle>Realized G/L</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", performanceTotals?.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
                         {performanceTotals ? formatUSD(performanceTotals.realized_gain) : 'Loading...'}
                       </p>
