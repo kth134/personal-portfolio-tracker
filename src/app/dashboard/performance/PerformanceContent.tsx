@@ -243,6 +243,62 @@ function PerformanceContent() {
 
         if (txError) throw txError;
 
+        // Fetch accounts for cash calculation
+        const { data: accountsData, error: accountsError } = await supabase
+          .from('accounts')
+          .select('id, name')
+          .eq('user_id', userId);
+
+        if (accountsError) throw accountsError;
+
+        // Compute cash balances
+        const cashBalances = new Map<string, number>()
+        transactionsData.forEach((tx: any) => {
+          if (!tx.account_id) return
+          // Skip automatic deposits for external buys
+          if (tx.notes === 'Auto-deposit for external buy') {
+            return
+          }
+          const current = cashBalances.get(tx.account_id) || 0
+          let delta = 0
+          const amt = Number(tx.amount || 0)
+          const fee = Number(tx.fees || 0)
+          switch (tx.type) {
+            case 'Buy':
+              if (tx.funding_source === 'cash') {
+                delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
+              }
+              break
+            case 'Sell':
+              delta += (amt - fee)  // increase cash balance by sale amount less fees
+              break
+            case 'Dividend':
+              delta += amt  // increase cash balance
+              break
+            case 'Interest':
+              delta += amt  // increase cash balance
+              break
+            case 'Deposit':
+              delta += amt  // increase cash balance
+              break
+            case 'Withdrawal':
+              delta -= Math.abs(amt)  // decrease cash balance
+              break
+          }
+          const newBalance = current + delta
+          cashBalances.set(tx.account_id, newBalance)
+        })
+        const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
+
+        // Map cash by account name
+        const cashByAccountName = new Map<string, number>()
+        const accountIdToName = new Map<string, string>()
+        accountsData.forEach(account => {
+          const balance = cashBalances.get(account.id) || 0
+          cashByAccountName.set(account.name.trim(), balance)
+          accountIdToName.set(account.id, account.name.trim())
+        })
+
         // Calculate total original investment (sum of all cost bases from all lots)
         const totalOriginalInvestment = allLotsData?.reduce((sum, lot) => {
           return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
@@ -500,8 +556,9 @@ function PerformanceContent() {
             });
 
             // Add current market value as final cash flow
-            if (metrics.marketValue > 0) {
-              cashFlows.push(metrics.marketValue);
+            const accountCash = lens === 'account' ? (cashByAccountName.get(accountIdToName.get(row.grouping_id) || '') || 0) : 0
+            if (metrics.marketValue > 0 || accountCash > 0) {
+              cashFlows.push(metrics.marketValue + accountCash);
               flowDates.push(new Date());
             }
 
@@ -567,8 +624,8 @@ function PerformanceContent() {
           });
 
           // Terminal value (what everything is worth today)
-          if (totalPortfolioValue > 0) {
-            allCashFlows.push(totalPortfolioValue);
+          if (totalPortfolioValue + totalCash > 0) {
+            allCashFlows.push(totalPortfolioValue + totalCash);
             allFlowDates.push(new Date());
           }
 
@@ -613,8 +670,8 @@ function PerformanceContent() {
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
-          <div className="grid grid-cols-1 md:grid-cols-[1.5fr_0.8fr_1.5fr] items-center mt-6 gap-8">
-            <div className="text-center md:text-left md:ml-[25%]">
+          <div className="grid grid-cols-1 md:grid-cols-4 items-center mt-6 gap-8">
+            <div className="text-center">
               <CardTitle className="break-words">Total Portfolio Value</CardTitle>
               <p className="text-2xl font-bold text-black mt-2 break-words">
                 {formatUSD(totals.market_value)}
@@ -629,7 +686,13 @@ function PerformanceContent() {
                 {totalReturnPct.toFixed(2)}% Total Return
               </p>
             </div>
-            <div className="text-center md:text-right space-y-2 text-lg">
+            <div className="text-center">
+              <CardTitle className="break-words">IRR</CardTitle>
+              <p className={cn("text-2xl font-bold mt-2 break-words", totalAnnualizedReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
+                {totalAnnualizedReturnPct.toFixed(2)}%
+              </p>
+            </div>
+            <div className="text-center space-y-2 text-lg">
               <div>
                 <p className="text-sm text-muted-foreground break-words">Unrealized G/L</p>
                 <p className={cn("font-bold break-words", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
