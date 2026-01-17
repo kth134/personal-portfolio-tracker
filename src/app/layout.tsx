@@ -22,18 +22,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-background">
         <nav className="bg-background border-b px-4 py-3">
           <div className="container mx-auto flex justify-between items-center">
-            <div className="flex gap-6">
-              <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-                <Image
-                  src="/small-logo.png"
-                  alt="RAIN Logo"
-                  width={180}
-                  height={60}
-                  priority
-                  unoptimized
-                  className="h-8 w-auto sm:h-10 object-contain"
-                />
-              </Link>
+            <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+              <Image
+                src="/small-logo.png"
+                alt="RAIN Logo"
+                width={180}
+                height={60}
+                priority
+                unoptimized
+                className="h-8 w-auto sm:h-10 object-contain"
+              />
+            </Link>
+            <div className="hidden md:flex gap-6">
               <Popover open={portfolioOpen} onOpenChange={setPortfolioOpen}>
                 <PopoverTrigger asChild>
                   <Link href="/dashboard/portfolio" className="flex items-center gap-1" onMouseEnter={() => setPortfolioOpen(true)} onMouseLeave={() => setPortfolioOpen(false)}>
@@ -78,9 +78,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </PopoverContent>
               </Popover>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 md:gap-4">
               <GrokChatTrigger />
-              <Button variant="outline" size="sm" asChild>
+              <Button variant="outline" size="sm" className="hidden sm:inline-flex" asChild>
                 <a href="/dashboard/profile">Profile</a>
               </Button>
               <LogoutButton />
