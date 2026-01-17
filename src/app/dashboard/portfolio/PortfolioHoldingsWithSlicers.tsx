@@ -51,8 +51,10 @@ type HoldingRow = {
 
 export default function PortfolioHoldingsWithSlicers({
   cash,
+  cashByAccountName,
 }: {
   cash: number
+  cashByAccountName: Map<string, number>
 }) {
   const [lens, setLens] = useState('total')
   const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([])
@@ -362,13 +364,30 @@ export default function PortfolioHoldingsWithSlicers({
                           <TableCell className="text-right">{formatUSD(row.currValue)}</TableCell>
                         </TableRow>
                       ))}
+                      {lens === 'account' && (() => {
+                        const accountCash = cashByAccountName.get(key) || 0
+                        return accountCash > 0 ? (
+                          <TableRow key="cash">
+                            <TableCell className="w-32">
+                              <div className="flex flex-col">
+                                <span className="font-bold break-words">Cash</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">-</TableCell>
+                            <TableCell className="text-right">-</TableCell>
+                            <TableCell className="text-right">{formatUSD(accountCash)}</TableCell>
+                            <TableCell className="text-right">-</TableCell>
+                            <TableCell className="text-right">{formatUSD(accountCash)}</TableCell>
+                          </TableRow>
+                        ) : null
+                      })()}
                       <TableRow className="font-semibold bg-muted/30">
                         <TableCell>Sub-Total</TableCell>
                         <TableCell className="text-right">{groupRows.reduce((sum, r) => sum + r.quantity, 0).toFixed(4)}</TableCell>
                         <TableCell className="text-right">-</TableCell>
-                        <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.totalBasis, 0))}</TableCell>
+                        <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.totalBasis, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0))}</TableCell>
                         <TableCell className="text-right">-</TableCell>
-                        <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.currValue, 0))}</TableCell>
+                        <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.currValue, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0))}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -391,14 +410,16 @@ export default function PortfolioHoldingsWithSlicers({
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(selectedTotalValue - cash)}</TableCell>
             </TableRow>
-            <TableRow className="font-bold bg-muted/50">
-              <TableCell className="w-32">Cash Balance</TableCell>
-              <TableCell className="text-right">-</TableCell>
-              <TableCell className="text-right">-</TableCell>
-              <TableCell className="text-right">{formatUSD(cash)}</TableCell>
-              <TableCell className="text-right">-</TableCell>
-              <TableCell className="text-right">{formatUSD(cash)}</TableCell>
-            </TableRow>
+            {!(lens === 'account' && !aggregate) && (
+              <TableRow className="font-bold bg-muted/50">
+                <TableCell className="w-32">Cash Balance</TableCell>
+                <TableCell className="text-right">-</TableCell>
+                <TableCell className="text-right">-</TableCell>
+                <TableCell className="text-right">{formatUSD(cash)}</TableCell>
+                <TableCell className="text-right">-</TableCell>
+                <TableCell className="text-right">{formatUSD(cash)}</TableCell>
+              </TableRow>
+            )}
             <TableRow className="font-bold text-lg">
               <TableCell className="w-32">Portfolio Total</TableCell>
               <TableCell className="text-right">-</TableCell>

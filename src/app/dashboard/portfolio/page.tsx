@@ -72,7 +72,7 @@ export default async function PortfolioPage() {
     switch (tx.type) {
       case 'Buy':
         if (tx.funding_source === 'cash') {
-          delta -= (amt + fee)  // deduct purchase amount and fee from cash balance
+          delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
         } // else (including 'external'): no impact to cash balance
         break
       case 'Sell':
@@ -95,6 +95,13 @@ export default async function PortfolioPage() {
     cashBalances.set(tx.account_id, newBalance)
   })
   const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
+
+  // Map cash by account name for account-specific display
+  const cashByAccountName = new Map<string, number>()
+  initialAccounts.forEach(account => {
+    const balance = cashBalances.get(account.id) || 0
+    cashByAccountName.set(account.name.trim(), balance)
+  })
 
   // Prices fetch
   const uniqueTickers = new Set(lots?.map(lot => lot.asset.ticker) || [])
@@ -126,6 +133,7 @@ export default async function PortfolioPage() {
           {lots?.length ? (
             <PortfolioHoldingsWithSlicers
               cash={totalCash}
+              cashByAccountName={cashByAccountName}
             />
           ) : (
             <div className="text-center py-12 text-muted-foreground">
