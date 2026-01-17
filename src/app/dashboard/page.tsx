@@ -401,8 +401,8 @@ export default function DashboardHome() {
           <h1 className="text-4xl font-bold">Portfolio Dashboard</h1>
         </div>
 
-        {/* Controls section */}
-        <div className="flex justify-between items-center">
+        {/* Controls section - Desktop only */}
+        <div className="hidden md:flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button onClick={handleRefresh} disabled={refreshing}>
               {refreshing ? 'Refreshing...' : 'Refresh Prices'}
@@ -470,134 +470,209 @@ export default function DashboardHome() {
             )}
           </div>
         </div>
+
+        {/* Mobile Refresh Prices Button - above Performance card */}
+        <div className="md:hidden mb-8">
+          <div className="flex items-center gap-4">
+            <Button onClick={handleRefresh} disabled={refreshing}>
+              {refreshing ? 'Refreshing...' : 'Refresh Prices'}
+            </Button>
+            {refreshMessage && <span className="text-sm text-green-600">{refreshMessage}</span>}
+          </div>
+        </div>
       </div>
       {loading ? (
         <div className="text-center py-12">Loading portfolio data...</div>
       ) : selectedValues.length === 0 && lens !== 'total' ? (
         <div className="text-center py-12 text-muted-foreground">Select at least one value to view data.</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="space-y-8">
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
-              <CardHeader>
-                <CardTitle className="text-center text-4xl">Performance</CardTitle>
-                <div className="grid grid-cols-2 gap-8 mt-6">
-                  <div className="space-y-8">
-                    <div>
-                      <CardTitle>Total Portfolio Value</CardTitle>
-                      <p className="text-2xl font-bold text-black mt-2">
-                        {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
-                      </p>
-                    </div>
-                    <div>
-                      <CardTitle>Net Gain/Loss</CardTitle>
-                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatUSD(performanceTotals.net_gain) : 'Loading...'}
-                      </p>
-                    </div>
-                    <div>
-                      <CardTitle>Total Return %</CardTitle>
-                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.total_return_pct >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? `${performanceTotals.total_return_pct.toFixed(2)}%` : 'Loading...'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-8">
-                    <div>
-                      <CardTitle>Unrealized Gain</CardTitle>
-                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.unrealized_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatUSD(performanceTotals.unrealized_gain) : 'Loading...'}
-                      </p>
-                    </div>
-                    <div>
-                      <CardTitle>Realized Gain</CardTitle>
-                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatUSD(performanceTotals.realized_gain) : 'Loading...'}
-                      </p>
-                    </div>
-                    <div>
-                      <CardTitle>Income</CardTitle>
-                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.dividends >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatUSD(performanceTotals.dividends) : 'Loading...'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/strategy/targets-thresholds')}>
-              <CardHeader>
-                <CardTitle className="text-center text-4xl">Strategy</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p>Under Construction</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-8">
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
-              <CardHeader>
-                <CardTitle className="text-center text-4xl">Portfolio Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 gap-8">
-                  {allocations.map((slice, idx) => (
-                    <div key={idx} className="space-y-4">
-                      <h4 className="font-medium text-center">{slice.key}</h4>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={slice.data}
-                            dataKey="value"
-                            nameKey="subkey"
-                            outerRadius={100}
-                            label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
-                            onClick={(data) => handlePieClick(data)}
-                          >
-                            {slice.data.map((_: any, i: number) => (
-                              <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSD(v) : ''} />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ))}
-                </div>
-
-              </CardContent>
-            </Card>
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/transactions')}>
-              <CardHeader>
-                <CardTitle className="text-center text-4xl">Recent Activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Ticker</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentTransactions.map((tx) => (
-                      <TableRow key={tx.id}>
-                        <TableCell>{tx.date}</TableCell>
-                        <TableCell>{tx.asset?.ticker || ''}</TableCell>
-                        <TableCell>{tx.type}</TableCell>
-                        <TableCell>{formatUSD(tx.amount)}</TableCell>
-                      </TableRow>
+        <>
+          {/* Mobile Slicers - positioned between Strategy and Portfolio Details */}
+          <div className="md:hidden mb-8">
+            <div className="flex flex-wrap gap-4 items-center justify-end">
+              {/* Lens */}
+              <div>
+                <Label className="text-sm font-medium">Slice by</Label>
+                <Select value={lens} onValueChange={setLens}>
+                  <SelectTrigger className="w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LENSES.map(l => (
+                      <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
                     ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Multi-Select Values */}
+              {lens !== 'total' && (
+                <div className="min-w-64">
+                  <Label className="text-sm font-medium">
+                    Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
+                  </Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between">
+                        {selectedValues.length === availableValues.length ? 'All selected' :
+                         selectedValues.length === 0 ? 'None selected' :
+                         `${selectedValues.length} selected`}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Search..." />
+                        <CommandList>
+                          <CommandEmpty>No values found.</CommandEmpty>
+                          <CommandGroup>
+                            {availableValues.map(item => (
+                              <CommandItem key={item.value} onSelect={() => toggleValue(item.value)}>
+                                <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />
+                                {item.label}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+
+              {/* Aggregate Toggle */}
+              {lens !== 'total' && selectedValues.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <Switch checked={aggregate} onCheckedChange={setAggregate} />
+                  <Label>Aggregate selected</Label>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-8">
+              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
+                <CardHeader>
+                  <CardTitle className="text-center text-4xl">Performance</CardTitle>
+                  <div className="grid grid-cols-2 gap-8 mt-6">
+                    <div className="space-y-8">
+                      <div>
+                        <CardTitle>Total Portfolio Value</CardTitle>
+                        <p className="text-2xl font-bold text-black mt-2">
+                          {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
+                        </p>
+                      </div>
+                      <div>
+                        <CardTitle>Net Gain/Loss</CardTitle>
+                        <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
+                          {performanceTotals ? formatUSD(performanceTotals.net_gain) : 'Loading...'}
+                        </p>
+                      </div>
+                      <div>
+                        <CardTitle>Total Return %</CardTitle>
+                        <p className={cn("text-2xl font-bold mt-2", performanceTotals?.total_return_pct >= 0 ? "text-green-600" : "text-red-600")}>
+                          {performanceTotals ? `${performanceTotals.total_return_pct.toFixed(2)}%` : 'Loading...'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-8">
+                      <div>
+                        <CardTitle>Unrealized Gain</CardTitle>
+                        <p className={cn("text-2xl font-bold mt-2", performanceTotals?.unrealized_gain >= 0 ? "text-green-600" : "text-red-600")}>
+                          {performanceTotals ? formatUSD(performanceTotals.unrealized_gain) : 'Loading...'}
+                        </p>
+                      </div>
+                      <div>
+                        <CardTitle>Realized Gain</CardTitle>
+                        <p className={cn("text-2xl font-bold mt-2", performanceTotals?.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
+                          {performanceTotals ? formatUSD(performanceTotals.realized_gain) : 'Loading...'}
+                        </p>
+                      </div>
+                      <div>
+                        <CardTitle>Income</CardTitle>
+                        <p className={cn("text-2xl font-bold mt-2", performanceTotals?.dividends >= 0 ? "text-green-600" : "text-red-600")}>
+                          {performanceTotals ? formatUSD(performanceTotals.dividends) : 'Loading...'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/strategy/targets-thresholds')}>
+                <CardHeader>
+                  <CardTitle className="text-center text-4xl">Strategy</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p>Under Construction</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-8">
+              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
+                <CardHeader>
+                  <CardTitle className="text-center text-4xl">Portfolio Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 gap-8">
+                    {allocations.map((slice, idx) => (
+                      <div key={idx} className="space-y-4">
+                        <h4 className="font-medium text-center">{slice.key}</h4>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={slice.data}
+                              dataKey="value"
+                              nameKey="subkey"
+                              outerRadius={100}
+                              label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
+                              onClick={(data) => handlePieClick(data)}
+                            >
+                              {slice.data.map((_: any, i: number) => (
+                                <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSD(v) : ''} />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ))}
+                  </div>
+
+                </CardContent>
+              </Card>
+              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/transactions')}>
+                <CardHeader>
+                  <CardTitle className="text-center text-4xl">Recent Activity</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Ticker</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recentTransactions.map((tx) => (
+                        <TableRow key={tx.id}>
+                          <TableCell>{tx.date}</TableCell>
+                          <TableCell>{tx.asset?.ticker || ''}</TableCell>
+                          <TableCell>{tx.type}</TableCell>
+                          <TableCell>{formatUSD(tx.amount)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </>
       )}
     </main>
   );
