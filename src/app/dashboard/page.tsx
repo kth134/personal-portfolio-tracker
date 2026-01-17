@@ -329,7 +329,9 @@ export default function DashboardHome() {
             type,
             amount,
             funding_source,
-            asset:assets (ticker)
+            notes,
+            asset:assets (ticker),
+            account:accounts (name)
           `)
           .eq('user_id', userId)
           .order('date', { ascending: false })
@@ -337,7 +339,7 @@ export default function DashboardHome() {
 
         // Filter out auto-created deposits for external buys
         const filteredTransactions = recentTransactions?.filter(tx => 
-          !(tx.type === 'Deposit' && tx.funding_source === 'external')
+          !(tx.type === 'Deposit' && tx.notes === 'Auto-deposit for external buy')
         ).slice(0, 10) || [];
 
         setRecentTransactions(filteredTransactions);
@@ -471,7 +473,9 @@ export default function DashboardHome() {
             type,
             amount,
             funding_source,
-            asset:assets (ticker)
+            notes,
+            asset:assets (ticker),
+            account:accounts (name)
           `)
           .eq('user_id', userId)
           .order('date', { ascending: false })
@@ -479,7 +483,7 @@ export default function DashboardHome() {
 
         // Filter out auto-created deposits for external buys
         const filteredTransactions = recentTransactions?.filter(tx => 
-          !(tx.type === 'Deposit' && tx.funding_source === 'external')
+          !(tx.type === 'Deposit' && tx.notes === 'Auto-deposit for external buy')
         ).slice(0, 10) || [];
 
         setRecentTransactions(filteredTransactions);
@@ -822,6 +826,7 @@ export default function DashboardHome() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Date</TableHead>
+                        <TableHead>Account</TableHead>
                         <TableHead>Ticker</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Amount</TableHead>
@@ -831,6 +836,7 @@ export default function DashboardHome() {
                       {recentTransactions.map((tx) => (
                         <TableRow key={tx.id}>
                           <TableCell>{tx.date}</TableCell>
+                          <TableCell>{tx.account?.name || ''}</TableCell>
                           <TableCell>{tx.asset?.ticker || ''}</TableCell>
                           <TableCell>{tx.type}</TableCell>
                           <TableCell>{formatUSD(tx.amount)}</TableCell>
@@ -976,6 +982,7 @@ export default function DashboardHome() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
+                      <TableHead>Account</TableHead>
                       <TableHead>Ticker</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Amount</TableHead>
@@ -985,6 +992,7 @@ export default function DashboardHome() {
                     {recentTransactions.map((tx) => (
                       <TableRow key={tx.id}>
                         <TableCell>{tx.date}</TableCell>
+                        <TableCell>{tx.account?.name || ''}</TableCell>
                         <TableCell>{tx.asset?.ticker || ''}</TableCell>
                         <TableCell>{tx.type}</TableCell>
                         <TableCell>{formatUSD(tx.amount)}</TableCell>
