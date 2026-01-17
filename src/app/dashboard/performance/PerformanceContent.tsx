@@ -705,15 +705,15 @@ function PerformanceContent() {
             </div>
             <div className="text-center space-y-2 text-lg">
               <div>
-                <p className="text-sm text-muted-foreground break-words">Annualized IRR</p>
-                <p className={cn("font-bold break-words", totalAnnualizedReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
-                  {totalAnnualizedReturnPct.toFixed(2)}%
-                </p>
-              </div>
-              <div>
                 <p className="text-sm text-muted-foreground break-words">Total Return %</p>
                 <p className={cn("font-bold break-words", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
                   {totalReturnPct.toFixed(2)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground break-words">Annualized IRR</p>
+                <p className={cn("font-bold break-words", totalAnnualizedReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
+                  {totalAnnualizedReturnPct.toFixed(2)}%
                 </p>
               </div>
             </div>
