@@ -368,6 +368,8 @@ export default function DashboardHome() {
     );
   }
 
+
+
   if (mfaStatus === 'prompt') {
     return (
       <div className="container mx-auto max-w-md p-6 space-y-6">
@@ -395,10 +397,14 @@ export default function DashboardHome() {
   return (
     <main className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold text-center flex-1">Portfolio Dashboard</h1>
-        <Button variant="outline" size="sm" asChild>
-          <a href="/settings/mfa">MFA Settings</a>
-        </Button>
+        <div className="flex items-center gap-4">
+          <Button onClick={handleRefresh} disabled={refreshing}>
+            {refreshing ? 'Refreshing...' : 'Refresh Prices'}
+          </Button>
+          {refreshMessage && <span className="text-sm text-green-600">{refreshMessage}</span>}
+        </div>
+        <h1 className="text-4xl font-bold">Portfolio Dashboard</h1>
+        <div></div> {/* Spacer for centering */}
       </div>
 
       {/* Full controls section – moved to above allocation card */}
@@ -467,12 +473,6 @@ export default function DashboardHome() {
           </div>
 
           <div className="space-y-8">
-            <div className="flex justify-start mb-4 min-h-[4rem]">
-              <Button onClick={handleRefresh} disabled={refreshing}>
-                {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-              </Button>
-              {refreshMessage && <span className="ml-4 text-sm text-green-600">{refreshMessage}</span>}
-            </div>
             {/* Holdings slicers and aggregate toggle - right aligned */}
             <div className="flex flex-wrap gap-4 justify-end items-end mb-4 min-h-[4rem]">
               {/* Lens */}

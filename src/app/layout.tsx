@@ -80,6 +80,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <div className="flex items-center gap-4">
               <GrokChatTrigger />
+              <Button variant="outline" size="sm" asChild>
+                <a href="/dashboard/profile">Profile</a>
+              </Button>
               <LogoutButton />
             </div>
           </div>
