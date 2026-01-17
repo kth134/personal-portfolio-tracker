@@ -603,16 +603,6 @@ function PerformanceContent() {
   return (
     <TooltipProvider>
       <main className="p-4 md:p-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <h1 className="text-2xl md:text-3xl font-bold break-words">Performance Reports</h1>
-        <Button
-          onClick={handleRefreshPrices}
-          disabled={refreshing || loading}
-          size="sm"
-        >
-          {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-        </Button>
-      </div>
       {refreshMessage && (
         <div className="mb-4 p-2 bg-green-100 text-green-800 rounded">
           {refreshMessage}

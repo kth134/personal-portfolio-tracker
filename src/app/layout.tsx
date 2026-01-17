@@ -25,8 +25,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <nav className="bg-background border-b px-4 py-3 relative">
           <div className="container mx-auto">
             {/* Desktop Layout */}
-            <div className="hidden md:flex justify-between items-center">
-              <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+            <div className="hidden md:flex items-center relative">
+              <Link href="/dashboard" className="flex items-center gap-2 font-semibold absolute left-0">
                 <Image
                   src="/small-logo.png"
                   alt="RAIN Logo"
@@ -37,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   className="h-12 w-auto sm:h-16 object-contain"
                 />
               </Link>
-              <div className="flex gap-6">
+              <div className="flex gap-6 mx-auto">
                 <Popover open={portfolioOpen} onOpenChange={setPortfolioOpen}>
                   <PopoverTrigger asChild>
                     <Link href="/dashboard/portfolio" className="flex items-center gap-1" onMouseEnter={() => setPortfolioOpen(true)} onMouseLeave={() => setPortfolioOpen(false)}>
@@ -82,7 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </PopoverContent>
                 </Popover>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 absolute right-0">
                 <GrokChatTrigger />
                 <Button variant="outline" size="sm" asChild>
                   <a href="/dashboard/profile">Profile</a>
