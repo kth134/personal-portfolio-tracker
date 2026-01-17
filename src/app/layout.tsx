@@ -31,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   height={60}
                   priority
                   unoptimized
-                  className="h-10 w-auto object-contain"
+                  className="h-8 w-auto sm:h-10 object-contain"
                 />
               </Link>
               <Popover open={portfolioOpen} onOpenChange={setPortfolioOpen}>
