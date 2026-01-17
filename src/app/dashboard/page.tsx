@@ -396,18 +396,79 @@ export default function DashboardHome() {
   // Normal dashboard view (MFA cleared)
   return (
     <main className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-8">
-        <div className="flex items-center gap-4">
-          <Button onClick={handleRefresh} disabled={refreshing}>
-            {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-          </Button>
-          {refreshMessage && <span className="text-sm text-green-600">{refreshMessage}</span>}
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-4">
+            <Button onClick={handleRefresh} disabled={refreshing}>
+              {refreshing ? 'Refreshing...' : 'Refresh Prices'}
+            </Button>
+            {refreshMessage && <span className="text-sm text-green-600">{refreshMessage}</span>}
+          </div>
+          <h1 className="text-4xl font-bold">Portfolio Dashboard</h1>
+          <div></div> {/* Spacer for centering */}
         </div>
-        <h1 className="text-4xl font-bold">Portfolio Dashboard</h1>
-        <div></div> {/* Spacer for centering */}
-      </div>
 
-      {/* Full controls section – moved to above allocation card */}
+        {/* Controls section - moved to header level */}
+        <div className="flex flex-wrap gap-4 justify-center items-center">
+          {/* Lens */}
+          <div>
+            <Label className="text-sm font-medium">Slice by</Label>
+            <Select value={lens} onValueChange={setLens}>
+              <SelectTrigger className="w-56">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LENSES.map(l => (
+                  <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Multi-Select Values */}
+          {lens !== 'total' && (
+            <div className="min-w-64">
+              <Label className="text-sm font-medium">
+                Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {selectedValues.length === availableValues.length ? 'All selected' :
+                     selectedValues.length === 0 ? 'None selected' :
+                     `${selectedValues.length} selected`}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search..." />
+                    <CommandList>
+                      <CommandEmpty>No values found.</CommandEmpty>
+                      <CommandGroup>
+                        {availableValues.map(item => (
+                          <CommandItem key={item.value} onSelect={() => toggleValue(item.value)}>
+                            <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />
+                            {item.label}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+
+          {/* Aggregate Toggle */}
+          {lens !== 'total' && selectedValues.length > 1 && (
+            <div className="flex items-center gap-2">
+              <Switch checked={aggregate} onCheckedChange={setAggregate} />
+              <Label>Aggregate selected</Label>
+            </div>
+          )}
+        </div>
+      </div>
       {loading ? (
         <div className="text-center py-12">Loading portfolio data...</div>
       ) : selectedValues.length === 0 && lens !== 'total' ? (
@@ -415,7 +476,7 @@ export default function DashboardHome() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-8">
-            <Card className="mt-8 cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
+            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">Performance</CardTitle>
                 <div className="grid grid-cols-2 gap-8 mt-6">
@@ -473,66 +534,6 @@ export default function DashboardHome() {
           </div>
 
           <div className="space-y-8">
-            {/* Holdings slicers and aggregate toggle - right aligned */}
-            <div className="flex flex-wrap gap-4 justify-end items-end mb-4 min-h-[4rem]">
-              {/* Lens */}
-              <div>
-                <Label className="text-sm font-medium">Slice by</Label>
-                <Select value={lens} onValueChange={setLens}>
-                  <SelectTrigger className="w-56">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LENSES.map(l => (
-                      <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Multi-Select Values */}
-              {lens !== 'total' && (
-                <div className="min-w-64">
-                  <Label className="text-sm font-medium">
-                    Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
-                  </Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-between">
-                        {selectedValues.length === availableValues.length ? 'All selected' :
-                         selectedValues.length === 0 ? 'None selected' :
-                         `${selectedValues.length} selected`}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0">
-                      <Command>
-                        <CommandInput placeholder="Search..." />
-                        <CommandList>
-                          <CommandEmpty>No values found.</CommandEmpty>
-                          <CommandGroup>
-                            {availableValues.map(item => (
-                              <CommandItem key={item.value} onSelect={() => toggleValue(item.value)}>
-                                <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />
-                                {item.label}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              )}
-
-              {/* Aggregate Toggle */}
-              {lens !== 'total' && selectedValues.length > 1 && (
-                <div className="flex items-center gap-2">
-                  <Switch checked={aggregate} onCheckedChange={setAggregate} />
-                  <Label>Aggregate selected</Label>
-                </div>
-              )}
-            </div>
             <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">Portfolio Details</CardTitle>
