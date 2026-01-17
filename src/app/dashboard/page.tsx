@@ -473,7 +473,7 @@ export default function DashboardHome() {
 
         {/* Mobile Refresh Prices Button - above Performance card */}
         <div className="md:hidden mb-8">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-center gap-4">
             <Button onClick={handleRefresh} disabled={refreshing}>
               {refreshing ? 'Refreshing...' : 'Refresh Prices'}
             </Button>
@@ -737,7 +737,7 @@ export default function DashboardHome() {
 
             {/* Mobile Slicers - positioned between Strategy and Portfolio Details */}
             <div className="mt-8 mb-8">
-              <div className="flex flex-wrap gap-4 items-center justify-end">
+              <div className="flex flex-wrap gap-4 items-center justify-center">
                 {/* Lens */}
                 <div>
                   <Label className="text-sm font-medium">Slice by</Label>
