@@ -49,6 +49,7 @@ export default function DashboardHome() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [performanceTotals, setPerformanceTotals] = useState<any>(null);
+  const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
 
   // MFA states
   const [mfaStatus, setMfaStatus] = useState<'checking' | 'prompt' | 'verified' | 'none'>('checking');
@@ -238,6 +239,22 @@ export default function DashboardHome() {
           realized_gain: summaryTotals.realized_gain,
           dividends: summaryTotals.dividends,
         });
+
+        // Fetch recent transactions
+        const { data: recentTransactions } = await supabase
+          .from('transactions')
+          .select(`
+            id,
+            date,
+            type,
+            amount,
+            asset:assets (ticker)
+          `)
+          .eq('user_id', userId)
+          .order('date', { ascending: false })
+          .limit(10);
+
+        setRecentTransactions(recentTransactions || []);
       }
     } catch (err) {
       console.error('Dashboard data fetch failed:', err);
@@ -385,13 +402,7 @@ export default function DashboardHome() {
         <div className="text-center py-12 text-muted-foreground">Select at least one value to view data.</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div>
-            <div className="flex justify-start mb-4 min-h-[4rem]">
-              <Button onClick={handleRefresh} disabled={refreshing}>
-                {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-              </Button>
-              {refreshMessage && <span className="ml-4 text-sm text-green-600">{refreshMessage}</span>}
-            </div>
+          <div className="space-y-8">
             <Card className="mt-6 cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
@@ -439,9 +450,23 @@ export default function DashboardHome() {
                 </div>
               </CardHeader>
             </Card>
+            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/strategy/targets-thresholds')}>
+              <CardHeader>
+                <CardTitle>Strategy</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p>Under Construction</p>
+              </CardContent>
+            </Card>
           </div>
 
-          <div>
+          <div className="space-y-8">
+            <div className="flex justify-start mb-4 min-h-[4rem]">
+              <Button onClick={handleRefresh} disabled={refreshing}>
+                {refreshing ? 'Refreshing...' : 'Refresh Prices'}
+              </Button>
+              {refreshMessage && <span className="ml-4 text-sm text-green-600">{refreshMessage}</span>}
+            </div>
             {/* Holdings slicers and aggregate toggle - right aligned */}
             <div className="flex flex-wrap gap-4 justify-end items-end mb-4 min-h-[4rem]">
               {/* Lens */}
@@ -502,7 +527,7 @@ export default function DashboardHome() {
                 </div>
               )}
             </div>
-            <Card className="mt-6 cursor-pointer mb-4" onClick={() => router.push('/dashboard/portfolio')}>
+            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">
                   Current Allocation {aggregate ? `(${lens === 'total' ? 'Portfolio' : LENSES.find(l => l.value === lens)?.label || 'Selection'} Level)` : '(Separate by Asset)'}                </CardTitle>
@@ -534,6 +559,33 @@ export default function DashboardHome() {
                   ))}
                 </div>
 
+              </CardContent>
+            </Card>
+            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/transactions')}>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Ticker</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentTransactions.map((tx) => (
+                      <TableRow key={tx.id}>
+                        <TableCell>{tx.date}</TableCell>
+                        <TableCell>{tx.asset?.ticker || ''}</TableCell>
+                        <TableCell>{tx.type}</TableCell>
+                        <TableCell>{formatUSD(tx.amount)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </div>
