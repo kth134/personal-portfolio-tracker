@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen bg-background">
-        <nav className="bg-background border-b px-4 py-3">
+        <nav className="bg-background border-b px-4 py-3 relative">
           <div className="container mx-auto">
             {/* Desktop Layout */}
             <div className="hidden md:flex justify-between items-center">
@@ -30,11 +30,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Image
                   src="/small-logo.png"
                   alt="RAIN Logo"
-                  width={180}
-                  height={60}
+                  width={216}
+                  height={72}
                   priority
                   unoptimized
-                  className="h-8 w-auto sm:h-10 object-contain"
+                  className="h-10 w-auto sm:h-12 object-contain"
                 />
               </Link>
               <div className="flex gap-6">
@@ -97,49 +97,47 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Image
                   src="/small-logo.png"
                   alt="RAIN Logo"
-                  width={180}
-                  height={60}
+                  width={216}
+                  height={72}
                   priority
                   unoptimized
-                  className="h-8 w-auto object-contain"
+                  className="h-10 w-auto object-contain"
                 />
               </Link>
               <div className="flex items-center gap-2">
                 <GrokChatTrigger />
+                <LogoutButton />
                 <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
                   {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                 </Button>
-                <LogoutButton />
               </div>
             </div>
 
             {/* Mobile Menu Overlay */}
-            {mobileMenuOpen && (
-              <div className="md:hidden absolute top-full left-0 right-0 bg-background border-b shadow-lg z-50">
-                <div className="px-4 py-4 space-y-4">
-                  <div className="space-y-2">
-                    <div className="font-semibold text-sm text-muted-foreground mb-2">Navigation</div>
-                    <Link href="/dashboard/portfolio" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
-                      Portfolio Details
-                    </Link>
-                    <Link href="/dashboard/strategy/targets-thresholds" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
-                      Strategy
-                    </Link>
-                    <Link href="/dashboard/performance" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
-                      Performance
-                    </Link>
-                    <Link href="/dashboard/transactions" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
-                      Activity
-                    </Link>
-                  </div>
-                  <div className="border-t pt-4">
-                    <Button variant="outline" size="sm" className="w-full" asChild>
-                      <a href="/dashboard/profile">Profile</a>
-                    </Button>
-                  </div>
+            <div className={`md:hidden absolute top-full left-0 right-0 bg-background shadow-lg z-50 transition-all duration-200 ${mobileMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+              <div className="px-4 py-4 space-y-4">
+                <div className="space-y-2">
+                  <div className="font-semibold text-sm text-muted-foreground mb-2">Navigation</div>
+                  <Link href="/dashboard/portfolio" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
+                    Portfolio Details
+                  </Link>
+                  <Link href="/dashboard/strategy/targets-thresholds" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
+                    Strategy
+                  </Link>
+                  <Link href="/dashboard/performance" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
+                    Performance
+                  </Link>
+                  <Link href="/dashboard/transactions" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
+                    Activity
+                  </Link>
+                </div>
+                <div className="border-t pt-4">
+                  <Button variant="outline" size="sm" className="w-full" asChild>
+                    <a href="/dashboard/profile">Profile</a>
+                  </Button>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </nav>
         {children}
