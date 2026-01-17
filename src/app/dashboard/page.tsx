@@ -275,13 +275,152 @@ export default function DashboardHome() {
     try {
       const result = await refreshAssetPrices();
       setRefreshMessage(result.message || 'Prices refreshed successfully!');
-      // Refetch data
-      loadDashboardData();
+      // Refetch data without triggering global loading
+      await loadDashboardDataForRefresh();
     } catch (err) {
       console.error('Refresh failed:', err);
       setRefreshMessage('Error refreshing prices. Check console.');
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const loadDashboardDataForRefresh = async () => {
+    const payload = {
+      lens,
+      selectedValues: lens === 'total' ? [] : selectedValues,
+      aggregate,
+    };
+
+    try {
+      const allocRes = await fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' });
+
+      if (!allocRes.ok) throw new Error(`Allocations fetch failed: ${allocRes.status}`);
+
+      const allocData = await allocRes.json();
+
+      setAllocations(allocData.allocations || []);
+      setDrillItems(allocData.allocations?.[0]?.items || []);
+
+      // Fetch performance totals
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+      if (userId) {
+        // Fetch all tax lots to calculate total original investment and market values
+        const { data: allLotsData } = await supabase
+          .from('tax_lots')
+          .select(`
+            asset_id,
+            account_id,
+            remaining_quantity,
+            cost_basis_per_unit,
+            quantity,
+            asset:assets (
+              id,
+              ticker,
+              name,
+              asset_type,
+              asset_subtype,
+              geography,
+              size_tag,
+              factor_tag,
+              sub_portfolio_id
+            )
+          `)
+          .eq('user_id', userId);
+
+        const totalOriginalInvestment = allLotsData?.reduce((sum, lot) => {
+          return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
+        }, 0) || 0;
+
+        const openLots = allLotsData?.filter(lot => lot.remaining_quantity > 0) || [];
+        const tickers = [
+          ...new Set(
+            openLots.map((lot: any) => {
+              const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+              return asset?.ticker;
+            }).filter(Boolean)
+          ),
+        ];
+
+        const { data: pricesData } = await supabase
+          .from('asset_prices')
+          .select('ticker, price, timestamp')
+          .in('ticker', tickers)
+          .order('timestamp', { ascending: false });
+
+        const latestPrices = new Map<string, number>();
+        pricesData?.forEach((p: any) => {
+          if (!latestPrices.has(p.ticker)) {
+            latestPrices.set(p.ticker, Number(p.price));
+          }
+        });
+
+        let marketValue = 0;
+        let costBasis = 0;
+        openLots.forEach((lot: any) => {
+          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+          const qty = Number(lot.remaining_quantity);
+          const price = latestPrices.get(asset?.ticker || '') || 0;
+          marketValue += qty * price;
+          costBasis += qty * Number(lot.cost_basis_per_unit);
+        });
+
+        const unrealized = marketValue - costBasis;
+
+        // Fetch performance summaries for all assets to sum realized, dividends, etc.
+        const { data: summaries } = await supabase
+          .from('performance_summaries')
+          .select('realized_gain, dividends, interest, fees')
+          .eq('user_id', userId)
+          .eq('grouping_type', 'asset');
+
+        const summaryTotals = summaries?.reduce(
+          (acc, row) => ({
+            realized_gain: acc.realized_gain + (row.realized_gain || 0),
+            dividends: acc.dividends + (row.dividends || 0),
+            interest: acc.interest + (row.interest || 0),
+            fees: acc.fees + (row.fees || 0),
+          }),
+          { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
+        ) || { realized_gain: 0, dividends: 0, interest: 0, fees: 0 };
+
+        const net = unrealized + summaryTotals.realized_gain + summaryTotals.dividends + summaryTotals.interest;
+        const totalReturnPct = totalOriginalInvestment > 0 ? (net / totalOriginalInvestment) * 100 : 0;
+
+        setPerformanceTotals({
+          market_value: marketValue,
+          net_gain: net,
+          total_return_pct: totalReturnPct,
+          unrealized_gain: unrealized,
+          realized_gain: summaryTotals.realized_gain,
+          dividends: summaryTotals.dividends,
+        });
+
+        // Fetch recent transactions
+        const { data: recentTransactions } = await supabase
+          .from('transactions')
+          .select(`
+            id,
+            date,
+            type,
+            amount,
+            funding_source,
+            asset:assets (ticker)
+          `)
+          .eq('user_id', userId)
+          .order('date', { ascending: false })
+          .limit(20); // Fetch more to account for filtering
+
+        // Filter out auto-created deposits for external buys
+        const filteredTransactions = recentTransactions?.filter(tx => 
+          !(tx.type === 'Deposit' && tx.funding_source === 'external')
+        ).slice(0, 10) || [];
+
+        setRecentTransactions(filteredTransactions);
+      }
+    } catch (err) {
+      console.error('Dashboard data refresh failed:', err);
     }
   };
 
@@ -483,7 +622,7 @@ export default function DashboardHome() {
       </div>
       {loading ? (
         <div className="text-center py-12">Loading portfolio data...</div>
-      ) : selectedValues.length === 0 && lens !== 'total' ? (
+      ) : selectedValues.length === 0 && lens !== 'total' && !valuesLoading ? (
         <div className="text-center py-12 text-muted-foreground">Select at least one value to view data.</div>
       ) : (
         <>
