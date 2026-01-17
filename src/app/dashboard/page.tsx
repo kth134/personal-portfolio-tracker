@@ -415,7 +415,7 @@ export default function DashboardHome() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-8">
-            <Card className="mt-6 cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
+            <Card className="mt-8 cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">Performance</CardTitle>
                 <div className="grid grid-cols-2 gap-8 mt-6">

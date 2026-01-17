@@ -476,6 +476,13 @@ export async function askGrok(query: string, isSandbox: boolean, prevSandboxStat
   if (!user) throw new Error('Unauthorized');
   const userId = user.id;
 
+  // Fetch user profile for personalized insights
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('age_range, family_situation, retirement_year, dependents')
+    .eq('user_id', userId)
+    .single();
+
   // Refresh prices to ensure up-to-date data
   await refreshAssetPrices();
 
@@ -486,12 +493,18 @@ export async function askGrok(query: string, isSandbox: boolean, prevSandboxStat
 
   const safePromptData = {
     ...summary,
-    deep_analysis: deepAnalysis || undefined  // only add if meaningful
+    deep_analysis: deepAnalysis || undefined,  // only add if meaningful
+    user_profile: profile ? {
+      age_range: profile.age_range,
+      family_situation: profile.family_situation,
+      retirement_year: profile.retirement_year,
+      dependents: profile.dependents
+    } : undefined
   };
 
   const systemPrompt = `You are a thoughtful, professional portfolio analyst helping manage a personal investment tracker app.
 
-Use ONLY the provided portfolio data available within the app AND well-sourced, accurate data from the internet and X. NEVER invent data. Prefer aggregated data (allocations, performance, totalValue) whenever possible for efficiency and privacy. Use the deep_analysis summary (when provided) for accurate responses to specific requests, such as breakdowns by account, sub-portfolio, asset, size_tag, asset_type, asset_subtype, factor_tag, geography, or detailed evaluations/visualizations.
+Use ONLY the provided portfolio data available within the app AND well-sourced, accurate data from the internet and X. NEVER invent data. Prefer aggregated data (allocations, performance, totalValue) whenever possible for efficiency and privacy. Use the deep_analysis summary (when provided) for accurate responses to specific requests, such as breakdowns by account, sub-portfolio, asset, size_tag, asset_type, asset_subtype, factor_tag, geography, or detailed evaluations/visualizations. When user_profile data is available, use it to provide more personalized insights tailored to their life stage, family situation, and retirement goals.
 
 Portfolio Summary (values rounded for privacy):
 ${JSON.stringify(safePromptData)}
