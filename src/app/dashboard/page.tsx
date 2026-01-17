@@ -33,6 +33,103 @@ const LENSES = [
   { value: 'factor_tag', label: 'Factor' },
 ];
 
+// Portfolio Details Card Component - handles its own loading state
+function PortfolioDetailsCard({ lens, selectedValues, aggregate, refreshing }: {
+  lens: string;
+  selectedValues: string[];
+  aggregate: boolean;
+  refreshing: boolean;
+}) {
+  const [allocations, setAllocations] = useState<any[]>([]);
+  const [allocationsLoading, setAllocationsLoading] = useState(false);
+  const router = useRouter();
+
+  // Load allocations data when dependencies change
+  useEffect(() => {
+    const loadAllocations = async () => {
+      setAllocationsLoading(true);
+      try {
+        const payload = {
+          lens,
+          selectedValues: lens === 'total' ? [] : selectedValues,
+          aggregate,
+        };
+
+        const allocRes = await fetch('/api/dashboard/allocations', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          cache: 'no-store'
+        });
+
+        if (!allocRes.ok) throw new Error(`Allocations fetch failed: ${allocRes.status}`);
+        const allocData = await allocRes.json();
+
+        setAllocations(allocData.allocations || []);
+      } catch (err) {
+        console.error('Allocations fetch failed:', err);
+        setAllocations([]);
+      } finally {
+        setAllocationsLoading(false);
+      }
+    };
+
+    loadAllocations();
+  }, [lens, selectedValues, aggregate]);
+
+  const handlePieClick = (data: any) => {
+    // Handle pie chart clicks for drilling down
+    console.log('Pie clicked:', data);
+  };
+
+  if (allocationsLoading) {
+    return (
+      <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
+        <CardHeader>
+          <CardTitle className="text-center text-4xl">Portfolio Details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">Loading allocations...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
+      <CardHeader>
+        <CardTitle className="text-center text-4xl">Portfolio Details</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 gap-8">
+          {allocations.map((slice, idx) => (
+            <div key={idx} className="space-y-4">
+              <h4 className="font-medium text-center">{slice.key}</h4>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={slice.data}
+                    dataKey="value"
+                    nameKey="subkey"
+                    outerRadius={100}
+                    label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
+                    onClick={(data) => handlePieClick(data)}
+                  >
+                    {slice.data.map((_: any, i: number) => (
+                      <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSD(v) : ''} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function DashboardHome() {
   const supabase = createClient();
   const router = useRouter();
@@ -42,8 +139,6 @@ export default function DashboardHome() {
   const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([]);
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
   const [aggregate, setAggregate] = useState(true);
-  const [allocations, setAllocations] = useState<any[]>([]);
-  const [drillItems, setDrillItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [valuesLoading, setValuesLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -119,32 +214,17 @@ export default function DashboardHome() {
     checkMfa();
   }, []);
 
-  // Load data when MFA verified or when dependencies change
+  // Load data when MFA verified
   useEffect(() => {
     if (mfaStatus === 'verified') {
       loadDashboardData();
     }
-  }, [mfaStatus, lens, selectedValues, aggregate]);
+  }, [mfaStatus]);
 
   const loadDashboardData = async () => {
     setLoading(true);
 
-    const payload = {
-      lens,
-      selectedValues: lens === 'total' ? [] : selectedValues,
-      aggregate,
-    };
-
     try {
-      const allocRes = await fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' });
-
-      if (!allocRes.ok) throw new Error(`Allocations fetch failed: ${allocRes.status}`);
-
-      const allocData = await allocRes.json();
-
-      setAllocations(allocData.allocations || []);
-      setDrillItems(allocData.allocations?.[0]?.items || []);
-
       // Fetch performance totals
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
@@ -286,22 +366,7 @@ export default function DashboardHome() {
   };
 
   const loadDashboardDataForRefresh = async () => {
-    const payload = {
-      lens,
-      selectedValues: lens === 'total' ? [] : selectedValues,
-      aggregate,
-    };
-
     try {
-      const allocRes = await fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' });
-
-      if (!allocRes.ok) throw new Error(`Allocations fetch failed: ${allocRes.status}`);
-
-      const allocData = await allocRes.json();
-
-      setAllocations(allocData.allocations || []);
-      setDrillItems(allocData.allocations?.[0]?.items || []);
-
       // Fetch performance totals
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
@@ -428,10 +493,6 @@ export default function DashboardHome() {
     setSelectedValues(prev =>
       prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
     );
-  };
-
-  const handlePieClick = (data: any) => {
-    setDrillItems(data.items || []);
   };
 
   const handleMfaVerify = async () => {
@@ -751,39 +812,7 @@ export default function DashboardHome() {
           </div>
 
           <div className="space-y-8">
-              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
-                <CardHeader>
-                  <CardTitle className="text-center text-4xl">Portfolio Details</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 gap-8">
-                    {allocations.map((slice, idx) => (
-                      <div key={idx} className="space-y-4">
-                        <h4 className="font-medium text-center">{slice.key}</h4>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <PieChart>
-                            <Pie
-                              data={slice.data}
-                              dataKey="value"
-                              nameKey="subkey"
-                              outerRadius={100}
-                              label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
-                              onClick={(data) => handlePieClick(data)}
-                            >
-                              {slice.data.map((_: any, i: number) => (
-                                <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSD(v) : ''} />
-                            <Legend />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ))}
-                  </div>
-
-                </CardContent>
-              </Card>
+            <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} refreshing={refreshing} />
               <Card className="cursor-pointer" onClick={() => router.push('/dashboard/transactions')}>
                 <CardHeader>
                   <CardTitle className="text-center text-4xl">Recent Activity</CardTitle>
@@ -937,38 +966,7 @@ export default function DashboardHome() {
               </div>
             </div>
 
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
-              <CardHeader>
-                <CardTitle className="text-center text-4xl">Portfolio Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 gap-8">
-                  {allocations.map((slice, idx) => (
-                    <div key={idx} className="space-y-4">
-                      <h4 className="font-medium text-center">{slice.key}</h4>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={slice.data}
-                            dataKey="value"
-                            nameKey="subkey"
-                            outerRadius={100}
-                            label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
-                            onClick={(data) => handlePieClick(data)}
-                          >
-                            {slice.data.map((_: any, i: number) => (
-                              <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSD(v) : ''} />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} refreshing={refreshing} />
             <Card className="cursor-pointer" onClick={() => router.push('/dashboard/transactions')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">Recent Activity</CardTitle>
