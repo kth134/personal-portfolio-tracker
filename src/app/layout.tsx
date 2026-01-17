@@ -10,8 +10,13 @@ import { GrokChatTrigger } from '@/components/GrokChatTrigger';
 import { LogoutButton } from '@/components/LogoutButton';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { ChevronDown } from 'lucide-react';
+import { useState } from 'react';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const [portfolioOpen, setPortfolioOpen] = useState(false);
+  const [strategyOpen, setStrategyOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
+
   return (
     <html lang="en">
       <body className="min-h-screen bg-background">
@@ -29,13 +34,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   className="h-10 w-auto object-contain"
                 />
               </Link>
-              <Popover>
+              <Popover open={portfolioOpen} onOpenChange={setPortfolioOpen}>
                 <PopoverTrigger asChild>
-                  <Link href="/dashboard/portfolio" className="flex items-center gap-1">
+                  <Link href="/dashboard/portfolio" className="flex items-center gap-1" onMouseEnter={() => setPortfolioOpen(true)} onMouseLeave={() => setPortfolioOpen(false)}>
                     Portfolio Details <ChevronDown className="h-4 w-4" />
                   </Link>
                 </PopoverTrigger>
-                <PopoverContent className="w-48 p-2">
+                <PopoverContent className="w-48 p-2" onMouseEnter={() => setPortfolioOpen(true)} onMouseLeave={() => setPortfolioOpen(false)}>
                   <div className="flex flex-col gap-2">
                     <Link href="/dashboard/portfolio" className="hover:bg-gray-100 p-2 rounded">Holdings</Link>
                     <Link href="/dashboard/accounts" className="hover:bg-gray-100 p-2 rounded">Accounts</Link>
@@ -44,13 +49,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </div>
                 </PopoverContent>
               </Popover>
-              <Popover>
+              <Popover open={strategyOpen} onOpenChange={setStrategyOpen}>
                 <PopoverTrigger asChild>
-                  <Link href="/dashboard/strategy/targets-thresholds" className="flex items-center gap-1">
+                  <Link href="/dashboard/strategy/targets-thresholds" className="flex items-center gap-1" onMouseEnter={() => setStrategyOpen(true)} onMouseLeave={() => setStrategyOpen(false)}>
                     Strategy <ChevronDown className="h-4 w-4" />
                   </Link>
                 </PopoverTrigger>
-                <PopoverContent className="w-48 p-2">
+                <PopoverContent className="w-48 p-2" onMouseEnter={() => setStrategyOpen(true)} onMouseLeave={() => setStrategyOpen(false)}>
                   <div className="flex flex-col gap-2">
                     <Link href="/dashboard/strategy/targets-thresholds" className="hover:bg-gray-100 p-2 rounded">Targets and Thresholds</Link>
                     <Link href="/dashboard/strategy/glide-path" className="hover:bg-gray-100 p-2 rounded">Glide Path</Link>
@@ -58,14 +63,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </div>
                 </PopoverContent>
               </Popover>
-              <Link href="/dashboard/performance">Performance</Link>
-              <Popover>
+              <Link href="/dashboard/performance" className="flex items-center">Performance</Link>
+              <Popover open={activityOpen} onOpenChange={setActivityOpen}>
                 <PopoverTrigger asChild>
-                  <Link href="/dashboard/transactions" className="flex items-center gap-1">
+                  <Link href="/dashboard/transactions" className="flex items-center gap-1" onMouseEnter={() => setActivityOpen(true)} onMouseLeave={() => setActivityOpen(false)}>
                     Activity <ChevronDown className="h-4 w-4" />
                   </Link>
                 </PopoverTrigger>
-                <PopoverContent className="w-48 p-2">
+                <PopoverContent className="w-48 p-2" onMouseEnter={() => setActivityOpen(true)} onMouseLeave={() => setActivityOpen(false)}>
                   <div className="flex flex-col gap-2">
                     <Link href="/dashboard/transactions" className="hover:bg-gray-100 p-2 rounded">Transaction Log</Link>
                     <Link href="/dashboard/transactions/tax-lots" className="hover:bg-gray-100 p-2 rounded">Tax Lots</Link>

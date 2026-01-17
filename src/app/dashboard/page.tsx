@@ -248,13 +248,19 @@ export default function DashboardHome() {
             date,
             type,
             amount,
+            funding_source,
             asset:assets (ticker)
           `)
           .eq('user_id', userId)
           .order('date', { ascending: false })
-          .limit(10);
+          .limit(20); // Fetch more to account for filtering
 
-        setRecentTransactions(recentTransactions || []);
+        // Filter out auto-created deposits for external buys
+        const filteredTransactions = recentTransactions?.filter(tx => 
+          !(tx.type === 'Deposit' && tx.funding_source === 'external')
+        ).slice(0, 10) || [];
+
+        setRecentTransactions(filteredTransactions);
       }
     } catch (err) {
       console.error('Dashboard data fetch failed:', err);
