@@ -88,7 +88,7 @@ export default async function PortfolioPage() {
         delta += amt  // increase cash balance
         break
       case 'Withdrawal':
-        delta -= amt  // decrease cash balance
+        delta -= Math.abs(amt)  // decrease cash balance
         break
     }
     const newBalance = current + delta
