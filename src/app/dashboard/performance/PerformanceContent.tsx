@@ -482,11 +482,13 @@ function PerformanceContent() {
             groupTxs.forEach((tx: any) => {
               let flow = 0;
               if (tx.type === 'Buy') {
-                flow = -(tx.amount || 0) - (tx.fees || 0);
-              } else if (tx.type === 'Deposit' && tx.notes !== "Auto-deposit for external buy") {
-                flow = -(tx.amount || 0) - (tx.fees || 0);
-              } else if (tx.type === 'Sell' || tx.type === 'Withdrawal' || tx.type === 'Dividend' || tx.type === 'Interest') {
                 flow = (tx.amount || 0) - (tx.fees || 0);
+              } else if (tx.type === 'Deposit' && tx.notes !== "Auto-deposit for external buy") {
+                flow = (tx.amount || 0) - (tx.fees || 0);
+              } else if (tx.type === 'Sell' || tx.type === 'Dividend' || tx.type === 'Interest') {
+                flow = (tx.amount || 0) - (tx.fees || 0);
+              } else if (tx.type === 'Withdrawal') {
+                flow = -(Math.abs(tx.amount || 0)) - (tx.fees || 0);
               }
               if (flow !== 0 && tx.date) {
                 const date = new Date(tx.date);
@@ -545,13 +547,13 @@ function PerformanceContent() {
 
             // Only external new money going in
             if (tx.type === 'Buy' && tx.funding_source === 'external') {
-              flow = -(tx.amount || 0) - (tx.fees || 0);
+              flow = (tx.amount || 0) - (tx.fees || 0);
             } else if (tx.type === 'Deposit' && tx.notes !== "Auto-deposit for external buy") {
-              flow = -(tx.amount || 0) - (tx.fees || 0);
+              flow = (tx.amount || 0) - (tx.fees || 0);
             } 
             // Explicit money coming out
             else if (tx.type === 'Withdrawal') {
-              flow = (tx.amount || 0) - (tx.fees || 0);
+              flow = -(Math.abs(tx.amount || 0)) - (tx.fees || 0);
             }
             // IMPORTANT: Do NOT add Sell, Dividend, Interest here — they are internal unless withdrawn
 
