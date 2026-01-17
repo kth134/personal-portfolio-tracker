@@ -6,7 +6,7 @@ import { POST as historicalPOST } from '../historical-prices/route';
 
 function calculateIRR(cashFlows: number[], dates: Date[]): number {
   let guess = 0.1;
-  const maxIter = 100;
+  const maxIter = 1000;  // Increased iterations
   const precision = 1e-8;
   for (let i = 0; i < maxIter; i++) {
     let npv = 0;
@@ -18,7 +18,24 @@ function calculateIRR(cashFlows: number[], dates: Date[]): number {
       dnpv -= years * cf / (denom * (1 + guess));
     });
     if (Math.abs(npv) < precision) return guess;
+    if (Math.abs(dnpv) < precision) break;  // Avoid div/0
     guess -= npv / dnpv;
+    if (guess < -0.99 || guess > 50) break;  // Increased bound
+  }
+  
+  // Fallback to bisection
+  let low = -0.99;
+  let high = 20.0;  // Increased for high-growth assets
+  for (let i = 0; i < 200; i++) {
+    const mid = (low + high) / 2;
+    let npv = 0;
+    cashFlows.forEach((cf, j) => {
+      const years = (dates[j].getTime() - dates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+      npv += cf / Math.pow(1 + mid, years);
+    });
+    if (Math.abs(npv) < precision) return mid;
+    if (npv > 0) low = mid;
+    else high = mid;
   }
   return NaN;
 }
@@ -226,10 +243,10 @@ export async function POST(request: Request) {
     });
     cashFlows.push(currentValue);
 
-    const flowDates = transactions.map(t => new Date(t.date));
+    const flowDates = transactions.map(t => new Date(t.date)).filter(d => !isNaN(d.getTime()));
     flowDates.push(today);
 
-    const mwr = cashFlows.length > 1 && !isNaN(calculateIRR(cashFlows, flowDates))
+    const mwr = cashFlows.length > 1 && flowDates.length === cashFlows.length && !isNaN(calculateIRR(cashFlows, flowDates))
       ? calculateIRR(cashFlows, flowDates)
       : totalReturn;
 

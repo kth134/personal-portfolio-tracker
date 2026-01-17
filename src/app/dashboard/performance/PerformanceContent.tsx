@@ -54,13 +54,13 @@ function calculateIRR(cashFlows: number[], dates: Date[]): number {
     if (Math.abs(npv) < precision) return guess;
     if (Math.abs(dnpv) < precision) break;  // Avoid div/0
     guess -= npv / dnpv;
-    if (guess < -0.99 || guess > 10) break;  // Bound extreme
+    if (guess < -0.99 || guess > 50) break;  // Bound extreme - increased for high-growth assets
   }
 
   // Fallback to bisection if Newton fails
   let low = -0.99;
-  let high = 5.0;  // Cap at 500% for stability with crypto-like returns
-  for (let i = 0; i < 100; i++) {
+  let high = 20.0;  // Cap at 2000% for high-growth assets like crypto
+  for (let i = 0; i < 200; i++) {  // Increased iterations
     const mid = (low + high) / 2;
     let npv = 0;
     sortedCashFlows.forEach((cf, j) => {
@@ -488,9 +488,12 @@ function PerformanceContent() {
               } else if (tx.type === 'Sell' || tx.type === 'Withdrawal' || tx.type === 'Dividend' || tx.type === 'Interest') {
                 flow = (tx.amount || 0) - (tx.fees || 0);
               }
-              if (flow !== 0) {
-                cashFlows.push(flow);
-                flowDates.push(new Date(tx.date));
+              if (flow !== 0 && tx.date) {
+                const date = new Date(tx.date);
+                if (!isNaN(date.getTime())) {
+                  cashFlows.push(flow);
+                  flowDates.push(date);
+                }
               }
             });
 
@@ -552,9 +555,12 @@ function PerformanceContent() {
             }
             // IMPORTANT: Do NOT add Sell, Dividend, Interest here — they are internal unless withdrawn
 
-            if (flow !== 0) {
-              allCashFlows.push(flow);
-              allFlowDates.push(new Date(tx.date));
+            if (flow !== 0 && tx.date) {
+              const date = new Date(tx.date);
+              if (!isNaN(date.getTime())) {
+                allCashFlows.push(flow);
+                allFlowDates.push(date);
+              }
             }
           });
 
