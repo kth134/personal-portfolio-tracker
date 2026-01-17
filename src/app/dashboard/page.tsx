@@ -389,7 +389,7 @@ export default function DashboardHome() {
   return (
     <main className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold">Portfolio Dashboard</h1>
+        <h1 className="text-4xl font-bold text-center flex-1">Portfolio Dashboard</h1>
         <Button variant="outline" size="sm" asChild>
           <a href="/settings/mfa">MFA Settings</a>
         </Button>
@@ -405,7 +405,7 @@ export default function DashboardHome() {
           <div className="space-y-8">
             <Card className="mt-6 cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
               <CardHeader>
-                <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
+                <CardTitle className="text-center text-4xl">Performance</CardTitle>
                 <div className="grid grid-cols-2 gap-8 mt-6">
                   <div className="space-y-8">
                     <div>
@@ -529,8 +529,7 @@ export default function DashboardHome() {
             </div>
             <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
               <CardHeader>
-                <CardTitle className="text-center text-4xl">
-                  Current Allocation {aggregate ? `(${lens === 'total' ? 'Portfolio' : LENSES.find(l => l.value === lens)?.label || 'Selection'} Level)` : '(Separate by Asset)'}                </CardTitle>
+                <CardTitle className="text-center text-4xl">Portfolio Details</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 gap-8">
