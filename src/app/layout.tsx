@@ -30,11 +30,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Image
                   src="/small-logo.png"
                   alt="RAIN Logo"
-                  width={216}
-                  height={72}
+                  width={259}
+                  height={86}
                   priority
                   unoptimized
-                  className="h-10 w-auto sm:h-12 object-contain"
+                  className="h-12 w-auto sm:h-16 object-contain"
                 />
               </Link>
               <div className="flex gap-6">
@@ -97,11 +97,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Image
                   src="/small-logo.png"
                   alt="RAIN Logo"
-                  width={216}
-                  height={72}
+                  width={259}
+                  height={86}
                   priority
                   unoptimized
-                  className="h-10 w-auto object-contain"
+                  className="h-12 w-auto object-contain"
                 />
               </Link>
               <div className="flex items-center gap-2">
