@@ -703,14 +703,19 @@ function PerformanceContent() {
                 </p>
               </div>
             </div>
-            <div className="text-center">
-              <CardTitle className="break-words">Annualized IRR</CardTitle>
-              <p className={cn("text-2xl font-bold mt-2 break-words", totalAnnualizedReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
-                {totalAnnualizedReturnPct.toFixed(2)}%
-              </p>
-              <p className={cn("text-sm mt-1 break-words", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
-                {totalReturnPct.toFixed(2)}% Total Return
-              </p>
+            <div className="text-center space-y-2 text-lg">
+              <div>
+                <p className="text-sm text-muted-foreground break-words">Annualized IRR</p>
+                <p className={cn("font-bold break-words", totalAnnualizedReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
+                  {totalAnnualizedReturnPct.toFixed(2)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground break-words">Total Return %</p>
+                <p className={cn("font-bold break-words", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
+                  {totalReturnPct.toFixed(2)}%
+                </p>
+              </div>
             </div>
           </div>
         </CardHeader>
