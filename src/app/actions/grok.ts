@@ -87,16 +87,16 @@ async function performDeepPortfolioAnalysis(
 
   const tickers = [...new Set(taxLots?.map(lot => lot.assets?.ticker).filter(Boolean) || [])];
 
-  const { data: latestPrices } = await supabase
-    .from('asset_prices')
-    .select('ticker, price')
-    .in('ticker', tickers)
-    .order('ticker', { ascending: true })
-    .order('timestamp', { ascending: false }) as { data: { ticker: string; price: number }[] | null };
+  const { data: latestPrices, error: pricesError } = await supabase
+    .rpc('get_latest_asset_prices', { tickers_param: tickers });
+  if (pricesError) {
+    console.error('Latest prices RPC error:', pricesError);
+    return "Error fetching latest prices for deep analysis.";
+  }
 
   const pricesMap = new Map();
   if (latestPrices) {
-    latestPrices.forEach(p => {
+    (latestPrices as {ticker: string, price: number}[]).forEach(p => {
       if (!pricesMap.has(p.ticker)) pricesMap.set(p.ticker, p.price);
     });
   }
@@ -297,16 +297,15 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
 
   // Fetch asset_prices (latest per ticker)
   const { data: assetPrices, error: pricesError } = await supabase
-    .from('asset_prices')
-    .select('ticker, price, timestamp')
-    .in('ticker', tickers)
-    .order('ticker', { ascending: true })
-    .order('timestamp', { ascending: false });
-  if (pricesError) console.error('Prices error:', pricesError);
-  console.log('Fetched assetPrices:', assetPrices?.map(p => ({ticker: p.ticker, price: p.price, timestamp: p.timestamp})));
+    .rpc('get_latest_asset_prices', { tickers_param: tickers });
+  if (pricesError) {
+    console.error('Latest prices RPC error:', pricesError);
+    throw pricesError;
+  }
+  console.log('Fetched assetPrices:', (assetPrices as {ticker: string, price: number, timestamp: string}[])?.map(p => ({ticker: p.ticker, price: p.price, timestamp: p.timestamp})));
 
   const latestPrices = new Map<string, { price: number; timestamp: string }>();
-  assetPrices?.forEach(p => {
+  (assetPrices as {ticker: string, price: number, timestamp: string}[])?.forEach(p => {
     if (!latestPrices.has(p.ticker)) {
       latestPrices.set(p.ticker, { price: p.price, timestamp: p.timestamp });
     }
