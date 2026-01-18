@@ -64,7 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <div className="flex flex-col gap-2">
                       <Link href="/dashboard/strategy?tab=targets" className="hover:bg-gray-100 p-2 rounded">Targets</Link>
                       <Link href="/dashboard/strategy?tab=glide-path" className="hover:bg-gray-100 p-2 rounded">Glide Path</Link>
-                      <Link href="/dashboard/strategy?tab=drift-reporting" className="hover:bg-gray-100 p-2 rounded">Drift and Rebalancing</Link>
+                      <Link href="/dashboard/strategy?tab=drift-reporting" className="hover:bg-gray-100 p-2 rounded">Rebalancing</Link>
                     </div>
                   </PopoverContent>
                 </Popover>
