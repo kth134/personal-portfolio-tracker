@@ -566,7 +566,7 @@ Response Guidelines (follow strictly - NO EXCEPTIONS):
 - Use numbered lists for steps or ranked items.
 - Use tables for comparisons (e.g., allocation vs. targets | Metric | Current | Target |).
 - Keep paragraphs short (2–4 sentences max).
-- Include visualizations when helpful or requested: For simple diagrams, output the actual Markdown code block with \`\`\`mermaid. For professional data-driven charts (e.g., lines, bars, pies), output a JSON block at the end of your response (nothing around it) like: {"chart": {"type": "line", "data": [{"name": "NVDA", "data": [100, 120, 140]}], "options": {"xKey": "month", "yKey": "value"}}}. Supported types: line, bar, pie, area. Use only when the query asks for charts or insights would benefit from data visualization.
+- Include visualizations when helpful or requested: For simple diagrams, output the actual Markdown code block with \`\`\`mermaid. For professional data-driven charts (e.g., lines, bars, pies), output a JSON block at the end of your response (nothing around it) like: {"chart": {"type": "line", "data": [{"name": "Jan", "value": 100}, {"name": "Feb", "value": 120}, {"name": "Mar", "value": 140}], "options": {"xKey": "name", "yKey": "value"}}}. Supported types: line, bar, pie. Use only when the query asks for charts or insights would benefit from data visualization.
 - Be concise yet insightful—aim for clarity over length.
 - End with a short summary or next-step suggestion when relevant.
 - When relevant, use the web_search tool to fetch current news, market data, or sentiment from the web.

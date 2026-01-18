@@ -11,9 +11,24 @@ import { askGrok, getPortfolioSummary } from '@/app/actions/grok';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import mermaid from 'mermaid';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import dynamic from 'next/dynamic';
 import { X, Minus, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils'; // shadcn utility for className merging; add if missing
+
+// Dynamically import Recharts components
+const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
+const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false });
+const Line = dynamic(() => import('recharts').then(mod => mod.Line), { ssr: false });
+const XAxis = dynamic(() => import('recharts').then(mod => mod.XAxis), { ssr: false });
+const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: false });
+const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false });
+const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false });
+const Legend = dynamic(() => import('recharts').then(mod => mod.Legend), { ssr: false });
+const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false });
+const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false });
+const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false });
+const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false });
+const Bar = dynamic(() => import('recharts').then(mod => mod.Bar), { ssr: false });
 
 export function ChatDrawer() {
   const { 
@@ -236,7 +251,20 @@ export function ChatDrawer() {
                           const match = /language-(\w+)/.exec(className || '');
                           const codeString = String(children).trim();
                           if (!inline && match && match[1] === 'mermaid') {
-                            return <MermaidChart code={codeString} />;
+                            const mermaidRef = useRef<HTMLDivElement>(null);
+                            useEffect(() => {
+                              if (mermaidRef.current && codeString) {
+                                mermaid.render('mermaid-graph-' + Math.random().toString(36).substr(2, 9), codeString)
+                                  .then(({ svg }) => {
+                                    if (mermaidRef.current) mermaidRef.current.innerHTML = svg;
+                                  })
+                                  .catch(err => {
+                                    console.error('Mermaid render error:', err);
+                                    if (mermaidRef.current) mermaidRef.current.innerHTML = '<p>Mermaid rendering failed</p>';
+                                  });
+                              }
+                            }, [codeString]);
+                            return <div ref={mermaidRef} className="mermaid my-4" />;
                           }
                           return inline ? (
                             <code className="bg-black/10 rounded px-1 text-sm" {...props}>
@@ -252,7 +280,7 @@ export function ChatDrawer() {
                     >
                       {content}
                     </ReactMarkdown>
-                    {chartData && (
+                    {chartData && chartData.data && chartData.data.length > 0 && (
                       <div className="mt-4">
                         <ResponsiveContainer width="100%" height={300}>
                           {chartData.type === 'line' && (
@@ -262,13 +290,7 @@ export function ChatDrawer() {
                               <YAxis />
                               <Tooltip />
                               <Legend />
-                              {Array.isArray(chartData.data[0]?.data) ? (
-                                chartData.data.map((line: any, i: number) => (
-                                  <Line key={i} type="monotone" dataKey="value" data={line.data.map((val: number, idx: number) => ({ name: `Point ${idx + 1}`, value: val }))} stroke={`#${Math.floor(Math.random()*16777215).toString(16)}`} name={line.name} />
-                                ))
-                              ) : (
-                                <Line type="monotone" dataKey={chartData.options?.yKey || 'value'} stroke="#8884d8" />
-                              )}
+                              <Line type="monotone" dataKey={chartData.options?.yKey || 'value'} stroke="#8884d8" />
                             </LineChart>
                           )}
                           {chartData.type === 'bar' && (
