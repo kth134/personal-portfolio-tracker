@@ -286,12 +286,14 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   if (rawHoldings.length === 0) {
     return { totalValue: 0, allocations: [], performance: [], recentTransactions: [], missingPrices: [] };
   }
+  console.log('Raw holdings:', rawHoldings.map(h => ({ ticker: h.assets?.ticker, quantity: h.remaining_quantity })));
 
   // Get unique tickers and fetch latest prices (using the map above)
   const tickers = [...new Set(rawHoldings
     .filter(h => h.assets)
     .map(h => h.assets.ticker)
   )];
+  console.log('Collected tickers:', tickers);
 
   // Fetch asset_prices (latest per ticker)
   const { data: assetPrices, error: pricesError } = await supabase
@@ -300,16 +302,19 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     .in('ticker', tickers)
     .order('ticker', { ascending: true })
     .order('timestamp', { ascending: false });
-  if (pricesError) throw pricesError;
+  if (pricesError) console.error('Prices error:', pricesError);
+  console.log('Fetched assetPrices:', assetPrices?.map(p => ({ticker: p.ticker, price: p.price, timestamp: p.timestamp})));
 
   const latestPrices = new Map<string, { price: number; timestamp: string }>();
-  assetPrices.forEach(p => {
+  assetPrices?.forEach(p => {
     if (!latestPrices.has(p.ticker)) {
       latestPrices.set(p.ticker, { price: p.price, timestamp: p.timestamp });
     }
   });
+  console.log('latestPrices map:', Array.from(latestPrices.entries()));
 
   const missingTickers = new Set(tickers.filter(t => !latestPrices.has(t)));
+  console.log('Missing tickers:', Array.from(missingTickers));
 
   // Build tickersMap for allocations (still useful for ticker lists per group)
   const tickersMap = new Map<string, Set<string>>();
