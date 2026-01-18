@@ -56,15 +56,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </Popover>
                 <Popover open={strategyOpen} onOpenChange={setStrategyOpen}>
                   <PopoverTrigger asChild>
-                    <Link href="/dashboard/strategy/targets-thresholds" className="flex items-center gap-1" onMouseEnter={() => setStrategyOpen(true)} onMouseLeave={() => setStrategyOpen(false)}>
+                    <Link href="/dashboard/strategy" className="flex items-center gap-1" onMouseEnter={() => setStrategyOpen(true)} onMouseLeave={() => setStrategyOpen(false)}>
                       Strategy <ChevronDown className="h-4 w-4" />
                     </Link>
                   </PopoverTrigger>
                   <PopoverContent className="w-48 p-2" onMouseEnter={() => setStrategyOpen(true)} onMouseLeave={() => setStrategyOpen(false)}>
                     <div className="flex flex-col gap-2">
-                      <Link href="/dashboard/strategy/targets-thresholds" className="hover:bg-gray-100 p-2 rounded">Targets and Thresholds</Link>
-                      <Link href="/dashboard/strategy/glide-path" className="hover:bg-gray-100 p-2 rounded">Glide Path</Link>
-                      <Link href="/dashboard/strategy/drift-reporting" className="hover:bg-gray-100 p-2 rounded">Drift Reporting and Rebalancing</Link>
+                      <Link href="/dashboard/strategy?tab=targets" className="hover:bg-gray-100 p-2 rounded">Targets</Link>
+                      <Link href="/dashboard/strategy?tab=glide-path" className="hover:bg-gray-100 p-2 rounded">Glide Path</Link>
+                      <Link href="/dashboard/strategy?tab=drift-reporting" className="hover:bg-gray-100 p-2 rounded">Drift and Rebalancing</Link>
                     </div>
                   </PopoverContent>
                 </Popover>
@@ -83,14 +83,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </Popover>
                 <Popover open={activityOpen} onOpenChange={setActivityOpen}>
                   <PopoverTrigger asChild>
-                    <Link href="/dashboard/transactions" className="flex items-center gap-1" onMouseEnter={() => setActivityOpen(true)} onMouseLeave={() => setActivityOpen(false)}>
+                    <Link href="/dashboard/activity" className="flex items-center gap-1" onMouseEnter={() => setActivityOpen(true)} onMouseLeave={() => setActivityOpen(false)}>
                       Activity <ChevronDown className="h-4 w-4" />
                     </Link>
                   </PopoverTrigger>
                   <PopoverContent className="w-48 p-2" onMouseEnter={() => setActivityOpen(true)} onMouseLeave={() => setActivityOpen(false)}>
                     <div className="flex flex-col gap-2">
-                      <Link href="/dashboard/transactions" className="hover:bg-gray-100 p-2 rounded">Transaction Log</Link>
-                      <Link href="/dashboard/transactions/tax-lots" className="hover:bg-gray-100 p-2 rounded">Tax Lots</Link>
+                      <Link href="/dashboard/activity?tab=transactions" className="hover:bg-gray-100 p-2 rounded">Transaction Log</Link>
+                      <Link href="/dashboard/activity?tab=tax-lots" className="hover:bg-gray-100 p-2 rounded">Tax Lots</Link>
                     </div>
                   </PopoverContent>
                 </Popover>
@@ -134,13 +134,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <Link href="/dashboard/portfolio" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
                     Portfolio Details
                   </Link>
-                  <Link href="/dashboard/strategy/targets-thresholds" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
+                  <Link href="/dashboard/strategy" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
                     Strategy
                   </Link>
                   <Link href="/dashboard/performance" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
                     Performance
                   </Link>
-                  <Link href="/dashboard/transactions" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
+                  <Link href="/dashboard/activity" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
                     Activity
                   </Link>
                 </div>
