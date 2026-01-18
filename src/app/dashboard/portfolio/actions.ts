@@ -2,71 +2,99 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { headers } from 'next/headers' // ← Add this import
 
 export async function refreshAssetPrices() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+  const userId = user.id
 
-  // Step 1: Get unique tickers from active holdings (unchanged)
-  const { data: lots } = await supabase
-    .from('tax_lots')
-    .select('asset:assets(ticker)')
-    .gt('remaining_quantity', 0)
+  // Step 1: Get unique tickers from assets
+  const { data: assets, error: assetsError } = await supabase
+    .from('assets')
+    .select('ticker, asset_subtype')
+    .eq('user_id', userId)
 
-  if (!lots || lots.length === 0) {
-    return { success: true, message: 'No holdings to refresh prices for.' }
+  if (assetsError) throw assetsError
+
+  const uniqueTickers = [...new Set(assets?.map((a: any) => a.ticker) || [])]
+  if (!uniqueTickers.length) {
+    return { success: true, message: 'No assets found; skipping price fetch' }
   }
 
-  const uniqueTickers = [...new Set(lots.map((l: any) => (l.asset as any).ticker))] as string[]
+  const cryptoAssets = assets?.filter((a: any) => a.asset_subtype?.toLowerCase() === 'crypto') || []
+  const cryptoTickers = cryptoAssets.map((a: any) => a.ticker.toUpperCase())
 
-  if (uniqueTickers.length === 0) {
-    return { success: true, message: 'No tickers found in holdings.' }
+  const stockAssets = assets?.filter((a: any) => a.asset_subtype?.toLowerCase() !== 'crypto') || []
+  const stockTickers = stockAssets.map((a: any) => a.ticker.toUpperCase())
+
+  const idMap: Record<string, string> = {
+    BTC: 'bitcoin',
+    BITCOIN: 'bitcoin',
+    ETH: 'ethereum',
+    ETHEREUM: 'ethereum',
   }
 
-  // Step 2: Build absolute URL for internal API route
-  const requestHeaders = await headers()
-  const host = requestHeaders.get('host') || 'localhost:3000'
-  const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https'
-  const apiUrl = `${protocol}://${host}/api/fetch-prices`
+  // CoinGecko for crypto
+  if (cryptoTickers.length) {
+    const cgIds = cryptoTickers.map((t: any) => idMap[t] || t.toLowerCase())
+    const cgUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd`
+    const cgResponse = await fetch(cgUrl)
+    if (cgResponse.ok) {
+      const cgPrices = await cgResponse.json()
+      for (let i = 0; i < cryptoTickers.length; i++) {
+        const originalTicker = cryptoTickers[i]
+        const cgId = cgIds[i]
+        const price = cgPrices[cgId]?.usd
+        if (price) {
+          await supabase.from('asset_prices').insert({ ticker: originalTicker, price, source: 'coingecko' })
+        }
+      }
+    } else {
+      console.error(`CoinGecko error: ${cgResponse.statusText}`)
+    }
+  }
 
-  // Step 3: Call the internal API route
-  try {
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      cache: 'no-store',
-      headers: {
-        // Forward cookies/headers if needed (Supabase auth flows through)
-        cookie: requestHeaders.get('cookie') || '',
-      },
-    })
+  // Finnhub primary + Alpha Vantage fallback for stocks
+  if (stockTickers.length) {
+    const finnhubKey = process.env.FINNHUB_API_KEY
+    const alphaKey = process.env.ALPHA_VANTAGE_API_KEY
+    if (!finnhubKey || !alphaKey) throw new Error('Missing API keys')
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      console.error(`Price refresh API failed: ${response.status} ${JSON.stringify(errorData)}`)
-      return {
-        success: false,
-        message: `Failed to refresh prices: ${response.statusText || 'API error'}`,
+    for (const ticker of stockTickers) {
+      let price: number | undefined
+      let source = 'finnhub'
+
+      // Finnhub
+      const finnhubUrl = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${finnhubKey}`
+      const finnhubResponse = await fetch(finnhubUrl)
+      if (finnhubResponse.ok) {
+        const finnhubData = await finnhubResponse.json()
+        price = finnhubData.c || finnhubData.pc
+      }
+
+      // Alpha Vantage fallback
+      if (!price || price <= 0) {
+        source = 'alphavantage'
+        const alphaUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${alphaKey}`
+        const alphaResponse = await fetch(alphaUrl)
+        if (alphaResponse.ok) {
+          const alphaData = await alphaResponse.json()
+          const quote = alphaData['Global Quote']
+          if (quote && quote['05. price']) {
+            price = parseFloat(quote['05. price'])
+          }
+        }
+      }
+
+      if (price && price > 0) {
+        await supabase.from('asset_prices').insert({ ticker, price, source })
       }
     }
-
-    const result = await response.json()
-
-    if (!result.success) {
-      console.error('Price refresh returned error:', result.error)
-      return { success: false, message: result.error || 'Unknown error from price fetch' }
-    }
-
-    // Success → revalidate to show updated prices
-    revalidatePath('/dashboard/portfolio')
-
-    return {
-      success: true,
-      message: result.inserted
-        ? `Refreshed prices for ${result.inserted.crypto + result.inserted.stocks} assets.`
-        : 'Prices refreshed successfully (no new data inserted).',
-    }
-  } catch (error) {
-    console.error('Error during price refresh:', error)
-    return { success: false, message: 'Failed to refresh prices due to an internal error.' }
   }
+
+  // Success → revalidate
+  revalidatePath('/dashboard/portfolio')
+
+  return { success: true, message: 'Prices refreshed successfully.' }
 }
