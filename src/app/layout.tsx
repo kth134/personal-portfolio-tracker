@@ -16,6 +16,7 @@ import { useState } from 'react';
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [strategyOpen, setStrategyOpen] = useState(false);
+  const [performanceOpen, setPerformanceOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -67,7 +68,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     </div>
                   </PopoverContent>
                 </Popover>
-                <Link href="/dashboard/performance" className="flex items-center">Performance</Link>
+                <Popover open={performanceOpen} onOpenChange={setPerformanceOpen}>
+                  <PopoverTrigger asChild>
+                    <Link href="/dashboard/performance" className="flex items-center gap-1" onMouseEnter={() => setPerformanceOpen(true)} onMouseLeave={() => setPerformanceOpen(false)}>
+                      Performance <ChevronDown className="h-4 w-4" />
+                    </Link>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-2" onMouseEnter={() => setPerformanceOpen(true)} onMouseLeave={() => setPerformanceOpen(false)}>
+                    <div className="flex flex-col gap-2">
+                      <Link href="/dashboard/performance" className="hover:bg-gray-100 p-2 rounded">Data</Link>
+                      <Link href="/dashboard/performance?tab=reports" className="hover:bg-gray-100 p-2 rounded">Reports</Link>
+                    </div>
+                  </PopoverContent>
+                </Popover>
                 <Popover open={activityOpen} onOpenChange={setActivityOpen}>
                   <PopoverTrigger asChild>
                     <Link href="/dashboard/transactions" className="flex items-center gap-1" onMouseEnter={() => setActivityOpen(true)} onMouseLeave={() => setActivityOpen(false)}>
