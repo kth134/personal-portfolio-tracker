@@ -256,7 +256,7 @@ const handleSort = (key: SortKey) => {
   }, [selectedLots, filteredLots])
 
   return (
-    <main>
+    <main className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold">Tax Lots</h1>
             <Dialog open={open} onOpenChange={(isOpen) => {
