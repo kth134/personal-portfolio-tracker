@@ -85,9 +85,12 @@ async function performDeepPortfolioAnalysis(
     .eq('user_id', userId)
     .gt('remaining_quantity', 0) as { data: TaxLotWithJoins[] | null };
 
+  const tickers = [...new Set(taxLots?.map(lot => lot.assets?.ticker).filter(Boolean) || [])];
+
   const { data: latestPrices } = await supabase
     .from('asset_prices')
     .select('ticker, price')
+    .in('ticker', tickers)
     .order('ticker', { ascending: true })
     .order('timestamp', { ascending: false }) as { data: { ticker: string; price: number }[] | null };
 
@@ -251,21 +254,6 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     glidePath = [];
   }
 
-  // Fetch asset_prices (latest per ticker)
-  const { data: assetPrices, error: pricesError } = await supabase
-    .from('asset_prices')
-    .select('ticker, price, timestamp')
-    .order('ticker', { ascending: true })
-    .order('timestamp', { ascending: false });
-  if (pricesError) throw pricesError;
-
-  const latestPrices = new Map<string, { price: number; timestamp: string }>();
-  assetPrices.forEach(p => {
-    if (!latestPrices.has(p.ticker)) {
-      latestPrices.set(p.ticker, { price: p.price, timestamp: p.timestamp });
-    }
-  });
-
   // Original aggregation logic with corrected fields
   const { data: rawHoldingsData, error: holdingsError } = await supabase
     .from('tax_lots')
@@ -304,6 +292,23 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     .filter(h => h.assets)
     .map(h => h.assets.ticker)
   )];
+
+  // Fetch asset_prices (latest per ticker)
+  const { data: assetPrices, error: pricesError } = await supabase
+    .from('asset_prices')
+    .select('ticker, price, timestamp')
+    .in('ticker', tickers)
+    .order('ticker', { ascending: true })
+    .order('timestamp', { ascending: false });
+  if (pricesError) throw pricesError;
+
+  const latestPrices = new Map<string, { price: number; timestamp: string }>();
+  assetPrices.forEach(p => {
+    if (!latestPrices.has(p.ticker)) {
+      latestPrices.set(p.ticker, { price: p.price, timestamp: p.timestamp });
+    }
+  });
+
   const missingTickers = new Set(tickers.filter(t => !latestPrices.has(t)));
 
   // Build tickersMap for allocations (still useful for ticker lists per group)
@@ -376,6 +381,45 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     .slice(0, 10) // Limit to 10 recent as original
     .map(tx => ({ type: tx.type, date: tx.date }));
 
+  // Compute cash balances
+  const cashBalances = new Map<string, number>()
+  transactions.forEach((tx: any) => {
+    if (!tx.account_id) return
+    // Skip automatic deposits for external buys
+    if (tx.notes === 'Auto-deposit for external buy') {
+      return
+    }
+    const current = cashBalances.get(tx.account_id) || 0
+    let delta = 0
+    const amt = Number(tx.amount || 0)
+    const fee = Number(tx.fees || 0)
+    switch (tx.type) {
+      case 'Buy':
+        if (tx.funding_source === 'cash') {
+          delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
+        } // else (including 'external'): no impact to cash balance
+        break
+      case 'Sell':
+        delta += (amt - fee)  // increase cash balance by sale amount less fees
+        break
+      case 'Dividend':
+        delta += amt  // increase cash balance
+        break
+      case 'Interest':
+        delta += amt  // increase cash balance
+        break
+      case 'Deposit':
+        delta += amt  // increase cash balance
+        break
+      case 'Withdrawal':
+        delta -= Math.abs(amt)  // decrease cash balance
+        break
+    }
+    const newBalance = current + delta
+    cashBalances.set(tx.account_id, newBalance)
+  })
+  const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
+
   // Compute balances for accounts and currentValues for assets
   const accountBalances = new Map<string, number>();
   const assetValues = new Map<string, number>();
@@ -400,7 +444,8 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
 
   const enhancedAccounts = accounts.map(a => ({
     ...a,
-    balance: Math.round(accountBalances.get(a.id) || 0)
+    balance: Math.round(accountBalances.get(a.id) || 0),
+    cash: Math.round(cashBalances.get(a.id) || 0)
   }));
 
   const enhancedAssets = assets.map(a => ({
@@ -411,7 +456,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   // Note: We no longer include raw taxLots/transactions in the summary - they stay server-side
 
   let summary = {
-    totalValue: Math.round(totalValue / 1000) * 1000,
+    totalValue: Math.round((totalValue + totalCash) / 1000) * 1000,
     allocations: allocations.map(a => ({
       ...a,
       value: Math.round(a.value),
