@@ -23,13 +23,13 @@ export default function ActivityTabs({ initialTransactions, initialTaxLots }: Ac
   return (
     <Tabs value={tab} onValueChange={handleTabChange} className="w-full">
       <TabsList>
-        <TabsTrigger value="transactions">Transaction Log</TabsTrigger>
+        <TabsTrigger value="transactions">Transactions</TabsTrigger>
         <TabsTrigger value="tax-lots">Tax Lots</TabsTrigger>
       </TabsList>
-      <TabsContent value="transactions">
+      <TabsContent value="transactions" forceMount>
         <TransactionsList initialTransactions={initialTransactions} />
       </TabsContent>
-      <TabsContent value="tax-lots">
+      <TabsContent value="tax-lots" forceMount>
         <TaxLotsList initialTaxLots={initialTaxLots} />
       </TabsContent>
     </Tabs>
