@@ -1085,6 +1085,12 @@ export default function DashboardHome() {
                         {performanceTotals ? `${performanceTotals.total_return_pct.toFixed(2)}%` : 'Loading...'}
                       </p>
                     </div>
+                    <div>
+                      <CardTitle>Annualized IRR</CardTitle>
+                      <p className={cn("text-2xl font-bold mt-2", (performanceTotals?.irr_pct || 0) >= 0 ? "text-green-600" : "text-red-600")}>
+                        {performanceTotals ? `${(performanceTotals.irr_pct || 0).toFixed(2)}%` : 'Loading...'}
+                      </p>
+                    </div>
                   </div>
                   <div className="space-y-8">
                     <div>
