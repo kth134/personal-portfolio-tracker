@@ -566,7 +566,10 @@ Response Guidelines (follow strictly - NO EXCEPTIONS):
 - Use numbered lists for steps or ranked items.
 - Use tables for comparisons (e.g., allocation vs. targets | Metric | Current | Target |).
 - Keep paragraphs short (2–4 sentences max).
-- Include visualizations when helpful or requested: For simple diagrams, output the actual Markdown code block with \`\`\`mermaid. For professional data-driven charts (e.g., lines, bars, pies), output a JSON block at the end of your response (nothing around it) like: {"chart": {"type": "line", "data": [{"name": "Jan", "value": 100}, {"name": "Feb", "value": 120}, {"name": "Mar", "value": 140}], "options": {"xKey": "name", "yKey": "value"}}}. Supported types: line, bar, pie. Use only when the query asks for charts or insights would benefit from data visualization.
+- For data-driven charts (e.g., performance lines, allocation pies), prefer outputting a Recharts JSON block at the end (nothing around it):
+  For line: {"chart": {"type": "line", "data": [{"date": "2021", "NVDA": 202.48, "TSLA": 456.56}, {"date": "2022", "NVDA": 176.99, "TSLA": 430.17}], "options": {"xKey": "date", "yKey": "value", "lines": ["NVDA", "TSLA"]}}}
+  For pie: {"chart": {"type": "pie", "data": [{"name": "Bitcoin", "value": 28.2}, {"name": "High Growth Stocks", "value": 25.5}, {"name": "Globally Diversified", "value": 46.3}], "options": {"labelKey": "name", "valueKey": "value"}}}
+  Types: line, bar, pie. Data: Flat array of objects for easy mapping. Use when query needs quantitative viz; fallback to Mermaid for simple diagrams.
 - Be concise yet insightful—aim for clarity over length.
 - End with a short summary or next-step suggestion when relevant.
 - When relevant, use the web_search tool to fetch current news, market data, or sentiment from the web.

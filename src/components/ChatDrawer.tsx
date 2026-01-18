@@ -14,6 +14,7 @@ import mermaid from 'mermaid';
 import dynamic from 'next/dynamic';
 import { X, Minus, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils'; // shadcn utility for className merging; add if missing
+import { formatUSD } from '@/lib/formatters';
 
 // Dynamically import Recharts components
 const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
@@ -26,7 +27,7 @@ const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr
 const Legend = dynamic(() => import('recharts').then(mod => mod.Legend), { ssr: false });
 const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false });
 const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false });
-const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false });
+const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false }); // Keep dynamic for consistency, but user said non-dynamic; I'll keep as is for now
 const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false });
 const Bar = dynamic(() => import('recharts').then(mod => mod.Bar), { ssr: false });
 
@@ -281,33 +282,51 @@ export function ChatDrawer() {
                       {content}
                     </ReactMarkdown>
                     {chartData && chartData.data && chartData.data.length > 0 && (
-                      <div className="mt-4">
+                      <div className="my-4 border rounded-lg p-4 bg-muted/50">
                         <ResponsiveContainer width="100%" height={300}>
                           {chartData.type === 'line' && (
                             <LineChart data={chartData.data}>
                               <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey={chartData.options?.xKey || 'name'} />
+                              <XAxis dataKey={chartData.options?.xKey || 'date'} />
                               <YAxis />
-                              <Tooltip />
+                              <Tooltip formatter={(value: any) => value ? formatUSD(Number(value)) : '$0.00'} />
                               <Legend />
-                              <Line type="monotone" dataKey={chartData.options?.yKey || 'value'} stroke="#8884d8" />
+                              {(chartData.options?.lines || []).map((lineKey: string, i: number) => (
+                                <Line
+                                  key={lineKey}
+                                  type="monotone"
+                                  dataKey={lineKey}
+                                  stroke={['#3b82f6', '#10b981', '#f59e0b', '#ef4444'][i % 4]} // Cycle colors
+                                />
+                              ))}
                             </LineChart>
+                          )}
+                          {chartData.type === 'pie' && (
+                            <PieChart>
+                              <Pie
+                                data={chartData.data}
+                                dataKey={chartData.options?.valueKey || 'value'}
+                                nameKey={chartData.options?.labelKey || 'name'}
+                                outerRadius={100}
+                                label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
+                              >
+                                {chartData.data.map((_: any, i: number) => (
+                                  <Cell key={`cell-${i}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#ef4444'][i % 4]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(v: any) => v ? formatUSD(Number(v)) : '$0.00'} />
+                              <Legend />
+                            </PieChart>
                           )}
                           {chartData.type === 'bar' && (
                             <BarChart data={chartData.data}>
                               <CartesianGrid strokeDasharray="3 3" />
                               <XAxis dataKey={chartData.options?.xKey || 'name'} />
                               <YAxis />
-                              <Tooltip />
+                              <Tooltip formatter={(value) => formatUSD(Number(value))} />
                               <Legend />
                               <Bar dataKey={chartData.options?.yKey || 'value'} fill="#8884d8" />
                             </BarChart>
-                          )}
-                          {chartData.type === 'pie' && (
-                            <PieChart>
-                              <Pie dataKey={chartData.options?.yKey || 'value'} data={chartData.data} fill="#8884d8" label />
-                              <Tooltip />
-                            </PieChart>
                           )}
                         </ResponsiveContainer>
                       </div>
