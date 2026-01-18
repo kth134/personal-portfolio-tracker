@@ -90,13 +90,14 @@ async function performDeepPortfolioAnalysis(
   const { data: latestPrices } = await supabase
     .from('asset_prices')
     .select('ticker, price')
+    .in('ticker', tickers)
     .order('ticker', { ascending: true })
     .order('timestamp', { ascending: false }) as { data: { ticker: string; price: number }[] | null };
 
   const pricesMap = new Map();
   if (latestPrices) {
     latestPrices.forEach(p => {
-      if (!pricesMap.has(p.ticker) && tickers.includes(p.ticker)) pricesMap.set(p.ticker, p.price);
+      if (!pricesMap.has(p.ticker)) pricesMap.set(p.ticker, p.price);
     });
   }
 
@@ -296,13 +297,14 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   const { data: assetPrices, error: pricesError } = await supabase
     .from('asset_prices')
     .select('ticker, price, timestamp')
+    .in('ticker', tickers)
     .order('ticker', { ascending: true })
     .order('timestamp', { ascending: false });
   if (pricesError) throw pricesError;
 
   const latestPrices = new Map<string, { price: number; timestamp: string }>();
   assetPrices.forEach(p => {
-    if (!latestPrices.has(p.ticker) && tickers.includes(p.ticker)) {
+    if (!latestPrices.has(p.ticker)) {
       latestPrices.set(p.ticker, { price: p.price, timestamp: p.timestamp });
     }
   });
