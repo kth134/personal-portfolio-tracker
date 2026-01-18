@@ -26,10 +26,10 @@ export default function ActivityTabs({ initialTransactions, initialTaxLots }: Ac
         <TabsTrigger value="transactions">Transactions</TabsTrigger>
         <TabsTrigger value="tax-lots">Tax Lots</TabsTrigger>
       </TabsList>
-      <TabsContent value="transactions" forceMount>
+      <TabsContent value="transactions">
         <TransactionsList initialTransactions={initialTransactions} />
       </TabsContent>
-      <TabsContent value="tax-lots" forceMount>
+      <TabsContent value="tax-lots">
         <TaxLotsList initialTaxLots={initialTaxLots} />
       </TabsContent>
     </Tabs>
