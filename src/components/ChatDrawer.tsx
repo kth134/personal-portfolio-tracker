@@ -15,6 +15,7 @@ import dynamic from 'next/dynamic';
 import { X, Minus, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils'; // shadcn utility for className merging; add if missing
 import { formatUSD } from '@/lib/formatters';
+import { Cell } from 'recharts'; // Non-dynamic for Cell (small)
 
 // Dynamically import Recharts components
 const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
@@ -27,7 +28,6 @@ const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr
 const Legend = dynamic(() => import('recharts').then(mod => mod.Legend), { ssr: false });
 const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false });
 const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false });
-const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false }); // Keep dynamic for consistency, but user said non-dynamic; I'll keep as is for now
 const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false });
 const Bar = dynamic(() => import('recharts').then(mod => mod.Bar), { ssr: false });
 
