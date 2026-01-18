@@ -297,6 +297,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
   const { data: assetPrices, error: pricesError } = await supabase
     .from('asset_prices')
     .select('ticker, price, timestamp')
+    .eq('user_id', userId)
     .in('ticker', tickers)
     .order('ticker', { ascending: true })
     .order('timestamp', { ascending: false });

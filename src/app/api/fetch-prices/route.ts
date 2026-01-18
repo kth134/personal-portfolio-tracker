@@ -44,7 +44,7 @@ export async function GET() {
           const cgId = cgIds[i];
           const price = cgPrices[cgId]?.usd;
           if (price) {
-            await supabase.from('asset_prices').insert({ ticker: originalTicker, price, source: 'coingecko' });
+            await supabase.from('asset_prices').insert({ ticker: originalTicker, price, source: 'coingecko', user_id: user.id });
             console.log(`Inserted CoinGecko price for ${originalTicker}: $${price}`);
           }
         }
@@ -96,7 +96,7 @@ export async function GET() {
         }
 
         if (price && price > 0) {
-          await supabase.from('asset_prices').insert({ ticker, price, source });
+          await supabase.from('asset_prices').insert({ ticker, price, source, user_id: user.id });
           console.log(`Inserted ${source} price for ${ticker}: $${price}`);
         } else {
           console.warn(`No valid price inserted for ${ticker}`);
