@@ -10,7 +10,8 @@ import { useChatStore } from '@/app/store/chatStore';
 import { askGrok, getPortfolioSummary } from '@/app/actions/grok';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import Mermaid from 'react-mermaid2'; // ← NEW: for rendering charts
+import mermaid from 'mermaid';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { X, Minus, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils'; // shadcn utility for className merging; add if missing
 
@@ -52,6 +53,14 @@ export function ChatDrawer() {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      securityLevel: 'loose'
+    });
+  }, []);
+
   const handleConsent = () => {
     localStorage.setItem('grokConsent', 'true');
     setShowConsent(false);
@@ -92,11 +101,29 @@ export function ChatDrawer() {
 
   // Render Mermaid diagrams safely
   const MermaidChart = ({ code }: { code: string }) => {
-    try {
-      return <Mermaid chart={code} />;
-    } catch (err) {
-      return <pre className="bg-muted p-4 rounded overflow-x-auto text-sm">{code}</pre>;
-    }
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (ref.current) {
+        try {
+          mermaid.render('mermaid-graph-' + Math.random(), code).then((result) => {
+            if (ref.current && result.svg) {
+              ref.current.innerHTML = result.svg;
+            }
+          }).catch((err) => {
+            console.error('Mermaid render error:', err);
+            if (ref.current) {
+              ref.current.innerHTML = `<pre class="bg-muted p-4 rounded overflow-x-auto text-sm">${code}</pre>`;
+            }
+          });
+        } catch (err) {
+          console.error('Mermaid error:', err);
+          if (ref.current) {
+            ref.current.innerHTML = `<pre class="bg-muted p-4 rounded overflow-x-auto text-sm">${code}</pre>`;
+          }
+        }
+      }
+    }, [code]);
+    return <div ref={ref} className="mermaid" />;
   };
 
   return (
@@ -107,7 +134,7 @@ export function ChatDrawer() {
     className={cn(
       "fixed z-50 bg-background/95 shadow-xl overflow-hidden",
       isMinimized 
-        ? "bottom-0 left-1/2 transform -translate-x-1/2 w-80 h-12 border-t rounded-t-lg" 
+        ? "bottom-0 left-0 w-full h-12 border-t rounded-t-lg sm:left-1/2 sm:transform sm:-translate-x-1/2 sm:w-80" 
         : "inset-y-0 right-0 w-full max-w-lg h-full",
       "transform transition-all duration-300 ease-in-out",
       isOpen ? "translate-x-0" : "translate-x-full"
@@ -150,26 +177,42 @@ export function ChatDrawer() {
       {/* Body - Scrollable content */}
       {!isMinimized && (
         <div className="flex-1 overflow-y-auto p-4">
-          {messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`mb-6 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}
-            >
-              <div className="font-semibold text-sm mb-1 text-muted-foreground">
-                {msg.role === 'user' ? 'You' : 'Grok'}
-              </div>
+          {messages.map((msg, idx) => {
+            let chartData = null;
+            let content = msg.content;
+            const jsonMatch = content.match(/\{.*\}/s);
+            if (jsonMatch) {
+              try {
+                const parsed = JSON.parse(jsonMatch[0]);
+                if (parsed.chart) {
+                  chartData = parsed.chart;
+                  content = content.replace(jsonMatch[0], '').trim();
+                }
+              } catch (e) {
+                console.error('Chart JSON parse error:', e);
+              }
+            }
+
+            return (
               <div
-                className={`
-                  inline-block max-w-full rounded-xl px-4 py-3 shadow-sm
-                  ${msg.role === 'user' 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'bg-muted'
-                  }
-                `}
+                key={idx}
+                className={`mb-6 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}
               >
-                <div className="prose prose-sm max-w-none break-words">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
+                <div className="font-semibold text-sm mb-1 text-muted-foreground">
+                  {msg.role === 'user' ? 'You' : 'Grok'}
+                </div>
+                <div
+                  className={`
+                    inline-block max-w-full rounded-xl px-4 py-3 shadow-sm
+                    ${msg.role === 'user' 
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'bg-muted'
+                    }
+                  `}
+                >
+                  <div className="prose prose-sm max-w-none break-words">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
                       components={{
                         table: ({ children }) => (
                           <div className="overflow-x-auto -mx-4 px-4 my-3">
@@ -206,13 +249,52 @@ export function ChatDrawer() {
                           );
                         },
                       }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
+                    >
+                      {content}
+                    </ReactMarkdown>
+                    {chartData && (
+                      <div className="mt-4">
+                        <ResponsiveContainer width="100%" height={300}>
+                          {chartData.type === 'line' && (
+                            <LineChart data={chartData.data}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey={chartData.options?.xKey || 'name'} />
+                              <YAxis />
+                              <Tooltip />
+                              <Legend />
+                              {Array.isArray(chartData.data[0]?.data) ? (
+                                chartData.data.map((line: any, i: number) => (
+                                  <Line key={i} type="monotone" dataKey="value" data={line.data.map((val: number, idx: number) => ({ name: `Point ${idx + 1}`, value: val }))} stroke={`#${Math.floor(Math.random()*16777215).toString(16)}`} name={line.name} />
+                                ))
+                              ) : (
+                                <Line type="monotone" dataKey={chartData.options?.yKey || 'value'} stroke="#8884d8" />
+                              )}
+                            </LineChart>
+                          )}
+                          {chartData.type === 'bar' && (
+                            <BarChart data={chartData.data}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey={chartData.options?.xKey || 'name'} />
+                              <YAxis />
+                              <Tooltip />
+                              <Legend />
+                              <Bar dataKey={chartData.options?.yKey || 'value'} fill="#8884d8" />
+                            </BarChart>
+                          )}
+                          {chartData.type === 'pie' && (
+                            <PieChart>
+                              <Pie dataKey={chartData.options?.yKey || 'value'} data={chartData.data} fill="#8884d8" label />
+                              <Tooltip />
+                            </PieChart>
+                          )}
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {isLoading && (
             <div className="text-center text-muted-foreground text-sm">
               Grok is thinking...
