@@ -96,9 +96,26 @@ export default function PortfolioHoldingsWithSlicers({
   }, [lens])
 
   useEffect(() => {
-    const load = async () => {
+    // Pie chart allocations (respect aggregate toggle)
+    const loadPieCharts = async () => {
+      const payload = {
+        lens,
+        selectedValues: lens === 'total' ? [] : selectedValues,
+        aggregate,
+      }
+      const res = await fetch('/api/dashboard/allocations', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+      })
+      if (!res.ok) throw new Error('Failed to fetch allocations')
+      const data = await res.json()
+      setAllocations(data.allocations || [])
+    }
+
+    // Table allocations (always non-aggregated)
+    const loadTables = async () => {
       setLoading(true)
-      // Always request non-aggregated data for table rendering
       const payload = {
         lens,
         selectedValues: lens === 'total' ? [] : selectedValues,
@@ -114,7 +131,9 @@ export default function PortfolioHoldingsWithSlicers({
       setAllocations(data.allocations || [])
       setLoading(false)
     }
-    load()
+
+    // Load pie charts first, then tables
+    loadPieCharts().then(loadTables)
   }, [lens, selectedValues, aggregate, refreshTrigger])
 
   const toggleValue = (value: string) => {
@@ -317,7 +336,7 @@ export default function PortfolioHoldingsWithSlicers({
             return (
               <AccordionItem key={key} value={key}>
                 <AccordionTrigger>{key}</AccordionTrigger>
-                <AccordionContent>
+                <AccordionContent forceMount>{/* Always expanded */}
                   <Table>
                   <TableHeader>
                     <TableRow>
