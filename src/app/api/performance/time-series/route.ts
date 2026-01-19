@@ -22,7 +22,16 @@ export async function POST(req: Request) {
         txQuery = txQuery.in('account_id', selectedValues)
       } else {
         // For asset fields, filter assets first, then tx by asset_id
-        assetsQuery = (assetsQuery as any).in(lens, selectedValues)
+        const columnMap: Record<string, string> = {
+          sub_portfolio: 'sub_portfolio_id',
+          asset_type: 'asset_type',
+          asset_subtype: 'asset_subtype',
+          geography: 'geography',
+          size_tag: 'size_tag',
+          factor_tag: 'factor_tag',
+        }
+        const column = columnMap[lens] || lens;
+        assetsQuery = (assetsQuery as any).in(column, selectedValues)
         const { data: filteredAssets } = await assetsQuery
         const assetIds = filteredAssets?.map(a => a.id) || []
         txQuery = txQuery.in('asset_id', assetIds)

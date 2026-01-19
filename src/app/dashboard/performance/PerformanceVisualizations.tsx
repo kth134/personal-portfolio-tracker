@@ -290,7 +290,7 @@ export default function PerformanceVisualizations() {
           {slices.map((sliceKey, idx) => {
             const data = getChartData(sliceKey)
             return (
-              <div key={idx} className="space-y-4">
+              <div key={idx} className="space-y-4 pl-8">
                 <h4 className="font-medium text-center">{sliceKey}</h4>
                 <ResponsiveContainer width="100%" height={400}>
                   <LineChart data={data}>
