@@ -46,6 +46,7 @@ type HoldingRow = {
   currPrice: number
   currValue: number
   unrealized: number
+  weight: number
   groupKey?: string
 }
 
@@ -164,9 +165,16 @@ export default function PortfolioHoldingsWithSlicers({
           currPrice: quantity > 0 ? currValue / quantity : 0,
           currValue,
           unrealized: item.unrealized || (currValue - totalBasis),
+          weight: 0, // placeholder
           groupKey: aggregate ? undefined : slice.key,
         })
       })
+    })
+
+    // Calculate weights
+    const totalHoldingsValue = rows.reduce((sum, r) => sum + r.currValue, 0)
+    rows.forEach(row => {
+      row.weight = totalHoldingsValue > 0 ? (row.currValue / totalHoldingsValue) * 100 : 0
     })
 
     // Sort rows if sorting is active
@@ -299,10 +307,11 @@ export default function PortfolioHoldingsWithSlicers({
               <TableRow>
                 <TableHead className="w-32 cursor-pointer" onClick={() => handleSort('ticker')}>Asset <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
                 <TableHead className="text-right cursor-pointer" onClick={() => handleSort('quantity')}>Quantity <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currPrice')}>Curr Price <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
                 <TableHead className="text-right cursor-pointer" onClick={() => handleSort('avgBasis')}>Avg Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
                 <TableHead className="text-right cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currPrice')}>Curr Price <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
                 <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currValue')}>Curr Value <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('weight')}>Weight <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -315,19 +324,21 @@ export default function PortfolioHoldingsWithSlicers({
                     </div>
                   </TableCell>
                   <TableCell className="text-right">{row.quantity.toFixed(4)}</TableCell>
+                  <TableCell className="text-right">{formatUSD(row.currPrice)}</TableCell>
                   <TableCell className="text-right">{formatUSD(row.avgBasis)}</TableCell>
                   <TableCell className="text-right">{formatUSD(row.totalBasis)}</TableCell>
-                  <TableCell className="text-right">{formatUSD(row.currPrice)}</TableCell>
                   <TableCell className="text-right">{formatUSD(row.currValue)}</TableCell>
+                  <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
                 </TableRow>
               ))}
               <TableRow className="font-semibold bg-muted/30">
                 <TableCell>Total</TableCell>
                 <TableCell className="text-right">{rows.reduce((sum, r) => sum + r.quantity, 0).toFixed(4)}</TableCell>
                 <TableCell className="text-right">-</TableCell>
-                <TableCell className="text-right">{formatUSD(rows.reduce((sum, r) => sum + r.totalBasis, 0))}</TableCell>
                 <TableCell className="text-right">-</TableCell>
+                <TableCell className="text-right">{formatUSD(rows.reduce((sum, r) => sum + r.totalBasis, 0))}</TableCell>
                 <TableCell className="text-right">{formatUSD(rows.reduce((sum, r) => sum + r.currValue, 0))}</TableCell>
+                <TableCell className="text-right">100.00%</TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -342,10 +353,11 @@ export default function PortfolioHoldingsWithSlicers({
                       <TableRow>
                         <TableHead className="w-32 cursor-pointer" onClick={() => handleSort('ticker')}>Asset <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
                         <TableHead className="text-right cursor-pointer" onClick={() => handleSort('quantity')}>Quantity <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currPrice')}>Curr Price <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
                         <TableHead className="text-right cursor-pointer" onClick={() => handleSort('avgBasis')}>Avg Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
                         <TableHead className="text-right cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currPrice')}>Curr Price <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
                         <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currValue')}>Curr Value <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('weight')}>Weight <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -358,10 +370,11 @@ export default function PortfolioHoldingsWithSlicers({
                             </div>
                           </TableCell>
                           <TableCell className="text-right">{row.quantity.toFixed(4)}</TableCell>
+                          <TableCell className="text-right">{formatUSD(row.currPrice)}</TableCell>
                           <TableCell className="text-right">{formatUSD(row.avgBasis)}</TableCell>
                           <TableCell className="text-right">{formatUSD(row.totalBasis)}</TableCell>
-                          <TableCell className="text-right">{formatUSD(row.currPrice)}</TableCell>
                           <TableCell className="text-right">{formatUSD(row.currValue)}</TableCell>
+                          <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
                         </TableRow>
                       ))}
                       {lens === 'account' && (() => {
@@ -375,9 +388,10 @@ export default function PortfolioHoldingsWithSlicers({
                             </TableCell>
                             <TableCell className="text-right">-</TableCell>
                             <TableCell className="text-right">-</TableCell>
-                            <TableCell className="text-right">{formatUSD(accountCash)}</TableCell>
                             <TableCell className="text-right">-</TableCell>
                             <TableCell className="text-right">{formatUSD(accountCash)}</TableCell>
+                            <TableCell className="text-right">{formatUSD(accountCash)}</TableCell>
+                            <TableCell className="text-right">-</TableCell>
                           </TableRow>
                         ) : null
                       })()}
@@ -385,9 +399,10 @@ export default function PortfolioHoldingsWithSlicers({
                         <TableCell>Sub-Total</TableCell>
                         <TableCell className="text-right">{groupRows.reduce((sum, r) => sum + r.quantity, 0).toFixed(4)}</TableCell>
                         <TableCell className="text-right">-</TableCell>
-                        <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.totalBasis, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0))}</TableCell>
                         <TableCell className="text-right">-</TableCell>
+                        <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.totalBasis, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0))}</TableCell>
                         <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.currValue, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0))}</TableCell>
+                        <TableCell className="text-right">-</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>

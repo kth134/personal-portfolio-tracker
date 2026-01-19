@@ -100,8 +100,8 @@ function PerformanceContent() {
   const [totalAnnualizedReturnPct, setTotalAnnualizedReturnPct] = useState<number>(0);
 
   // Sorting state
-  const [sortColumn, setSortColumn] = useState<string>('display_name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortColumn, setSortColumn] = useState<string>('market_value');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Sorted summaries
   const sortedSummaries = useMemo(() => {
@@ -762,15 +762,6 @@ function PerformanceContent() {
                   {getSortIcon('display_name')}
                 </div>
               </TableHead>
-              <TableHead 
-                className="text-right cursor-pointer hover:bg-muted/50 select-none"
-                onClick={() => handleSort('weight')}
-              >
-                <div className="flex items-center justify-end">
-                  Weight
-                  {getSortIcon('weight')}
-                </div>
-              </TableHead>
               {lens === 'asset' && (
                 <TableHead 
                   className="text-right cursor-pointer hover:bg-muted/50 select-none"
@@ -893,7 +884,6 @@ function PerformanceContent() {
                         </div>
                       ) : <span className="break-words">{row.display_name}</span>}
                     </TableCell>
-                    <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
                     {lens === 'asset' && (
                       <TableCell className="text-right">
                         {row.current_price != null ? formatUSD(row.current_price) : '-'}
