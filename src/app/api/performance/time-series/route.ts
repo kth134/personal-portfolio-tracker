@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     const txQuery = supabase.from('transactions').select(`
       date, type, amount, fees, funding_source, notes, asset_id, account_id, realized_gain,
       asset:assets (id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolio_id),
-      sub_portfolio:sub_portfolios!assets_sub_portfolio_id_fkey (id, name),
+      sub_portfolio:sub_portfolio_id (id, name),
       account:accounts (id, name)
     `).eq('user_id', user.id).order('date')
 
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     // All tickers + benchmarks
     const portfolioTickers = [...new Set(allTx.filter(tx => tx.asset_id).map(tx => {
       const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
-      return asset?.ticker || ''
+      return [asset?.ticker || '']
     }))]
     const benchmarkMap: Record<string, string> = {
       sp500: 'SPY',

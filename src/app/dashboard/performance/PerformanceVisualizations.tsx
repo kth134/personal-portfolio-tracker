@@ -190,6 +190,9 @@ export default function PerformanceVisualizations() {
 
   return (
     <div className="space-y-8">
+      <div className="text-center text-red-600 font-semibold text-lg bg-red-50 p-4 rounded-md border border-red-200">
+        Under Construction
+      </div>
       <div className="flex flex-wrap gap-4 items-end">
         <div>
           <Label>Slice by</Label>
