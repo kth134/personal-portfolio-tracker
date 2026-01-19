@@ -308,121 +308,78 @@ export default function PortfolioHoldingsWithSlicers({
       )}
 
       <div className="overflow-x-auto">
-        {aggregate ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-32 cursor-pointer" onClick={() => handleSort('ticker')}>Asset <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('quantity')}>Quantity <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currPrice')}>Curr Price <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('avgBasis')}>Avg Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currValue')}>Curr Value <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                <TableHead className="text-right cursor-pointer" onClick={() => handleSort('weight')}>Weight <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map(row => (
-                <TableRow key={row.ticker}>
-                  <TableCell className="w-32">
-                    <div className="flex flex-col">
-                      <span className="font-bold break-words">{row.ticker}</span>
-                      <span className="text-muted-foreground break-words">{row.name || '-'}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">{aggregate && lens !== 'total' ? '-' : row.quantity.toFixed(4)}</TableCell>
-                  <TableCell className="text-right">{aggregate && lens !== 'total' ? '-' : formatUSD(row.currPrice)}</TableCell>
-                  <TableCell className="text-right">{aggregate && lens !== 'total' ? '-' : formatUSD(row.avgBasis)}</TableCell>
-                  <TableCell className="text-right">{formatUSD(row.totalBasis)}</TableCell>
-                  <TableCell className="text-right">{formatUSD(row.currValue)}</TableCell>
-                  <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
-                </TableRow>
-              ))}
-              <TableRow className="font-semibold bg-muted/30">
-                <TableCell className="w-32">Total</TableCell>
-                <TableCell className="text-right">{aggregate && lens !== 'total' ? '-' : totalQuantity.toFixed(4)}</TableCell>
-                <TableCell className="text-right">-</TableCell>
-                <TableCell className="text-right">-</TableCell>
-                <TableCell className="text-right">{formatUSD(selectedTotalBasis)}</TableCell>
-                <TableCell className="text-right">{formatUSD(selectedTotalValue)}</TableCell>
-                <TableCell className="text-right">100.00%</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        ) : (
-          <Accordion type="multiple">
-            {Array.from(groupedRows).map(([key, groupRows]) => {
-              const groupTotalQuantity = groupRows.reduce((sum, r) => sum + r.quantity, 0)
-              const groupTotalBasis = groupRows.reduce((sum, r) => sum + r.totalBasis, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0)
+        <Accordion type="multiple">
+          {Array.from(groupedRows).map(([key, groupRows]) => {
+            const groupTotalQuantity = groupRows.reduce((sum, r) => sum + r.quantity, 0)
+            const groupTotalBasis = groupRows.reduce((sum, r) => sum + r.totalBasis, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0)
 
-              return (
-                <AccordionItem key={key} value={key}>
-                  <AccordionTrigger>{key}</AccordionTrigger>
-                  <AccordionContent>
-                    <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-32 cursor-pointer" onClick={() => handleSort('ticker')}>Asset <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('quantity')}>Quantity <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currPrice')}>Curr Price <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('avgBasis')}>Avg Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currValue')}>Curr Value <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-                        <TableHead className="text-right cursor-pointer" onClick={() => handleSort('weight')}>Weight <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+            return (
+              <AccordionItem key={key} value={key}>
+                <AccordionTrigger>{key}</AccordionTrigger>
+                <AccordionContent>
+                  <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-32 cursor-pointer" onClick={() => handleSort('ticker')}>Asset <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                      <TableHead className="text-right cursor-pointer" onClick={() => handleSort('quantity')}>Quantity <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                      <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currPrice')}>Curr Price <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                      <TableHead className="text-right cursor-pointer" onClick={() => handleSort('avgBasis')}>Avg Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                      <TableHead className="text-right cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                      <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currValue')}>Curr Value <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                      <TableHead className="text-right cursor-pointer" onClick={() => handleSort('weight')}>Weight <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {groupRows.map(row => (
+                      <TableRow key={row.ticker}>
+                        <TableCell className="w-32">
+                          <div className="flex flex-col">
+                            <span className="font-bold break-words">{row.ticker}</span>
+                            <span className="text-muted-foreground break-words">{row.name || '-'}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">{row.quantity.toFixed(4)}</TableCell>
+                        <TableCell className="text-right">{formatUSD(row.currPrice)}</TableCell>
+                        <TableCell className="text-right">{formatUSD(row.avgBasis)}</TableCell>
+                        <TableCell className="text-right">{formatUSD(row.totalBasis)}</TableCell>
+                        <TableCell className="text-right">{formatUSD(row.currValue)}</TableCell>
+                        <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {groupRows.map(row => (
-                        <TableRow key={row.ticker}>
+                    ))}
+                    {lens === 'account' && (() => {
+                      const accountCash = cashByAccountName.get(key) || 0
+                      return accountCash > 0 ? (
+                        <TableRow key="cash">
                           <TableCell className="w-32">
                             <div className="flex flex-col">
-                              <span className="font-bold break-words">{row.ticker}</span>
-                              <span className="text-muted-foreground break-words">{row.name || '-'}</span>
+                              <span className="font-bold break-words">Cash</span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">{row.quantity.toFixed(4)}</TableCell>
-                          <TableCell className="text-right">{formatUSD(row.currPrice)}</TableCell>
-                          <TableCell className="text-right">{formatUSD(row.avgBasis)}</TableCell>
-                          <TableCell className="text-right">{formatUSD(row.totalBasis)}</TableCell>
-                          <TableCell className="text-right">{formatUSD(row.currValue)}</TableCell>
-                          <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
+                          <TableCell className="text-right">-</TableCell>
+                          <TableCell className="text-right">-</TableCell>
+                          <TableCell className="text-right">-</TableCell>
+                          <TableCell className="text-right">{formatUSD(accountCash)}</TableCell>
+                          <TableCell className="text-right">{formatUSD(accountCash)}</TableCell>
+                          <TableCell className="text-right">-</TableCell>
                         </TableRow>
-                      ))}
-                      {lens === 'account' && (() => {
-                        const accountCash = cashByAccountName.get(key) || 0
-                        return accountCash > 0 ? (
-                          <TableRow key="cash">
-                            <TableCell className="w-32">
-                              <div className="flex flex-col">
-                                <span className="font-bold break-words">Cash</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right">-</TableCell>
-                            <TableCell className="text-right">-</TableCell>
-                            <TableCell className="text-right">-</TableCell>
-                            <TableCell className="text-right">{formatUSD(accountCash)}</TableCell>
-                            <TableCell className="text-right">{formatUSD(accountCash)}</TableCell>
-                            <TableCell className="text-right">-</TableCell>
-                          </TableRow>
-                        ) : null
-                      })()}
-                      <TableRow className="font-semibold bg-muted/30">
-                        <TableCell className="w-32">Sub-Total</TableCell>
-                        <TableCell className="text-right">-</TableCell>
-                        <TableCell className="text-right">-</TableCell>
-                        <TableCell className="text-right">-</TableCell>
-                        <TableCell className="text-right">{formatUSD(groupTotalBasis)}</TableCell>
-                        <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.currValue, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0))}</TableCell>
-                        <TableCell className="text-right">-</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </AccordionContent>
-              </AccordionItem>
-              )
-            })}
-          </Accordion>
-        )}
+                      ) : null
+                    })()}
+                    <TableRow className="font-semibold bg-muted/30">
+                      <TableCell className="w-32">Sub-Total</TableCell>
+                      <TableCell className="text-right">-</TableCell>
+                      <TableCell className="text-right">-</TableCell>
+                      <TableCell className="text-right">-</TableCell>
+                      <TableCell className="text-right">{formatUSD(groupTotalBasis)}</TableCell>
+                      <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.currValue, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0))}</TableCell>
+                      <TableCell className="text-right">-</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </AccordionContent>
+            </AccordionItem>
+            )
+          })}
+        </Accordion>
       </div>
 
       {/* Footer totals */}
