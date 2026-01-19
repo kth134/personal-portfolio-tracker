@@ -166,7 +166,7 @@ export default function PortfolioHoldingsWithSlicers({
           currValue,
           unrealized: item.unrealized || (currValue - totalBasis),
           weight: 0, // placeholder
-          groupKey: aggregate ? undefined : slice.key,
+          groupKey: slice.key,
         })
       })
     })
