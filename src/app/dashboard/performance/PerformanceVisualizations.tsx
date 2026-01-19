@@ -233,36 +233,6 @@ export default function PerformanceVisualizations() {
           </div>
         )}
 
-        <div className="min-w-64">
-          <Label>Benchmarks (for Return chart)</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-between">
-                {selectedBenchmarks.length === BENCH_OPTIONS.length ? 'All selected' :
-                 selectedBenchmarks.length === 0 ? 'None selected' :
-                 `${selectedBenchmarks.length} selected`}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-full p-0">
-              <Command>
-                <CommandInput placeholder="Search..." />
-                <CommandList>
-                  <CommandEmpty>No benchmarks found.</CommandEmpty>
-                  <CommandGroup>
-                    {BENCH_OPTIONS.map(item => (
-                      <CommandItem key={item.value} onSelect={() => toggleBenchmark(item.value)}>
-                        <Check className={cn("mr-2 h-4 w-4", selectedBenchmarks.includes(item.value) ? "opacity-100" : "opacity-0")} />
-                        {item.label}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
-
         <div>
           <Label>Metric</Label>
           <Select value={metric} onValueChange={setMetric}>
@@ -274,6 +244,38 @@ export default function PerformanceVisualizations() {
             </SelectContent>
           </Select>
         </div>
+
+        {metric === 'totalReturn' && (
+          <div className="min-w-64">
+            <Label>Benchmarks (for Return chart)</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  {selectedBenchmarks.length === BENCH_OPTIONS.length ? 'All selected' :
+                   selectedBenchmarks.length === 0 ? 'None selected' :
+                   `${selectedBenchmarks.length} selected`}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandInput placeholder="Search..." />
+                  <CommandList>
+                    <CommandEmpty>No benchmarks found.</CommandEmpty>
+                    <CommandGroup>
+                      {BENCH_OPTIONS.map(item => (
+                        <CommandItem key={item.value} onSelect={() => toggleBenchmark(item.value)}>
+                          <Check className={cn("mr-2 h-4 w-4", selectedBenchmarks.includes(item.value) ? "opacity-100" : "opacity-0")} />
+                          {item.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
 
         <Button onClick={handleRefresh} disabled={refreshing}>
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}
@@ -290,7 +292,7 @@ export default function PerformanceVisualizations() {
           {slices.map((sliceKey, idx) => {
             const data = getChartData(sliceKey)
             return (
-              <div key={idx} className="space-y-4 pl-8">
+              <div key={idx} className="space-y-4 pl-16">
                 <h4 className="font-medium text-center">{sliceKey}</h4>
                 <ResponsiveContainer width="100%" height={400}>
                   <LineChart data={data}>
