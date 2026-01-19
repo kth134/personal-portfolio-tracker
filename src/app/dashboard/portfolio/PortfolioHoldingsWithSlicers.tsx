@@ -199,19 +199,8 @@ export default function PortfolioHoldingsWithSlicers({
 
   const totalQuantity = rows.reduce((sum, r) => sum + r.quantity, 0)
 
-  // Fix: In aggregate view, sum totalBasis per slice, including cash for account lens
-  let totalBasis = 0
-  if (aggregate && lens !== 'total') {
-    totalBasis = allocations.reduce((sum, slice) => {
-      const sliceBasis = (slice.items || []).reduce((s, item) => s + (item.cost_basis || 0), 0)
-      // For account lens, add cash for each account (slice.key)
-      const cashForSlice = lens === 'account' ? (cashByAccountName.get(slice.key) || 0) : 0
-      return sum + sliceBasis + cashForSlice
-    }, 0)
-  } else {
-    totalBasis = rows.reduce((sum, r) => sum + r.totalBasis, 0)
-  }
-
+  // Fix: In aggregate view, always sum row.totalBasis, matching non-aggregate logic
+  let totalBasis = rows.reduce((sum, r) => sum + r.totalBasis, 0)
   // Portfolio total basis: add portfolio cash if not account lens
   const selectedTotalBasis = totalBasis + (lens === 'account' ? 0 : cash)
   const selectedTotalValue = rows.reduce((sum, row) => sum + row.currValue, 0) + cash
