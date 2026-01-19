@@ -154,7 +154,7 @@ export default function PortfolioHoldingsWithSlicers({
     allocations.forEach(slice => {
       (slice.items || []).forEach(item => {
         const currValue = item.value || 0
-        const totalBasis = item.cost_basis || 0
+        const totalBasis = (item.cost_basis || 0) + (lens === 'account' ? (cashByAccountName.get(item.key || '') || 0) : 0)
         const quantity = item.quantity || 0
         rows.push({
           ticker: item.ticker || item.key || 'Unknown',
@@ -200,7 +200,7 @@ export default function PortfolioHoldingsWithSlicers({
   const totalQuantity = rows.reduce((sum, r) => sum + r.quantity, 0)
   const totalBasis = rows.reduce((sum, r) => sum + r.totalBasis, 0)
 
-  const selectedTotalBasis = rows.reduce((sum, row) => sum + row.totalBasis, 0) + cash
+  const selectedTotalBasis = rows.reduce((sum, row) => sum + row.totalBasis, 0) + (lens === 'account' ? 0 : cash)
   const selectedTotalValue = rows.reduce((sum, row) => sum + row.currValue, 0) + cash
 
   const holdingsTotalBasis = selectedTotalBasis - cash
