@@ -302,19 +302,20 @@ export default function PortfolioHoldingsWithSlicers({
         <div className="text-center py-12">Loading portfolio data...</div>
       ) : (
         <div className="flex flex-wrap gap-8 justify-center">
-          {allocations.map((slice, idx) => (
-            <div key={idx} className="space-y-4 min-w-0 flex-shrink-0">
-              <h4 className="font-medium text-center">{slice.key}</h4>
+          {/* Pie chart logic: show aggregated if aggregate is true and multiple selections, else show separate */}
+          {aggregate && lens !== 'total' && selectedValues.length > 1 && allocations.length === 1 ? (
+            <div className="space-y-4 min-w-0 flex-shrink-0">
+              <h4 className="font-medium text-center">{allocations[0].key}</h4>
               <ResponsiveContainer width="100%" height={300} minWidth={300}>
                 <PieChart>
                   <Pie
-                    data={slice.data}
+                    data={allocations[0].data}
                     dataKey="value"
                     nameKey="subkey"
                     outerRadius={100}
                     label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
                   >
-                    {slice.data.map((_: any, i: number) => (
+                    {allocations[0].data.map((_: any, i: number) => (
                       <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
@@ -323,7 +324,30 @@ export default function PortfolioHoldingsWithSlicers({
                 </PieChart>
               </ResponsiveContainer>
             </div>
-          ))}
+          ) : (
+            allocations.map((slice, idx) => (
+              <div key={idx} className="space-y-4 min-w-0 flex-shrink-0">
+                <h4 className="font-medium text-center">{slice.key}</h4>
+                <ResponsiveContainer width="100%" height={300} minWidth={300}>
+                  <PieChart>
+                    <Pie
+                      data={slice.data}
+                      dataKey="value"
+                      nameKey="subkey"
+                      outerRadius={100}
+                      label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
+                    >
+                      {slice.data.map((_: any, i: number) => (
+                        <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSD(v) : ''} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ))
+          )}
         </div>
       )}
 
