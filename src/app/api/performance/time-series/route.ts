@@ -12,49 +12,42 @@ export async function POST(req: Request) {
     const { lens, selectedValues, aggregate, benchmarks } = body
 
     // Get transactions, assets, accounts, sub_portfolios based on lens and selected
-    let txQuery = supabase.from('transactions').select('*').eq('user_id', user.id).order('date')
-    let assetsQuery = supabase.from('assets').select('id, ticker, sub_portfolio_id, asset_type, asset_subtype, geography, size_tag, factor_tag')
-    let accountsQuery = supabase.from('accounts').select('id')
-    let subPortfoliosQuery = supabase.from('sub_portfolios').select('id')
+    let txQuery = supabase.from('transactions').select('*, account:accounts(name), asset:assets(id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolios!sub_portfolio_id(name))').eq('user_id', user.id).order('date')
 
     if (lens !== 'total' && selectedValues.length > 0) {
       if (lens === 'account') {
-        txQuery = txQuery.in('account_id', selectedValues)
+        const { data: accounts } = await supabase.from('accounts').select('id').in('name', selectedValues)
+        const accountIds = accounts?.map(a => a.id) || []
+        txQuery = txQuery.in('account_id', accountIds)
+      } else if (lens === 'sub_portfolio') {
+        const { data: subs } = await supabase.from('sub_portfolios').select('id').in('name', selectedValues)
+        const subIds = subs?.map(s => s.id) || []
+        const { data: assets } = await supabase.from('assets').select('id').in('sub_portfolio_id', subIds)
+        const assetIds = assets?.map(a => a.id) || []
+        txQuery = txQuery.in('asset_id', assetIds)
+      } else if (lens === 'asset') {
+        txQuery = txQuery.in('asset_id', selectedValues)
       } else {
-        // For asset fields, filter assets first, then tx by asset_id
-        const columnMap: Record<string, string> = {
-          sub_portfolio: 'sub_portfolio_id',
-          asset_type: 'asset_type',
-          asset_subtype: 'asset_subtype',
-          geography: 'geography',
-          size_tag: 'size_tag',
-          factor_tag: 'factor_tag',
-        }
-        const column = columnMap[lens] || lens;
-        assetsQuery = (assetsQuery as any).in(column, selectedValues)
-        const { data: filteredAssets } = await assetsQuery
-        const assetIds = filteredAssets?.map(a => a.id) || []
+        const { data: assets } = await (supabase.from('assets').select('id') as any).in(lens, selectedValues)
+        const assetIds = assets?.map((a: any) => a.id) || []
         txQuery = txQuery.in('asset_id', assetIds)
       }
     }
 
     const { data: txs } = await txQuery
-    const { data: assets } = await assetsQuery
-    const { data: accounts } = await accountsQuery
-    const { data: subPortfolios } = await subPortfoliosQuery
 
     if (!txs || txs.length === 0) return NextResponse.json({ series: {} })
 
     // Asset maps
-    const assetToTicker = new Map((assets || []).map(a => [a.id, a.ticker]))
-    const assetField = (a: any) => {
+    const assetToTicker = new Map((txs || []).filter(tx => tx.asset).map(tx => [tx.asset.id, tx.asset.ticker]))
+    const assetField = (tx: any) => {
       switch (lens) {
-        case 'sub_portfolio': return a.sub_portfolio_id
-        case 'asset_type': return a.asset_type
-        case 'asset_subtype': return a.asset_subtype
-        case 'geography': return a.geography
-        case 'size_tag': return a.size_tag
-        case 'factor_tag': return a.factor_tag
+        case 'sub_portfolio': return tx.asset?.sub_portfolios?.name
+        case 'asset_type': return tx.asset?.asset_type
+        case 'asset_subtype': return tx.asset?.asset_subtype
+        case 'geography': return tx.asset?.geography
+        case 'size_tag': return tx.asset?.size_tag
+        case 'factor_tag': return tx.asset?.factor_tag
         default: return null
       }
     }
@@ -62,15 +55,14 @@ export async function POST(req: Request) {
     // Group tx if not aggregate
     const groups = new Map<string, any[]>()
     if (aggregate || lens === 'total') {
-      groups.set('aggregated', txs)
+      groups.set('aggregated', txs || [])
     } else {
-      txs.forEach(tx => {
+      (txs || []).forEach(tx => {
         let groupId: string | null = null
         if (lens === 'account') {
-          groupId = tx.account_id
+          groupId = tx.account?.name
         } else if (tx.asset_id) {
-          const asset = (assets || []).find(a => a.id === tx.asset_id)
-          groupId = asset ? assetField(asset) : null
+          groupId = assetField(tx)
         }
         if (groupId && selectedValues.includes(groupId)) {
           if (!groups.has(groupId)) groups.set(groupId, [])
@@ -87,6 +79,10 @@ export async function POST(req: Request) {
     while (!isAfter(current, new Date(lastDate))) {
       dates.push(format(current, 'yyyy-MM-dd'))
       current = endOfMonth(addMonths(current, 1))
+    }
+    // Always include today as the last point if not already included
+    if (dates.length === 0 || dates[dates.length - 1] !== lastDate) {
+      dates.push(lastDate)
     }
 
     // All tickers: portfolio + benchmarks

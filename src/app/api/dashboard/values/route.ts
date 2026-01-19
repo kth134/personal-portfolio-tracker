@@ -12,75 +12,81 @@ export async function POST(req: Request) {
       return NextResponse.json({ values: [] });
     }
 
-    if (lens === 'account') {
-      const { data: txs, error } = await supabase
-        .from('transactions')
-        .select('account_id')
-        .eq('user_id', user.id);
-      if (error) throw error;
-      const accountIds = [...new Set(txs?.map((t: any) => t.account_id) || [])];
-      if (accountIds.length === 0) return NextResponse.json({ values: [] });
-      const { data: accounts, error: accError } = await supabase
-        .from('accounts')
-        .select('id, name')
-        .in('id', accountIds);
-      if (accError) throw accError;
-      const valuesArray = accounts?.map((acc: any) => ({ value: acc.id, label: acc.name })) || [];
-      valuesArray.sort((a, b) => a.label.localeCompare(b.label));
-      return NextResponse.json({ values: valuesArray });
-    }
-
-    if (lens === 'sub_portfolio') {
-      const { data: txs, error } = await supabase
-        .from('transactions')
-        .select('asset_id')
-        .eq('user_id', user.id);
-      if (error) throw error;
-      const assetIds = [...new Set(txs?.map((t: any) => t.asset_id) || [])];
-      if (assetIds.length === 0) return NextResponse.json({ values: [] });
-      const { data: assets, error: assetError } = await supabase
-        .from('assets')
-        .select('sub_portfolio_id')
-        .in('id', assetIds);
-      if (assetError) throw assetError;
-      const subIds = [...new Set(assets?.map((a: any) => a.sub_portfolio_id).filter((id: any) => id) || [])];
-      if (subIds.length === 0) return NextResponse.json({ values: [] });
-      const { data: subs, error: subError } = await supabase
-        .from('sub_portfolios')
-        .select('id, name')
-        .in('id', subIds);
-      if (subError) throw subError;
-      const valuesArray = subs?.map((sub: any) => ({ value: sub.id, label: sub.name })) || [];
-      valuesArray.sort((a, b) => a.label.localeCompare(b.label));
-      return NextResponse.json({ values: valuesArray });
-    }
-
-    // For other lenses, use tax_lots as before, but change to transactions for consistency
-    const { data: txAssets, error: txError } = await supabase
-      .from('transactions')
-      .select('asset_id')
-      .eq('user_id', user.id);
-    if (txError) throw txError;
-    const assetIds = [...new Set(txAssets?.map((t: any) => t.asset_id) || [])];
-    if (assetIds.length === 0) return NextResponse.json({ values: [] });
-
     let query = supabase
-      .from('assets')
-      .select(`${lens}`)
-      .in('id', assetIds);
+      .from('tax_lots')
+      .select('asset:assets(*), account:accounts(name)')
+      .eq('user_id', user.id);
+
+    // Map lens to column (adjust if your asset tags are different)
+    let column: string;
+    switch (lens) {
+      case 'asset':
+        // For asset, return {value: id, label: display}
+        break;
+      case 'sub_portfolio':
+        column = 'asset.sub_portfolios.name';
+        query = query.select('asset:assets(sub_portfolios!sub_portfolio_id(name))');
+        break;
+      case 'account':
+        column = 'account.name';
+        query = query.select('account:accounts(name)');
+        break;
+      case 'asset_type':
+        column = 'asset.asset_type';
+        query = query.select('asset:assets(asset_type)');
+        break;
+      case 'asset_subtype':
+        column = 'asset.asset_subtype';
+        query = query.select('asset:assets(asset_subtype)');
+        break;
+      case 'geography':
+        column = 'asset.geography';
+        query = query.select('asset:assets(geography)');
+        break;
+      case 'size_tag':
+        column = 'asset.size_tag';
+        query = query.select('asset:assets(size_tag)');
+        break;
+      case 'factor_tag':
+        column = 'asset.factor_tag';
+        query = query.select('asset:assets(factor_tag)');
+        break;
+      default:
+        return NextResponse.json({ error: 'Invalid lens' }, { status: 400 });
+    }
 
     const { data, error } = await query;
     if (error) throw error;
 
+    // Extract values (handle nested joins)
     const valuesSet = new Set<string>();
     const valuesArray: {value: string, label: string}[] = [];
-    data?.forEach((row: any) => {
-      const value = (row[lens] || '').trim();
-      if (value && !valuesSet.has(value)) {
-        valuesSet.add(value);
-        valuesArray.push({ value, label: value });
-      }
-    });
+    if (lens === 'asset') {
+      const assetSet = new Set<string>();
+      data?.forEach((row: any) => {
+        const asset = row.asset;
+        if (asset && !assetSet.has(asset.id)) {
+          assetSet.add(asset.id);
+          const label = `${asset.ticker}${asset.name ? ` - ${asset.name}` : ''}`;
+          valuesArray.push({ value: asset.id, label });
+        }
+      });
+    } else {
+      data?.forEach((row: any) => {
+        let value: string | null = null;
+        if (lens === 'sub_portfolio') {
+          value = (row.asset?.sub_portfolios?.name || '').trim();
+        } else if (lens === 'account') {
+          value = (row.account?.name || '').trim();
+        } else {
+          value = (row.asset?.[lens] || '').trim();
+        }
+        if (value && !valuesSet.has(value)) {
+          valuesSet.add(value);
+          valuesArray.push({ value, label: value });
+        }
+      });
+    }
 
     valuesArray.sort((a, b) => a.label.localeCompare(b.label));
     return NextResponse.json({ values: valuesArray });
