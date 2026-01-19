@@ -47,12 +47,11 @@ const BENCH_OPTIONS = [
 type SeriesData = {
   date: string
   portfolioValue: number
-  investmentValue: number
   netGain: number
   unrealized: number
   realized: number
   income: number
-  costBasisTotal: number
+  originalInvestment: number
   benchmarkValues: Record<string, number>
 }
 
@@ -66,7 +65,6 @@ export default function PerformanceVisualizations() {
   const [selectedBenchmarks, setSelectedBenchmarks] = useState<string[]>([])
   const [metric, setMetric] = useState('totalReturn')
   const [timeSeries, setTimeSeries] = useState<TimeSeries>({})
-  const [totalCostBasis, setTotalCostBasis] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [valuesLoading, setValuesLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -108,7 +106,6 @@ export default function PerformanceVisualizations() {
       cache: 'no-store',
     }).then(res => res.json()).then(data => {
       setTimeSeries(data.series || {})
-      setTotalCostBasis(data.totalCostBasis || 0)
       setLoading(false)
     }).catch(err => {
       console.error(err)
@@ -142,19 +139,19 @@ export default function PerformanceVisualizations() {
   }
 
   const getChartData = () => {
-    if (aggregate || lens === 'total') {
-      // Single series
-      const rawSeries = timeSeries['aggregated'] || []
-      if (rawSeries.length === 0) return []
+    const data: any[] = []
+    const slices = aggregate || lens === 'total' ? ['aggregated'] : Object.keys(timeSeries).filter(key => key !== 'aggregated')
 
-      const first = rawSeries[0]
-      return rawSeries.map(point => {
+    slices.forEach(sliceKey => {
+      const rawSeries = timeSeries[sliceKey] || []
+      if (rawSeries.length === 0) return
+
+      rawSeries.forEach((point, idx) => {
+        if (!data[idx]) data[idx] = { date: point.date }
         let value: number
         switch (metric) {
           case 'totalReturn':
-            const denominator = lens === 'total' ? totalCostBasis : first.costBasisTotal
-            const currentNetGain = (point.investmentValue - point.costBasisTotal) + point.realized + point.income
-            value = denominator > 0 ? (currentNetGain / denominator) * 100 : 0
+            value = point.originalInvestment > 0 ? (point.netGain / point.originalInvestment) * 100 : 0
             break
           case 'portfolioValue':
             value = point.portfolioValue
@@ -174,63 +171,21 @@ export default function PerformanceVisualizations() {
           default:
             value = 0
         }
-        const bmData: Record<string, number> = {}
-        if (metric === 'totalReturn') {
-          selectedBenchmarks.forEach(bm => {
-            const firstBm = first.benchmarkValues[bm] || 1
-            bmData[bm] = firstBm > 0 ? ((point.benchmarkValues[bm] / firstBm) - 1) * 100 : 0
-          })
+        if (aggregate || lens === 'total') {
+          data[idx].Portfolio = value
+          if (metric === 'totalReturn') {
+            selectedBenchmarks.forEach(bm => {
+              const firstBm = rawSeries[0].benchmarkValues[bm] || 1
+              data[idx][bm] = firstBm > 0 ? ((point.benchmarkValues[bm] / firstBm) - 1) * 100 : 0
+            })
+          }
+        } else {
+          data[idx][sliceKey] = value
         }
-        return { date: point.date, Portfolio: value, ...bmData }
       })
-    } else {
-      // Multiple series combined
-      const allSlices = Object.keys(timeSeries).filter(key => key !== 'aggregated')
-      if (allSlices.length === 0) return []
+    })
 
-      const dateMap = new Map<string, { date: string } & Record<string, number>>()
-
-      allSlices.forEach(sliceKey => {
-        const rawSeries = timeSeries[sliceKey] || []
-        if (rawSeries.length === 0) return
-
-        const first = rawSeries[0]
-        rawSeries.forEach(point => {
-          if (!dateMap.has(point.date)) {
-            dateMap.set(point.date, { date: point.date } as { date: string } & Record<string, number>)
-          }
-          let value: number
-          switch (metric) {
-            case 'totalReturn':
-              const sliceFirstCostBasis = first.costBasisTotal || first.portfolioValue
-              const sliceDenominator = lens === 'total' ? totalCostBasis : sliceFirstCostBasis
-              const sliceCurrentNetGain = (point.investmentValue - point.costBasisTotal) + point.realized + point.income
-              value = sliceDenominator > 0 ? (sliceCurrentNetGain / sliceDenominator) * 100 : 0
-              break
-            case 'portfolioValue':
-              value = point.portfolioValue
-              break
-            case 'netGain':
-              value = point.netGain
-              break
-            case 'unrealized':
-              value = point.unrealized
-              break
-            case 'realized':
-              value = point.realized
-              break
-            case 'income':
-              value = point.income
-              break
-            default:
-              value = 0
-          }
-          dateMap.get(point.date)![sliceKey] = value
-        })
-      })
-
-      return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date))
-    }
+    return data
   }
 
   return (
