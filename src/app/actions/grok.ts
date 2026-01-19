@@ -569,7 +569,7 @@ Response Guidelines (follow strictly - NO EXCEPTIONS):
 - For data-driven charts (e.g., performance lines, allocation pies), prefer outputting a Recharts JSON block at the end (nothing around it):
   For line: {"chart": {"type": "line", "data": [{"date": "2021", "NVDA": 202.48, "TSLA": 456.56}, {"date": "2022", "NVDA": 176.99, "TSLA": 430.17}], "options": {"xKey": "date", "yKey": "value", "lines": ["NVDA", "TSLA"]}}}
   For pie: {"chart": {"type": "pie", "data": [{"name": "Bitcoin", "value": 28.2}, {"name": "High Growth Stocks", "value": 25.5}, {"name": "Globally Diversified", "value": 46.3}], "options": {"labelKey": "name", "valueKey": "value"}}}
-  Types: line, bar, pie. Data: Flat array of objects for easy mapping. Use when query needs quantitative viz; fallback to Mermaid for simple diagrams.
+  Types: line, bar, pie. Data: Flat array of objects for easy mapping. Use when query needs quantitative viz; fallback to Mermaid for simple diagrams. For Mermaid flowcharts, use 'graph TD' or 'graph LR', node IDs without spaces, node text in double quotes, avoid HTML tags like <br/>, use \\n for newlines if needed.
 - Be concise yet insightful—aim for clarity over length.
 - End with a short summary or next-step suggestion when relevant.
 - When relevant, use the web_search tool to fetch current news, market data, or sentiment from the web.

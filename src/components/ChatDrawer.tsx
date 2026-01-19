@@ -261,7 +261,7 @@ export function ChatDrawer() {
                                   })
                                   .catch(err => {
                                     console.error('Mermaid render error:', err);
-                                    if (mermaidRef.current) mermaidRef.current.innerHTML = '<p>Mermaid rendering failed</p>';
+                                    if (mermaidRef.current) mermaidRef.current.innerHTML = `<pre class="bg-muted p-4 rounded overflow-x-auto text-sm">Mermaid Rendering Failed\n\n${codeString}</pre>`;
                                   });
                               }
                             }, [codeString]);
