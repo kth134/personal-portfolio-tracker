@@ -154,7 +154,7 @@ export default function PortfolioHoldingsWithSlicers({
     allocations.forEach(slice => {
       (slice.items || []).forEach(item => {
         const currValue = item.value || 0
-        const totalBasis = item.cost_basis || 0
+        const totalBasis = item.cost_basis || (currValue - (item.unrealized || 0))
         const quantity = item.quantity || 0
         rows.push({
           ticker: item.ticker || item.key || 'Unknown',
@@ -328,9 +328,9 @@ export default function PortfolioHoldingsWithSlicers({
                       <span className="text-muted-foreground break-words">{row.name || '-'}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">{row.quantity.toFixed(4)}</TableCell>
-                  <TableCell className="text-right">{formatUSD(row.currPrice)}</TableCell>
-                  <TableCell className="text-right">{formatUSD(row.avgBasis)}</TableCell>
+                  <TableCell className="text-right">{aggregate && lens !== 'total' ? '-' : row.quantity.toFixed(4)}</TableCell>
+                  <TableCell className="text-right">{aggregate && lens !== 'total' ? '-' : formatUSD(row.currPrice)}</TableCell>
+                  <TableCell className="text-right">{aggregate && lens !== 'total' ? '-' : formatUSD(row.avgBasis)}</TableCell>
                   <TableCell className="text-right">{formatUSD(row.totalBasis)}</TableCell>
                   <TableCell className="text-right">{formatUSD(row.currValue)}</TableCell>
                   <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
@@ -338,11 +338,11 @@ export default function PortfolioHoldingsWithSlicers({
               ))}
               <TableRow className="font-semibold bg-muted/30">
                 <TableCell className="w-32">Total</TableCell>
-                <TableCell className="text-right">{totalQuantity.toFixed(4)}</TableCell>
+                <TableCell className="text-right">{aggregate && lens !== 'total' ? '-' : totalQuantity.toFixed(4)}</TableCell>
                 <TableCell className="text-right">-</TableCell>
                 <TableCell className="text-right">-</TableCell>
-                <TableCell className="text-right">{formatUSD(totalBasis)}</TableCell>
-                <TableCell className="text-right">{formatUSD(rows.reduce((sum, r) => sum + r.currValue, 0))}</TableCell>
+                <TableCell className="text-right">{formatUSD(selectedTotalBasis)}</TableCell>
+                <TableCell className="text-right">{formatUSD(selectedTotalValue)}</TableCell>
                 <TableCell className="text-right">100.00%</TableCell>
               </TableRow>
             </TableBody>
