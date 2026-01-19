@@ -38,6 +38,14 @@ export async function POST(req: Request) {
 
     if (!txs || txs.length === 0) return NextResponse.json({ series: {} })
 
+    // Get total cost basis from all tax lots for consistent total return calculation
+    const { data: allLots } = await supabase
+      .from('tax_lots')
+      .select('cost_basis_per_unit, quantity, remaining_quantity')
+      .eq('user_id', user.id)
+    const totalCostBasis = allLots?.reduce((sum, lot) => 
+      sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity)), 0) || 0
+
     // Asset maps
     const assetToTicker = new Map((txs || []).filter(tx => tx.asset).map(tx => [tx.asset.id, tx.asset.ticker]))
     const assetField = (tx: any) => {
@@ -203,7 +211,7 @@ export async function POST(req: Request) {
       series[groupKey] = groupSeries
     }
 
-    return NextResponse.json({ series })
+    return NextResponse.json({ series, totalCostBasis })
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })

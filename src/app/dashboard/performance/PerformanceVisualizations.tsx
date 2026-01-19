@@ -66,6 +66,7 @@ export default function PerformanceVisualizations() {
   const [selectedBenchmarks, setSelectedBenchmarks] = useState<string[]>([])
   const [metric, setMetric] = useState('totalReturn')
   const [timeSeries, setTimeSeries] = useState<TimeSeries>({})
+  const [totalCostBasis, setTotalCostBasis] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [valuesLoading, setValuesLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -107,6 +108,7 @@ export default function PerformanceVisualizations() {
       cache: 'no-store',
     }).then(res => res.json()).then(data => {
       setTimeSeries(data.series || {})
+      setTotalCostBasis(data.totalCostBasis || 0)
       setLoading(false)
     }).catch(err => {
       console.error(err)
@@ -150,9 +152,9 @@ export default function PerformanceVisualizations() {
         let value: number
         switch (metric) {
           case 'totalReturn':
-            const firstCostBasis = first.costBasisTotal || first.portfolioValue
+            const denominator = lens === 'total' ? totalCostBasis : first.costBasisTotal
             const currentNetGain = (point.investmentValue - point.costBasisTotal) + point.realized + point.income
-            value = firstCostBasis > 0 ? (currentNetGain / firstCostBasis) * 100 : 0
+            value = denominator > 0 ? (currentNetGain / denominator) * 100 : 0
             break
           case 'portfolioValue':
             value = point.portfolioValue
@@ -201,8 +203,9 @@ export default function PerformanceVisualizations() {
           switch (metric) {
             case 'totalReturn':
               const sliceFirstCostBasis = first.costBasisTotal || first.portfolioValue
+              const sliceDenominator = lens === 'total' ? totalCostBasis : sliceFirstCostBasis
               const sliceCurrentNetGain = (point.investmentValue - point.costBasisTotal) + point.realized + point.income
-              value = sliceFirstCostBasis > 0 ? (sliceCurrentNetGain / sliceFirstCostBasis) * 100 : 0
+              value = sliceDenominator > 0 ? (sliceCurrentNetGain / sliceDenominator) * 100 : 0
               break
             case 'portfolioValue':
               value = point.portfolioValue
@@ -341,7 +344,7 @@ export default function PerformanceVisualizations() {
       ) : (
         <div className="space-y-4 pl-16">
           <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={getChartData()}>
+            <LineChart data={getChartData()} margin={{ top: 20, right: 30, left: 80, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis tickFormatter={(v) => v !== undefined ? (metric === 'totalReturn' ? `${v.toFixed(1)}%` : formatUSD(v)) : ''} />
