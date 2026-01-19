@@ -98,10 +98,11 @@ export default function PortfolioHoldingsWithSlicers({
   useEffect(() => {
     const load = async () => {
       setLoading(true)
+      // Always request non-aggregated data for table rendering
       const payload = {
         lens,
         selectedValues: lens === 'total' ? [] : selectedValues,
-        aggregate,
+        aggregate: false,
       }
       const res = await fetch('/api/dashboard/allocations', {
         method: 'POST',
@@ -308,7 +309,7 @@ export default function PortfolioHoldingsWithSlicers({
       )}
 
       <div className="overflow-x-auto">
-        <Accordion type="multiple">
+        <Accordion type="multiple" defaultValue={Array.from(groupedRows.keys())}>
           {Array.from(groupedRows).map(([key, groupRows]) => {
             const groupTotalQuantity = groupRows.reduce((sum, r) => sum + r.quantity, 0)
             const groupTotalBasis = groupRows.reduce((sum, r) => sum + r.totalBasis, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0)
