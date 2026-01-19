@@ -81,6 +81,8 @@ export default function PerformanceVisualizations() {
     fetch('/api/dashboard/values', {
       method: 'POST',
       body: JSON.stringify({ lens }),
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
     }).then(res => res.json()).then(data => {
       const vals = data.values || []
       setAvailableValues(vals)
@@ -104,6 +106,8 @@ export default function PerformanceVisualizations() {
       method: 'POST',
       body: JSON.stringify(payload),
       cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
     }).then(res => res.json()).then(data => {
       setTimeSeries(data.series || {})
       setLoading(false)
@@ -129,7 +133,10 @@ export default function PerformanceVisualizations() {
     setRefreshing(true)
     setRefreshMessage(null)
     try {
-      const result = await fetch('/api/fetch-prices').then(res => res.json())
+      const result = await fetch('/api/fetch-prices', {
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      }).then(res => res.json())
       setRefreshMessage(result.message || 'Prices refreshed!')
       setRefreshing(false) // Triggers useEffect
     } catch (err) {

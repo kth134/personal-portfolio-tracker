@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     const txQuery = supabase.from('transactions').select(`
       date, type, amount, fees, funding_source, notes, asset_id, account_id, realized_gain,
       asset:assets (id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolio_id),
-      sub_portfolio:sub_portfolio_id (id, name),
+      sub_portfolios:sub_portfolio_id (id, name),
       account:accounts (id, name)
     `).eq('user_id', user.id).order('date')
 
