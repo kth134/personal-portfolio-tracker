@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { endOfMonth, startOfMonth, addMonths, parseISO, isAfter, format } from 'date-fns'
+import { endOfMonth, startOfMonth, addMonths, parseISO, isAfter, format, formatISO } from 'date-fns'
 
 export async function POST(req: Request) {
   try {
@@ -14,9 +14,7 @@ export async function POST(req: Request) {
     // Base queries (full data, will filter per date later)
     const txQuery = supabase.from('transactions').select(`
       date, type, amount, fees, funding_source, notes, asset_id, account_id, realized_gain,
-      asset:assets (id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolio_id),
-      sub_portfolios:sub_portfolio_id (id, name),
-      account:accounts (id, name)
+      asset:assets (id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolio_id)
     `).eq('user_id', user.id).order('date')
 
     const lotsQuery = supabase.from('tax_lots').select(`
@@ -26,6 +24,8 @@ export async function POST(req: Request) {
 
     const { data: allTx } = await txQuery
     const { data: allLots } = await lotsQuery
+
+    console.log('Fetched transactions count:', allTx?.length || 0);
 
     if (!allTx || allTx.length === 0) return NextResponse.json({ series: {} })
 
@@ -56,11 +56,15 @@ export async function POST(req: Request) {
       nasdaq: 'QQQ',
       intlExUs: 'VXUS',
       gold: 'GLD',
-      bitcoin: 'bitcoin'
+      bitcoin: 'BTC'
     }
     const benchmarkTickers = benchmarks.map((b: string) => benchmarkMap[b]).filter(Boolean)
     const allTickers = [...new Set([...portfolioTickers, ...benchmarkTickers])]
     const historicalPrices = await getHistoricalPrices(allTickers, firstDate, lastDate)
+    const currentPrices = await getCurrentPrices(allTickers);
+    const lastDateStr = formatISO(new Date(), { representation: 'date' });
+
+    console.log('Historical prices keys:', Object.keys(historicalPrices));
 
     // For each date, simulate PerformanceContent calcs with filters
     const series: Record<string, any[]> = {}
@@ -187,7 +191,7 @@ export async function POST(req: Request) {
         let unrealized = 0
         simulatedOpenLots.forEach(lot => {
           const ticker = assetToTicker.get(lot.asset_id) || ''
-          const price = (historicalPrices[ticker] || []).find(p => p.date === d)?.close || 0
+          const price = (d === lastDateStr ? (currentPrices[ticker] || 0) : (historicalPrices[ticker] || []).find(p => p.date === d)?.close || 0);
           marketValue += lot.remaining_quantity * price
           unrealized += lot.remaining_quantity * (price - lot.cost_basis_per_unit)
         })
@@ -205,7 +209,7 @@ export async function POST(req: Request) {
         // Benchmarks
         const bmValues: Record<string, number> = {}
         benchmarkTickers.forEach((bm: string) => {
-          bmValues[bm] = (historicalPrices[bm] || []).find(p => p.date === d)?.close || 0
+          bmValues[bm] = (d === lastDateStr ? (currentPrices[bm] || 0) : (historicalPrices[bm] || []).find(p => p.date === d)?.close || 0);
         })
 
         series[groupKey].push({
@@ -232,14 +236,15 @@ async function getHistoricalPrices(tickers: string[], start: string, end: string
   const supabase = await createClient();
   const prices: Record<string, { date: string, close: number }[]> = {};
 
-  const stocks = tickers.filter(t => t !== 'bitcoin');
-  const cryptos = tickers.filter(t => t === 'bitcoin');
+const stocks = tickers.filter(t => t.toUpperCase() !== 'BTC');
+    const cryptos = tickers.filter(t => t.toUpperCase() === 'BTC');
 
   // Helper to get monthly dates in range
   const getMonthlyDates = (startDate: Date, endDate: Date): string[] => {
     const dates: string[] = [];
     let current = endOfMonth(startOfMonth(startDate));
-    while (current <= endDate) {
+    const todayStr = formatISO(new Date(), { representation: 'date' });
+    while (current < endDate) {
       dates.push(format(current, 'yyyy-MM-dd'));
       current = addMonths(current, 1);
     }
@@ -354,7 +359,7 @@ async function getHistoricalPrices(tickers: string[], start: string, end: string
         const data = await res.json();
         const close = data.market_data?.current_price?.usd || 0;
         prices[c].push({ date: d, close });
-        inserts.push({ ticker: c.toUpperCase(), date: d, close, source: 'coingecko' });
+        inserts.push({ ticker: c, date: d, close, source: 'coingecko' });
       }
       prices[c].sort((a, b) => a.date.localeCompare(b.date));
     }
@@ -364,6 +369,67 @@ async function getHistoricalPrices(tickers: string[], start: string, end: string
   if (inserts.length > 0) {
     const { error } = await supabase.from('historical_prices').insert(inserts);
     if (error) console.error('Historical insert error:', error);
+  }
+
+  return prices;
+}
+
+async function getCurrentPrices(tickers: string[]) {
+  const prices: Record<string, number> = {};
+  const stocks = tickers.filter(t => t.toUpperCase() !== 'BTC'); // Add !='ETH' etc. if more cryptos.
+  const cryptos = tickers.filter(t => t.toUpperCase() === 'BTC');
+
+  // Stocks (Finnhub primary, Alpha fallback)
+  const finnhubKey = process.env.FINNHUB_API_KEY;
+  const alphaKey = process.env.ALPHA_VANTAGE_API_KEY;
+  for (const ticker of stocks) {
+    let price: number | undefined;
+    let source = 'finnhub';
+
+    const finnhubUrl = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${finnhubKey}`;
+    const finnhubRes = await fetch(finnhubUrl);
+    if (finnhubRes.ok) {
+      const data = await finnhubRes.json();
+      price = data.c || data.pc;
+    }
+
+    if (!price || price <= 0) {
+      source = 'alphavantage';
+      const alphaUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${alphaKey}`;
+      const alphaRes = await fetch(alphaUrl);
+      if (alphaRes.ok) {
+        const data = await alphaRes.json();
+        const quote = data['Global Quote'];
+        if (quote && quote['05. price']) {
+          price = parseFloat(quote['05. price']);
+        }
+      }
+    }
+
+    if (price && price > 0) {
+      prices[ticker] = price;
+    } else {
+      console.warn(`No current price for ${ticker}`);
+      prices[ticker] = 0;
+    }
+  }
+
+  // Cryptos (CoinGecko)
+  if (cryptos.length) {
+    const idMap: Record<string, string> = { BTC: 'bitcoin' };
+    const cgIds = cryptos.map(t => idMap[t.toUpperCase()] || t.toLowerCase());
+    const cgUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd`;
+    const cgRes = await fetch(cgUrl);
+    if (cgRes.ok) {
+      const cgPrices = await cgRes.json();
+      cryptos.forEach((t, i) => {
+        const cgId = cgIds[i];
+        const price = cgPrices[cgId]?.usd || 0;
+        prices[t] = price;
+      });
+    } else {
+      console.warn('CoinGecko current fetch failed');
+    }
   }
 
   return prices;

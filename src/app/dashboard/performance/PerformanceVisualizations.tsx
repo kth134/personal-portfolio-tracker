@@ -110,6 +110,7 @@ export default function PerformanceVisualizations() {
       credentials: 'include',
     }).then(res => res.json()).then(data => {
       setTimeSeries(data.series || {})
+      console.log('Fetched timeSeries:', data.series);
       setLoading(false)
     }).catch(err => {
       console.error(err)
