@@ -21,18 +21,18 @@ export default function StrategyTabs() {
         <TabsTrigger value="drift-reporting">Rebalancing</TabsTrigger>
       </TabsList>
       <TabsContent value="targets">
-        <div className="container mx-auto p-6">
-          <p>This page is under construction and will be coming soon.</p>
+        <div className="text-center text-red-600 font-semibold text-lg bg-red-50 p-4 rounded-md border border-red-200">
+          Under Construction
         </div>
       </TabsContent>
       <TabsContent value="glide-path">
-        <div className="container mx-auto p-6">
-          <p>This page is under construction and will be coming soon.</p>
+        <div className="text-center text-red-600 font-semibold text-lg bg-red-50 p-4 rounded-md border border-red-200">
+          Under Construction
         </div>
       </TabsContent>
       <TabsContent value="drift-reporting">
-        <div className="container mx-auto p-6">
-          <p>This page is under construction and will be coming soon.</p>
+        <div className="text-center text-red-600 font-semibold text-lg bg-red-50 p-4 rounded-md border border-red-200">
+          Under Construction
         </div>
       </TabsContent>
     </Tabs>
