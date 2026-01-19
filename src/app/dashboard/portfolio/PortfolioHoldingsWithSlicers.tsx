@@ -154,7 +154,7 @@ export default function PortfolioHoldingsWithSlicers({
     allocations.forEach(slice => {
       (slice.items || []).forEach(item => {
         const currValue = item.value || 0
-        const totalBasis = item.cost_basis || (currValue - (item.unrealized || 0))
+        const totalBasis = item.cost_basis || 0
         const quantity = item.quantity || 0
         rows.push({
           ticker: item.ticker || item.key || 'Unknown',
