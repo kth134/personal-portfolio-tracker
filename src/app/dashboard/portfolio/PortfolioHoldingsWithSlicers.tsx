@@ -199,13 +199,11 @@ export default function PortfolioHoldingsWithSlicers({
 
   const totalQuantity = rows.reduce((sum, r) => sum + r.quantity, 0)
   const totalBasis = rows.reduce((sum, r) => sum + r.totalBasis, 0)
-  const totalAvgBasis = totalQuantity > 0 ? totalBasis / totalQuantity : 0
 
   const selectedTotalBasis = rows.reduce((sum, row) => sum + row.totalBasis, 0) + cash
   const selectedTotalValue = rows.reduce((sum, row) => sum + row.currValue, 0) + cash
 
   const holdingsTotalBasis = selectedTotalBasis - cash
-  const holdingsAvgBasis = totalQuantity > 0 ? holdingsTotalBasis / totalQuantity : 0
 
   const groupedRows = rows.reduce((acc, row) => {
     const key = row.groupKey || 'Aggregated'
@@ -339,10 +337,10 @@ export default function PortfolioHoldingsWithSlicers({
                 </TableRow>
               ))}
               <TableRow className="font-semibold bg-muted/30">
-                <TableCell>Total</TableCell>
+                <TableCell className="w-32">Total</TableCell>
                 <TableCell className="text-right">{totalQuantity.toFixed(4)}</TableCell>
                 <TableCell className="text-right">-</TableCell>
-                <TableCell className="text-right">{formatUSD(totalAvgBasis)}</TableCell>
+                <TableCell className="text-right">-</TableCell>
                 <TableCell className="text-right">{formatUSD(totalBasis)}</TableCell>
                 <TableCell className="text-right">{formatUSD(rows.reduce((sum, r) => sum + r.currValue, 0))}</TableCell>
                 <TableCell className="text-right">100.00%</TableCell>
@@ -354,7 +352,6 @@ export default function PortfolioHoldingsWithSlicers({
             {Array.from(groupedRows).map(([key, groupRows]) => {
               const groupTotalQuantity = groupRows.reduce((sum, r) => sum + r.quantity, 0)
               const groupTotalBasis = groupRows.reduce((sum, r) => sum + r.totalBasis, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0)
-              const groupAvgBasis = groupTotalQuantity > 0 ? groupTotalBasis / groupTotalQuantity : 0
 
               return (
                 <AccordionItem key={key} value={key}>
@@ -408,10 +405,10 @@ export default function PortfolioHoldingsWithSlicers({
                         ) : null
                       })()}
                       <TableRow className="font-semibold bg-muted/30">
-                        <TableCell>Sub-Total</TableCell>
+                        <TableCell className="w-32">Sub-Total</TableCell>
                         <TableCell className="text-right">-</TableCell>
                         <TableCell className="text-right">-</TableCell>
-                        <TableCell className="text-right">{formatUSD(groupAvgBasis)}</TableCell>
+                        <TableCell className="text-right">-</TableCell>
                         <TableCell className="text-right">{formatUSD(groupTotalBasis)}</TableCell>
                         <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.currValue, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0))}</TableCell>
                         <TableCell className="text-right">-</TableCell>
@@ -445,7 +442,7 @@ export default function PortfolioHoldingsWithSlicers({
               <TableCell className="w-32">Holdings Total</TableCell>
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">-</TableCell>
-              <TableCell className="text-right">{formatUSD(holdingsAvgBasis)}</TableCell>
+              <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(holdingsTotalBasis)}</TableCell>
               <TableCell className="text-right">{formatUSD(selectedTotalValue - cash)}</TableCell>
               <TableCell className="text-right">-</TableCell>
