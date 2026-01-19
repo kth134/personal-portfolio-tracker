@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     // All tickers + benchmarks
     const portfolioTickers = [...new Set(allTx.filter(tx => tx.asset_id).map(tx => {
       const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
-      return [asset?.ticker || '']
+      return asset?.ticker || ''
     }))]
     const benchmarkMap: Record<string, string> = {
       sp500: 'SPY',
