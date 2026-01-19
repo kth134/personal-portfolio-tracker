@@ -191,10 +191,12 @@ export async function POST(req: Request) {
         groupSeries.push({
           date: d,
           portfolioValue,
+          investmentValue,
           netGain,
           unrealized,
           realized,
           income,
+          costBasisTotal,
           benchmarkValues: bmValues,
         })
       }

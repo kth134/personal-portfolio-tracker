@@ -47,10 +47,12 @@ const BENCH_OPTIONS = [
 type SeriesData = {
   date: string
   portfolioValue: number
+  investmentValue: number
   netGain: number
   unrealized: number
   realized: number
   income: number
+  costBasisTotal: number
   benchmarkValues: Record<string, number>
 }
 
@@ -148,7 +150,9 @@ export default function PerformanceVisualizations() {
         let value: number
         switch (metric) {
           case 'totalReturn':
-            value = first.portfolioValue > 0 ? ((point.portfolioValue / first.portfolioValue) - 1) * 100 : 0
+            const firstCostBasis = first.costBasisTotal || first.portfolioValue
+            const currentNetGain = (point.investmentValue - point.costBasisTotal) + point.realized + point.income
+            value = firstCostBasis > 0 ? (currentNetGain / firstCostBasis) * 100 : 0
             break
           case 'portfolioValue':
             value = point.portfolioValue
@@ -196,7 +200,9 @@ export default function PerformanceVisualizations() {
           let value: number
           switch (metric) {
             case 'totalReturn':
-              value = first.portfolioValue > 0 ? ((point.portfolioValue / first.portfolioValue) - 1) * 100 : 0
+              const sliceFirstCostBasis = first.costBasisTotal || first.portfolioValue
+              const sliceCurrentNetGain = (point.investmentValue - point.costBasisTotal) + point.realized + point.income
+              value = sliceFirstCostBasis > 0 ? (sliceCurrentNetGain / sliceFirstCostBasis) * 100 : 0
               break
             case 'portfolioValue':
               value = point.portfolioValue
