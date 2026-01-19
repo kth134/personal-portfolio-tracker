@@ -137,47 +137,92 @@ export default function PerformanceVisualizations() {
     }
   }
 
-  const getChartData = (sliceKey: string) => {
-    const rawSeries = timeSeries[sliceKey] || []
-    if (rawSeries.length === 0) return []
+  const getChartData = () => {
+    if (aggregate || lens === 'total') {
+      // Single series
+      const rawSeries = timeSeries['aggregated'] || []
+      if (rawSeries.length === 0) return []
 
-    const first = rawSeries[0]
-    return rawSeries.map(point => {
-      let value: number
-      switch (metric) {
-        case 'totalReturn':
-          value = first.portfolioValue > 0 ? ((point.portfolioValue / first.portfolioValue) - 1) * 100 : 0
-          break
-        case 'portfolioValue':
-          value = point.portfolioValue
-          break
-        case 'netGain':
-          value = point.netGain
-          break
-        case 'unrealized':
-          value = point.unrealized
-          break
-        case 'realized':
-          value = point.realized
-          break
-        case 'income':
-          value = point.income
-          break
-        default:
-          value = 0
-      }
-      const bmData: Record<string, number> = {}
-      if (metric === 'totalReturn') {
-        selectedBenchmarks.forEach(bm => {
-          const firstBm = first.benchmarkValues[bm] || 1
-          bmData[bm] = firstBm > 0 ? ((point.benchmarkValues[bm] / firstBm) - 1) * 100 : 0
+      const first = rawSeries[0]
+      return rawSeries.map(point => {
+        let value: number
+        switch (metric) {
+          case 'totalReturn':
+            value = first.portfolioValue > 0 ? ((point.portfolioValue / first.portfolioValue) - 1) * 100 : 0
+            break
+          case 'portfolioValue':
+            value = point.portfolioValue
+            break
+          case 'netGain':
+            value = point.netGain
+            break
+          case 'unrealized':
+            value = point.unrealized
+            break
+          case 'realized':
+            value = point.realized
+            break
+          case 'income':
+            value = point.income
+            break
+          default:
+            value = 0
+        }
+        const bmData: Record<string, number> = {}
+        if (metric === 'totalReturn') {
+          selectedBenchmarks.forEach(bm => {
+            const firstBm = first.benchmarkValues[bm] || 1
+            bmData[bm] = firstBm > 0 ? ((point.benchmarkValues[bm] / firstBm) - 1) * 100 : 0
+          })
+        }
+        return { date: point.date, Portfolio: value, ...bmData }
+      })
+    } else {
+      // Multiple series combined
+      const allSlices = Object.keys(timeSeries).filter(key => key !== 'aggregated')
+      if (allSlices.length === 0) return []
+
+      const dateMap = new Map<string, { date: string } & Record<string, number>>()
+
+      allSlices.forEach(sliceKey => {
+        const rawSeries = timeSeries[sliceKey] || []
+        if (rawSeries.length === 0) return
+
+        const first = rawSeries[0]
+        rawSeries.forEach(point => {
+          if (!dateMap.has(point.date)) {
+            dateMap.set(point.date, { date: point.date } as { date: string } & Record<string, number>)
+          }
+          let value: number
+          switch (metric) {
+            case 'totalReturn':
+              value = first.portfolioValue > 0 ? ((point.portfolioValue / first.portfolioValue) - 1) * 100 : 0
+              break
+            case 'portfolioValue':
+              value = point.portfolioValue
+              break
+            case 'netGain':
+              value = point.netGain
+              break
+            case 'unrealized':
+              value = point.unrealized
+              break
+            case 'realized':
+              value = point.realized
+              break
+            case 'income':
+              value = point.income
+              break
+            default:
+              value = 0
+          }
+          dateMap.get(point.date)![sliceKey] = value
         })
-      }
-      return { date: point.date, value, ...bmData }
-    })
-  }
+      })
 
-  const slices = Object.keys(timeSeries)
+      return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date))
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -285,31 +330,31 @@ export default function PerformanceVisualizations() {
 
       {loading ? (
         <div className="text-center py-12">Loading performance data...</div>
-      ) : slices.length === 0 ? (
+      ) : getChartData().length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">No data available. Add transactions to generate reports.</div>
       ) : (
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-1">
-          {slices.map((sliceKey, idx) => {
-            const data = getChartData(sliceKey)
-            return (
-              <div key={idx} className="space-y-4 pl-16">
-                <h4 className="font-medium text-center">{sliceKey}</h4>
-                <ResponsiveContainer width="100%" height={400}>
-                  <LineChart data={data}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis tickFormatter={(v) => v !== undefined ? (metric === 'totalReturn' ? `${v.toFixed(1)}%` : formatUSD(v)) : ''} />
-                    <Tooltip formatter={(v: number | undefined) => v !== undefined ? (metric === 'totalReturn' ? `${v.toFixed(2)}%` : formatUSD(v)) : ''} />
-                    <Legend />
-                    <Line type="monotone" dataKey="value" name="Portfolio" stroke={COLORS[0]} />
-                    {metric === 'totalReturn' && selectedBenchmarks.map((bm, i) => (
-                      <Line key={bm} type="monotone" dataKey={bm} name={BENCH_OPTIONS.find(b => b.value === bm)?.label} stroke={COLORS[i + 1]} />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )
-          })}
+        <div className="space-y-4 pl-16">
+          <ResponsiveContainer width="100%" height={400}>
+            <LineChart data={getChartData()}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis tickFormatter={(v) => v !== undefined ? (metric === 'totalReturn' ? `${v.toFixed(1)}%` : formatUSD(v)) : ''} />
+              <Tooltip formatter={(v: number | undefined) => v !== undefined ? (metric === 'totalReturn' ? `${v.toFixed(2)}%` : formatUSD(v)) : ''} />
+              <Legend />
+              {aggregate || lens === 'total' ? (
+                <>
+                  <Line type="monotone" dataKey="Portfolio" stroke={COLORS[0]} />
+                  {metric === 'totalReturn' && selectedBenchmarks.map((bm, i) => (
+                    <Line key={bm} type="monotone" dataKey={bm} name={BENCH_OPTIONS.find(b => b.value === bm)?.label} stroke={COLORS[i + 1]} />
+                  ))}
+                </>
+              ) : (
+                Object.keys(timeSeries).filter(key => key !== 'aggregated').map((sliceKey, i) => (
+                  <Line key={sliceKey} type="monotone" dataKey={sliceKey} name={sliceKey} stroke={COLORS[i % COLORS.length]} />
+                ))
+              )}
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       )}
     </div>
