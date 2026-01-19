@@ -62,6 +62,7 @@ export default function PortfolioHoldingsWithSlicers({
   const [selectedValues, setSelectedValues] = useState<string[]>([])
   const [aggregate, setAggregate] = useState(true)
   const [allocations, setAllocations] = useState<AllocationSlice[]>([])
+  const [pieAllocations, setPieAllocations] = useState<AllocationSlice[]>([])
   const [loading, setLoading] = useState(true)
   const [valuesLoading, setValuesLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -110,7 +111,7 @@ export default function PortfolioHoldingsWithSlicers({
       })
       if (!res.ok) throw new Error('Failed to fetch allocations')
       const data = await res.json()
-      setAllocations(data.allocations || [])
+      setPieAllocations(data.allocations || [])
     }
 
     // Table allocations (always non-aggregated)
@@ -157,11 +158,8 @@ export default function PortfolioHoldingsWithSlicers({
     try {
       const result = await refreshAssetPrices()
       setRefreshMessage(result.message || 'Prices refreshed!')
-      // Reload allocations
-      const payload = { lens, selectedValues: lens === 'total' ? [] : selectedValues, aggregate }
-      const res = await fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload) })
-      const data = await res.json()
-      setAllocations(data.allocations || [])
+      // trigger re-load of pie and table allocations via effect
+      setRefreshTrigger(t => t + 1)
     } catch (err) {
       setRefreshMessage('Error refreshing prices')
     } finally {
@@ -303,19 +301,19 @@ export default function PortfolioHoldingsWithSlicers({
       ) : (
         <div className="flex flex-wrap gap-8 justify-center">
           {/* Pie chart logic: show aggregated if aggregate is true and multiple selections, else show separate */}
-          {aggregate && lens !== 'total' && selectedValues.length > 1 && allocations.length === 1 ? (
+          {aggregate && lens !== 'total' && selectedValues.length > 1 && pieAllocations.length === 1 ? (
             <div className="space-y-4 min-w-0 flex-shrink-0">
-              <h4 className="font-medium text-center">{allocations[0].key}</h4>
+              <h4 className="font-medium text-center">{pieAllocations[0].key}</h4>
               <ResponsiveContainer width="100%" height={300} minWidth={300}>
                 <PieChart>
                   <Pie
-                    data={allocations[0].data}
+                    data={pieAllocations[0].data}
                     dataKey="value"
                     nameKey="subkey"
                     outerRadius={100}
                     label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
                   >
-                    {allocations[0].data.map((_: any, i: number) => (
+                    {pieAllocations[0].data.map((_: any, i: number) => (
                       <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
@@ -325,7 +323,7 @@ export default function PortfolioHoldingsWithSlicers({
               </ResponsiveContainer>
             </div>
           ) : (
-            allocations.map((slice, idx) => (
+            pieAllocations.map((slice, idx) => (
               <div key={idx} className="space-y-4 min-w-0 flex-shrink-0">
                 <h4 className="font-medium text-center">{slice.key}</h4>
                 <ResponsiveContainer width="100%" height={300} minWidth={300}>
@@ -374,6 +372,9 @@ export default function PortfolioHoldingsWithSlicers({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    <TableRow className="bg-black text-white font-semibold">
+                      <TableCell colSpan={7} className="py-2">{key}</TableCell>
+                    </TableRow>
                     {groupRows.map(row => (
                       <TableRow key={row.ticker}>
                         <TableCell className="w-32">
@@ -408,7 +409,7 @@ export default function PortfolioHoldingsWithSlicers({
                         </TableRow>
                       ) : null
                     })()}
-                    <TableRow className="font-semibold bg-muted/30">
+                    <TableRow className="font-semibold bg-gray-200 text-black">
                       <TableCell className="w-32">Sub-Total</TableCell>
                       <TableCell className="text-right">-</TableCell>
                       <TableCell className="text-right">-</TableCell>
