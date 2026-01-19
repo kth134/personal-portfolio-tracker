@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -88,7 +88,7 @@ const LENSES = [
 function PerformanceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const initialLens = searchParams.get('lens') || 'asset';
   const [lens, setLens] = useState(initialLens);
@@ -98,6 +98,8 @@ function PerformanceContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [totalAnnualizedReturnPct, setTotalAnnualizedReturnPct] = useState<number>(0);
+  const [refreshCounter, setRefreshCounter] = useState(0);
+  const requestIdRef = useRef(0);
 
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string>('market_value');
@@ -166,11 +168,8 @@ function PerformanceContent() {
     try {
       const result = await refreshAssetPrices();
       setRefreshMessage(result.message || 'Prices refreshed!');
-      // Force refetch of data
-      // Since we use useEffect on lens only → temporarily change lens and revert
-      const current = lens;
-      setLens('__temp__' as any);
-      setTimeout(() => setLens(current), 100);
+      // Trigger an explicit refetch without mutating `lens`
+      setRefreshCounter((c) => c + 1);
     } catch (err) {
       setRefreshMessage('Refresh failed – check console');
       console.error(err);
@@ -181,6 +180,7 @@ function PerformanceContent() {
 
   useEffect(() => {
     const fetchData = async () => {
+      const currentRequestId = ++requestIdRef.current;
       setLoading(true);
       try {
         // Update URL
@@ -638,12 +638,11 @@ function PerformanceContent() {
           }
         }
 
-        setSummaries(enhanced);
-        setTotalOriginalInvestment(totalOriginalInvestment);
-        setTotalAnnualizedReturnPct(totalAnnualizedReturnPct);
+        if (currentRequestId !== requestIdRef.current) return; // stale response guard
 
         setSummaries(enhanced);
         setTotalOriginalInvestment(totalOriginalInvestment);
+        setTotalAnnualizedReturnPct(totalAnnualizedReturnPct);
       } catch (err) {
         console.error('Performance fetch error:', err);
       } finally {
@@ -652,7 +651,7 @@ function PerformanceContent() {
     };
 
     fetchData();
-  }, [lens, supabase, router, searchParams]);
+  }, [lens, supabase, router, searchParams, refreshCounter]);
 
   const totalNet = summaries.reduce((sum, r) => sum + r.net_gain, 0);
   const totalUnrealized = summaries.reduce((sum, r) => sum + r.unrealized_gain, 0);
