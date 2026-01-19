@@ -93,122 +93,272 @@ export async function POST(req: Request) {
       dates.push(lastDate)
     }
 
-    // All tickers: portfolio + benchmarks
-    const portfolioTickers = [...new Set(Array.from(groups.values()).flat().filter(tx => tx.asset_id).map(tx => assetToTicker.get(tx.asset_id) || ''))]
-    const benchmarkMap: Record<string, string> = {
-      sp500: 'SPY',
-      nasdaq: 'QQQ',
-      intlExUs: 'VXUS',
-      gold: 'GLD',
-      bitcoin: 'bitcoin'
-    }
-    const benchmarkTickers = (benchmarks as string[]).map((b: string) => benchmarkMap[b]).filter(Boolean)
-    const allTickers = [...new Set([...portfolioTickers, ...benchmarkTickers])]
-    const historicalPrices = await getHistoricalPrices(allTickers, firstDate, lastDate)
-
-    // Simulate for each group
+    // For each date, calculate metrics using performance tab logic with date filter
     const series: Record<string, any[]> = {}
-    for (const [groupKey, groupTxs] of groups) {
-      const groupSeries: any[] = []
-      for (const d of dates) {
-        const pastTx = groupTxs.filter(tx => tx.date <= d)
-        let lots = new Map<string, { qty: number, basis: number }[]>()
-        let cash = 0
-        let invested = 0
-        let realized = 0
-        let income = 0
-        let costBasisTotal = 0
+    const allGroups = new Map<string, any[]>()
 
-        pastTx.forEach(tx => {
-          const assetId = tx.asset_id
-          const amt = Number(tx.amount || 0)
-          const fee = Number(tx.fees || 0)
-          const qty = Number(tx.quantity || 0)
-          const prc = Number(tx.price_per_unit || 0)
+    // Get accounts for cash calculation
+    const { data: accountsData } = await supabase
+      .from('accounts')
+      .select('id, name')
+      .eq('user_id', user.id)
 
-          switch (tx.type) {
-            case 'Buy':
-              const cost = qty * prc + fee
-              if (tx.funding_source === 'cash') {
-                cash -= cost
-              } else {
-                invested += cost
-              }
-              if (!lots.has(assetId)) lots.set(assetId, [])
-              lots.get(assetId)!.push({ qty, basis: prc })
-              costBasisTotal += qty * prc
-              break
-            case 'Sell':
-              cash += amt - fee
-              realized += Number(tx.realized_gain || 0)
-              if (lots.has(assetId)) {
-                let remain = qty
-                const assetLots = lots.get(assetId)!
-                for (let i = 0; i < assetLots.length && remain > 0; i++) {
-                  const lotQty = assetLots[i].qty
-                  if (lotQty > remain) {
-                    assetLots[i].qty -= remain
-                    costBasisTotal -= remain * assetLots[i].basis
-                    remain = 0
-                  } else {
-                    remain -= lotQty
-                    costBasisTotal -= lotQty * assetLots[i].basis
-                    assetLots[i].qty = 0
-                  }
-                }
-                lots.set(assetId, assetLots.filter(l => l.qty > 0))
-              }
-              break
-            case 'Dividend':
-            case 'Interest':
-              cash += amt
-              income += amt
-              break
-            case 'Deposit':
-              cash += amt
-              invested += amt
-              break
-            case 'Withdrawal':
-              cash -= Math.abs(amt)
-              invested -= Math.abs(amt)
-              break
-          }
-        })
+    const accountIdToName = new Map<string, string>()
+    accountsData?.forEach(account => {
+      accountIdToName.set(account.id, account.name.trim())
+    })
 
-        // Investment value
-        let investmentValue = 0
-        for (const [assetId, assetLots] of lots) {
-          const ticker = assetToTicker.get(assetId) || ''
-          const prices = historicalPrices[ticker] || []
-          const priceObj = prices.find((p: any) => p.date === d)
-          const price = priceObj?.close || 0
-          investmentValue += assetLots.reduce((sum, l) => sum + l.qty * price, 0)
+    for (const d of dates) {
+      // Filter transactions up to this date
+      const transactionsUpToD = txs.filter(tx => tx.date <= d)
+
+      // Calculate cash balances up to this date
+      const cashBalances = new Map<string, number>()
+      transactionsUpToD.forEach((tx: any) => {
+        if (!tx.account_id) return
+        // Skip automatic deposits for external buys
+        if (tx.notes === 'Auto-deposit for external buy') {
+          return
         }
+        const current = cashBalances.get(tx.account_id) || 0
+        let delta = 0
+        const amt = Number(tx.amount || 0)
+        const fee = Number(tx.fees || 0)
+        switch (tx.type) {
+          case 'Buy':
+            if (tx.funding_source === 'cash') {
+              delta -= (Math.abs(amt) + fee)
+            }
+            break
+          case 'Sell':
+            delta += (amt - fee)
+            break
+          case 'Dividend':
+          case 'Interest':
+            delta += amt
+            break
+          case 'Deposit':
+            delta += amt
+            break
+          case 'Withdrawal':
+            delta -= Math.abs(amt)
+            break
+        }
+        const newBalance = current + delta
+        cashBalances.set(tx.account_id, newBalance)
+      })
+      const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
 
-        const portfolioValue = investmentValue + cash
-        const unrealized = investmentValue - costBasisTotal
-        const netGain = portfolioValue - invested
+      // Simulate tax lots up to this date
+      const simulatedLots = new Map<string, Array<{ asset_id: string, quantity: number, cost_basis_per_unit: number, remaining_quantity: number }>>()
+      transactionsUpToD.forEach((tx: any) => {
+        if (!tx.asset_id) return
+        const assetId = tx.asset_id
+        const qty = Number(tx.quantity || 0)
+        const prc = Number(tx.price_per_unit || 0)
+        const amt = Number(tx.amount || 0)
 
-        const bmValues: Record<string, number> = {}
-        benchmarkTickers.forEach((bm: string) => {
-          const prices = historicalPrices[bm] || []
-          const priceObj = prices.find((p: any) => p.date === d)
-          bmValues[bm] = priceObj?.close || 0
+        if (!simulatedLots.has(assetId)) simulatedLots.set(assetId, [])
+
+        switch (tx.type) {
+          case 'Buy':
+            simulatedLots.get(assetId)!.push({
+              asset_id: assetId,
+              quantity: qty,
+              cost_basis_per_unit: prc,
+              remaining_quantity: qty
+            })
+            break
+          case 'Sell':
+            // FIFO
+            let remaining = qty
+            const lots = simulatedLots.get(assetId)!
+            for (let i = 0; i < lots.length && remaining > 0; i++) {
+              const lot = lots[i]
+              if (lot.remaining_quantity > remaining) {
+                lot.remaining_quantity -= remaining
+                remaining = 0
+              } else {
+                remaining -= lot.remaining_quantity
+                lot.remaining_quantity = 0
+              }
+            }
+            // Remove fully sold lots
+            simulatedLots.set(assetId, lots.filter(l => l.remaining_quantity > 0))
+            break
+        }
+      })
+
+      // Flatten simulated lots
+      const allSimulatedLots = Array.from(simulatedLots.values()).flat()
+
+      // Calculate performance summaries from transactions up to this date
+      const performanceSummaries = new Map<string, { realized_gain: number, dividends: number, interest: number, fees: number }>()
+      transactionsUpToD.forEach((tx: any) => {
+        const asset = tx.asset
+        let groupId: string | null = null
+        switch (lens) {
+          case 'asset': groupId = tx.asset_id; break
+          case 'account': groupId = tx.account_id; break
+          case 'sub_portfolio': groupId = asset?.sub_portfolio_id || null; break
+          case 'asset_type': groupId = asset?.asset_type || null; break
+          case 'asset_subtype': groupId = asset?.asset_subtype || null; break
+          case 'geography': groupId = asset?.geography || null; break
+          case 'size_tag': groupId = asset?.size_tag || null; break
+          case 'factor_tag': groupId = asset?.factor_tag || null; break
+        }
+        if (!groupId) return
+
+        if (!performanceSummaries.has(groupId)) {
+          performanceSummaries.set(groupId, { realized_gain: 0, dividends: 0, interest: 0, fees: 0 })
+        }
+        const summary = performanceSummaries.get(groupId)!
+
+        if (tx.type === 'Sell') {
+          summary.realized_gain += Number(tx.realized_gain || 0)
+        } else if (tx.type === 'Dividend') {
+          summary.dividends += Number(tx.amount || 0)
+        } else if (tx.type === 'Interest') {
+          summary.interest += Number(tx.amount || 0)
+        }
+        summary.fees += Number(tx.fees || 0)
+      })
+
+      // Get historical prices for this date
+      const tickers = Array.from(new Set(allSimulatedLots.map(lot => assetToTicker.get(lot.asset_id) || '').filter(Boolean)))
+      const historicalPrices = await getHistoricalPricesForDate(tickers, d)
+
+      // Calculate metrics for each group
+      const metricsByGroup = new Map<string, { market_value: number, unrealized_gain: number, realized_gain: number, dividends: number, interest: number, fees: number, net_gain: number, total_cost_basis: number }>()
+      
+      // Get possible groupings
+      const possibleGroupings = new Map<string, { displayName: string }>()
+      allSimulatedLots.forEach((lot: any) => {
+        const asset = txs.find(tx => tx.asset_id === lot.asset_id)?.asset
+        let groupId: string | null = null
+        let displayName = ''
+        switch (lens) {
+          case 'asset':
+            groupId = lot.asset_id
+            displayName = asset ? `${asset.ticker}${asset.name ? ` - ${asset.name}` : ''}` : lot.asset_id
+            break
+          case 'account':
+            // For asset-level, account is not relevant, but we need to handle
+            groupId = lot.asset_id // Use asset for now
+            displayName = asset ? `${asset.ticker}` : lot.asset_id
+            break
+          case 'sub_portfolio':
+            groupId = asset?.sub_portfolio_id || null
+            displayName = groupId || '(no sub-portfolio)'
+            break
+          case 'asset_type':
+            groupId = asset?.asset_type || null
+            displayName = groupId || '(no type)'
+            break
+          case 'asset_subtype':
+            groupId = asset?.asset_subtype || null
+            displayName = groupId || '(no subtype)'
+            break
+          case 'geography':
+            groupId = asset?.geography || null
+            displayName = groupId || '(no geography)'
+            break
+          case 'size_tag':
+            groupId = asset?.size_tag || null
+            displayName = groupId || '(no size)'
+            break
+          case 'factor_tag':
+            groupId = asset?.factor_tag || null
+            displayName = groupId || '(no factor)'
+            break
+        }
+        if (groupId && !possibleGroupings.has(groupId)) {
+          possibleGroupings.set(groupId, { displayName })
+        }
+      })
+
+      // Calculate metrics for each group
+      possibleGroupings.forEach((group, groupId) => {
+        const lotsInGroup = allSimulatedLots.filter((lot: any) => {
+          const asset = txs.find(tx => tx.asset_id === lot.asset_id)?.asset
+          let lotGroupId: string | null = null
+          switch (lens) {
+            case 'asset': lotGroupId = lot.asset_id; break
+            case 'account': lotGroupId = lot.asset_id; break // Simplified
+            case 'sub_portfolio': lotGroupId = asset?.sub_portfolio_id || null; break
+            case 'asset_type': lotGroupId = asset?.asset_type || null; break
+            case 'asset_subtype': lotGroupId = asset?.asset_subtype || null; break
+            case 'geography': lotGroupId = asset?.geography || null; break
+            case 'size_tag': lotGroupId = asset?.size_tag || null; break
+            case 'factor_tag': lotGroupId = asset?.factor_tag || null; break
+          }
+          return lotGroupId === groupId
         })
 
-        groupSeries.push({
+        let marketValue = 0
+        let totalCostBasis = 0
+        lotsInGroup.forEach((lot: any) => {
+          const ticker = assetToTicker.get(lot.asset_id) || ''
+          const price = historicalPrices[ticker] || 0
+          marketValue += lot.remaining_quantity * price
+          totalCostBasis += lot.remaining_quantity * lot.cost_basis_per_unit
+        })
+
+        const unrealizedGain = marketValue - totalCostBasis
+        const summary = performanceSummaries.get(groupId) || { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
+        const netGain = unrealizedGain + summary.realized_gain + summary.dividends + summary.interest
+
+        metricsByGroup.set(groupId, {
+          market_value: marketValue,
+          unrealized_gain: unrealizedGain,
+          realized_gain: summary.realized_gain,
+          dividends: summary.dividends,
+          interest: summary.interest,
+          fees: summary.fees,
+          net_gain: netGain,
+          total_cost_basis: totalCostBasis
+        })
+      })
+
+      // For aggregated/total
+      if (aggregate || lens === 'total') {
+        const totalMarketValue = Array.from(metricsByGroup.values()).reduce((sum, m) => sum + m.market_value, 0)
+        const totalUnrealized = Array.from(metricsByGroup.values()).reduce((sum, m) => sum + m.unrealized_gain, 0)
+        const totalRealized = Array.from(metricsByGroup.values()).reduce((sum, m) => sum + m.realized_gain, 0)
+        const totalDividends = Array.from(metricsByGroup.values()).reduce((sum, m) => sum + m.dividends, 0)
+        const totalInterest = Array.from(metricsByGroup.values()).reduce((sum, m) => sum + m.interest, 0)
+        const totalNet = totalUnrealized + totalRealized + totalDividends + totalInterest
+        const totalCostBasis = Array.from(metricsByGroup.values()).reduce((sum, m) => sum + m.total_cost_basis, 0)
+
+        if (!series['aggregated']) series['aggregated'] = []
+        series['aggregated'].push({
           date: d,
-          portfolioValue,
-          investmentValue,
-          netGain,
-          unrealized,
-          realized,
-          income,
-          costBasisTotal,
-          benchmarkValues: bmValues,
+          portfolioValue: totalMarketValue + totalCash,
+          investmentValue: totalMarketValue,
+          netGain: totalNet,
+          unrealized: totalUnrealized,
+          realized: totalRealized,
+          income: totalDividends + totalInterest,
+          costBasisTotal: totalCostBasis,
+          benchmarkValues: {} // TODO
+        })
+      } else {
+        // For each group
+        metricsByGroup.forEach((metrics, groupId) => {
+          if (!series[groupId]) series[groupId] = []
+          series[groupId].push({
+            date: d,
+            portfolioValue: metrics.market_value + (lens === 'account' ? (cashBalances.get(groupId) || 0) : 0),
+            investmentValue: metrics.market_value,
+            netGain: metrics.net_gain,
+            unrealized: metrics.unrealized_gain,
+            realized: metrics.realized_gain,
+            income: metrics.dividends + metrics.interest,
+            costBasisTotal: metrics.total_cost_basis,
+            benchmarkValues: {}
+          })
         })
       }
-      series[groupKey] = groupSeries
     }
 
     return NextResponse.json({ series, totalCostBasis })
@@ -218,142 +368,84 @@ export async function POST(req: Request) {
   }
 }
 
-async function getHistoricalPrices(tickers: string[], start: string, end: string) {
+async function getHistoricalPricesForDate(tickers: string[], date: string) {
   const supabase = await createClient();
-  const prices: Record<string, { date: string, close: number }[]> = {};
+  const prices: Record<string, number> = {};
 
   const stocks = tickers.filter(t => t !== 'bitcoin');
   const cryptos = tickers.filter(t => t === 'bitcoin');
 
-  // Helper to get monthly dates in range
-  const getMonthlyDates = (startDate: Date, endDate: Date): string[] => {
-    const dates: string[] = [];
-    let current = endOfMonth(startOfMonth(startDate));
-    while (current <= endDate) {
-      dates.push(format(current, 'yyyy-MM-dd'));
-      current = addMonths(current, 1);
-    }
-    return dates;
-  };
-
-  const startDate = parseISO(start);
-  const endDate = parseISO(end);
-  const neededDates = getMonthlyDates(startDate, endDate);
-
-  // Fetch from DB first
-  if (tickers.length > 0 && neededDates.length > 0) {
+  // Try to get from DB first
+  if (tickers.length > 0) {
     const { data: dbPrices, error } = await supabase
       .from('historical_prices')
-      .select('ticker, date, close')
+      .select('ticker, close')
       .in('ticker', tickers)
-      .in('date', neededDates)
-      .order('date');
+      .eq('date', date);
 
     if (error) console.error('DB historical fetch error:', error);
 
     dbPrices?.forEach(p => {
-      if (!prices[p.ticker]) prices[p.ticker] = [];
-      prices[p.ticker].push({ date: p.date, close: Number(p.close) });
+      prices[p.ticker] = Number(p.close);
     });
   }
 
-  // Find and fetch gaps
-  const inserts: { ticker: string, date: string, close: number, source: string }[] = [];
+  // For missing prices, fetch from APIs
+  const missingStocks = stocks.filter(t => !prices[t]);
+  const missingCryptos = cryptos.filter(t => !prices[t]);
 
-  if (stocks.length) {
+  if (missingStocks.length > 0) {
+    // Use Finnhub or Alpha Vantage
     const finnhubKey = process.env.FINNHUB_API_KEY;
-    const alphaKey = process.env.ALPHA_VANTAGE_API_KEY;
-    if (!finnhubKey) throw new Error('Missing FINNHUB_API_KEY');
-    if (!alphaKey) throw new Error('Missing ALPHA_VANTAGE_API_KEY');
-
-    for (const t of stocks) {
-      if (!prices[t]) prices[t] = [];
-      const existingDates = new Set(prices[t].map(p => p.date));
-      if (existingDates.size === neededDates.length) continue; // No gaps
-
-      let fetchedData: { date: string, close: number }[] = [];
-      let source = 'finnhub';
-
-      // Finnhub primary
-      const fromUnix = Math.floor(startDate.getTime() / 1000);
-      const toUnix = Math.floor(endDate.getTime() / 1000);
-      const finnhubUrl = `https://finnhub.io/api/v1/stock/candle?symbol=${t}&resolution=M&from=${fromUnix}&to=${toUnix}&token=${finnhubKey}`;
-      const finnhubRes = await fetch(finnhubUrl);
-      if (finnhubRes.ok) {
-        const finnhubData = await finnhubRes.json();
-        if (finnhubData.c && finnhubData.t) {
-          finnhubData.t.forEach((timestamp: number, i: number) => {
-            const dateStr = new Date(timestamp * 1000).toISOString().slice(0, 10);
-            if (neededDates.includes(dateStr)) {
-              fetchedData.push({ date: dateStr, close: finnhubData.c[i] });
+    if (finnhubKey) {
+      for (const t of missingStocks) {
+        try {
+          const fromUnix = Math.floor(parseISO(date).getTime() / 1000);
+          const toUnix = fromUnix + 86400; // Next day
+          const finnhubUrl = `https://finnhub.io/api/v1/stock/candle?symbol=${t}&resolution=D&from=${fromUnix}&to=${toUnix}&token=${finnhubKey}`;
+          const finnhubRes = await fetch(finnhubUrl);
+          if (finnhubRes.ok) {
+            const finnhubData = await finnhubRes.json();
+            if (finnhubData.c && finnhubData.c.length > 0) {
+              prices[t] = finnhubData.c[0];
+              // Insert into DB
+              await supabase.from('historical_prices').insert({
+                ticker: t,
+                date,
+                close: finnhubData.c[0],
+                source: 'finnhub'
+              });
             }
+          }
+        } catch (e) {
+          console.error(`Finnhub failed for ${t}:`, e);
+        }
+      }
+    }
+  }
+
+  if (missingCryptos.length > 0) {
+    for (const c of missingCryptos) {
+      try {
+        const dateParts = date.split('-').reverse().join('-'); // To dd-MM-yyyy for CoinGecko
+        const url = `https://api.coingecko.com/api/v3/coins/${c}/history?date=${dateParts}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          const close = data.market_data?.current_price?.usd || 0;
+          prices[c] = close;
+          // Insert into DB
+          await supabase.from('historical_prices').insert({
+            ticker: c,
+            date,
+            close,
+            source: 'coingecko'
           });
         }
-      } else {
-        console.warn(`Finnhub failed for ${t}: ${finnhubRes.status}`);
+      } catch (e) {
+        console.error(`CoinGecko failed for ${c}:`, e);
       }
-
-      // Alpha Vantage fallback
-      if (fetchedData.length === 0) {
-        source = 'alphavantage';
-        const alphaUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY&symbol=${t}&apikey=${alphaKey}`;
-        const alphaRes = await fetch(alphaUrl);
-        if (alphaRes.ok) {
-          const alphaData = await alphaRes.json();
-          const timeSeries = alphaData['Monthly Time Series'];
-          if (timeSeries) {
-            Object.keys(timeSeries).forEach(dateStr => {
-              if (neededDates.includes(dateStr)) {
-                const close = parseFloat(timeSeries[dateStr]['4. close']);
-                fetchedData.push({ date: dateStr, close });
-              }
-            });
-          }
-        } else {
-          console.warn(`Alpha Vantage failed for ${t}: ${alphaRes.status}`);
-        }
-      }
-
-      // Add to prices and inserts
-      fetchedData.forEach(item => {
-        if (!existingDates.has(item.date)) {
-          prices[t].push(item);
-          inserts.push({ ticker: t, date: item.date, close: item.close, source });
-        }
-      });
-      prices[t].sort((a, b) => a.date.localeCompare(b.date));
     }
-  }
-
-  if (cryptos.length) {
-    for (const c of cryptos) {
-      const id = c.toLowerCase();
-      if (!prices[c]) prices[c] = [];
-      const existingDates = new Set(prices[c].map(p => p.date));
-
-      for (const d of neededDates) {
-        if (existingDates.has(d)) continue;
-
-        const dateParts = d.split('-').reverse().join('-'); // To dd-MM-yyyy for CoinGecko
-        const url = `https://api.coingecko.com/api/v3/coins/${id}/history?date=${dateParts}`;
-        const res = await fetch(url);
-        if (!res.ok) {
-          console.warn(`CoinGecko failed for ${c} on ${d}`);
-          continue;
-        }
-        const data = await res.json();
-        const close = data.market_data?.current_price?.usd || 0;
-        prices[c].push({ date: d, close });
-        inserts.push({ ticker: c.toUpperCase(), date: d, close, source: 'coingecko' });
-      }
-      prices[c].sort((a, b) => a.date.localeCompare(b.date));
-    }
-  }
-
-  // Batch insert new prices
-  if (inserts.length > 0) {
-    const { error } = await supabase.from('historical_prices').insert(inserts);
-    if (error) console.error('Historical insert error:', error);
   }
 
   return prices;
