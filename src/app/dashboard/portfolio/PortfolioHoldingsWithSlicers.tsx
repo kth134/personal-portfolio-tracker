@@ -390,7 +390,7 @@ export default function PortfolioHoldingsWithSlicers({
 
             return (
               <AccordionItem key={key} value={key}>
-                <AccordionTrigger className="bg-black text-white font-semibold px-4 py-2 hover:bg-gray-800">
+                <AccordionTrigger className="bg-black text-white font-semibold px-4 py-2 hover:bg-gray-800 [&>svg]:text-white [&>svg]:stroke-2 [&>svg]:w-5 [&>svg]:h-5">
                   {key}
                 </AccordionTrigger>
                 <AccordionContent>
