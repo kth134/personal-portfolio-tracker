@@ -223,12 +223,6 @@ export default function PortfolioHoldingsWithSlicers({
       })
     })
 
-    // Calculate weights
-    const totalHoldingsValue = rows.reduce((sum, r) => sum + r.currValue, 0)
-    rows.forEach(row => {
-      row.weight = totalHoldingsValue > 0 ? (row.currValue / totalHoldingsValue) * 100 : 0
-    })
-
     // Sort rows if sorting is active
     if (sortColumn) {
       rows.sort((a, b) => {
@@ -256,6 +250,11 @@ export default function PortfolioHoldingsWithSlicers({
   // Portfolio total basis: add portfolio cash if not account lens
   const selectedTotalBasis = totalBasis + (lens === 'account' ? 0 : cash)
   const selectedTotalValue = rows.reduce((sum, row) => sum + row.currValue, 0) + cash
+
+  // Calculate weights based on total portfolio value
+  rows.forEach(row => {
+    row.weight = selectedTotalValue > 0 ? (row.currValue / selectedTotalValue) * 100 : 0
+  })
 
   const holdingsTotalBasis = selectedTotalBasis - cash
 
@@ -387,6 +386,8 @@ export default function PortfolioHoldingsWithSlicers({
           {Array.from(groupedRows).map(([key, groupRows]) => {
             const groupTotalQuantity = groupRows.reduce((sum, r) => sum + r.quantity, 0)
             const groupTotalBasis = groupRows.reduce((sum, r) => sum + r.totalBasis, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0)
+            const groupCurrValue = groupRows.reduce((sum, r) => sum + r.currValue, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0)
+            const groupWeight = selectedTotalValue > 0 ? (groupCurrValue / selectedTotalValue) * 100 : 0
 
             return (
               <AccordionItem key={key} value={key}>
@@ -425,6 +426,7 @@ export default function PortfolioHoldingsWithSlicers({
                     ))}
                     {lens === 'account' && (() => {
                       const accountCash = cashByAccountName.get(key) || 0
+                      const cashWeight = selectedTotalValue > 0 ? (accountCash / selectedTotalValue) * 100 : 0
                       return accountCash > 0 ? (
                         <TableRow key="cash">
                           <TableCell className="w-32">
@@ -437,7 +439,7 @@ export default function PortfolioHoldingsWithSlicers({
                           <TableCell className="text-right">-</TableCell>
                           <TableCell className="text-right">{formatUSD(accountCash)}</TableCell>
                           <TableCell className="text-right">{formatUSD(accountCash)}</TableCell>
-                          <TableCell className="text-right">-</TableCell>
+                          <TableCell className="text-right">{cashWeight.toFixed(2)}%</TableCell>
                         </TableRow>
                       ) : null
                     })()}
@@ -447,8 +449,8 @@ export default function PortfolioHoldingsWithSlicers({
                       <TableCell className="text-right">-</TableCell>
                       <TableCell className="text-right">-</TableCell>
                       <TableCell className="text-right">{formatUSD(groupTotalBasis)}</TableCell>
-                      <TableCell className="text-right">{formatUSD(groupRows.reduce((sum, r) => sum + r.currValue, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0))}</TableCell>
-                      <TableCell className="text-right">-</TableCell>
+                      <TableCell className="text-right">{formatUSD(groupCurrValue)}</TableCell>
+                      <TableCell className="text-right">{groupWeight.toFixed(2)}%</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
@@ -480,7 +482,7 @@ export default function PortfolioHoldingsWithSlicers({
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(holdingsTotalBasis)}</TableCell>
               <TableCell className="text-right">{formatUSD(selectedTotalValue - cash)}</TableCell>
-              <TableCell className="text-right">-</TableCell>
+              <TableCell className="text-right">{selectedTotalValue > 0 ? ((selectedTotalValue - cash) / selectedTotalValue * 100).toFixed(2) : '0.00'}%</TableCell>
             </TableRow>
             {!(lens === 'account' && !aggregate) && (
               <TableRow className="font-bold bg-muted/50">
@@ -490,7 +492,7 @@ export default function PortfolioHoldingsWithSlicers({
                 <TableCell className="text-right">-</TableCell>
                 <TableCell className="text-right">{formatUSD(cash)}</TableCell>
                 <TableCell className="text-right">{formatUSD(cash)}</TableCell>
-                <TableCell className="text-right">-</TableCell>
+                <TableCell className="text-right">{selectedTotalValue > 0 ? (cash / selectedTotalValue * 100).toFixed(2) : '0.00'}%</TableCell>
               </TableRow>
             )}
             <TableRow className="font-bold text-lg">
@@ -500,7 +502,7 @@ export default function PortfolioHoldingsWithSlicers({
               <TableCell className="text-right">-</TableCell>
               <TableCell className="text-right">{formatUSD(selectedTotalBasis)}</TableCell>
               <TableCell className="text-right">{formatUSD(selectedTotalValue)}</TableCell>
-              <TableCell className="text-right">-</TableCell>
+              <TableCell className="text-right">100.00%</TableCell>
             </TableRow>
           </TableBody>
         </Table>
