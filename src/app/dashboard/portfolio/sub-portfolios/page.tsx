@@ -1,8 +1,21 @@
-export default function SubPortfolios() {
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import SubPortfoliosList from '@/components/SubPortfoliosList'
+
+export default async function SubPortfoliosPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/')
+
+  const { data: initialSubPortfolios } = await supabase
+    .from('sub_portfolios')
+    .select('*')
+    .eq('user_id', user.id)
+
   return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Sub-Portfolios</h1>
-      <p>This page is under construction and will be coming soon.</p>
-    </div>
-  );
+    <main className="p-8">
+      <h1 className="text-3xl font-bold mb-8">Sub-Portfolios</h1>
+      <SubPortfoliosList initialSubPortfolios={initialSubPortfolios || []} />
+    </main>
+  )
 }
