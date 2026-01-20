@@ -946,7 +946,6 @@ function PerformanceContent() {
                 {/* Total row */}
                 <TableRow className="border-t-2 font-semibold bg-muted/50">
                   <TableCell className="font-bold break-words">Total</TableCell>
-                  <TableCell className="text-right font-bold">100.00%</TableCell>
                   {lens === 'asset' && <TableCell className="text-right">-</TableCell>}
                   <TableCell className="text-right font-bold">{formatUSD(totals.market_value)}</TableCell>
                   <TableCell 
