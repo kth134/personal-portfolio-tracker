@@ -73,6 +73,9 @@ export default function PortfolioHoldingsWithSlicers({
   const [sortColumn, setSortColumn] = useState<keyof HoldingRow | null>('currValue')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
+  // Accordion state
+  const [openItems, setOpenItems] = useState<string[]>([])
+
   useEffect(() => {
     if (lens === 'total') {
       setAvailableValues([])
@@ -136,6 +139,37 @@ export default function PortfolioHoldingsWithSlicers({
     // Load pie charts first, then tables
     loadPieCharts().then(loadTables)
   }, [lens, selectedValues, aggregate, refreshTrigger])
+
+  useEffect(() => {
+    // Set open items to all group keys when allocations change
+    const rows: HoldingRow[] = []
+    allocations.forEach(slice => {
+      (slice.items || []).forEach(item => {
+        const currValue = item.value || 0
+        const totalBasis = (item.cost_basis || 0) + (lens === 'account' ? (cashByAccountName.get(item.key || '') || 0) : 0)
+        const quantity = item.quantity || 0
+        rows.push({
+          ticker: item.ticker || item.key || 'Unknown',
+          name: item.name || null,
+          quantity,
+          avgBasis: quantity > 0 ? totalBasis / quantity : 0,
+          totalBasis,
+          currPrice: quantity > 0 ? currValue / quantity : 0,
+          currValue,
+          unrealized: item.unrealized || (currValue - totalBasis),
+          weight: 0, // placeholder
+          groupKey: slice.key,
+        })
+      })
+    })
+    const groupedRows = rows.reduce((acc, row) => {
+      const key = row.groupKey || 'Aggregated'
+      if (!acc.has(key)) acc.set(key, [])
+      acc.get(key)!.push(row)
+      return acc
+    }, new Map<string, HoldingRow[]>())
+    setOpenItems(Array.from(groupedRows.keys()))
+  }, [allocations, lens, cashByAccountName])
 
   const toggleValue = (value: string) => {
     setSelectedValues(prev =>
@@ -350,7 +384,7 @@ export default function PortfolioHoldingsWithSlicers({
       )}
 
       <div className="overflow-x-auto">
-        <Accordion type="multiple" defaultValue={Array.from(groupedRows.keys())}>
+        <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
           {Array.from(groupedRows).map(([key, groupRows]) => {
             const groupTotalQuantity = groupRows.reduce((sum, r) => sum + r.quantity, 0)
             const groupTotalBasis = groupRows.reduce((sum, r) => sum + r.totalBasis, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0)
@@ -358,7 +392,7 @@ export default function PortfolioHoldingsWithSlicers({
             return (
               <AccordionItem key={key} value={key}>
                 <AccordionTrigger>{key}</AccordionTrigger>
-                <AccordionContent forceMount>{/* Always expanded */}
+                <AccordionContent>
                   <Table>
                   <TableHeader>
                     <TableRow>
