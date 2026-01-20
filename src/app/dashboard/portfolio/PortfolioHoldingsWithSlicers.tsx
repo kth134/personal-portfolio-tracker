@@ -383,7 +383,6 @@ export default function PortfolioHoldingsWithSlicers({
         </div>
       )}
 
-      <div className="overflow-x-auto">
         <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
           {Array.from(groupedRows).map(([key, groupRows]) => {
             const groupTotalQuantity = groupRows.reduce((sum, r) => sum + r.quantity, 0)
@@ -391,7 +390,9 @@ export default function PortfolioHoldingsWithSlicers({
 
             return (
               <AccordionItem key={key} value={key}>
-                <AccordionTrigger>{key}</AccordionTrigger>
+                <AccordionTrigger className="bg-black text-white font-semibold px-4 py-2 hover:bg-gray-800">
+                  {key}
+                </AccordionTrigger>
                 <AccordionContent>
                   <Table>
                   <TableHeader>
@@ -406,9 +407,6 @@ export default function PortfolioHoldingsWithSlicers({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <TableRow className="bg-black text-white font-semibold">
-                      <TableCell colSpan={7} className="py-2">{key}</TableCell>
-                    </TableRow>
                     {groupRows.map(row => (
                       <TableRow key={row.ticker}>
                         <TableCell className="w-32">
@@ -459,7 +457,6 @@ export default function PortfolioHoldingsWithSlicers({
             )
           })}
         </Accordion>
-      </div>
 
       {/* Footer totals */}
       <div className="overflow-x-auto mt-4">
