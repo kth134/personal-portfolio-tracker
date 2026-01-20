@@ -338,7 +338,7 @@ export default function PortfolioHoldingsWithSlicers({
           {aggregate && lens !== 'total' && selectedValues.length > 1 && pieAllocations.length === 1 ? (
             <div className="space-y-4 min-w-0 flex-shrink-0">
               <h4 className="font-medium text-center">{pieAllocations[0].key}</h4>
-              <ResponsiveContainer width="100%" height={300} minWidth={300}>
+              <ResponsiveContainer width="100%" height={400} minWidth={300}>
                 <PieChart>
                   <Pie
                     data={pieAllocations[0].data}
@@ -360,7 +360,7 @@ export default function PortfolioHoldingsWithSlicers({
             pieAllocations.map((slice, idx) => (
               <div key={idx} className="space-y-4 min-w-0 flex-shrink-0">
                 <h4 className="font-medium text-center">{slice.key}</h4>
-                <ResponsiveContainer width="100%" height={300} minWidth={300}>
+                <ResponsiveContainer width="100%" height={400} minWidth={300}>
                   <PieChart>
                     <Pie
                       data={slice.data}
