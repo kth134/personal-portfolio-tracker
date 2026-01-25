@@ -1059,18 +1059,12 @@ export default function RebalancingPage() {
           <h3 className="font-semibold text-sm text-muted-foreground">Total Portfolio Value</h3>
           <p className="text-2xl font-bold">{formatUSD(data.totalValue)}</p>
         </div>
-        <div className="bg-card p-4 rounded-lg border">
-          <h3 className="font-semibold text-sm text-muted-foreground">Cash Needed/Generated</h3>
-          <p className={cn("text-2xl font-bold", data.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
-            {formatUSD(Math.abs(data.cashNeeded))}
-          </p>
-        </div>
+
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground">Total Portfolio Drift</h3>
-          <p className="text-2xl font-bold">
-            {totalPortfolioDrift.toFixed(2)}%
-          </p>
+          <p className="text-2xl font-bold">{totalPortfolioDrift.toFixed(2)}%</p>
         </div>
+
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground">Rebalance Alert</h3>
           <p className="text-2xl font-bold flex items-center">
@@ -1081,6 +1075,14 @@ export default function RebalancingPage() {
             )}
           </p>
         </div>
+
+        <div className="bg-card p-4 rounded-lg border">
+          <h3 className="font-semibold text-sm text-muted-foreground">Cash Impact of Suggested Rebalance Actions</h3>
+          <p className={cn("text-2xl font-bold", data.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
+            {formatUSD(Math.abs(data.cashNeeded))}
+          </p>
+        </div>
+
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground">Last Price Update</h3>
           <p className="text-sm">{data.lastPriceUpdate ? new Date(data.lastPriceUpdate).toLocaleString() : 'Never'}</p>
