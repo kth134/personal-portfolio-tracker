@@ -1503,66 +1503,68 @@ export default function RebalancingPage() {
                     </Table>
                   </div>
 
-                  {/* Reinvestment Suggestions for Sell Actions */}
-                  {allocations.some(item => item.action === 'sell' && (item.reinvestment_suggestions || []).length > 0) && (
+                  {/* Tactical Execution Suggestions: shown when any asset action != 'hold' */}
+                  {allocations.some(item => item.action !== 'hold') && (
                     <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <h4 className="font-semibold text-blue-900 mb-3">💡 Smart Reinvestment Suggestions</h4>
-                      <p className="text-sm text-blue-700 mb-4">
-                        Based on assets that are underweight in their targets, here's how to reinvest sale proceeds:
-                      </p>
-                      <div className="space-y-3">
-                        {allocations
-                          .filter(item => item.action === 'sell')
-                          .flatMap(item => item.reinvestment_suggestions || [])
-                          .slice(0, 5) // Show top 5 suggestions
-                          .map((suggestion, idx2) => (
-                            <div key={idx2} className="flex items-center justify-between p-3 bg-white rounded border">
-                              <div className="flex items-center gap-3">
-                                <div className="font-medium">{suggestion.ticker}</div>
-                                <div className="text-sm text-muted-foreground">{suggestion.name}</div>
-                                <div className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                                  {suggestion.reason}
+                      <h4 className="font-semibold text-blue-900 mb-3">Tactical Execution Suggestions</h4>
+                      <p className="text-sm text-blue-700 mb-4">Execution guidance for the recommended rebalance actions in this sub-portfolio.</p>
+
+                      {/* Deploy sale proceeds (reinvestments) */}
+                      {allocations.some(item => item.action === 'sell' && (item.reinvestment_suggestions || []).length > 0) && (
+                        <div className="mb-4">
+                          <h5 className="text-sm font-medium text-blue-800 mb-2">Deploy sale proceeds</h5>
+                          <div className="space-y-3">
+                            {allocations
+                              .filter(item => item.action === 'sell')
+                              .flatMap(item => item.reinvestment_suggestions || [])
+                              .slice(0, 5)
+                              .map((suggestion, idx2) => (
+                                <div key={`sell-${idx2}`} className="flex items-center justify-between p-3 bg-white rounded border">
+                                  <div className="flex items-center gap-3">
+                                    <div className="font-medium">{suggestion.ticker}</div>
+                                    <div className="text-sm text-muted-foreground">{suggestion.name}</div>
+                                    <div className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">{suggestion.reason}</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="font-medium">{formatUSD(suggestion.suggested_amount)}</div>
+                                    <div className="text-sm text-muted-foreground">~{suggestion.suggested_shares.toFixed(0)} shares</div>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="font-medium">{formatUSD(suggestion.suggested_amount)}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  ~{suggestion.suggested_shares.toFixed(0)} shares
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Fund purchases (funding suggestions) */}
+                      {allocations.some(item => item.action === 'buy' && (item.reinvestment_suggestions || []).length > 0) && (
+                        <div className="mb-4">
+                          <h5 className="text-sm font-medium text-blue-800 mb-2">Fund purchases</h5>
+                          <div className="space-y-3">
+                            {allocations
+                              .filter(item => item.action === 'buy')
+                              .flatMap(item => item.reinvestment_suggestions || [])
+                              .slice(0, 10)
+                              .map((suggestion, idx2) => (
+                                <div key={`buy-${idx2}`} className="flex items-center justify-between p-3 bg-white rounded border">
+                                  <div className="flex items-center gap-3">
+                                    <div className="font-medium">{suggestion.ticker}</div>
+                                    <div className="text-sm text-muted-foreground">{suggestion.name}</div>
+                                    <div className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">{suggestion.reason}</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="font-medium">{formatUSD(suggestion.suggested_amount)}</div>
+                                    <div className="text-sm text-muted-foreground">~{suggestion.suggested_shares.toFixed(2)} shares</div>
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-                  {/* Funding Suggestions for Buy Actions (where to sell to generate cash) */}
-                  {allocations.some(item => item.action === 'buy' && (item.reinvestment_suggestions || []).length > 0) && (
-                    <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <h4 className="font-semibold text-blue-900 mb-3">💡 Smart Funding Suggestions</h4>
-                      <p className="text-sm text-blue-700 mb-4">Suggested sources to raise cash for recommended buys:</p>
-                      <div className="space-y-3">
-                        {allocations
-                          .filter(item => item.action === 'buy')
-                          .flatMap(item => item.reinvestment_suggestions || [])
-                          .slice(0, 10)
-                          .map((suggestion, idx2) => (
-                            <div key={idx2} className="flex items-center justify-between p-3 bg-white rounded border">
-                              <div className="flex items-center gap-3">
-                                <div className="font-medium">{suggestion.ticker}</div>
-                                <div className="text-sm text-muted-foreground">{suggestion.name}</div>
-                                <div className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                                  {suggestion.reason}
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="font-medium">{formatUSD(suggestion.suggested_amount)}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  ~{suggestion.suggested_shares.toFixed(2)} shares
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* If there are actions but no specific tactical suggestions, show a hint */}
+                      {!allocations.some(item => (item.reinvestment_suggestions || []).length > 0) && (
+                        <div className="p-3 bg-white rounded border text-sm text-muted-foreground">No tactical execution suggestions available — ensure tax lots and targets are up to date.</div>
+                      )}
                     </div>
                   )}
                 </div>
