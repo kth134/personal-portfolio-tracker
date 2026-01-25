@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
 } from 'recharts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Check, ChevronsUpDown, ArrowUpDown, RefreshCw, Download, AlertTriangle } from 'lucide-react'
 import { formatUSD } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
@@ -64,6 +65,21 @@ type RebalancingData = {
     action: 'buy' | 'sell' | 'hold'
     amount: number
     tax_notes: string
+    tax_impact: number
+    reinvestment_suggestions: {
+      asset_id: string
+      ticker: string
+      name: string | null
+      suggested_amount: number
+      suggested_shares: number
+      reason: string
+    }[]
+    recommended_accounts: {
+      id: string
+      name: string
+      type: string
+      reason: string
+    }[]
   }[]
   totalValue: number
   cashNeeded: number
@@ -93,12 +109,17 @@ export default function RebalancingPage() {
 
   // Editing state
   const [editingSubPortfolio, setEditingSubPortfolio] = useState<string | null>(null)
-  const [editingAsset, setEditingAsset] = useState<string | null>(null)
-  const [tempTargets, setTempTargets] = useState<{[key: string]: number}>({})
 
   useEffect(() => {
     fetchData()
   }, [refreshTrigger])
+
+  useEffect(() => {
+    // Set open items to all sub-portfolio IDs when data changes
+    if (data?.subPortfolios) {
+      setOpenItems(data.subPortfolios.map(sp => sp.id))
+    }
+  }, [data])
 
   useEffect(() => {
     if (lens === 'total') {
@@ -165,9 +186,27 @@ export default function RebalancingPage() {
   }
 
   const generateCSV = (data: RebalancingData) => {
-    const headers = ['Sub-Portfolio', 'Asset', 'Current %', 'Target %', 'Implied Overall Target %', 'Drift %', 'Action', 'Amount', 'Tax Notes']
+    const headers = [
+      'Sub-Portfolio', 
+      'Asset', 
+      'Current %', 
+      'Target %', 
+      'Implied Overall Target %', 
+      'Drift %', 
+      'Action', 
+      'Amount', 
+      'Tax Impact', 
+      'Recommended Accounts', 
+      'Tax Notes',
+      'Reinvestment Suggestions'
+    ]
     const rows = data.currentAllocations.map(item => {
       const subPortfolio = data.subPortfolios.find(sp => sp.id === item.sub_portfolio_id)
+      const recommendedAccounts = item.recommended_accounts.map(acc => `${acc.name} (${acc.type})`).join('; ')
+      const reinvestmentSuggestions = item.reinvestment_suggestions.map(s => 
+        `${s.ticker}: ${formatUSD(s.suggested_amount)} (${s.suggested_shares.toFixed(0)} shares)`
+      ).join('; ')
+
       return [
         subPortfolio?.name || 'Unassigned',
         item.ticker,
@@ -177,7 +216,10 @@ export default function RebalancingPage() {
         item.drift_percentage.toFixed(2),
         item.action,
         formatUSD(item.amount),
-        item.tax_notes
+        formatUSD(item.tax_impact),
+        recommendedAccounts,
+        item.tax_notes,
+        reinvestmentSuggestions
       ]
     })
     return [headers, ...rows].map(row => row.join(',')).join('\n')
@@ -191,7 +233,17 @@ export default function RebalancingPage() {
         body: JSON.stringify({ id, target_percentage: target })
       })
       if (!res.ok) throw new Error('Failed to update target')
-      setRefreshTrigger(prev => prev + 1)
+
+      // Update local state instead of triggering full refresh
+      setData(prevData => {
+        if (!prevData) return prevData
+        return {
+          ...prevData,
+          subPortfolios: prevData.subPortfolios.map(sp =>
+            sp.id === id ? { ...sp, target_allocation: target } : sp
+          )
+        }
+      })
     } catch (error) {
       console.error('Error updating sub-portfolio target:', error)
     }
@@ -205,7 +257,75 @@ export default function RebalancingPage() {
         body: JSON.stringify({ asset_id: assetId, sub_portfolio_id: subPortfolioId, target_percentage: target })
       })
       if (!res.ok) throw new Error('Failed to update target')
-      setRefreshTrigger(prev => prev + 1)
+
+      // Update local state instead of triggering full refresh
+      setData(prevData => {
+        if (!prevData) return prevData
+
+        // Update asset targets
+        const updatedAssetTargets = prevData.assetTargets.some(at =>
+          at.asset_id === assetId && at.sub_portfolio_id === subPortfolioId
+        )
+          ? prevData.assetTargets.map(at =>
+              at.asset_id === assetId && at.sub_portfolio_id === subPortfolioId
+                ? { ...at, target_percentage: target }
+                : at
+            )
+          : [...prevData.assetTargets, { asset_id: assetId, sub_portfolio_id: subPortfolioId, target_percentage: target }]
+
+        // Recalculate drift for affected assets
+        const updatedAllocations = prevData.currentAllocations.map(allocation => {
+          if (allocation.asset_id === assetId && allocation.sub_portfolio_id === subPortfolioId) {
+            // Recalculate drift using the same logic as the API
+            const assetTarget = target
+            const driftPercentage = assetTarget > 0 ? ((allocation.sub_portfolio_percentage - assetTarget) / assetTarget) * 100 : 0
+            const driftDollar = (driftPercentage / 100) * prevData.totalValue
+
+            // Recalculate action and amount
+            const subPortfolio = prevData.subPortfolios.find(sp => sp.id === subPortfolioId)
+            let action: 'buy' | 'sell' | 'hold' = 'hold'
+            let amount = 0
+
+            if (subPortfolio) {
+              const upsideThreshold = subPortfolio.upside_threshold
+              const downsideThreshold = subPortfolio.downside_threshold
+              const bandMode = subPortfolio.band_mode
+
+              const relativeUpsideThreshold = assetTarget > 0 ? (upsideThreshold / assetTarget) * 100 : upsideThreshold
+              const relativeDownsideThreshold = assetTarget > 0 ? (downsideThreshold / assetTarget) * 100 : downsideThreshold
+
+              if (Math.abs(driftPercentage) > relativeDownsideThreshold || Math.abs(driftPercentage) > relativeUpsideThreshold) {
+                if (driftPercentage > 0) {
+                  action = 'sell'
+                  amount = bandMode
+                    ? (driftPercentage - relativeUpsideThreshold) / 100 * prevData.totalValue
+                    : driftDollar
+                } else {
+                  action = 'buy'
+                  amount = bandMode
+                    ? (relativeDownsideThreshold + driftPercentage) / 100 * prevData.totalValue
+                    : Math.abs(driftDollar)
+                }
+              }
+            }
+
+            return {
+              ...allocation,
+              drift_percentage: driftPercentage,
+              drift_dollar: driftDollar,
+              action,
+              amount: Math.abs(amount)
+            }
+          }
+          return allocation
+        })
+
+        return {
+          ...prevData,
+          assetTargets: updatedAssetTargets,
+          currentAllocations: updatedAllocations
+        }
+      })
     } catch (error) {
       console.error('Error updating asset target:', error)
     }
@@ -219,7 +339,63 @@ export default function RebalancingPage() {
         body: JSON.stringify({ id, upside_threshold: upside, downside_threshold: downside, band_mode: bandMode })
       })
       if (!res.ok) throw new Error('Failed to update thresholds')
-      setRefreshTrigger(prev => prev + 1)
+
+      // Update local state instead of triggering full refresh
+      setData(prevData => {
+        if (!prevData) return prevData
+
+        // Update sub-portfolio thresholds
+        const updatedSubPortfolios = prevData.subPortfolios.map(sp =>
+          sp.id === id ? { ...sp, upside_threshold: upside, downside_threshold: downside, band_mode: bandMode } : sp
+        )
+
+        // Recalculate actions for all assets in this sub-portfolio
+        const updatedAllocations = prevData.currentAllocations.map(allocation => {
+          if (allocation.sub_portfolio_id === id) {
+            const assetTarget = prevData.assetTargets.find(at =>
+              at.asset_id === allocation.asset_id && at.sub_portfolio_id === id
+            )?.target_percentage || 0
+
+            const driftPercentage = assetTarget > 0 ? ((allocation.sub_portfolio_percentage - assetTarget) / assetTarget) * 100 : 0
+            const driftDollar = (driftPercentage / 100) * prevData.totalValue
+
+            let action: 'buy' | 'sell' | 'hold' = 'hold'
+            let amount = 0
+
+            const relativeUpsideThreshold = assetTarget > 0 ? (upside / assetTarget) * 100 : upside
+            const relativeDownsideThreshold = assetTarget > 0 ? (downside / assetTarget) * 100 : downside
+
+            if (Math.abs(driftPercentage) > relativeDownsideThreshold || Math.abs(driftPercentage) > relativeUpsideThreshold) {
+              if (driftPercentage > 0) {
+                action = 'sell'
+                amount = bandMode
+                  ? (driftPercentage - relativeUpsideThreshold) / 100 * prevData.totalValue
+                  : driftDollar
+              } else {
+                action = 'buy'
+                amount = bandMode
+                  ? (relativeDownsideThreshold + driftPercentage) / 100 * prevData.totalValue
+                  : Math.abs(driftDollar)
+              }
+            }
+
+            return {
+              ...allocation,
+              drift_percentage: driftPercentage,
+              drift_dollar: driftDollar,
+              action,
+              amount: Math.abs(amount)
+            }
+          }
+          return allocation
+        })
+
+        return {
+          ...prevData,
+          subPortfolios: updatedSubPortfolios,
+          currentAllocations: updatedAllocations
+        }
+      })
     } catch (error) {
       console.error('Error updating thresholds:', error)
     }
@@ -256,7 +432,12 @@ export default function RebalancingPage() {
   }))
 
   return (
-    <div className="space-y-8">
+    <TooltipProvider>
+      <div className="space-y-8">
+        <div className="text-center text-red-600 font-semibold text-lg bg-red-50 p-4 rounded-md border border-red-200">
+          Under Construction
+        </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-card p-4 rounded-lg border">
@@ -385,7 +566,7 @@ export default function RebalancingPage() {
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => formatUSD(Number(value) || 0)} />
+              <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -408,7 +589,7 @@ export default function RebalancingPage() {
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => `${Number(value || 0).toFixed(1)}%`} />
+              <RechartsTooltip formatter={(value) => `${Number(value || 0).toFixed(1)}%`} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -425,17 +606,17 @@ export default function RebalancingPage() {
 
           return (
             <AccordionItem key={subPortfolioId} value={subPortfolioId}>
-              <AccordionTrigger className="px-4 py-2 hover:bg-muted/50">
+              <AccordionTrigger className="bg-black text-white font-semibold px-4 py-2 hover:bg-gray-800 [&>svg]:text-white [&>svg]:stroke-2 [&>svg]:w-5 [&>svg]:h-5">
                 <div className="flex justify-between items-center w-full mr-4">
                   <span className="font-semibold">{subPortfolioName}</span>
                   <div className="flex gap-4 text-sm">
                     <span>Current: {currentSubPercentage.toFixed(2)}%</span>
                     <span>Target: {subPortfolioTarget.toFixed(2)}%</span>
                     <span className={cn(
-                      currentSubPercentage - subPortfolioTarget > 5 ? "text-red-600" :
-                      subPortfolioTarget - currentSubPercentage > 5 ? "text-blue-600" : "text-green-600"
+                      subPortfolioTarget > 0 ? ((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100 > 0 ? "text-green-600" :
+                      ((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100 < 0 ? "text-red-600" : "text-green-600" : "text-green-600"
                     )}>
-                      Drift: {(currentSubPercentage - subPortfolioTarget).toFixed(2)}%
+                      Drift: {subPortfolioTarget > 0 ? (((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100).toFixed(2) : '0.00'}%
                     </span>
                   </div>
                 </div>
@@ -443,45 +624,22 @@ export default function RebalancingPage() {
               <AccordionContent>
                 <div className="px-4 pb-4">
                   {/* Sub-Portfolio Header with Editable Target */}
-                  <div className="mb-4 p-4 bg-muted/20 rounded-lg">
+                  <div className="mb-4 p-4 bg-gray-100 rounded-lg">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                       <div>
                         <Label>Target % (sum to 100%)</Label>
-                        {editingSubPortfolio === subPortfolioId ? (
-                          <div className="flex gap-2">
-                            <Input
-                              type="number"
-                              step="0.1"
-                              value={tempTargets[subPortfolioId] ?? subPortfolioTarget}
-                              onChange={(e) => setTempTargets({...tempTargets, [subPortfolioId]: parseFloat(e.target.value) || 0})}
-                              className="w-24"
-                            />
-                            <Button size="sm" onClick={() => {
-                              updateSubPortfolioTarget(subPortfolioId, tempTargets[subPortfolioId] ?? subPortfolioTarget)
-                              setEditingSubPortfolio(null)
-                              setTempTargets(prev => {
-                                const newTargets = { ...prev }
-                                delete newTargets[subPortfolioId]
-                                return newTargets
-                              })
-                            }}>Save</Button>
-                            <Button size="sm" variant="outline" onClick={() => {
-                              setEditingSubPortfolio(null)
-                              setTempTargets(prev => {
-                                const newTargets = { ...prev }
-                                delete newTargets[subPortfolioId]
-                                return newTargets
-                              })
-                            }}>Cancel</Button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono">{subPortfolioTarget.toFixed(2)}%</span>
-                            <Button size="sm" variant="ghost" onClick={() => setEditingSubPortfolio(subPortfolioId)}>
-                              Edit
-                            </Button>
-                          </div>
-                        )}
+                        <Input
+                          type="number"
+                          step="0.1"
+                          defaultValue={subPortfolioTarget}
+                          onBlur={(e) => {
+                            const newValue = parseFloat(e.target.value) || 0
+                            if (newValue !== subPortfolioTarget) {
+                              updateSubPortfolioTarget(subPortfolioId, newValue)
+                            }
+                          }}
+                          className="w-24"
+                        />
                       </div>
                       {subPortfolio && (
                         <>
@@ -490,8 +648,13 @@ export default function RebalancingPage() {
                             <Input
                               type="number"
                               step="1"
-                              value={subPortfolio.upside_threshold}
-                              onChange={(e) => updateThresholds(subPortfolioId, parseFloat(e.target.value) || 25, subPortfolio.downside_threshold, subPortfolio.band_mode)}
+                              defaultValue={subPortfolio.upside_threshold}
+                              onBlur={(e) => {
+                                const newValue = parseFloat(e.target.value) || 25
+                                if (newValue !== subPortfolio.upside_threshold) {
+                                  updateThresholds(subPortfolioId, newValue, subPortfolio.downside_threshold, subPortfolio.band_mode)
+                                }
+                              }}
                               className="w-20"
                             />
                           </div>
@@ -500,17 +663,34 @@ export default function RebalancingPage() {
                             <Input
                               type="number"
                               step="1"
-                              value={subPortfolio.downside_threshold}
-                              onChange={(e) => updateThresholds(subPortfolioId, subPortfolio.upside_threshold, parseFloat(e.target.value) || 25, subPortfolio.band_mode)}
+                              defaultValue={subPortfolio.downside_threshold}
+                              onBlur={(e) => {
+                                const newValue = parseFloat(e.target.value) || 25
+                                if (newValue !== subPortfolio.downside_threshold) {
+                                  updateThresholds(subPortfolioId, subPortfolio.upside_threshold, newValue, subPortfolio.band_mode)
+                                }
+                              }}
                               className="w-20"
                             />
                           </div>
                           <div className="flex items-center gap-2">
-                            <Switch
-                              checked={subPortfolio.band_mode}
-                              onCheckedChange={(checked) => updateThresholds(subPortfolioId, subPortfolio.upside_threshold, subPortfolio.downside_threshold, checked)}
-                            />
-                            <Label>Band Mode</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-2 cursor-help">
+                                  <Switch
+                                    checked={subPortfolio.band_mode}
+                                    onCheckedChange={(checked) => updateThresholds(subPortfolioId, subPortfolio.upside_threshold, subPortfolio.downside_threshold, checked)}
+                                  />
+                                  <Label>Band Mode</Label>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">
+                                  When enabled, rebalancing amounts are calculated as the difference between current drift and the threshold (band approach). 
+                                  When disabled, the full drift amount is recommended for rebalancing (absolute approach).
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
                           </div>
                         </>
                       )}
@@ -530,6 +710,8 @@ export default function RebalancingPage() {
                           <TableHead className="text-right">Drift $</TableHead>
                           <TableHead>Action</TableHead>
                           <TableHead className="text-right">Amount</TableHead>
+                          <TableHead className="text-right">Tax Impact</TableHead>
+                          <TableHead>Recommended Accounts</TableHead>
                           <TableHead>Tax Notes</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -544,46 +726,23 @@ export default function RebalancingPage() {
                             </TableCell>
                             <TableCell className="text-right">{item.sub_portfolio_percentage.toFixed(2)}%</TableCell>
                             <TableCell className="text-right">
-                              {editingAsset === item.asset_id ? (
-                                <div className="flex gap-2 justify-end">
-                                  <Input
-                                    type="number"
-                                    step="0.1"
-                                    value={tempTargets[item.asset_id] ?? item.sub_portfolio_percentage}
-                                    onChange={(e) => setTempTargets({...tempTargets, [item.asset_id]: parseFloat(e.target.value) || 0})}
-                                    className="w-20"
-                                  />
-                                  <Button size="sm" onClick={() => {
-                                    updateAssetTarget(item.asset_id, subPortfolioId, tempTargets[item.asset_id] ?? item.sub_portfolio_percentage)
-                                    setEditingAsset(null)
-                                    setTempTargets(prev => {
-                                      const newTargets = { ...prev }
-                                      delete newTargets[item.asset_id]
-                                      return newTargets
-                                    })
-                                  }}>Save</Button>
-                                  <Button size="sm" variant="outline" onClick={() => {
-                                    setEditingAsset(null)
-                                    setTempTargets(prev => {
-                                      const newTargets = { ...prev }
-                                      delete newTargets[item.asset_id]
-                                      return newTargets
-                                    })
-                                  }}>Cancel</Button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-end gap-2">
-                                  <span>{item.sub_portfolio_percentage.toFixed(2)}%</span>
-                                  <Button size="sm" variant="ghost" onClick={() => setEditingAsset(item.asset_id)}>
-                                    Edit
-                                  </Button>
-                                </div>
-                              )}
+                              <Input
+                                type="number"
+                                step="0.1"
+                                defaultValue={item.sub_portfolio_percentage}
+                                onBlur={(e) => {
+                                  const newValue = parseFloat(e.target.value) || 0
+                                  if (newValue !== item.sub_portfolio_percentage) {
+                                    updateAssetTarget(item.asset_id, subPortfolioId, newValue)
+                                  }
+                                }}
+                                className="w-20 ml-auto"
+                              />
                             </TableCell>
                             <TableCell className="text-right">{item.implied_overall_target.toFixed(2)}%</TableCell>
                             <TableCell className={cn(
                               "text-right font-medium",
-                              Math.abs(item.drift_percentage) > 5 ? "text-red-600" : "text-green-600"
+                              item.drift_percentage > 0 ? "text-green-600" : item.drift_percentage < 0 ? "text-red-600" : "text-green-600"
                             )}>
                               {item.drift_percentage > 0 ? '+' : ''}{item.drift_percentage.toFixed(2)}%
                             </TableCell>
@@ -596,12 +755,73 @@ export default function RebalancingPage() {
                               {item.action.toUpperCase()}
                             </TableCell>
                             <TableCell className="text-right">{formatUSD(item.amount)}</TableCell>
+                            <TableCell className="text-right">
+                              {item.tax_impact > 0 ? (
+                                <span className="text-red-600 font-medium">
+                                  -{formatUSD(item.tax_impact)}
+                                </span>
+                              ) : (
+                                <span className="text-green-600">{formatUSD(0)}</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {item.recommended_accounts.length > 0 ? (
+                                <div className="space-y-1">
+                                  {item.recommended_accounts.slice(0, 2).map((acc, idx) => (
+                                    <div key={idx} className="text-xs">
+                                      <span className="font-medium">{acc.name}</span>
+                                      <span className="text-muted-foreground"> ({acc.type})</span>
+                                    </div>
+                                  ))}
+                                  {item.recommended_accounts.length > 2 && (
+                                    <div className="text-xs text-muted-foreground">
+                                      +{item.recommended_accounts.length - 2} more
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                '-'
+                              )}
+                            </TableCell>
                             <TableCell className="text-sm">{item.tax_notes}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
                   </div>
+
+                  {/* Reinvestment Suggestions for Sell Actions */}
+                  {allocations.some(item => item.action === 'sell' && item.reinvestment_suggestions.length > 0) && (
+                    <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <h4 className="font-semibold text-blue-900 mb-3">💡 Smart Reinvestment Suggestions</h4>
+                      <p className="text-sm text-blue-700 mb-4">
+                        Based on assets that are underweight in their targets, here's how to reinvest sale proceeds:
+                      </p>
+                      <div className="space-y-3">
+                        {allocations
+                          .filter(item => item.action === 'sell')
+                          .flatMap(item => item.reinvestment_suggestions)
+                          .slice(0, 5) // Show top 5 suggestions
+                          .map((suggestion, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-3 bg-white rounded border">
+                              <div className="flex items-center gap-3">
+                                <div className="font-medium">{suggestion.ticker}</div>
+                                <div className="text-sm text-muted-foreground">{suggestion.name}</div>
+                                <div className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                                  {suggestion.reason}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-medium">{formatUSD(suggestion.suggested_amount)}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  ~{suggestion.suggested_shares.toFixed(0)} shares
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </AccordionContent>
             </AccordionItem>
@@ -609,5 +829,6 @@ export default function RebalancingPage() {
         })}
       </Accordion>
     </div>
+    </TooltipProvider>
   )
 }

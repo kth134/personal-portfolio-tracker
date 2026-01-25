@@ -31,10 +31,33 @@ export async function GET() {
       .select('*')
       .eq('user_id', user.id)
 
+    // Fetch accounts for tax optimization
+    const { data: accounts } = await supabase
+      .from('accounts')
+      .select('id, name, type, tax_status')
+      .eq('user_id', user.id)
+
     // Fetch transactions for cash balance calculation
     const { data: transactions } = await supabase
       .from('transactions')
       .select('*')
+      .eq('user_id', user.id)
+
+    // Fetch detailed tax lots for cost basis calculations
+    const { data: detailedTaxLots } = await supabase
+      .from('tax_lots')
+      .select(`
+        asset_id,
+        remaining_quantity,
+        cost_basis_per_unit,
+        account_id,
+        asset:assets (
+          ticker,
+          name,
+          sub_portfolio_id
+        )
+      `)
+      .gt('remaining_quantity', 0)
       .eq('user_id', user.id)
 
     // Compute cash balances (same logic as portfolio page)
@@ -159,7 +182,9 @@ export async function GET() {
         const currentOverallPercentage = totalValue > 0 ? (item.current_value / totalValue) * 100 : 0
         const subPortfolioPercentage = subValue > 0 ? (item.current_value / subValue) * 100 : 0
 
-        const driftPercentage = currentOverallPercentage - impliedOverallTarget
+        // Calculate relative drift: (current - target) / target * 100
+        // For assets, we use the sub-portfolio percentage vs asset target within sub-portfolio
+        const driftPercentage = assetTarget > 0 ? ((subPortfolioPercentage - assetTarget) / assetTarget) * 100 : 0
         const driftDollar = (driftPercentage / 100) * totalValue
 
         // Simple rebalancing logic
@@ -170,16 +195,20 @@ export async function GET() {
         const downsideThreshold = subPortfolio.downside_threshold
         const bandMode = subPortfolio.band_mode
 
-        if (Math.abs(driftPercentage) > downsideThreshold || Math.abs(driftPercentage) > upsideThreshold) {
+        // Convert absolute thresholds to relative terms for assets with targets
+        const relativeUpsideThreshold = assetTarget > 0 ? (upsideThreshold / assetTarget) * 100 : upsideThreshold
+        const relativeDownsideThreshold = assetTarget > 0 ? (downsideThreshold / assetTarget) * 100 : downsideThreshold
+
+        if (Math.abs(driftPercentage) > relativeDownsideThreshold || Math.abs(driftPercentage) > relativeUpsideThreshold) {
           if (driftPercentage > 0) {
             action = 'sell'
             amount = bandMode
-              ? (driftPercentage - upsideThreshold) / 100 * totalValue
+              ? (driftPercentage - relativeUpsideThreshold) / 100 * totalValue
               : driftDollar
           } else {
             action = 'buy'
             amount = bandMode
-              ? (downsideThreshold + driftPercentage) / 100 * totalValue
+              ? (relativeDownsideThreshold + driftPercentage) / 100 * totalValue
               : Math.abs(driftDollar)
           }
         }
@@ -198,6 +227,92 @@ export async function GET() {
       })
     })
 
+    // Enhanced logic: Smart Reinvestment and Tax Optimization
+    const enhancedAllocations = allocations.map(allocation => {
+      let reinvestmentSuggestions: any[] = []
+      let taxImpact = 0
+      let recommendedAccounts: any[] = []
+      let taxNotes = allocation.tax_notes
+
+      if (allocation.action === 'sell') {
+        // Calculate tax impact for selling
+        const assetTaxLots = detailedTaxLots?.filter(lot => 
+          lot.asset_id === allocation.asset_id && lot.account_id
+        ) || []
+
+        let totalCostBasis = 0
+        let totalProceeds = allocation.amount
+        let estimatedGain = 0
+
+        // Calculate weighted average cost basis for the lots being sold
+        assetTaxLots.forEach((lot: any) => {
+          if (!lot.asset?.ticker) return
+          const lotValue = lot.remaining_quantity * (latestPrices.get(lot.asset.ticker)?.price || 0)
+          const lotCostBasis = lot.remaining_quantity * lot.cost_basis_per_unit
+          totalCostBasis += lotCostBasis
+
+          // Estimate how much of this lot would be sold
+          const currentPrice = latestPrices.get(lot.asset.ticker)?.price || 0
+          const sellRatio = currentPrice > 0 ? Math.min(1, totalProceeds / (allocation.quantity * currentPrice)) : 0
+          estimatedGain += (lotValue * sellRatio) - (lotCostBasis * sellRatio)
+        })
+
+        // Estimate capital gains tax (simplified - long-term rate)
+        taxImpact = Math.max(0, estimatedGain) * 0.15 // 15% long-term capital gains rate
+
+        // Recommend accounts for selling (prioritize taxable accounts for tax-loss harvesting)
+        const sellAccounts = accounts?.filter(acc => acc.tax_status === 'Taxable') || []
+        recommendedAccounts = sellAccounts.map(acc => ({
+          id: acc.id,
+          name: acc.name,
+          type: acc.type,
+          reason: 'Taxable account preferred for potential tax-loss harvesting'
+        }))
+
+        // Smart reinvestment: Suggest what to buy with proceeds
+        const underweightAssets = allocations.filter(a => 
+          a.action === 'buy' && a.sub_portfolio_id === allocation.sub_portfolio_id
+        ).sort((a, b) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
+
+        reinvestmentSuggestions = underweightAssets.slice(0, 3).map(asset => {
+          const availableProceeds = allocation.amount - taxImpact
+          const price = latestPrices.get(asset.ticker)?.price || 0
+          const suggestedShares = price > 0 ? availableProceeds * (asset.amount / underweightAssets.reduce((sum, a) => sum + a.amount, 0)) / price : 0
+
+          return {
+            asset_id: asset.asset_id,
+            ticker: asset.ticker,
+            name: asset.name,
+            suggested_amount: availableProceeds * (asset.amount / underweightAssets.reduce((sum, a) => sum + a.amount, 0)),
+            suggested_shares: suggestedShares,
+            reason: `Underweight by ${Math.abs(asset.drift_percentage).toFixed(2)}% in same sub-portfolio`
+          }
+        })
+
+        taxNotes = `Estimated tax impact: $${taxImpact.toFixed(2)} (${(taxImpact/totalProceeds*100).toFixed(1)}% of proceeds). Consider tax-loss harvesting.`
+
+      } else if (allocation.action === 'buy') {
+        // For buys, recommend tax-advantaged accounts
+        const buyAccounts = accounts?.filter(acc => acc.tax_status === 'Tax-Advantaged') || []
+        recommendedAccounts = buyAccounts.map(acc => ({
+          id: acc.id,
+          name: acc.name,
+          type: acc.type,
+          reason: 'Tax-advantaged account preferred for tax-deferred growth'
+        }))
+
+        taxNotes = 'Use tax-advantaged accounts for long-term tax benefits.'
+      }
+
+      return {
+        ...allocation,
+        tax_impact: taxImpact,
+        reinvestment_suggestions: reinvestmentSuggestions,
+        recommended_accounts: recommendedAccounts,
+        tax_notes: taxNotes
+      }
+    })
+
     const cashNeeded = allocations.reduce((sum, item) => {
       if (item.action === 'buy') return sum + item.amount
       if (item.action === 'sell') return sum - item.amount
@@ -209,7 +324,7 @@ export async function GET() {
     return NextResponse.json({
       subPortfolios: subPortfolios || [],
       assetTargets: assetTargets || [],
-      currentAllocations: allocations,
+      currentAllocations: enhancedAllocations,
       totalValue,
       cashNeeded,
       lastPriceUpdate
