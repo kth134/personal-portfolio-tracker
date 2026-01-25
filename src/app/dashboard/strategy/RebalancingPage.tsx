@@ -156,6 +156,8 @@ export default function RebalancingPage() {
     subPortfolios: {[key: string]: string};
     assets: {[key: string]: {[key: string]: string}};
   }>({ subPortfolios: {}, assets: {} })
+  const [draftSubTargets, setDraftSubTargets] = useState<Record<string, number>>({})
+  const [draftAssetTargets, setDraftAssetTargets] = useState<Record<string, Record<string, number>>>({})
 
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string>('current_value')
@@ -288,13 +290,31 @@ export default function RebalancingPage() {
       if (!res.ok) throw new Error('Failed to fetch rebalancing data')
       const rebalancingData = await res.json()
       setData(rebalancingData)
-      validateAllocations(rebalancingData)
+      // initialize draft inputs from server data for immediate client-side validation
+      const initialSubDrafts: Record<string, number> = {}
+      rebalancingData.subPortfolios.forEach((sp: any) => {
+        initialSubDrafts[sp.id] = sp.target_allocation || 0
+      })
+      const initialAssetDrafts: Record<string, Record<string, number>> = {}
+      rebalancingData.currentAllocations.forEach((a: any) => {
+        const subId = a.sub_portfolio_id || 'unassigned'
+        if (!initialAssetDrafts[subId]) initialAssetDrafts[subId] = {}
+        initialAssetDrafts[subId][a.asset_id] = a.sub_portfolio_target_percentage || a.sub_portfolio_percentage || 0
+      })
+      setDraftSubTargets(initialSubDrafts)
+      setDraftAssetTargets(initialAssetDrafts)
+      validateWithDrafts(rebalancingData)
     } catch (error) {
       console.error('Error fetching rebalancing data:', error)
     } finally {
       setLoading(false)
     }
   }
+
+  // Re-validate whenever any draft target changes so UI reflects corrections immediately
+  useEffect(() => {
+    if (data) validateWithDrafts(data)
+  }, [JSON.stringify(draftSubTargets), JSON.stringify(draftAssetTargets)])
 
   const handleRefreshPrices = async () => {
     setRefreshing(true)
@@ -411,6 +431,26 @@ export default function RebalancingPage() {
     })
 
     setValidationErrors({ subPortfolios: subPortfolioErrors, assets: assetErrors })
+  }
+
+  // Validate merging any in-progress drafts so UI reflects immediate edits
+  const validateWithDrafts = (baseData: RebalancingData) => {
+    // shallow clone and apply drafts
+    const cloned = JSON.parse(JSON.stringify(baseData)) as RebalancingData
+
+    // apply sub-portfolio drafts
+    cloned.subPortfolios = cloned.subPortfolios.map(sp => ({
+      ...sp,
+      target_allocation: draftSubTargets[sp.id] ?? sp.target_allocation
+    }))
+
+    // apply asset drafts
+    cloned.currentAllocations = cloned.currentAllocations.map(a => ({
+      ...a,
+      sub_portfolio_target_percentage: (draftAssetTargets[a.sub_portfolio_id || 'unassigned'] || {})[a.asset_id] ?? a.sub_portfolio_target_percentage
+    }))
+
+    validateAllocations(cloned)
   }
 
   const handleSort = (column: string) => {
@@ -1292,21 +1332,33 @@ export default function RebalancingPage() {
                                   <TableCell className="text-right">
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <Input
-                                          type="number"
-                                          step="0.1"
-                                          defaultValue={item.sub_portfolio_target_percentage || item.sub_portfolio_percentage}
-                                          onBlur={(e) => {
-                                            const newValue = parseFloat(e.target.value) || 0
-                                            if (newValue !== (item.sub_portfolio_target_percentage || item.sub_portfolio_percentage)) {
-                                              updateAssetTarget(item.asset_id, subPortfolioId, newValue)
-                                            }
-                                          }}
-                                          className={cn(
-                                            "w-20 ml-auto",
-                                            validationErrors.assets[subPortfolioId]?.[item.asset_id] && "border-red-500 focus:border-red-500"
-                                          )}
-                                        />
+                                                    <Input
+                                                      type="number"
+                                                      step="0.1"
+                                                      value={
+                                                        (draftAssetTargets[subPortfolioId] && draftAssetTargets[subPortfolioId][item.asset_id]) ?? item.sub_portfolio_target_percentage ?? item.sub_portfolio_percentage
+                                                      }
+                                                      onChange={(e) => {
+                                                        const newVal = parseFloat(e.target.value) || 0
+                                                        setDraftAssetTargets(prev => ({
+                                                          ...prev,
+                                                          [subPortfolioId]: {
+                                                            ...(prev[subPortfolioId] || {}),
+                                                            [item.asset_id]: newVal
+                                                          }
+                                                        }))
+                                                      }}
+                                                      onBlur={(e) => {
+                                                        const newValue = parseFloat((e.target as HTMLInputElement).value) || 0
+                                                        if (newValue !== (item.sub_portfolio_target_percentage || item.sub_portfolio_percentage)) {
+                                                          updateAssetTarget(item.asset_id, subPortfolioId, newValue)
+                                                        }
+                                                      }}
+                                                      className={cn(
+                                                        "w-20 ml-auto",
+                                                        validationErrors.assets[subPortfolioId]?.[item.asset_id] && "border-red-500 focus:border-red-500"
+                                                      )}
+                                                    />
                                       </TooltipTrigger>
                                       {validationErrors.assets[subPortfolioId]?.[item.asset_id] && (
                                         <TooltipContent>
@@ -1344,19 +1396,19 @@ export default function RebalancingPage() {
                                         </span>
                                       </TooltipTrigger>
                                       <TooltipContent>
-                                        <p className="text-sm">
-                                          Estimated tax impact for this suggested transaction. Calculated from the lots you actually hold: short-term lots use a higher tax rate, long-term lots a lower rate. Recommendations are split across accounts where the asset is held to minimize taxable gains or realize losses.
-                                        </p>
+                                        <p className="text-sm">Estimated tax impact for this asset.</p>
                                       </TooltipContent>
                                     </Tooltip>
                                   </TableCell>
-                                  <TableCell className="text-sm min-w-0 break-words">
+                                  <TableCell className="min-w-0 break-words">
                                     <RecommendedAccountsPopover accounts={item.recommended_accounts} />
                                   </TableCell>
-                                  <TableCell className="text-sm min-w-0 break-words">{item.tax_notes}</TableCell>
+                                  <TableCell className="min-w-0 break-words">
+                                    <div className="text-sm text-muted-foreground">{item.tax_notes}</div>
+                                  </TableCell>
                                 </TableRow>
                               ))}
-                              
+
                               {/* Total Row */}
                               <TableRow className="bg-gray-100 font-semibold">
                                 <TableCell className="font-bold min-w-0 break-words">TOTAL</TableCell>
