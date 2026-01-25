@@ -306,7 +306,13 @@ export async function POST(request: NextRequest) {
         firstSell.reinvestment_suggestions = suggestions
         group.forEach((g: any) => { if (g !== firstSell) g.reinvestment_suggestions = [] })
       } else {
-        group.forEach((g: any) => { g.reinvestment_suggestions = [] })
+        const firstBuy = group.find((g: any) => g.action === 'buy')
+        if (firstBuy) {
+          firstBuy.reinvestment_suggestions = suggestions
+          group.forEach((g: any) => { if (g !== firstBuy) g.reinvestment_suggestions = [] })
+        } else {
+          group.forEach((g: any) => { g.reinvestment_suggestions = [] })
+        }
       }
     })
 

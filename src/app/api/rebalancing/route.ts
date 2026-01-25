@@ -516,8 +516,15 @@ export async function GET() {
         // clear reinvestment suggestions from other allocations to avoid duplication
         group.forEach((g: any) => { if (g !== firstSell) g.reinvestment_suggestions = [] })
       } else {
-        // no sells: clear any reinvestment suggestions
-        group.forEach((g: any) => { g.reinvestment_suggestions = [] })
+        // no sells: attach consolidated suggestions to the first buy allocation so UI can display them
+        const firstBuy = group.find((g: any) => g.action === 'buy')
+        if (firstBuy) {
+          firstBuy.reinvestment_suggestions = suggestions
+          group.forEach((g: any) => { if (g !== firstBuy) g.reinvestment_suggestions = [] })
+        } else {
+          // nothing actionable: clear any reinvestment suggestions
+          group.forEach((g: any) => { g.reinvestment_suggestions = [] })
+        }
       }
     })
 
