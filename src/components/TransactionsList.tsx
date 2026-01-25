@@ -60,10 +60,11 @@ type TransactionsListProps = {
   pageSize: number
 }
 
-export default function TransactionsList({ initialTransactions, total, currentPage, pageSize }: TransactionsListProps) {
+export default function TransactionsList({ initialTransactions, total, currentPage: currentPageProp, pageSize }: TransactionsListProps) {
   const router = useRouter()
   const [transactions, setTransactions] = useState(initialTransactions)
   const [displayTransactions, setDisplayTransactions] = useState(initialTransactions)
+  const [currentPage, setCurrentPage] = useState(currentPageProp)
   const [open, setOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [deletingTx, setDeletingTx] = useState<Transaction | null>(null)
@@ -129,6 +130,16 @@ export default function TransactionsList({ initialTransactions, total, currentPa
     const seen = localStorage.getItem('csv-import-help-seen')
     setShowImportHelp(!seen)
   }, [])
+
+  // Update transactions when initialTransactions changes
+  useEffect(() => {
+    setTransactions(initialTransactions)
+  }, [initialTransactions])
+
+  // Update currentPage when prop changes
+  useEffect(() => {
+    setCurrentPage(currentPageProp)
+  }, [currentPageProp])
 
   // Fetch accounts & assets
   useEffect(() => {
@@ -221,9 +232,20 @@ export default function TransactionsList({ initialTransactions, total, currentPa
 
   // Update select all state
   useEffect(() => {
-    const allSelected = displayTransactions.length > 0 && selectedTransactions.length === displayTransactions.length
+    const paginatedTransactions = displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    const allSelected = paginatedTransactions.length > 0 && selectedTransactions.length === paginatedTransactions.length && selectedTransactions.every(id => paginatedTransactions.some(tx => tx.id === id))
     setSelectAll(allSelected)
-  }, [selectedTransactions, displayTransactions])
+  }, [selectedTransactions, displayTransactions, currentPage, pageSize])
+
+  const totalPages = Math.ceil(displayTransactions.length / pageSize)
+
+  // Adjust currentPage if out of bounds
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages)
+      router.push(`?page=${totalPages}`)
+    }
+  }, [displayTransactions, pageSize, currentPage, totalPages, router])
 
   const toggleSort = (key: typeof sortKey) => {
     if (sortKey === key) {
@@ -243,8 +265,9 @@ export default function TransactionsList({ initialTransactions, total, currentPa
   }
 
   const handleSelectAll = (checked: boolean) => {
+    const paginatedTransactions = displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize)
     if (checked) {
-      setSelectedTransactions(displayTransactions.map(tx => tx.id))
+      setSelectedTransactions(paginatedTransactions.map(tx => tx.id))
     } else {
       setSelectedTransactions([])
     }
@@ -1115,7 +1138,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             </TableRow>
           </TableHeader>
           <TableBody>
-            {displayTransactions.map((tx) => (
+            {displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((tx) => (
               <TableRow key={tx.id}>
                 <TableCell>
                   <Checkbox
@@ -1169,12 +1192,10 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
 
       <PaginationControls
         currentPage={currentPage}
-        total={total}
-        pageSize={pageSize}
+        totalPages={totalPages}
         onPageChange={(page) => {
-          const url = new URL(window.location.href)
-          url.searchParams.set('page', page.toString())
-          window.location.href = url.toString()
+          setCurrentPage(page)
+          router.push(`?page=${page}`)
         }}
       />
 
@@ -1256,26 +1277,47 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
   )
 }
 
-function PaginationControls({ currentPage, total, pageSize, onPageChange }: { currentPage: number, total: number, pageSize: number, onPageChange: (page: number) => void }) {
-  const totalPages = Math.ceil(total / pageSize)
+function PaginationControls({ currentPage, totalPages, onPageChange }: { currentPage: number, totalPages: number, onPageChange: (page: number) => void }) {
   return (
-    <div className="flex justify-between items-center mt-4">
+    <div className="flex items-center justify-center gap-2 mt-4">
       <Button
         variant="outline"
-        disabled={currentPage <= 1}
+        onClick={() => onPageChange(1)}
+        disabled={currentPage === 1}
+      >
+        First
+      </Button>
+      <Button
+        variant="outline"
         onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage <= 1}
       >
         Previous
       </Button>
-      <span className="text-sm text-muted-foreground">
-        Page {currentPage} of {totalPages} ({total} total)
-      </span>
+      <Select value={currentPage.toString()} onValueChange={(v) => onPageChange(parseInt(v))}>
+        <SelectTrigger className="w-20">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+            <SelectItem key={page} value={page.toString()}>{page}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span>of {totalPages}</span>
       <Button
         variant="outline"
-        disabled={currentPage >= totalPages}
         onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage >= totalPages}
       >
         Next
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() => onPageChange(totalPages)}
+        disabled={currentPage === totalPages}
+      >
+        Last
       </Button>
     </div>
   )

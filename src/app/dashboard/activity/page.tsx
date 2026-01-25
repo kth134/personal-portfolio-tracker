@@ -26,7 +26,6 @@ export default async function ActivityPage({
     `, { count: 'exact' })
     .eq('user_id', user.id)
     .order('date', { ascending: false })
-    .range(from, to)
 
   const { data: taxLots, count: taxLotsCount } = await supabase
     .from('tax_lots')
@@ -39,7 +38,6 @@ export default async function ActivityPage({
     `, { count: 'exact' })
     .eq('user_id', user.id)
     .order('purchase_date', { ascending: false })
-    .range(from, to)
 
   return (
     <main className="p-8">

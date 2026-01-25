@@ -25,7 +25,6 @@ export default async function TransactionManagementPage({
     `, { count: 'exact' })
     .eq('user_id', user.id)
     .order('date', { ascending: false })
-    .range(from, to)
 
   const { data: taxLots, count: taxLotsCount } = await supabase
     .from('tax_lots')
