@@ -25,7 +25,6 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 const LENSES = [
   { value: 'total', label: 'Total Portfolio' },
   { value: 'sub_portfolio', label: 'Sub-Portfolio' },
-  { value: 'account', label: 'Account' },
   { value: 'asset_type', label: 'Asset Type' },
   { value: 'asset_subtype', label: 'Asset Sub-Type' },
   { value: 'geography', label: 'Geography' },
@@ -659,17 +658,48 @@ export default function RebalancingPage() {
     return acc
   }, new Map<string, typeof currentAllocations>())
 
-  const pieData = Array.from(groupedAllocations.entries()).map(([key, items]) => ({
-    name: data.subPortfolios.find(sp => sp.id === key)?.name || 'Unassigned',
-    value: items.reduce((sum, item) => sum + item.current_value, 0),
-    percentage: items.reduce((sum, item) => sum + item.current_percentage, 0)
-  }))
+  const pieData = lens === 'total' 
+    ? currentAllocations.map(item => ({
+        name: item.ticker,
+        value: item.current_value,
+        percentage: item.current_percentage
+      }))
+    : aggregate 
+      ? Array.from(groupedAllocations.entries()).map(([key, items]) => ({
+          name: data.subPortfolios.find(sp => sp.id === key)?.name || 'Unassigned',
+          value: items.reduce((sum, item) => sum + item.current_value, 0),
+          percentage: items.reduce((sum, item) => sum + item.current_percentage, 0)
+        }))
+      : currentAllocations.map(item => ({
+          name: item.ticker,
+          value: item.current_value,
+          percentage: item.current_percentage
+        }))
 
-  const targetPieData = data.subPortfolios.map(sp => ({
-    name: sp.name,
-    value: sp.target_allocation || 0,
-    percentage: sp.target_allocation || 0
-  }))
+  const targetPieData = lens === 'total'
+    ? currentAllocations.map(item => ({
+        name: item.ticker,
+        value: item.implied_overall_target * data.totalValue / 100,
+        percentage: item.implied_overall_target
+      }))
+    : aggregate
+      ? data.subPortfolios.map(sp => ({
+          name: sp.name,
+          value: sp.target_allocation || 0,
+          percentage: sp.target_allocation || 0
+        }))
+      : currentAllocations.map(item => ({
+          name: item.ticker,
+          value: item.implied_overall_target * data.totalValue / 100,
+          percentage: item.implied_overall_target
+        }))
+
+  const totalPortfolioDrift = data.totalValue > 0 
+    ? data.currentAllocations.reduce((sum, item) => {
+        const weight = item.current_value / data.totalValue
+        return sum + (item.drift_percentage * weight)
+      }, 0)
+    : 0
 
   return (
     <TooltipProvider>
@@ -679,7 +709,7 @@ export default function RebalancingPage() {
         </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground">Total Portfolio Value</h3>
           <p className="text-2xl font-bold">{formatUSD(data.totalValue)}</p>
@@ -691,12 +721,18 @@ export default function RebalancingPage() {
           </p>
         </div>
         <div className="bg-card p-4 rounded-lg border">
+          <h3 className="font-semibold text-sm text-muted-foreground">Total Portfolio Drift</h3>
+          <p className={cn("text-2xl font-bold", totalPortfolioDrift > 0 ? "text-green-600" : totalPortfolioDrift < 0 ? "text-red-600" : "text-green-600")}>
+            {totalPortfolioDrift > 0 ? '+' : ''}{totalPortfolioDrift.toFixed(2)}%
+          </p>
+        </div>
+        <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground">Rebalance Alert</h3>
           <p className="text-2xl font-bold flex items-center">
-            {data.currentAllocations.some(item => Math.abs(item.drift_percentage) > 5) ? (
+            {data.currentAllocations.some(item => item.action !== 'hold') ? (
               <><AlertTriangle className="h-6 w-6 text-yellow-500 mr-2" /> Needed</>
             ) : (
-              'Balanced'
+              'No Action Required'
             )}
           </p>
         </div>
@@ -720,6 +756,14 @@ export default function RebalancingPage() {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={aggregate}
+            onCheckedChange={setAggregate}
+          />
+          <Label className="text-sm font-medium">Aggregate</Label>
         </div>
 
         {lens !== 'total' && (
