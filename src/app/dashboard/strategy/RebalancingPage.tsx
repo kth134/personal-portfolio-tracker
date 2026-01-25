@@ -377,6 +377,7 @@ export default function RebalancingPage() {
         body: JSON.stringify({ 
           allocations: allocationsToUpdate,
           totalValue: data.totalValue,
+          currentAllocations: tempData.currentAllocations,
           accounts: data.currentAllocations.map(a => ({ id: a.asset_id, name: a.ticker, type: 'Taxable', tax_status: 'Taxable' })) // Simplified
         })
       })
@@ -1525,6 +1526,35 @@ export default function RebalancingPage() {
                                 <div className="font-medium">{formatUSD(suggestion.suggested_amount)}</div>
                                 <div className="text-sm text-muted-foreground">
                                   ~{suggestion.suggested_shares.toFixed(0)} shares
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Funding Suggestions for Buy Actions (where to sell to generate cash) */}
+                  {allocations.some(item => item.action === 'buy' && item.reinvestment_suggestions && item.reinvestment_suggestions.length > 0) && (
+                    <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <h4 className="font-semibold text-yellow-900 mb-3">💡 Funding Suggestions for Buys</h4>
+                      <div className="space-y-3">
+                        {allocations
+                          .filter(item => item.action === 'buy')
+                          .flatMap(item => item.reinvestment_suggestions)
+                          .slice(0, 10)
+                          .map((suggestion, idx2) => (
+                            <div key={idx2} className="flex items-center justify-between p-3 bg-white rounded border">
+                              <div className="flex items-center gap-3">
+                                <div className="font-medium">{suggestion.ticker}</div>
+                                <div className="text-sm text-muted-foreground">{suggestion.name}</div>
+                                <div className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                                  {suggestion.reason}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-medium">{formatUSD(suggestion.suggested_amount)}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  ~{suggestion.suggested_shares.toFixed(2)} shares
                                 </div>
                               </div>
                             </div>

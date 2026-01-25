@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { allocations, totalValue } = await request.json()
+    const { allocations, totalValue, currentAllocations } = await request.json()
 
     // Fetch necessary data for tax calculations
     const { data: accounts } = await supabase
@@ -49,29 +49,57 @@ export async function POST(request: NextRequest) {
       let taxNotes = ''
       let reinvestmentSuggestions: any[] = []
 
+      if (allocation.action === 'buy') {
+        // For buying, recommend tax-advantaged accounts where the user actually holds assets or any tax-advantaged accounts
+        const buyAccounts = accounts?.filter((acc: any) => acc.tax_status !== 'Taxable') || []
+        recommendedAccounts = buyAccounts.slice(0, 2).map((acc: any) => ({
+          id: acc.id,
+          name: acc.name,
+          type: acc.type,
+          reason: 'Tax-advantaged account preferred for buying'
+        }))
+
+        taxNotes = 'Consider tax-advantaged accounts for purchases'
+
+        // Suggest sells to fund this buy using provided currentAllocations (fallback to empty)
+        const allAllocations = (currentAllocations || []) as any[]
+        const sellCandidates = allAllocations.filter(a => a.action === 'sell' && a.amount > 0).sort((a, b) => b.amount - a.amount)
+        let remainingNeed = allocation.amount || 0
+        const fundingSuggestions: any[] = []
+        for (const cand of sellCandidates) {
+          if (remainingNeed <= 0) break
+          const take = Math.min(cand.amount, remainingNeed)
+          const price = latestPrices.get(cand.asset_id)?.price || 0
+          const shares = price > 0 ? take / price : 0
+          fundingSuggestions.push({ asset_id: cand.asset_id, ticker: cand.ticker, name: cand.name, suggested_amount: take, suggested_shares: shares, reason: `Sell to fund buy of ${allocation.asset_id}` })
+          remainingNeed -= take
+        }
+        if (fundingSuggestions.length > 0) {
+          reinvestmentSuggestions = fundingSuggestions
+        }
+      }
+
+      // Prepare lot/account grouping for sell-side tax estimation
+      const price = latestPrices.get(allocation.asset_id)?.price || 0
+      const assetTaxLots = (detailedTaxLots || []).filter((dl: any) => dl.asset_id === allocation.asset_id)
+      const accountMap = new Map<string, any>()
+      assetTaxLots.forEach((lot: any) => {
+        const lotValue = (lot.remaining_quantity || 0) * price
+        const lotCost = (lot.remaining_quantity || 0) * (lot.cost_basis_per_unit || 0)
+        const accId = lot.account_id || 'unknown'
+        if (!accountMap.has(accId)) {
+          const acc = accounts?.find((a: any) => a.id === accId)
+          accountMap.set(accId, { lots: [], totalValue: 0, totalCostBasis: 0, tax_status: acc?.tax_status, account: acc })
+        }
+        const entry = accountMap.get(accId)!
+        entry.lots.push({ ...lot, lotValue, lotCost })
+        entry.totalValue += lotValue
+        entry.totalCostBasis += lotCost
+      })
+
       if (allocation.action === 'sell') {
-        // Get all lots for this asset grouped by account
-        const assetTaxLots = (detailedTaxLots || []).filter((lot: any) => lot.asset_id === allocation.asset_id && lot.account_id)
-
-        const accountMap = new Map<string, { lots: any[]; totalValue: number; totalCostBasis: number; tax_status?: string; account?: any }>()
-        const price = latestPrices.get(allocation.asset_id)?.price || 0
-
-        assetTaxLots.forEach((lot: any) => {
-          const accId = lot.account_id
-          const lotValue = price * lot.remaining_quantity
-          const lotCost = lot.remaining_quantity * lot.cost_basis_per_unit
-          if (!accountMap.has(accId)) {
-            const acc = accounts?.find((a: any) => a.id === accId)
-            accountMap.set(accId, { lots: [], totalValue: 0, totalCostBasis: 0, tax_status: acc?.tax_status, account: acc })
-          }
-          const entry = accountMap.get(accId)!
-          entry.lots.push({ ...lot, lotValue, lotCost })
-          entry.totalValue += lotValue
-          entry.totalCostBasis += lotCost
-        })
-
-        // If there are no lots with account ids, fall back to simple estimation
-        if (accountMap.size === 0) {
+      // If there are no lots with account ids, fall back to simple estimation
+      if (accountMap.size === 0) {
           // Fallback: proportional across lots but apply per-lot short/long-term rates
           const now = new Date()
           const SHORT_TERM_DAYS = 365
@@ -197,17 +225,6 @@ export async function POST(request: NextRequest) {
 
           taxNotes = taxImpact > 0 ? `Estimated capital gains tax on taxable portion: $${taxImpact.toFixed(2)}` : 'Potential tax-loss harvesting opportunity'
         }
-      } else if (allocation.action === 'buy') {
-        // For buying, recommend tax-advantaged accounts where the user actually holds assets or any tax-advantaged accounts
-        const buyAccounts = accounts?.filter((acc: any) => acc.tax_status !== 'Taxable') || []
-        recommendedAccounts = buyAccounts.slice(0, 2).map((acc: any) => ({
-          id: acc.id,
-          name: acc.name,
-          type: acc.type,
-          reason: 'Tax-advantaged account preferred for buying'
-        }))
-
-        taxNotes = 'Consider tax-advantaged accounts for purchases'
       }
 
       return {

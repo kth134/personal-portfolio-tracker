@@ -139,7 +139,8 @@ export async function GET() {
       const price = latestPrices.get(lot.asset.ticker)?.price || 0
       return sum + (lot.remaining_quantity * price)
     }, 0) || 0
-    const totalValue = holdingsValue + totalCash
+    // Exclude cash from total portfolio value for rebalancing calculations (assume fully invested)
+    const totalValue = holdingsValue
 
     const allocationsBySubPortfolio = new Map<string, any[]>()
     const allocations: any[] = []
@@ -247,16 +248,41 @@ export async function GET() {
       let recommendedAccounts: any[] = []
       let taxNotes = allocation.tax_notes
 
-      if (allocation.action === 'sell') {
-        // Allocate sells across accounts where the asset is held and compute per-lot tax rates
-        const assetTaxLots = detailedTaxLots?.filter(lot => lot.asset_id === allocation.asset_id && lot.account_id) || []
-        const price = latestPrices.get(allocation.ticker)?.price || 0
+      if (allocation.action === 'buy') {
+        // For buys, recommend tax-advantaged accounts and suggest sell sources to generate required cash
+        const buyAccounts = accounts?.filter(acc => acc.tax_status === 'Tax-Advantaged') || []
+        recommendedAccounts = buyAccounts.map(acc => ({
+          id: acc.id,
+          name: acc.name,
+          type: acc.type,
+          reason: 'Tax-advantaged account preferred for tax-deferred growth'
+        }))
 
-        const accountMap = new Map<string, { lots: any[]; totalValue: number; totalCostBasis: number; tax_status?: string; account?: any }>()
+        taxNotes = 'Use tax-advantaged accounts for long-term tax benefits.'
+
+        // Funding suggestions: pick portfolio sell candidates to raise required buy amount
+        const sellCandidates = allocations.filter(a => a.action === 'sell' && a.amount > 0).sort((a, b) => b.amount - a.amount)
+        let remainingNeed = allocation.amount || 0
+        const fundingSuggestions: any[] = []
+        for (const cand of sellCandidates) {
+          if (remainingNeed <= 0) break
+          const take = Math.min(cand.amount, remainingNeed)
+          const price = latestPrices.get(cand.ticker)?.price || 0
+          const shares = price > 0 ? take / price : 0
+          fundingSuggestions.push({ asset_id: cand.asset_id, ticker: cand.ticker, name: cand.name, suggested_amount: take, suggested_shares: shares, reason: `Sell to fund buy of ${allocation.ticker}` })
+          remainingNeed -= take
+        }
+        if (fundingSuggestions.length > 0) {
+          reinvestmentSuggestions = fundingSuggestions
+        }
+      } else if (allocation.action === 'sell') {
+        const price = latestPrices.get(allocation.asset_id)?.price || 0
+        const assetTaxLots = (detailedTaxLots || []).filter((dl: any) => dl.asset_id === allocation.asset_id)
+        const accountMap = new Map<string, any>()
         assetTaxLots.forEach((lot: any) => {
-          const accId = lot.account_id
-          const lotValue = price * lot.remaining_quantity
-          const lotCost = lot.remaining_quantity * lot.cost_basis_per_unit
+          const lotValue = (lot.remaining_quantity || 0) * price
+          const lotCost = (lot.remaining_quantity || 0) * (lot.cost_basis_per_unit || 0)
+          const accId = lot.account_id || 'unknown'
           if (!accountMap.has(accId)) {
             const acc = accounts?.find((a: any) => a.id === accId)
             accountMap.set(accId, { lots: [], totalValue: 0, totalCostBasis: 0, tax_status: acc?.tax_status, account: acc })
