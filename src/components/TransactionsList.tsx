@@ -83,10 +83,10 @@ export default function TransactionsList({ initialTransactions, total, currentPa
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   // Filters
-  const [filterType, setFilterType] = useState('')
-  const [filterAccount, setFilterAccount] = useState('')
-  const [filterAsset, setFilterAsset] = useState('')
-  const [filterFundingSource, setFilterFundingSource] = useState('')
+  const [filterType, setFilterType] = useState<string[]>([])
+  const [filterAccount, setFilterAccount] = useState<string[]>([])
+  const [filterAsset, setFilterAsset] = useState<string[]>([])
+  const [filterFundingSource, setFilterFundingSource] = useState<string[]>([])
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const [filterAmountMin, setFilterAmountMin] = useState('')
@@ -182,17 +182,17 @@ export default function TransactionsList({ initialTransactions, total, currentPa
       )
     }
     // Apply filters
-    if (filterType) {
-      list = list.filter(tx => tx.type === filterType)
+    if (filterType.length > 0) {
+      list = list.filter(tx => filterType.includes(tx.type))
     }
-    if (filterAccount) {
-      list = list.filter(tx => tx.account?.name?.toLowerCase().includes(filterAccount.toLowerCase()))
+    if (filterAccount.length > 0) {
+      list = list.filter(tx => tx.account?.name && filterAccount.some(acc => tx.account!.name.toLowerCase().includes(acc.toLowerCase())))
     }
-    if (filterAsset) {
-      list = list.filter(tx => tx.asset?.ticker?.toLowerCase().includes(filterAsset.toLowerCase()) || tx.asset?.name?.toLowerCase().includes(filterAsset.toLowerCase()))
+    if (filterAsset.length > 0) {
+      list = list.filter(tx => tx.asset?.ticker && filterAsset.some(ast => tx.asset!.ticker.toLowerCase().includes(ast.toLowerCase()) || (tx.asset!.name && tx.asset!.name.toLowerCase().includes(ast.toLowerCase()))))
     }
-    if (filterFundingSource) {
-      list = list.filter(tx => tx.funding_source === filterFundingSource)
+    if (filterFundingSource.length > 0) {
+      list = list.filter(tx => tx.funding_source && filterFundingSource.includes(tx.funding_source))
     }
     if (filterDateFrom) {
       list = list.filter(tx => tx.date >= filterDateFrom)
@@ -774,47 +774,160 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <Label>Type</Label>
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Buy">Buy</SelectItem>
-                  <SelectItem value="Sell">Sell</SelectItem>
-                  <SelectItem value="Dividend">Dividend</SelectItem>
-                  <SelectItem value="Deposit">Deposit</SelectItem>
-                  <SelectItem value="Withdrawal">Withdrawal</SelectItem>
-                  <SelectItem value="Interest">Interest</SelectItem>
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {filterType.length > 0 ? `${filterType.length} selected` : 'All types'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search types..." />
+                    <CommandList>
+                      <CommandEmpty>No types found.</CommandEmpty>
+                      <CommandGroup>
+                        {['Buy', 'Sell', 'Dividend', 'Deposit', 'Withdrawal', 'Interest'].map((type) => (
+                          <CommandItem
+                            key={type}
+                            onSelect={() => {
+                              if (filterType.includes(type)) {
+                                setFilterType(filterType.filter(t => t !== type))
+                              } else {
+                                setFilterType([...filterType, type])
+                              }
+                            }}
+                          >
+                            <Checkbox
+                              checked={filterType.includes(type)}
+                              className="mr-2"
+                            />
+                            {type}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>Account</Label>
-              <Input
-                placeholder="Filter by account"
-                value={filterAccount}
-                onChange={(e) => setFilterAccount(e.target.value)}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {filterAccount.length > 0 ? `${filterAccount.length} selected` : 'All accounts'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search accounts..." />
+                    <CommandList>
+                      <CommandEmpty>No accounts found.</CommandEmpty>
+                      <CommandGroup>
+                        {accounts.map((acc) => (
+                          <CommandItem
+                            key={acc.id}
+                            onSelect={() => {
+                              if (filterAccount.includes(acc.name)) {
+                                setFilterAccount(filterAccount.filter(a => a !== acc.name))
+                              } else {
+                                setFilterAccount([...filterAccount, acc.name])
+                              }
+                            }}
+                          >
+                            <Checkbox
+                              checked={filterAccount.includes(acc.name)}
+                              className="mr-2"
+                            />
+                            {acc.name} ({acc.type})
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>Asset</Label>
-              <Input
-                placeholder="Filter by asset"
-                value={filterAsset}
-                onChange={(e) => setFilterAsset(e.target.value)}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {filterAsset.length > 0 ? `${filterAsset.length} selected` : 'All assets'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search assets..." />
+                    <CommandList>
+                      <CommandEmpty>No assets found.</CommandEmpty>
+                      <CommandGroup>
+                        {assets.map((ast) => (
+                          <CommandItem
+                            key={ast.id}
+                            onSelect={() => {
+                              const assetValue = ast.ticker
+                              if (filterAsset.includes(assetValue)) {
+                                setFilterAsset(filterAsset.filter(a => a !== assetValue))
+                              } else {
+                                setFilterAsset([...filterAsset, assetValue])
+                              }
+                            }}
+                          >
+                            <Checkbox
+                              checked={filterAsset.includes(ast.ticker)}
+                              className="mr-2"
+                            />
+                            {ast.ticker}{ast.name ? ` - ${ast.name}` : ''}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>Funding Source</Label>
-              <Select value={filterFundingSource} onValueChange={setFilterFundingSource}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="external">External</SelectItem>
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {filterFundingSource.length > 0 ? `${filterFundingSource.length} selected` : 'All sources'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search funding sources..." />
+                    <CommandList>
+                      <CommandEmpty>No funding sources found.</CommandEmpty>
+                      <CommandGroup>
+                        {['cash', 'external'].map((source) => (
+                          <CommandItem
+                            key={source}
+                            onSelect={() => {
+                              if (filterFundingSource.includes(source)) {
+                                setFilterFundingSource(filterFundingSource.filter(f => f !== source))
+                              } else {
+                                setFilterFundingSource([...filterFundingSource, source])
+                              }
+                            }}
+                          >
+                            <Checkbox
+                              checked={filterFundingSource.includes(source)}
+                              className="mr-2"
+                            />
+                            {source === 'cash' ? 'Cash Balance' : 'External'}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>Date From</Label>
@@ -859,10 +972,10 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
           </div>
           <div className="mt-4 flex gap-2">
             <Button variant="outline" onClick={() => {
-              setFilterType('')
-              setFilterAccount('')
-              setFilterAsset('')
-              setFilterFundingSource('')
+              setFilterType([])
+              setFilterAccount([])
+              setFilterAsset([])
+              setFilterFundingSource([])
               setFilterDateFrom('')
               setFilterDateTo('')
               setFilterAmountMin('')

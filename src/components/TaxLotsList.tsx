@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +18,7 @@ import { CalendarIcon, Check, ChevronsUpDown, Edit2, Trash2, ArrowUpDown, Filter
 import { cn } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 type Account = { id: string; name: string; type: string }
 type Asset = { id: string; ticker: string; name?: string }
@@ -40,8 +42,11 @@ type TaxLotsListProps = {
   pageSize: number
 }
 
-export default function TaxLotsList({ initialTaxLots, total, currentPage, pageSize }: TaxLotsListProps) {
+export default function TaxLotsList({ initialTaxLots, total, currentPage: currentPageProp, pageSize }: TaxLotsListProps) {
+  const router = useRouter()
   const [taxLots, setTaxLots] = useState(initialTaxLots)
+  const [displayTaxLots, setDisplayTaxLots] = useState(initialTaxLots)
+  const [currentPage, setCurrentPage] = useState(currentPageProp)
   const [open, setOpen] = useState(false)
   const [editingLot, setEditingLot] = useState<TaxLot | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -65,8 +70,8 @@ export default function TaxLotsList({ initialTaxLots, total, currentPage, pageSi
   const [selectAll, setSelectAll] = useState(false)
 
   // Filters
-  const [filterAccount, setFilterAccount] = useState('')
-  const [filterAsset, setFilterAsset] = useState('')
+  const [filterAccount, setFilterAccount] = useState<string[]>([])
+  const [filterAsset, setFilterAsset] = useState<string[]>([])
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const [filterRemainingMin, setFilterRemainingMin] = useState('')
@@ -83,6 +88,16 @@ export default function TaxLotsList({ initialTaxLots, total, currentPage, pageSi
     }
     fetchData()
   }, [])
+
+  // Update taxLots when initialTaxLots changes
+  useEffect(() => {
+    setTaxLots(initialTaxLots)
+  }, [initialTaxLots])
+
+  // Update currentPage when prop changes
+  useEffect(() => {
+    setCurrentPage(currentPageProp)
+  }, [currentPageProp])
 
   const resetForm = () => {
     setSelectedAccount(null)
@@ -192,8 +207,9 @@ const handleSort = (key: SortKey) => {
   }
 
   const handleSelectAll = (checked: boolean) => {
+    const paginatedTaxLots = displayTaxLots.slice((currentPage - 1) * pageSize, currentPage * pageSize)
     if (checked) {
-      setSelectedLots(filteredLots.map(lot => lot.id))
+      setSelectedLots(paginatedTaxLots.map(lot => lot.id))
     } else {
       setSelectedLots([])
     }
@@ -215,75 +231,94 @@ const handleSort = (key: SortKey) => {
     }
   }
 
-  const filteredLots = useMemo(() => {
-    return [...taxLots].sort((a, b) => {
-    let va: any, vb: any
-    switch (sortKey) {
-      case 'account':
-        va = a.account?.name || ''
-        vb = b.account?.name || ''
-        break
-      case 'asset':
-        va = a.asset?.ticker || ''
-        vb = b.asset?.ticker || ''
-        break
-      case 'date':
-        va = a.purchase_date
-        vb = b.purchase_date
-        break
-      case 'origQty':
-        va = a.quantity
-        vb = b.quantity
-        break
-      case 'basisUnit':
-        va = a.cost_basis_per_unit
-        vb = b.cost_basis_per_unit
-        break
-      case 'remainQty':
-        va = a.remaining_quantity
-        vb = b.remaining_quantity
-        break
-      case 'totalBasis':
-        va = a.remaining_quantity * a.cost_basis_per_unit
-        vb = b.remaining_quantity * b.cost_basis_per_unit
-        break
-    }
-    if (va < vb) return sortDir === 'asc' ? -1 : 1
-    if (va > vb) return sortDir === 'asc' ? 1 : -1
-    return 0
-  }).filter(lot => {
-    if (!search) return true
-    const low = search.toLowerCase()
-    return (
-      lot.account?.name?.toLowerCase().includes(low) ||
-      lot.asset?.ticker?.toLowerCase().includes(low) ||
-      lot.asset?.name?.toLowerCase().includes(low) ||
-      lot.purchase_date.includes(low)
-    )
-  }).filter(lot => {
-    if (filterAccount && !lot.account?.name?.toLowerCase().includes(filterAccount.toLowerCase())) return false
-    if (filterAsset && !lot.asset?.ticker?.toLowerCase().includes(filterAsset.toLowerCase()) && !lot.asset?.name?.toLowerCase().includes(filterAsset.toLowerCase())) return false
-    if (filterDateFrom && lot.purchase_date < filterDateFrom) return false
-    if (filterDateTo && lot.purchase_date > filterDateTo) return false
-    if (filterRemainingMin && lot.remaining_quantity < Number(filterRemainingMin)) return false
-    if (filterRemainingMax && lot.remaining_quantity > Number(filterRemainingMax)) return false
-    return true
-  })
-  }, [taxLots, search, sortKey, sortDir, filterAccount, filterAsset, filterDateFrom, filterDateTo, filterRemainingMin, filterRemainingMax]).filter(lot => {
-    if (filterAccount && !lot.account?.name?.toLowerCase().includes(filterAccount.toLowerCase())) return false
-    if (filterAsset && !lot.asset?.ticker?.toLowerCase().includes(filterAsset.toLowerCase()) && !lot.asset?.name?.toLowerCase().includes(filterAsset.toLowerCase())) return false
-    if (filterDateFrom && lot.purchase_date < filterDateFrom) return false
-    if (filterDateTo && lot.purchase_date > filterDateTo) return false
-    if (filterRemainingMin && lot.remaining_quantity < Number(filterRemainingMin)) return false
-    if (filterRemainingMax && lot.remaining_quantity > Number(filterRemainingMax)) return false
-    return true
-  })
-
-  // Update select all
+  // Search + sort + filter effect
   useEffect(() => {
-    const allSelected = filteredLots.length > 0 && selectedLots.length === filteredLots.length
+    let list = [...taxLots]
+    if (search) {
+      const low = search.toLowerCase()
+      list = list.filter(lot =>
+        lot.account?.name?.toLowerCase().includes(low) ||
+        lot.asset?.ticker?.toLowerCase().includes(low) ||
+        lot.asset?.name?.toLowerCase().includes(low) ||
+        lot.purchase_date.includes(low)
+      )
+    }
+    // Apply filters
+    if (filterAccount.length > 0) {
+      list = list.filter(lot => lot.account?.name && filterAccount.some(acc => lot.account!.name.toLowerCase().includes(acc.toLowerCase())))
+    }
+    if (filterAsset.length > 0) {
+      list = list.filter(lot => lot.asset?.ticker && filterAsset.some(ast => lot.asset!.ticker.toLowerCase().includes(ast.toLowerCase()) || (lot.asset!.name && lot.asset!.name.toLowerCase().includes(ast.toLowerCase()))))
+    }
+    if (filterDateFrom) {
+      list = list.filter(lot => lot.purchase_date >= filterDateFrom)
+    }
+    if (filterDateTo) {
+      list = list.filter(lot => lot.purchase_date <= filterDateTo)
+    }
+    if (filterRemainingMin) {
+      const min = Number(filterRemainingMin)
+      list = list.filter(lot => lot.remaining_quantity >= min)
+    }
+    if (filterRemainingMax) {
+      const max = Number(filterRemainingMax)
+      list = list.filter(lot => lot.remaining_quantity <= max)
+    }
+    list.sort((a, b) => {
+      let va: any, vb: any
+      switch (sortKey) {
+        case 'account':
+          va = a.account?.name || ''
+          vb = b.account?.name || ''
+          break
+        case 'asset':
+          va = a.asset?.ticker || ''
+          vb = b.asset?.ticker || ''
+          break
+        case 'date':
+          va = a.purchase_date
+          vb = b.purchase_date
+          break
+        case 'origQty':
+          va = a.quantity
+          vb = b.quantity
+          break
+        case 'basisUnit':
+          va = a.cost_basis_per_unit
+          vb = b.cost_basis_per_unit
+          break
+        case 'remainQty':
+          va = a.remaining_quantity
+          vb = b.remaining_quantity
+          break
+        case 'totalBasis':
+          va = a.remaining_quantity * a.cost_basis_per_unit
+          vb = b.remaining_quantity * b.cost_basis_per_unit
+          break
+      }
+      if (va < vb) return sortDir === 'asc' ? -1 : 1
+      if (va > vb) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+    setDisplayTaxLots(list)
+  }, [taxLots, search, sortKey, sortDir, filterAccount, filterAsset, filterDateFrom, filterDateTo, filterRemainingMin, filterRemainingMax])
+
+  // Update select all state
+  useEffect(() => {
+    const paginatedTaxLots = displayTaxLots.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    const allSelected = paginatedTaxLots.length > 0 && selectedLots.length === paginatedTaxLots.length && selectedLots.every(id => paginatedTaxLots.some(lot => lot.id === id))
     setSelectAll(allSelected)
-  }, [selectedLots, filteredLots])
+  }, [selectedLots, displayTaxLots, currentPage, pageSize])
+
+  const totalPages = Math.ceil(displayTaxLots.length / pageSize)
+
+  // Adjust currentPage if out of bounds
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages)
+      router.push(`?page=${totalPages}`)
+    }
+  }, [displayTaxLots, pageSize, currentPage, totalPages, router])
 
   return (
     <main className="container mx-auto py-8">
@@ -427,19 +462,82 @@ const handleSort = (key: SortKey) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <Label>Account</Label>
-              <Input
-                placeholder="Filter by account"
-                value={filterAccount}
-                onChange={(e) => setFilterAccount(e.target.value)}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {filterAccount.length > 0 ? `${filterAccount.length} selected` : 'All accounts'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search accounts..." />
+                    <CommandList>
+                      <CommandEmpty>No accounts found.</CommandEmpty>
+                      <CommandGroup>
+                        {accounts.map((acc) => (
+                          <CommandItem
+                            key={acc.id}
+                            onSelect={() => {
+                              if (filterAccount.includes(acc.name)) {
+                                setFilterAccount(filterAccount.filter(a => a !== acc.name))
+                              } else {
+                                setFilterAccount([...filterAccount, acc.name])
+                              }
+                            }}
+                          >
+                            <Checkbox
+                              checked={filterAccount.includes(acc.name)}
+                              className="mr-2"
+                            />
+                            {acc.name} ({acc.type})
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>Asset</Label>
-              <Input
-                placeholder="Filter by asset"
-                value={filterAsset}
-                onChange={(e) => setFilterAsset(e.target.value)}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {filterAsset.length > 0 ? `${filterAsset.length} selected` : 'All assets'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search assets..." />
+                    <CommandList>
+                      <CommandEmpty>No assets found.</CommandEmpty>
+                      <CommandGroup>
+                        {assets.map((ast) => (
+                          <CommandItem
+                            key={ast.id}
+                            onSelect={() => {
+                              const assetValue = ast.ticker
+                              if (filterAsset.includes(assetValue)) {
+                                setFilterAsset(filterAsset.filter(a => a !== assetValue))
+                              } else {
+                                setFilterAsset([...filterAsset, assetValue])
+                              }
+                            }}
+                          >
+                            <Checkbox
+                              checked={filterAsset.includes(ast.ticker)}
+                              className="mr-2"
+                            />
+                            {ast.ticker}{ast.name ? ` - ${ast.name}` : ''}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>Date From</Label>
@@ -476,8 +574,8 @@ const handleSort = (key: SortKey) => {
           </div>
           <div className="mt-4 flex gap-2">
             <Button variant="outline" onClick={() => {
-              setFilterAccount('')
-              setFilterAsset('')
+              setFilterAccount([])
+              setFilterAsset([])
               setFilterDateFrom('')
               setFilterDateTo('')
               setFilterRemainingMin('')
@@ -513,7 +611,7 @@ const handleSort = (key: SortKey) => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredLots.map((lot) => (
+            {displayTaxLots.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((lot) => (
               <TableRow key={lot.id} className={cn(lot.remaining_quantity === 0 && "opacity-60 bg-muted/20")}>
                 <TableCell>
                   <Checkbox
@@ -575,12 +673,10 @@ const handleSort = (key: SortKey) => {
 
       <PaginationControls
         currentPage={currentPage}
-        total={total}
-        pageSize={pageSize}
+        totalPages={totalPages}
         onPageChange={(page) => {
-          const url = new URL(window.location.href)
-          url.searchParams.set('page', page.toString())
-          window.location.href = url.toString()
+          setCurrentPage(page)
+          router.push(`?page=${page}`)
         }}
       />
 
@@ -600,26 +696,47 @@ const handleSort = (key: SortKey) => {
   )
 }
 
-function PaginationControls({ currentPage, total, pageSize, onPageChange }: { currentPage: number, total: number, pageSize: number, onPageChange: (page: number) => void }) {
-  const totalPages = Math.ceil(total / pageSize)
+function PaginationControls({ currentPage, totalPages, onPageChange }: { currentPage: number, totalPages: number, onPageChange: (page: number) => void }) {
   return (
-    <div className="flex justify-between items-center mt-4">
+    <div className="flex items-center justify-center gap-2 mt-4">
       <Button
         variant="outline"
-        disabled={currentPage <= 1}
+        onClick={() => onPageChange(1)}
+        disabled={currentPage === 1}
+      >
+        First
+      </Button>
+      <Button
+        variant="outline"
         onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage <= 1}
       >
         Previous
       </Button>
-      <span className="text-sm text-muted-foreground">
-        Page {currentPage} of {totalPages} ({total} total)
-      </span>
+      <Select value={currentPage.toString()} onValueChange={(v) => onPageChange(parseInt(v))}>
+        <SelectTrigger className="w-20">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+            <SelectItem key={page} value={page.toString()}>{page}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span>of {totalPages}</span>
       <Button
         variant="outline"
-        disabled={currentPage >= totalPages}
         onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage >= totalPages}
       >
         Next
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() => onPageChange(totalPages)}
+        disabled={currentPage === totalPages}
+      >
+        Last
       </Button>
     </div>
   )
