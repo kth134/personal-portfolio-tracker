@@ -182,6 +182,11 @@ export async function GET() {
         const currentOverallPercentage = totalValue > 0 ? (item.current_value / totalValue) * 100 : 0
         const subPortfolioPercentage = subValue > 0 ? (item.current_value / subValue) * 100 : 0
 
+        // Calculate target value and transaction amount
+        // Target value = (Total sub-portfolio value * target allocation % of the asset) / 100
+        const targetValue = (subValue * assetTarget) / 100
+        const transactionAmount = Math.abs(targetValue - item.current_value)
+
         // Calculate relative drift: (current - target) / target * 100
         // For assets, we use the sub-portfolio percentage vs asset target within sub-portfolio
         const driftPercentage = assetTarget > 0 ? ((subPortfolioPercentage - assetTarget) / assetTarget) * 100 : 0
@@ -195,21 +200,26 @@ export async function GET() {
         const downsideThreshold = subPortfolio.downside_threshold
         const bandMode = subPortfolio.band_mode
 
-        // Convert absolute thresholds to relative terms for assets with targets
-        const relativeUpsideThreshold = assetTarget > 0 ? (upsideThreshold / assetTarget) * 100 : upsideThreshold
-        const relativeDownsideThreshold = assetTarget > 0 ? (downsideThreshold / assetTarget) * 100 : downsideThreshold
+        // Action logic based on drift percentage and thresholds
+        if (driftPercentage <= -Math.abs(downsideThreshold)) {
+          action = 'buy'
+        } else if (driftPercentage >= Math.abs(upsideThreshold)) {
+          action = 'sell'
+        } else {
+          action = 'hold'
+        }
 
-        if (Math.abs(driftPercentage) > relativeDownsideThreshold || Math.abs(driftPercentage) > relativeUpsideThreshold) {
-          if (driftPercentage > 0) {
-            action = 'sell'
-            amount = bandMode
-              ? (driftPercentage - relativeUpsideThreshold) / 100 * totalValue
-              : driftDollar
+        // Calculate transaction amount based on band mode
+        if (action === 'buy' || action === 'sell') {
+          if (bandMode) {
+            // Band mode: calculate amount to get back to threshold
+            const targetDrift = action === 'sell' ? upsideThreshold : -downsideThreshold
+            const targetPercentage = assetTarget * (1 + targetDrift / 100)
+            const targetValue = (subValue * targetPercentage) / 100
+            amount = Math.abs(targetValue - item.current_value)
           } else {
-            action = 'buy'
-            amount = bandMode
-              ? (relativeDownsideThreshold + driftPercentage) / 100 * totalValue
-              : Math.abs(driftDollar)
+            // Full rebalancing: calculate amount to reach exact target
+            amount = transactionAmount
           }
         }
 

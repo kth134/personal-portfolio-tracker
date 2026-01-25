@@ -106,7 +106,14 @@ export default function RebalancingPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // Validation state
-  const [validationMessages, setValidationMessages] = useState<{[key: string]: string}>({})
+  const [validationErrors, setValidationErrors] = useState<{
+    subPortfolios: {[key: string]: string};
+    assets: {[key: string]: {[key: string]: string}};
+  }>({ subPortfolios: {}, assets: {} })
+
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState<string>('current_value')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
   // Accordion state
   const [openItems, setOpenItems] = useState<string[]>([])
@@ -249,12 +256,16 @@ export default function RebalancingPage() {
   }
 
   const validateAllocations = (data: RebalancingData) => {
-    const messages: {[key: string]: string} = {}
+    const subPortfolioErrors: {[key: string]: string} = {}
+    const assetErrors: {[key: string]: {[key: string]: string}} = {}
 
     // Check sub-portfolio allocations sum to 100%
     const totalSubPortfolioAllocation = data.subPortfolios.reduce((sum, sp) => sum + (sp.target_allocation || 0), 0)
     if (Math.abs(totalSubPortfolioAllocation - 100) > 0.01) {
-      messages['sub-portfolios'] = `Sub-portfolio allocations sum to ${totalSubPortfolioAllocation.toFixed(2)}% (should be 100%)`
+      // Mark all sub-portfolios as having errors
+      data.subPortfolios.forEach(sp => {
+        subPortfolioErrors[sp.id] = `Sub-portfolio allocations sum to ${totalSubPortfolioAllocation.toFixed(2)}% (should be 100%)`
+      })
     }
 
     // Check asset allocations within each sub-portfolio sum to 100%
@@ -266,12 +277,110 @@ export default function RebalancingPage() {
       }, 0)
       
       if (Math.abs(totalAssetAllocation - 100) > 0.01) {
-        messages[`sub-portfolio-${sp.id}`] = `${sp.name}: Asset allocations sum to ${totalAssetAllocation.toFixed(2)}% (should be 100%)`
+        assetErrors[sp.id] = {}
+        subPortfolioAssets.forEach(asset => {
+          assetErrors[sp.id][asset.asset_id] = `${sp.name}: Asset allocations sum to ${totalAssetAllocation.toFixed(2)}% (should be 100%)`
+        })
       }
     })
 
-    setValidationMessages(messages)
+    setValidationErrors({ subPortfolios: subPortfolioErrors, assets: assetErrors })
   }
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('desc') // Default to descending for new column
+    }
+  }
+
+  const sortAllocations = (allocations: any[]) => {
+    return [...allocations].sort((a, b) => {
+      let aValue: any
+      let bValue: any
+
+      switch (sortColumn) {
+        case 'ticker':
+          aValue = a.ticker.toLowerCase()
+          bValue = b.ticker.toLowerCase()
+          break
+        case 'current_value':
+          aValue = a.current_value
+          bValue = b.current_value
+          break
+        case 'current_percentage':
+          aValue = a.current_percentage
+          bValue = b.current_percentage
+          break
+        case 'sub_portfolio_percentage':
+          aValue = a.sub_portfolio_percentage
+          bValue = b.sub_portfolio_percentage
+          break
+        case 'sub_portfolio_target_percentage':
+          aValue = a.sub_portfolio_target_percentage || a.sub_portfolio_percentage
+          bValue = b.sub_portfolio_target_percentage || b.sub_portfolio_percentage
+          break
+        case 'implied_overall_target':
+          aValue = a.implied_overall_target
+          bValue = b.implied_overall_target
+          break
+        case 'drift_percentage':
+          aValue = a.drift_percentage
+          bValue = b.drift_percentage
+          break
+        case 'amount':
+          aValue = a.amount
+          bValue = b.amount
+          break
+        case 'tax_impact':
+          aValue = a.tax_impact
+          bValue = b.tax_impact
+          break
+        default:
+          return 0
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+  }
+
+  const calculateTotals = (allocations: any[]) => {
+    const totalCurrentValue = allocations.reduce((sum, item) => sum + item.current_value, 0)
+    const totalCurrentPercentage = allocations.reduce((sum, item) => sum + item.current_percentage, 0)
+    const totalTargetPercentage = allocations.reduce((sum, item) => {
+      const target = item.sub_portfolio_target_percentage || item.sub_portfolio_percentage
+      return sum + target
+    }, 0)
+    const totalImpliedOverallTarget = allocations.reduce((sum, item) => sum + item.implied_overall_target, 0)
+    
+    // Weighted average drift percentage (weighted by current value)
+    const weightedDriftSum = allocations.reduce((sum, item) => sum + (item.drift_percentage * item.current_value), 0)
+    const totalDriftPercentage = totalCurrentValue > 0 ? weightedDriftSum / totalCurrentValue : 0
+    
+    const totalTaxImpact = allocations.reduce((sum, item) => sum + item.tax_impact, 0)
+
+    return {
+      current_value: totalCurrentValue,
+      current_percentage: totalCurrentPercentage,
+      target_percentage: totalTargetPercentage,
+      implied_overall_target: totalImpliedOverallTarget,
+      drift_percentage: totalDriftPercentage,
+      tax_impact: totalTaxImpact
+    }
+  }
+
+  const SortableTableHead = ({ column, children, className }: { column: string, children: React.ReactNode, className?: string }) => (
+    <TableHead className={cn("cursor-pointer hover:bg-gray-50 select-none", className)} onClick={() => handleSort(column)}>
+      <div className="flex items-center justify-between">
+        <span>{children}</span>
+        <ArrowUpDown className={cn("h-4 w-4 ml-1", sortColumn === column ? "text-blue-600" : "text-gray-400")} />
+      </div>
+    </TableHead>
+  )
 
   const generateCSV = (data: RebalancingData) => {
     const headers = [
@@ -726,17 +835,7 @@ export default function RebalancingPage() {
         </div>
       </div>
 
-      {/* Validation Messages */}
-      {Object.keys(validationMessages).length > 0 && (
-        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <h3 className="font-semibold text-yellow-800 mb-2">Allocation Validation Warnings</h3>
-          <ul className="space-y-1">
-            {Object.entries(validationMessages).map(([key, message]) => (
-              <li key={key} className="text-sm text-yellow-700">• {message}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+
 
       {/* Accordion Table */}
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
@@ -771,18 +870,30 @@ export default function RebalancingPage() {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                       <div>
                         <Label>Target % (sum to 100%)</Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          defaultValue={subPortfolioTarget}
-                          onBlur={(e) => {
-                            const newValue = parseFloat(e.target.value) || 0
-                            if (newValue !== subPortfolioTarget) {
-                              updateSubPortfolioTarget(subPortfolioId, newValue)
-                            }
-                          }}
-                          className="w-24"
-                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              defaultValue={subPortfolioTarget}
+                              onBlur={(e) => {
+                                const newValue = parseFloat(e.target.value) || 0
+                                if (newValue !== subPortfolioTarget) {
+                                  updateSubPortfolioTarget(subPortfolioId, newValue)
+                                }
+                              }}
+                              className={cn(
+                                "w-24",
+                                validationErrors.subPortfolios[subPortfolioId] && "border-red-500 focus:border-red-500"
+                              )}
+                            />
+                          </TooltipTrigger>
+                          {validationErrors.subPortfolios[subPortfolioId] && (
+                            <TooltipContent>
+                              <p className="text-red-600 font-medium">{validationErrors.subPortfolios[subPortfolioId]}</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
                       </div>
                       {subPortfolio && (
                         <>
@@ -841,96 +952,135 @@ export default function RebalancingPage() {
                   </div>
 
                   {/* Assets Table */}
-                  <div className="overflow-x-auto">
+                  <div className="w-full">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Asset</TableHead>
-                          <TableHead className="text-right">Current Value</TableHead>
-                          <TableHead className="text-right">Current % (Sub)</TableHead>
-                          <TableHead className="text-right">Target % (Sub)</TableHead>
-                          <TableHead className="text-right">Implied Overall Target %</TableHead>
-                          <TableHead className="text-right">Drift %</TableHead>
-                          <TableHead>Action</TableHead>
-                          <TableHead className="text-right">Recommended Transaction Amount</TableHead>
-                          <TableHead className="text-right">Tax Impact</TableHead>
-                          <TableHead>Recommended Accounts</TableHead>
-                          <TableHead>Tax Notes</TableHead>
+                          <TableHead className="min-w-0 break-words">Asset</TableHead>
+                          <SortableTableHead column="current_value" className="text-right min-w-0 break-words">Current Value</SortableTableHead>
+                          <SortableTableHead column="current_percentage" className="text-right min-w-0 break-words">Current % (Sub)</SortableTableHead>
+                          <SortableTableHead column="sub_portfolio_target_percentage" className="text-right min-w-0 break-words">Target % (Sub)</SortableTableHead>
+                          <SortableTableHead column="implied_overall_target" className="text-right min-w-0 break-words">Implied Overall Target %</SortableTableHead>
+                          <SortableTableHead column="drift_percentage" className="text-right min-w-0 break-words">Drift %</SortableTableHead>
+                          <TableHead className="min-w-0 break-words">Action</TableHead>
+                          <SortableTableHead column="amount" className="text-right min-w-0 break-words">Recommended Transaction Amount</SortableTableHead>
+                          <SortableTableHead column="tax_impact" className="text-right min-w-0 break-words">Tax Impact</SortableTableHead>
+                          <TableHead className="min-w-0 break-words">Recommended Accounts</TableHead>
+                          <TableHead className="min-w-0 break-words">Tax Notes</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {allocations.map((item) => (
-                          <TableRow key={item.asset_id}>
-                            <TableCell>
-                              <div>
-                                <div className="font-bold">{item.ticker}</div>
-                                <div className="text-sm text-muted-foreground">{item.name}</div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right">{formatUSD(item.current_value)}</TableCell>
-                            <TableCell className="text-right">{item.sub_portfolio_percentage.toFixed(2)}%</TableCell>
-                            <TableCell className="text-right">
-                              <Input
-                                type="number"
-                                step="0.1"
-                                defaultValue={item.sub_portfolio_target_percentage || item.sub_portfolio_percentage}
-                                onBlur={(e) => {
-                                  const newValue = parseFloat(e.target.value) || 0
-                                  if (newValue !== (item.sub_portfolio_target_percentage || item.sub_portfolio_percentage)) {
-                                    updateAssetTarget(item.asset_id, subPortfolioId, newValue)
-                                  }
-                                }}
-                                className="w-20 ml-auto"
-                              />
-                            </TableCell>
-                            <TableCell className="text-right">{item.implied_overall_target.toFixed(2)}%</TableCell>
-                            <TableCell className={cn(
-                              "text-right font-medium",
-                              item.drift_percentage > 0 ? "text-green-600" : item.drift_percentage < 0 ? "text-red-600" : "text-green-600"
-                            )}>
-                              {item.drift_percentage > 0 ? '+' : ''}{item.drift_percentage.toFixed(2)}%
-                            </TableCell>
-                            <TableCell className={cn(
-                              "font-bold",
-                              item.action === 'buy' ? "text-green-600" :
-                              item.action === 'sell' ? "text-red-600" : "text-black"
-                            )}>
-                              {item.action.toUpperCase()}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {item.action === 'sell' ? '-' : ''}{formatUSD(item.amount)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {item.tax_impact > 0 ? (
-                                <span className="text-red-600 font-medium">
-                                  -{formatUSD(item.tax_impact)}
-                                </span>
-                              ) : (
-                                <span className="text-green-600">{formatUSD(0)}</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {item.recommended_accounts.length > 0 ? (
-                                <div className="space-y-1">
-                                  {item.recommended_accounts.slice(0, 2).map((acc, idx) => (
-                                    <div key={idx} className="text-xs">
-                                      <span className="font-medium">{acc.name}</span>
-                                      <span className="text-muted-foreground"> ({acc.type})</span>
+                        {(() => {
+                          const sortedAllocations = sortAllocations(allocations)
+                          
+                          /* Total Row */
+                          const totals = calculateTotals(sortedAllocations)
+                          return (
+                            <>
+                              {sortedAllocations.map((item) => (
+                                <TableRow key={item.asset_id}>
+                                  <TableCell className="min-w-0 break-words">
+                                    <div>
+                                      <div className="font-bold">{item.ticker}</div>
+                                      <div className="text-sm text-muted-foreground">{item.name}</div>
                                     </div>
-                                  ))}
-                                  {item.recommended_accounts.length > 2 && (
-                                    <div className="text-xs text-muted-foreground">
-                                      +{item.recommended_accounts.length - 2} more
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                '-'
-                              )}
-                            </TableCell>
-                            <TableCell className="text-sm">{item.tax_notes}</TableCell>
-                          </TableRow>
-                        ))}
+                                  </TableCell>
+                                  <TableCell className="text-right min-w-0 break-words">{formatUSD(item.current_value)}</TableCell>
+                                  <TableCell className="text-right min-w-0 break-words">{item.sub_portfolio_percentage.toFixed(2)}%</TableCell>
+                                  <TableCell className="text-right">
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Input
+                                          type="number"
+                                          step="0.1"
+                                          defaultValue={item.sub_portfolio_target_percentage || item.sub_portfolio_percentage}
+                                          onBlur={(e) => {
+                                            const newValue = parseFloat(e.target.value) || 0
+                                            if (newValue !== (item.sub_portfolio_target_percentage || item.sub_portfolio_percentage)) {
+                                              updateAssetTarget(item.asset_id, subPortfolioId, newValue)
+                                            }
+                                          }}
+                                          className={cn(
+                                            "w-20 ml-auto",
+                                            validationErrors.assets[subPortfolioId]?.[item.asset_id] && "border-red-500 focus:border-red-500"
+                                          )}
+                                        />
+                                      </TooltipTrigger>
+                                      {validationErrors.assets[subPortfolioId]?.[item.asset_id] && (
+                                        <TooltipContent>
+                                          <p className="text-red-600 font-medium">{validationErrors.assets[subPortfolioId][item.asset_id]}</p>
+                                        </TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  </TableCell>
+                                  <TableCell className="text-right min-w-0 break-words">{item.implied_overall_target.toFixed(2)}%</TableCell>
+                                  <TableCell className={cn(
+                                    "text-right font-medium min-w-0 break-words",
+                                    item.drift_percentage > 0 ? "text-green-600" : item.drift_percentage < 0 ? "text-red-600" : "text-green-600"
+                                  )}>
+                                    {item.drift_percentage > 0 ? '+' : ''}{item.drift_percentage.toFixed(2)}%
+                                  </TableCell>
+                                  <TableCell className={cn(
+                                    "font-bold min-w-0 break-words",
+                                    item.action === 'buy' ? "text-green-600" :
+                                    item.action === 'sell' ? "text-red-600" : "text-black"
+                                  )}>
+                                    {item.action.toUpperCase()}
+                                  </TableCell>
+                                  <TableCell className="text-right min-w-0 break-words">
+                                    {item.action === 'sell' ? '-' : ''}{formatUSD(item.amount)}
+                                  </TableCell>
+                                  <TableCell className="text-right min-w-0 break-words">
+                                    {item.tax_impact > 0 ? (
+                                      <span className="text-red-600 font-medium">
+                                        -{formatUSD(item.tax_impact)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-green-600">{formatUSD(0)}</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-sm min-w-0 break-words">
+                                    {item.recommended_accounts.length > 0 ? (
+                                      <div className="space-y-1">
+                                        {item.recommended_accounts.slice(0, 2).map((acc: any, idx: number) => (
+                                          <div key={idx} className="text-xs">
+                                            <span className="font-medium">{acc.name}</span>
+                                            <span className="text-muted-foreground"> ({acc.type})</span>
+                                          </div>
+                                        ))}
+                                        {item.recommended_accounts.length > 2 && (
+                                          <div className="text-xs text-muted-foreground">
+                                            +{item.recommended_accounts.length - 2} more
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      '-'
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-sm min-w-0 break-words">{item.tax_notes}</TableCell>
+                                </TableRow>
+                              ))}
+                              
+                              {/* Total Row */}
+                              <TableRow className="bg-gray-100 font-semibold">
+                                <TableCell className="font-bold min-w-0 break-words">TOTAL</TableCell>
+                                <TableCell className="text-right font-bold min-w-0 break-words">{formatUSD(totals.current_value)}</TableCell>
+                                <TableCell className="text-right font-bold min-w-0 break-words">{totals.current_percentage.toFixed(2)}%</TableCell>
+                                <TableCell className="text-right font-bold min-w-0 break-words">{totals.target_percentage.toFixed(2)}%</TableCell>
+                                <TableCell className="text-right font-bold min-w-0 break-words">{totals.implied_overall_target.toFixed(2)}%</TableCell>
+                                <TableCell className="text-right font-bold min-w-0 break-words">{totals.drift_percentage > 0 ? '+' : ''}{totals.drift_percentage.toFixed(2)}%</TableCell>
+                                <TableCell className="text-center font-bold min-w-0 break-words">-</TableCell>
+                                <TableCell className="text-center font-bold min-w-0 break-words">-</TableCell>
+                                <TableCell className="text-right font-bold min-w-0 break-words">
+                                  {totals.tax_impact > 0 ? `-${formatUSD(totals.tax_impact)}` : formatUSD(totals.tax_impact)}
+                                </TableCell>
+                                <TableCell className="text-center font-bold min-w-0 break-words">-</TableCell>
+                                <TableCell className="text-center font-bold min-w-0 break-words">-</TableCell>
+                              </TableRow>
+                            </>
+                          )
+                        })()}
                       </TableBody>
                     </Table>
                   </div>
@@ -947,8 +1097,8 @@ export default function RebalancingPage() {
                           .filter(item => item.action === 'sell')
                           .flatMap(item => item.reinvestment_suggestions)
                           .slice(0, 5) // Show top 5 suggestions
-                          .map((suggestion, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-3 bg-white rounded border">
+                          .map((suggestion, idx2) => (
+                            <div key={idx2} className="flex items-center justify-between p-3 bg-white rounded border">
                               <div className="flex items-center gap-3">
                                 <div className="font-medium">{suggestion.ticker}</div>
                                 <div className="text-sm text-muted-foreground">{suggestion.name}</div>
