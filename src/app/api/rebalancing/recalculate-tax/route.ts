@@ -301,6 +301,8 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      console.log(`Recalc Sub-portfolio ${group[0]?.sub_portfolio_id || 'unknown'}: totalSellProceeds=${totalSellProceeds}, totalBuyNeeds=${totalBuyNeeds}, remainingProceeds=${remainingProceeds}, suggestions.length=${suggestions.length}`)
+
       const firstSell = group.find((g: any) => g.action === 'sell')
       if (firstSell) {
         firstSell.reinvestment_suggestions = suggestions

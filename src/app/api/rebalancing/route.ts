@@ -509,6 +509,8 @@ export async function GET() {
         }
       }
 
+      console.log(`Sub-portfolio ${key}: totalSellProceeds=${totalSellProceeds}, totalBuyNeeds=${totalBuyNeeds}, remainingProceeds=${remainingProceeds}, suggestions.length=${suggestions.length}`)
+
       // attach consolidated suggestions to the first sell allocation in group (so UI shows them once)
       const firstSell = group.find((g: any) => g.action === 'sell')
       if (firstSell) {
