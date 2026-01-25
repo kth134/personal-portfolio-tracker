@@ -756,7 +756,6 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                   <SelectValue placeholder="All types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
                   <SelectItem value="Buy">Buy</SelectItem>
                   <SelectItem value="Sell">Sell</SelectItem>
                   <SelectItem value="Dividend">Dividend</SelectItem>
@@ -789,7 +788,6 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="external">External</SelectItem>
                 </SelectContent>
