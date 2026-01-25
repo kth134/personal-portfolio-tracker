@@ -195,7 +195,20 @@ export default function RebalancingPage() {
       }
     })
 
-    setData(prev => prev ? { ...prev, currentAllocations: updatedAllocations } : prev)
+    setData(prev => prev ? { ...prev, currentAllocations: updatedAllocations } : prev);
+
+    // Recalculate tax data for the updated allocations so tax impact/recommendations refresh immediately
+    (async () => {
+      const allocationsToUpdate = updatedAllocations.map(a => ({
+        asset_id: a.asset_id,
+        sub_portfolio_id: a.sub_portfolio_id,
+        action: a.action,
+        amount: a.amount
+      }))
+      if (allocationsToUpdate.length > 0) {
+        await recalculateTaxData(allocationsToUpdate)
+      }
+    })()
   }, [JSON.stringify(data?.subPortfolios)])
 
   useEffect(() => {
@@ -549,20 +562,22 @@ export default function RebalancingPage() {
       })
       if (!res.ok) throw new Error('Failed to update target')
 
+      // Prepare updated assetTargets based on current `data` so we can use it for tax recalculation
+      const updatedAssetTargets = (data?.assetTargets || []).some(at =>
+        at.asset_id === assetId && at.sub_portfolio_id === subPortfolioId
+      )
+        ? (data!.assetTargets || []).map(at =>
+            at.asset_id === assetId && at.sub_portfolio_id === subPortfolioId
+              ? { ...at, target_percentage: target }
+              : at
+          )
+        : [...(data?.assetTargets || []), { asset_id: assetId, sub_portfolio_id: subPortfolioId, target_percentage: target }]
+
       // Update local state instead of triggering full refresh
       setData(prevData => {
         if (!prevData) return prevData
 
-        // Update asset targets
-        const updatedAssetTargets = prevData.assetTargets.some(at =>
-          at.asset_id === assetId && at.sub_portfolio_id === subPortfolioId
-        )
-          ? prevData.assetTargets.map(at =>
-              at.asset_id === assetId && at.sub_portfolio_id === subPortfolioId
-                ? { ...at, target_percentage: target }
-                : at
-            )
-          : [...prevData.assetTargets, { asset_id: assetId, sub_portfolio_id: subPortfolioId, target_percentage: target }]
+        // Update asset targets (use prepared updatedAssetTargets)
 
         // Recalculate drift/action/amount for all assets in this sub-portfolio to match server logic
         const updatedAllocations = prevData.currentAllocations.map(allocation => {
@@ -629,11 +644,55 @@ export default function RebalancingPage() {
       
       // Validate allocations after update
       if (data) validateAllocations(data)
-      
-      // Recalculate tax data for the updated allocation
-      const updatedAllocation = data?.currentAllocations.find(a => a.asset_id === assetId && a.sub_portfolio_id === subPortfolioId)
-      if (updatedAllocation) {
-        await recalculateTaxData([updatedAllocation])
+
+      // Build affected allocations for this sub-portfolio (with recalculated action/amount)
+      const affectedAllocations = (data?.currentAllocations || [])
+        .filter(a => (a.sub_portfolio_id || 'unassigned') === (subPortfolioId || 'unassigned'))
+        .map(allocation => {
+          const assetTarget = updatedAssetTargets.find(at => at.asset_id === allocation.asset_id && at.sub_portfolio_id === subPortfolioId)?.target_percentage || allocation.sub_portfolio_target_percentage || allocation.sub_portfolio_percentage || 0
+          const subValue = (data?.currentAllocations || []).filter(a => (a.sub_portfolio_id || 'unassigned') === (subPortfolioId || 'unassigned')).reduce((s, a) => s + a.current_value, 0)
+          const targetValue = (subValue * assetTarget) / 100
+          const transactionAmount = Math.abs(targetValue - allocation.current_value)
+
+          const subPortfolio = data?.subPortfolios.find(sp => sp.id === subPortfolioId)
+          let action: 'buy' | 'sell' | 'hold' = 'hold'
+          let amount = 0
+          if (subPortfolio) {
+            const upsideThreshold = subPortfolio.upside_threshold
+            const downsideThreshold = subPortfolio.downside_threshold
+            const bandMode = subPortfolio.band_mode
+
+            const driftPercentage = assetTarget > 0 ? ((allocation.sub_portfolio_percentage - assetTarget) / assetTarget) * 100 : 0
+            if (driftPercentage <= -Math.abs(downsideThreshold)) {
+              action = 'buy'
+            } else if (driftPercentage >= Math.abs(upsideThreshold)) {
+              action = 'sell'
+            } else {
+              action = 'hold'
+            }
+
+            if (action === 'buy' || action === 'sell') {
+              if (bandMode) {
+                const targetDrift = action === 'sell' ? upsideThreshold : -downsideThreshold
+                const targetPercentage = assetTarget * (1 + targetDrift / 100)
+                const targetValueBand = (subValue * targetPercentage) / 100
+                amount = Math.abs(targetValueBand - allocation.current_value)
+              } else {
+                amount = transactionAmount
+              }
+            }
+          }
+
+          return {
+            asset_id: allocation.asset_id,
+            sub_portfolio_id: allocation.sub_portfolio_id,
+            action,
+            amount: Math.abs(amount)
+          }
+        })
+
+      if (affectedAllocations.length > 0) {
+        await recalculateTaxData(affectedAllocations)
       }
     } catch (error) {
       console.error('Error updating asset target:', error)
@@ -739,6 +798,53 @@ export default function RebalancingPage() {
           currentAllocations: updatedAllocations
         }
       })
+      
+      // After updating thresholds, recalc tax data for all allocations in the sub-portfolio
+      const affectedAllocations = data?.currentAllocations.filter(a => a.sub_portfolio_id === id).map(allocation => {
+        // compute new action/amount according to updated sub-portfolio settings
+        const assetTarget = data?.assetTargets.find(at => at.asset_id === allocation.asset_id && at.sub_portfolio_id === id)?.target_percentage || allocation.sub_portfolio_target_percentage || 0
+        const subValue = data?.currentAllocations.filter(a => (a.sub_portfolio_id || 'unassigned') === (id || 'unassigned')).reduce((s, a) => s + a.current_value, 0) || 0
+        const targetValue = (subValue * assetTarget) / 100
+        const transactionAmount = Math.abs(targetValue - allocation.current_value)
+
+        const subPortfolio = data?.subPortfolios.find(sp => sp.id === id)
+        let action: 'buy' | 'sell' | 'hold' = allocation.action || 'hold'
+        let amount = allocation.amount || 0
+        if (subPortfolio) {
+          const upsideThreshold = upside
+          const downsideThreshold = downside
+          const bandModeSetting = bandMode
+          const driftPercentage = assetTarget > 0 ? ((allocation.sub_portfolio_percentage - assetTarget) / assetTarget) * 100 : 0
+          if (driftPercentage <= -Math.abs(downsideThreshold)) {
+            action = 'buy'
+          } else if (driftPercentage >= Math.abs(upsideThreshold)) {
+            action = 'sell'
+          } else {
+            action = 'hold'
+          }
+          if (action === 'buy' || action === 'sell') {
+            if (bandModeSetting) {
+              const targetDrift = action === 'sell' ? upsideThreshold : -downsideThreshold
+              const targetPercentage = assetTarget * (1 + targetDrift / 100)
+              const targetValueBand = (subValue * targetPercentage) / 100
+              amount = Math.abs(targetValueBand - allocation.current_value)
+            } else {
+              amount = transactionAmount
+            }
+          }
+        }
+
+        return {
+          asset_id: allocation.asset_id,
+          sub_portfolio_id: allocation.sub_portfolio_id,
+          action,
+          amount: Math.abs(amount)
+        }
+      }) || []
+
+      if (affectedAllocations.length > 0) {
+        await recalculateTaxData(affectedAllocations)
+      }
     } catch (error) {
       console.error('Error updating thresholds:', error)
     }
@@ -1180,13 +1286,22 @@ export default function RebalancingPage() {
                                     {item.action === 'sell' ? '-' : ''}{formatUSD(item.amount)}
                                   </TableCell>
                                   <TableCell className="text-right min-w-0 break-words">
-                                    {item.tax_impact > 0 ? (
-                                      <span className="text-red-600 font-medium">
-                                        -{formatUSD(item.tax_impact)}
-                                      </span>
-                                    ) : (
-                                      <span className="text-green-600">{formatUSD(0)}</span>
-                                    )}
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className={cn(
+                                          item.tax_impact > 0 ? "text-green-600 font-medium" :
+                                          item.tax_impact < 0 ? "text-red-600 font-medium" :
+                                          "text-black"
+                                        )}>
+                                          {formatUSD(item.tax_impact)}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="text-sm">
+                                          Estimated tax impact for this suggested transaction. Calculated from tax lots' cost bases and current prices; sells estimate capital gains tax (simplified 15% rate), buys indicate preferred account types.
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
                                   </TableCell>
                                   <TableCell className="text-sm min-w-0 break-words">
                                     {item.recommended_accounts.length > 0 ? (
@@ -1222,7 +1337,20 @@ export default function RebalancingPage() {
                                 <TableCell className="text-center font-bold min-w-0 break-words">-</TableCell>
                                 <TableCell className="text-center font-bold min-w-0 break-words">-</TableCell>
                                 <TableCell className="text-right font-bold min-w-0 break-words">
-                                  {totals.tax_impact > 0 ? `-${formatUSD(totals.tax_impact)}` : formatUSD(totals.tax_impact)}
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className={cn(
+                                        totals.tax_impact > 0 ? "text-green-600 font-medium" :
+                                        totals.tax_impact < 0 ? "text-red-600 font-medium" :
+                                        "text-black"
+                                      )}>
+                                        {formatUSD(totals.tax_impact)}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="text-sm">Sum of estimated tax impacts across assets in this sub-portfolio.</p>
+                                    </TooltipContent>
+                                  </Tooltip>
                                 </TableCell>
                                 <TableCell className="text-center font-bold min-w-0 break-words">-</TableCell>
                                 <TableCell className="text-center font-bold min-w-0 break-words">-</TableCell>
