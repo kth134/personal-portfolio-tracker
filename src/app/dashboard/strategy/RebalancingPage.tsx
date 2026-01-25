@@ -1502,7 +1502,7 @@ export default function RebalancingPage() {
                   </div>
 
                   {/* Reinvestment Suggestions for Sell Actions */}
-                  {allocations.some(item => item.action === 'sell' && item.reinvestment_suggestions.length > 0) && (
+                  {allocations.some(item => item.action === 'sell' && (item.reinvestment_suggestions || []).length > 0) && (
                     <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <h4 className="font-semibold text-blue-900 mb-3">💡 Smart Reinvestment Suggestions</h4>
                       <p className="text-sm text-blue-700 mb-4">
@@ -1511,7 +1511,7 @@ export default function RebalancingPage() {
                       <div className="space-y-3">
                         {allocations
                           .filter(item => item.action === 'sell')
-                          .flatMap(item => item.reinvestment_suggestions)
+                          .flatMap(item => item.reinvestment_suggestions || [])
                           .slice(0, 5) // Show top 5 suggestions
                           .map((suggestion, idx2) => (
                             <div key={idx2} className="flex items-center justify-between p-3 bg-white rounded border">
@@ -1534,14 +1534,14 @@ export default function RebalancingPage() {
                     </div>
                   )}
                   {/* Funding Suggestions for Buy Actions (where to sell to generate cash) */}
-                  {allocations.some(item => item.action === 'buy' && item.reinvestment_suggestions && item.reinvestment_suggestions.length > 0) && (
+                  {allocations.some(item => item.action === 'buy' && (item.reinvestment_suggestions || []).length > 0) && (
                     <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <h4 className="font-semibold text-blue-900 mb-3">💡 Smart Funding Suggestions</h4>
                       <p className="text-sm text-blue-700 mb-4">Suggested sources to raise cash for recommended buys:</p>
                       <div className="space-y-3">
                         {allocations
                           .filter(item => item.action === 'buy')
-                          .flatMap(item => item.reinvestment_suggestions)
+                          .flatMap(item => item.reinvestment_suggestions || [])
                           .slice(0, 10)
                           .map((suggestion, idx2) => (
                             <div key={idx2} className="flex items-center justify-between p-3 bg-white rounded border">
