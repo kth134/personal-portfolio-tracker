@@ -317,7 +317,6 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
               />
             </TableHead>
             <TableHead onClick={() => handleSort('name')}>Name <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-            <TableHead onClick={() => handleSort('target_allocation')}>Target % <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
             <TableHead onClick={() => handleSort('objective')}>Objective <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
             <TableHead onClick={() => handleSort('manager')}>Manager <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
             <TableHead onClick={() => handleSort('notes')}>Notes <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
@@ -334,7 +333,6 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
                 />
               </TableCell>
               <TableCell className="break-words whitespace-normal max-w-xs">{sub.name}</TableCell>
-              <TableCell>{sub.target_allocation || '-'}</TableCell>
               <TableCell className="break-words whitespace-normal max-w-xs">{sub.objective || '-'}</TableCell>
               <TableCell>{sub.manager || '-'}</TableCell>
               <TableCell className="break-words whitespace-normal max-w-xs">{sub.notes || '-'}</TableCell>

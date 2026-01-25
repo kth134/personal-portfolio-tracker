@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SubPortfoliosList from '@/components/SubPortfoliosList';
+import RebalancingPage from './RebalancingPage';
 
 interface StrategyTabsProps {
   initialSubPortfolios: any[];
@@ -22,24 +23,16 @@ export default function StrategyTabs({ initialSubPortfolios }: StrategyTabsProps
     <Tabs value={tab} onValueChange={handleTabChange} className="w-full">
       <TabsList>
         <TabsTrigger value="sub-portfolios">Sub-Portfolios</TabsTrigger>
-        <TabsTrigger value="targets">Targets</TabsTrigger>
+        <TabsTrigger value="rebalancing">Rebalancing</TabsTrigger>
         <TabsTrigger value="glide-path">Glide Path</TabsTrigger>
-        <TabsTrigger value="drift-reporting">Rebalancing</TabsTrigger>
       </TabsList>
       <TabsContent value="sub-portfolios">
         <SubPortfoliosList initialSubPortfolios={initialSubPortfolios} />
       </TabsContent>
-      <TabsContent value="targets">
-        <div className="text-center text-red-600 font-semibold text-lg bg-red-50 p-4 rounded-md border border-red-200">
-          Under Construction
-        </div>
+      <TabsContent value="rebalancing">
+        <RebalancingPage />
       </TabsContent>
       <TabsContent value="glide-path">
-        <div className="text-center text-red-600 font-semibold text-lg bg-red-50 p-4 rounded-md border border-red-200">
-          Under Construction
-        </div>
-      </TabsContent>
-      <TabsContent value="drift-reporting">
         <div className="text-center text-red-600 font-semibold text-lg bg-red-50 p-4 rounded-md border border-red-200">
           Under Construction
         </div>
