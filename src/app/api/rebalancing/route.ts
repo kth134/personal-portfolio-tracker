@@ -217,6 +217,7 @@ export async function GET() {
           ...item,
           current_percentage: currentOverallPercentage,
           sub_portfolio_percentage: subPortfolioPercentage,
+          sub_portfolio_target_percentage: assetTarget,
           implied_overall_target: impliedOverallTarget,
           drift_percentage: driftPercentage,
           drift_dollar: driftDollar,

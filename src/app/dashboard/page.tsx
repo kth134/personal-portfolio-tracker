@@ -951,7 +951,7 @@ export default function DashboardHome() {
                   </div>
                 </CardHeader>
               </Card>
-              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/strategy/targets-thresholds')}>
+              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/strategy?tab=rebalancing')}>
                 <CardHeader>
                   <CardTitle className="text-center text-4xl">Strategy</CardTitle>
                 </CardHeader>
@@ -1115,7 +1115,7 @@ export default function DashboardHome() {
                 </div>
               </CardHeader>
             </Card>
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/strategy/targets-thresholds')}>
+            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/strategy?tab=rebalancing')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">Strategy</CardTitle>
               </CardHeader>

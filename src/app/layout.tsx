@@ -55,16 +55,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </Popover>
                 <Popover open={strategyOpen} onOpenChange={setStrategyOpen}>
                   <PopoverTrigger asChild>
-                    <Link href="/dashboard/strategy" className="flex items-center gap-1" onMouseEnter={() => setStrategyOpen(true)} onMouseLeave={() => setStrategyOpen(false)}>
+                    <Link href="/dashboard/strategy?tab=rebalancing" className="flex items-center gap-1" onMouseEnter={() => setStrategyOpen(true)} onMouseLeave={() => setStrategyOpen(false)}>
                       Strategy <ChevronDown className="h-4 w-4" />
                     </Link>
                   </PopoverTrigger>
                   <PopoverContent className="w-48 p-2" onMouseEnter={() => setStrategyOpen(true)} onMouseLeave={() => setStrategyOpen(false)}>
                     <div className="flex flex-col gap-2">
                       <Link href="/dashboard/strategy?tab=sub-portfolios" className="hover:bg-gray-100 p-2 rounded">Sub-Portfolios</Link>
-                      <Link href="/dashboard/strategy?tab=targets" className="hover:bg-gray-100 p-2 rounded">Targets</Link>
+                      <Link href="/dashboard/strategy?tab=rebalancing" className="hover:bg-gray-100 p-2 rounded">Rebalancing</Link>
                       <Link href="/dashboard/strategy?tab=glide-path" className="hover:bg-gray-100 p-2 rounded">Glide Path</Link>
-                      <Link href="/dashboard/strategy?tab=drift-reporting" className="hover:bg-gray-100 p-2 rounded">Rebalancing</Link>
                     </div>
                   </PopoverContent>
                 </Popover>
@@ -134,7 +133,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <Link href="/dashboard/portfolio" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
                     Portfolio Details
                   </Link>
-                  <Link href="/dashboard/strategy" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
+                  <Link href="/dashboard/strategy?tab=rebalancing" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
                     Strategy
                   </Link>
                   <Link href="/dashboard/performance" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>

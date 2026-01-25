@@ -59,6 +59,7 @@ type RebalancingData = {
     current_value: number
     current_percentage: number
     sub_portfolio_percentage: number
+    sub_portfolio_target_percentage: number
     implied_overall_target: number
     drift_percentage: number
     drift_dollar: number
@@ -103,6 +104,9 @@ export default function RebalancingPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  // Validation state
+  const [validationMessages, setValidationMessages] = useState<{[key: string]: string}>({})
 
   // Accordion state
   const [openItems, setOpenItems] = useState<string[]>([])
@@ -151,6 +155,7 @@ export default function RebalancingPage() {
       if (!res.ok) throw new Error('Failed to fetch rebalancing data')
       const rebalancingData = await res.json()
       setData(rebalancingData)
+      validateAllocations(rebalancingData)
     } catch (error) {
       console.error('Error fetching rebalancing data:', error)
     } finally {
@@ -183,6 +188,31 @@ export default function RebalancingPage() {
     a.download = 'rebalancing-suggestions.csv'
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  const validateAllocations = (data: RebalancingData) => {
+    const messages: {[key: string]: string} = {}
+
+    // Check sub-portfolio allocations sum to 100%
+    const totalSubPortfolioAllocation = data.subPortfolios.reduce((sum, sp) => sum + (sp.target_allocation || 0), 0)
+    if (Math.abs(totalSubPortfolioAllocation - 100) > 0.01) {
+      messages['sub-portfolios'] = `Sub-portfolio allocations sum to ${totalSubPortfolioAllocation.toFixed(2)}% (should be 100%)`
+    }
+
+    // Check asset allocations within each sub-portfolio sum to 100%
+    data.subPortfolios.forEach(sp => {
+      const subPortfolioAssets = data.currentAllocations.filter(item => item.sub_portfolio_id === sp.id)
+      const totalAssetAllocation = subPortfolioAssets.reduce((sum, item) => {
+        const target = item.sub_portfolio_target_percentage || item.sub_portfolio_percentage
+        return sum + target
+      }, 0)
+      
+      if (Math.abs(totalAssetAllocation - 100) > 0.01) {
+        messages[`sub-portfolio-${sp.id}`] = `${sp.name}: Asset allocations sum to ${totalAssetAllocation.toFixed(2)}% (should be 100%)`
+      }
+    })
+
+    setValidationMessages(messages)
   }
 
   const generateCSV = (data: RebalancingData) => {
@@ -237,12 +267,34 @@ export default function RebalancingPage() {
       // Update local state instead of triggering full refresh
       setData(prevData => {
         if (!prevData) return prevData
-        return {
+        
+        // Update sub-portfolio target
+        const updatedSubPortfolios = prevData.subPortfolios.map(sp =>
+          sp.id === id ? { ...sp, target_allocation: target } : sp
+        )
+        
+        // Recalculate implied overall targets for all assets in this sub-portfolio
+        const updatedAllocations = prevData.currentAllocations.map(allocation => {
+          if (allocation.sub_portfolio_id === id) {
+            const assetTarget = allocation.sub_portfolio_target_percentage || allocation.sub_portfolio_percentage
+            const impliedOverallTarget = (target * assetTarget) / 100
+            return {
+              ...allocation,
+              implied_overall_target: impliedOverallTarget
+            }
+          }
+          return allocation
+        })
+        
+        const updatedData = {
           ...prevData,
-          subPortfolios: prevData.subPortfolios.map(sp =>
-            sp.id === id ? { ...sp, target_allocation: target } : sp
-          )
+          subPortfolios: updatedSubPortfolios,
+          currentAllocations: updatedAllocations
         }
+        
+        // Validate allocations after update
+        validateAllocations(updatedData)
+        return updatedData
       })
     } catch (error) {
       console.error('Error updating sub-portfolio target:', error)
@@ -309,10 +361,16 @@ export default function RebalancingPage() {
               }
             }
 
+            // Recalculate implied overall target
+            const subPortfolioTarget = subPortfolio?.target_allocation || 0
+            const impliedOverallTarget = (subPortfolioTarget * assetTarget) / 100
+
             return {
               ...allocation,
+              sub_portfolio_target_percentage: target,
               drift_percentage: driftPercentage,
               drift_dollar: driftDollar,
+              implied_overall_target: impliedOverallTarget,
               action,
               amount: Math.abs(amount)
             }
@@ -326,6 +384,9 @@ export default function RebalancingPage() {
           currentAllocations: updatedAllocations
         }
       })
+      
+      // Validate allocations after update
+      if (data) validateAllocations(data)
     } catch (error) {
       console.error('Error updating asset target:', error)
     }
@@ -595,6 +656,18 @@ export default function RebalancingPage() {
         </div>
       </div>
 
+      {/* Validation Messages */}
+      {Object.keys(validationMessages).length > 0 && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <h3 className="font-semibold text-yellow-800 mb-2">Allocation Validation Warnings</h3>
+          <ul className="space-y-1">
+            {Object.entries(validationMessages).map(([key, message]) => (
+              <li key={key} className="text-sm text-yellow-700">• {message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Accordion Table */}
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
         {Array.from(groupedAllocations.entries()).map(([subPortfolioId, allocations]) => {
@@ -703,11 +776,11 @@ export default function RebalancingPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Asset</TableHead>
+                          <TableHead className="text-right">Current Value</TableHead>
                           <TableHead className="text-right">Current % (Sub)</TableHead>
                           <TableHead className="text-right">Target % (Sub)</TableHead>
                           <TableHead className="text-right">Implied Overall Target %</TableHead>
                           <TableHead className="text-right">Drift %</TableHead>
-                          <TableHead className="text-right">Drift $</TableHead>
                           <TableHead>Action</TableHead>
                           <TableHead className="text-right">Amount</TableHead>
                           <TableHead className="text-right">Tax Impact</TableHead>
@@ -724,15 +797,16 @@ export default function RebalancingPage() {
                                 <div className="text-sm text-muted-foreground">{item.name}</div>
                               </div>
                             </TableCell>
+                            <TableCell className="text-right">{formatUSD(item.current_value)}</TableCell>
                             <TableCell className="text-right">{item.sub_portfolio_percentage.toFixed(2)}%</TableCell>
                             <TableCell className="text-right">
                               <Input
                                 type="number"
                                 step="0.1"
-                                defaultValue={item.sub_portfolio_percentage}
+                                defaultValue={item.sub_portfolio_target_percentage || item.sub_portfolio_percentage}
                                 onBlur={(e) => {
                                   const newValue = parseFloat(e.target.value) || 0
-                                  if (newValue !== item.sub_portfolio_percentage) {
+                                  if (newValue !== (item.sub_portfolio_target_percentage || item.sub_portfolio_percentage)) {
                                     updateAssetTarget(item.asset_id, subPortfolioId, newValue)
                                   }
                                 }}
@@ -746,11 +820,10 @@ export default function RebalancingPage() {
                             )}>
                               {item.drift_percentage > 0 ? '+' : ''}{item.drift_percentage.toFixed(2)}%
                             </TableCell>
-                            <TableCell className="text-right">{formatUSD(item.drift_dollar)}</TableCell>
                             <TableCell className={cn(
-                              "font-medium",
-                              item.action === 'buy' ? "text-blue-600" :
-                              item.action === 'sell' ? "text-red-600" : "text-green-600"
+                              "font-bold",
+                              item.action === 'buy' ? "text-green-600" :
+                              item.action === 'sell' ? "text-red-600" : "text-black"
                             )}>
                               {item.action.toUpperCase()}
                             </TableCell>

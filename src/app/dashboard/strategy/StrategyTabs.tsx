@@ -13,7 +13,7 @@ interface StrategyTabsProps {
 export default function StrategyTabs({ initialSubPortfolios }: StrategyTabsProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const tab = searchParams.get('tab') || 'sub-portfolios';
+  const tab = searchParams.get('tab') || 'rebalancing';
 
   const handleTabChange = (value: string) => {
     router.push(`/dashboard/strategy?tab=${value}`);
