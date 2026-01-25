@@ -588,7 +588,11 @@ export default function RebalancingPage() {
           sp.id === id ? { ...sp, upside_threshold: upside, downside_threshold: downside, band_mode: bandMode } : sp
         )
 
-        // Recalculate actions for all assets in this sub-portfolio
+        // Recalculate actions/amounts for all assets in this sub-portfolio
+        const prevSubPortfolio = prevData.subPortfolios.find(sp => sp.id === id)
+        const thresholdsChanged = !prevSubPortfolio || prevSubPortfolio.upside_threshold !== upside || prevSubPortfolio.downside_threshold !== downside
+        const bandModeChanged = !prevSubPortfolio || prevSubPortfolio.band_mode !== bandMode
+
         const updatedAllocations = prevData.currentAllocations.map(allocation => {
           if (allocation.sub_portfolio_id === id) {
             const assetTarget = prevData.assetTargets.find(at =>
@@ -598,23 +602,38 @@ export default function RebalancingPage() {
             const driftPercentage = assetTarget > 0 ? ((allocation.sub_portfolio_percentage - assetTarget) / assetTarget) * 100 : 0
             const driftDollar = (driftPercentage / 100) * prevData.totalValue
 
-            let action: 'buy' | 'sell' | 'hold' = 'hold'
-            let amount = 0
+            // Default to preserving existing action/amount unless thresholds changed
+            let action: 'buy' | 'sell' | 'hold' = allocation.action || 'hold'
+            let amount = allocation.amount || 0
 
             const relativeUpsideThreshold = assetTarget > 0 ? (upside / assetTarget) * 100 : upside
             const relativeDownsideThreshold = assetTarget > 0 ? (downside / assetTarget) * 100 : downside
 
-            if (Math.abs(driftPercentage) > relativeDownsideThreshold || Math.abs(driftPercentage) > relativeUpsideThreshold) {
-              if (driftPercentage > 0) {
-                action = 'sell'
-                amount = bandMode
-                  ? (driftPercentage - relativeUpsideThreshold) / 100 * prevData.totalValue
-                  : driftDollar
+            if (thresholdsChanged) {
+              // Full recalculation: thresholds changed -> action and amount may change
+              action = 'hold'
+              amount = 0
+              if (Math.abs(driftPercentage) > relativeDownsideThreshold || Math.abs(driftPercentage) > relativeUpsideThreshold) {
+                if (driftPercentage > 0) {
+                  action = 'sell'
+                  amount = bandMode
+                    ? (driftPercentage - relativeUpsideThreshold) / 100 * prevData.totalValue
+                    : driftDollar
+                } else {
+                  action = 'buy'
+                  amount = bandMode
+                    ? (relativeDownsideThreshold + driftPercentage) / 100 * prevData.totalValue
+                    : Math.abs(driftDollar)
+                }
+              }
+            } else if (bandModeChanged) {
+              // Only band mode changed: preserve action, recompute amount according to new bandMode
+              if (allocation.action === 'sell') {
+                amount = bandMode ? (driftPercentage - relativeUpsideThreshold) / 100 * prevData.totalValue : driftDollar
+              } else if (allocation.action === 'buy') {
+                amount = bandMode ? (relativeDownsideThreshold + driftPercentage) / 100 * prevData.totalValue : Math.abs(driftDollar)
               } else {
-                action = 'buy'
-                amount = bandMode
-                  ? (relativeDownsideThreshold + driftPercentage) / 100 * prevData.totalValue
-                  : Math.abs(driftDollar)
+                amount = 0
               }
             }
 
@@ -946,10 +965,10 @@ export default function RebalancingPage() {
                             <Input
                               type="number"
                               step="1"
-                              value={subPortfolio.upside_threshold}
-                              onChange={(e) => {
+                              defaultValue={subPortfolio.upside_threshold}
+                              onBlur={(e) => {
                                 const newValue = parseFloat(e.target.value) || 25
-                                if (!isNaN(newValue)) {
+                                if (newValue !== subPortfolio.upside_threshold) {
                                   updateThresholds(subPortfolioId, newValue, subPortfolio.downside_threshold, subPortfolio.band_mode)
                                 }
                               }}
@@ -961,10 +980,10 @@ export default function RebalancingPage() {
                             <Input
                               type="number"
                               step="1"
-                              value={subPortfolio.downside_threshold}
-                              onChange={(e) => {
+                              defaultValue={subPortfolio.downside_threshold}
+                              onBlur={(e) => {
                                 const newValue = parseFloat(e.target.value) || 25
-                                if (!isNaN(newValue)) {
+                                if (newValue !== subPortfolio.downside_threshold) {
                                   updateThresholds(subPortfolioId, subPortfolio.upside_threshold, newValue, subPortfolio.band_mode)
                                 }
                               }}
@@ -997,7 +1016,7 @@ export default function RebalancingPage() {
                   </div>
 
                   {/* Assets Table */}
-                  <div className="w-full pb-2">
+                  <div className="w-full pb-6">
                     <Table>
                       <TableHeader>
                         <TableRow>
