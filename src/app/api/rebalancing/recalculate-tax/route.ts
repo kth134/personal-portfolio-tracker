@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
           taxNotes = taxImpact > 0 ? `Estimated capital gains tax on taxable portion: $${taxImpact.toFixed(2)}` : 'Potential tax-loss harvesting opportunity'
 
           // Smart reinvestment suggestions: cascade proceeds into underweight assets in same sub-portfolio by drift %
-          const proceeds = Math.max(0, (allocation.amount || 0) - (taxImpact || 0))
+          const proceeds = Math.max(0, (allocation.amount || 0) + (taxImpact || 0))
           const underweightAssets = allocations
             .filter((a: any) => a.action === 'buy' && a.sub_portfolio_id === allocation.sub_portfolio_id)
             .sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
@@ -266,7 +266,7 @@ export async function POST(request: NextRequest) {
     })
 
     grouped.forEach((group) => {
-      const totalSellProceeds = group.filter((g: any) => g.action === 'sell').reduce((s: number, g: any) => s + Math.max(0, (g.amount || 0) - (g.tax_impact || 0)), 0)
+      const totalSellProceeds = group.filter((g: any) => g.action === 'sell').reduce((s: number, g: any) => s + Math.max(0, (g.amount || 0) + (g.tax_impact || 0)), 0)
       const totalBuyNeeds = group.filter((g: any) => g.action === 'buy').reduce((s: number, g: any) => s + (g.amount || 0), 0)
       let remainingProceeds = Math.max(0, totalSellProceeds - totalBuyNeeds)
 
