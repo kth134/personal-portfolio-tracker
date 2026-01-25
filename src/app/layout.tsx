@@ -49,7 +49,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <div className="flex flex-col gap-2">
                       <Link href="/dashboard/portfolio" className="hover:bg-gray-100 p-2 rounded">Holdings</Link>
                       <Link href="/dashboard/accounts" className="hover:bg-gray-100 p-2 rounded">Accounts</Link>
-                      <Link href="/dashboard/portfolio/sub-portfolios" className="hover:bg-gray-100 p-2 rounded">Sub-Portfolios</Link>
                       <Link href="/dashboard/assets" className="hover:bg-gray-100 p-2 rounded">Assets</Link>
                     </div>
                   </PopoverContent>
@@ -62,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </PopoverTrigger>
                   <PopoverContent className="w-48 p-2" onMouseEnter={() => setStrategyOpen(true)} onMouseLeave={() => setStrategyOpen(false)}>
                     <div className="flex flex-col gap-2">
+                      <Link href="/dashboard/strategy?tab=sub-portfolios" className="hover:bg-gray-100 p-2 rounded">Sub-Portfolios</Link>
                       <Link href="/dashboard/strategy?tab=targets" className="hover:bg-gray-100 p-2 rounded">Targets</Link>
                       <Link href="/dashboard/strategy?tab=glide-path" className="hover:bg-gray-100 p-2 rounded">Glide Path</Link>
                       <Link href="/dashboard/strategy?tab=drift-reporting" className="hover:bg-gray-100 p-2 rounded">Rebalancing</Link>

@@ -9,7 +9,6 @@ export default function PortfolioTabNavigation() {
 
   // Determine active tab based on current path
   const getActiveTab = () => {
-    if (pathname.includes('/portfolio/sub-portfolios')) return 'subportfolios'
     if (pathname.includes('/accounts')) return 'accounts'
     if (pathname.includes('/assets')) return 'assets'
     if (pathname.includes('/portfolio') || pathname === '/dashboard/portfolio') return 'holdings'
@@ -25,9 +24,6 @@ export default function PortfolioTabNavigation() {
         break
       case 'accounts':
         router.push('/dashboard/accounts')
-        break
-      case 'subportfolios':
-        router.push('/dashboard/portfolio/sub-portfolios')
         break
       case 'assets':
         router.push('/dashboard/assets')
@@ -50,13 +46,6 @@ export default function PortfolioTabNavigation() {
         onClick={() => handleTabChange('accounts')}
       >
         Accounts
-      </TabsTrigger>
-      <TabsTrigger
-        value="subportfolios"
-        data-state={activeTab === 'subportfolios' ? 'active' : 'inactive'}
-        onClick={() => handleTabChange('subportfolios')}
-      >
-        Sub-Portfolios
       </TabsTrigger>
       <TabsTrigger
         value="assets"

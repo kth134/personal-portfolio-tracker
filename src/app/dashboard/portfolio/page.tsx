@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AccountsList from '@/components/AccountsList'
 import AssetsList from '@/components/AssetsList'
-import SubPortfoliosList from '@/components/SubPortfoliosList'
 import PortfolioHoldingsWithSlicers from './PortfolioHoldingsWithSlicers'
 
 // Types (simplified for this page)
@@ -27,7 +26,7 @@ export default async function PortfolioPage() {
   if (!user) redirect('/')
 
   // Fetch data (keep minimal for Holdings tab; other tabs unchanged)
-  const [lotsRes, accountsRes, subPortfoliosRes, assetsRes, transactionsRes] = await Promise.all([
+  const [lotsRes, accountsRes, assetsRes, transactionsRes] = await Promise.all([
     supabase
       .from('tax_lots')
       .select(`
@@ -46,14 +45,12 @@ export default async function PortfolioPage() {
       .gt('remaining_quantity', 0)
       .eq('user_id', user.id),
     supabase.from('accounts').select('*').eq('user_id', user.id),
-    supabase.from('sub_portfolios').select('*').eq('user_id', user.id),
     supabase.from('assets').select('*').eq('user_id', user.id),
     supabase.from('transactions').select('*').eq('user_id', user.id)
   ])
 
   const lots = lotsRes.data as TaxLot[] | null
   const initialAccounts = accountsRes.data || []
-  const initialSubPortfolios = subPortfoliosRes.data || []
   const initialAssets = assetsRes.data || []
   const transactions = transactionsRes.data || []
 
@@ -125,7 +122,6 @@ export default async function PortfolioPage() {
         <TabsList>
           <TabsTrigger value="holdings">Holdings</TabsTrigger>
           <TabsTrigger value="accounts">Accounts</TabsTrigger>
-          <TabsTrigger value="subportfolios">Sub-Portfolios</TabsTrigger>
           <TabsTrigger value="assets">Assets</TabsTrigger>
         </TabsList>
 
@@ -145,10 +141,6 @@ export default async function PortfolioPage() {
 
         <TabsContent value="accounts">
           <AccountsList initialAccounts={initialAccounts} />
-        </TabsContent>
-
-        <TabsContent value="subportfolios">
-          <SubPortfoliosList initialSubPortfolios={initialSubPortfolios} />
         </TabsContent>
 
         <TabsContent value="assets">
