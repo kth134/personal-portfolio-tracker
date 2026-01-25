@@ -356,8 +356,8 @@ export default function RebalancingPage() {
     }, 0)
     const totalImpliedOverallTarget = allocations.reduce((sum, item) => sum + item.implied_overall_target, 0)
     
-    // Weighted average drift percentage (weighted by current value)
-    const weightedDriftSum = allocations.reduce((sum, item) => sum + (item.drift_percentage * item.current_value), 0)
+    // Weighted average drift percentage (weighted by current value, using absolute drift)
+    const weightedDriftSum = allocations.reduce((sum, item) => sum + (Math.abs(item.drift_percentage) * item.current_value), 0)
     const totalDriftPercentage = totalCurrentValue > 0 ? weightedDriftSum / totalCurrentValue : 0
     
     const totalTaxImpact = allocations.reduce((sum, item) => sum + item.tax_impact, 0)
@@ -697,7 +697,7 @@ export default function RebalancingPage() {
   const totalPortfolioDrift = data.totalValue > 0 
     ? data.currentAllocations.reduce((sum, item) => {
         const weight = item.current_value / data.totalValue
-        return sum + (item.drift_percentage * weight)
+        return sum + (Math.abs(item.drift_percentage) * weight)
       }, 0)
     : 0
 
