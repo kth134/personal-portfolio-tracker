@@ -304,6 +304,14 @@ export default function RebalancingPage() {
       setDraftSubTargets(initialSubDrafts)
       setDraftAssetTargets(initialAssetDrafts)
       validateWithDrafts(rebalancingData)
+      // Ensure server-side tax recalculation is applied for all non-hold allocations
+      const allocationsToRecalc = rebalancingData.currentAllocations
+        .filter((a: any) => a.action && a.action !== 'hold')
+        .map((a: any) => ({ asset_id: a.asset_id, sub_portfolio_id: a.sub_portfolio_id, action: a.action, amount: a.amount }))
+      if (allocationsToRecalc.length > 0) {
+        // fire-and-forget; we want the UI to reflect authoritative server-side tax calculations
+        recalculateTaxData(allocationsToRecalc).catch(err => console.error('recalc after fetch failed', err))
+      }
     } catch (error) {
       console.error('Error fetching rebalancing data:', error)
     } finally {
@@ -1405,6 +1413,9 @@ export default function RebalancingPage() {
                                   </TableCell>
                                   <TableCell className="min-w-0 break-words">
                                     <div className="text-sm text-muted-foreground">{item.tax_notes}</div>
+                                    {item.action === 'sell' && (!item.recommended_accounts || item.recommended_accounts.length === 0) && (
+                                      <div className="text-xs text-muted-foreground mt-1">No account/lot-level data available to compute per-account tax — ensure your tax lots are linked to accounts.</div>
+                                    )}
                                   </TableCell>
                                 </TableRow>
                               ))}
