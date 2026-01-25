@@ -49,6 +49,8 @@ export async function POST(request: NextRequest) {
       let taxNotes = ''
       let reinvestmentSuggestions: any[] = []
 
+      console.log(`Processing allocation: action=${allocation.action}, asset=${allocation.asset_id}, sub_portfolio=${allocation.sub_portfolio_id}, amount=${allocation.amount}`)
+
       if (allocation.action === 'buy') {
         // For buying, recommend tax-advantaged accounts where the user actually holds assets or any tax-advantaged accounts
         const buyAccounts = accounts?.filter((acc: any) => acc.tax_status !== 'Taxable') || []
@@ -245,6 +247,10 @@ export async function POST(request: NextRequest) {
           }
           reinvestmentSuggestions = suggestions
         }
+      }
+
+      if (allocation.action === 'sell') {
+        console.log(`Sell allocation: asset=${allocation.asset_id}, amount=${allocation.amount}, taxImpact=${taxImpact}, proceeds=${Math.max(0, (allocation.amount || 0) + taxImpact)}`)
       }
 
       return {
