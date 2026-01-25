@@ -1535,8 +1535,9 @@ export default function RebalancingPage() {
                   )}
                   {/* Funding Suggestions for Buy Actions (where to sell to generate cash) */}
                   {allocations.some(item => item.action === 'buy' && item.reinvestment_suggestions && item.reinvestment_suggestions.length > 0) && (
-                    <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                      <h4 className="font-semibold text-yellow-900 mb-3">💡 Funding Suggestions for Buys</h4>
+                    <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <h4 className="font-semibold text-blue-900 mb-3">💡 Smart Funding Suggestions</h4>
+                      <p className="text-sm text-blue-700 mb-4">Suggested sources to raise cash for recommended buys:</p>
                       <div className="space-y-3">
                         {allocations
                           .filter(item => item.action === 'buy')
@@ -1547,7 +1548,7 @@ export default function RebalancingPage() {
                               <div className="flex items-center gap-3">
                                 <div className="font-medium">{suggestion.ticker}</div>
                                 <div className="text-sm text-muted-foreground">{suggestion.name}</div>
-                                <div className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                                <div className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
                                   {suggestion.reason}
                                 </div>
                               </div>
