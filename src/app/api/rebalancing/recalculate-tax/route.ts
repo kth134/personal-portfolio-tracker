@@ -49,8 +49,6 @@ export async function POST(request: NextRequest) {
       let taxNotes = ''
       let reinvestmentSuggestions: any[] = []
 
-      console.log(`Processing allocation: action=${allocation.action}, asset=${allocation.asset_id}, sub_portfolio=${allocation.sub_portfolio_id}, amount=${allocation.amount}`)
-
       if (allocation.action === 'buy') {
         // For buying, recommend tax-advantaged accounts where the user actually holds assets or any tax-advantaged accounts
         const buyAccounts = accounts?.filter((acc: any) => acc.tax_status !== 'Taxable') || []
@@ -249,13 +247,8 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      if (allocation.action === 'sell') {
-        console.log(`Sell allocation: asset=${allocation.asset_id}, amount=${allocation.amount}, taxImpact=${taxImpact}, proceeds=${Math.max(0, (allocation.amount || 0) + taxImpact)}`)
-      }
-
       return {
-        asset_id: allocation.asset_id,
-        sub_portfolio_id: allocation.sub_portfolio_id,
+        ...allocation,
         tax_impact: taxImpact,
         recommended_accounts: recommendedAccounts,
         tax_notes: taxNotes,
@@ -306,8 +299,6 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-
-      console.log(`Recalc Sub-portfolio ${group[0]?.sub_portfolio_id || 'unknown'}: totalSellProceeds=${totalSellProceeds}, totalBuyNeeds=${totalBuyNeeds}, remainingProceeds=${remainingProceeds}, suggestions.length=${suggestions.length}`)
 
       const firstSell = group.find((g: any) => g.action === 'sell')
       if (firstSell) {
