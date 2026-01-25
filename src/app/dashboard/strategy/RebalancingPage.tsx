@@ -935,15 +935,14 @@ export default function RebalancingPage() {
                                     checked={subPortfolio.band_mode}
                                     onCheckedChange={(checked) => updateThresholds(subPortfolioId, subPortfolio.upside_threshold, subPortfolio.downside_threshold, checked)}
                                   />
-                                  <Label>Conservative Mode</Label>
+                                  <Label>{subPortfolio.band_mode ? 'Conservative Rebalance' : 'Absolute Rebalance'}</Label>
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p className="max-w-xs">
-                                  <strong>When enabled:</strong> Only rebalance enough to bring assets back within acceptable ranges (not to exact targets). 
-                                  This prevents over-rebalancing when assets are only slightly out of balance.<br/><br/>
-                                  <strong>When disabled:</strong> Calculate the full amount needed to reach exact target allocations. 
-                                  More aggressive but may result in excessive trading.
+                                  <strong>Conservative Mode:</strong> Smaller transactions that bring assets back to acceptable ranges<br/><br/>
+                                  <strong>Absolute Mode:</strong> Larger transactions that bring assets exactly to target allocations<br/><br/>
+                                  <strong>Risk of overcorrection:</strong> Getting exactly to target might overshoot if market conditions change between the calculation and execution
                                 </p>
                               </TooltipContent>
                             </Tooltip>
