@@ -299,18 +299,15 @@ export async function POST(request: NextRequest) {
       }
 
       if (remainingProceeds > 0) {
-        const underweights = group.filter((g: any) => g.action === 'buy').sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
+        const underweights = group.filter((g: any) => g.drift_percentage < 0).sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
         let rem = remainingProceeds
         for (const u of underweights) {
           if (rem <= 0) break
-          const needed = u.amount || 0
-          const already = suggestions.reduce((s, it) => s + (it.asset_id === u.asset_id ? it.suggested_amount : 0), 0)
-          const want = Math.max(0, needed - already)
-          const take = Math.min(want, rem)
+          const take = Math.min(u.current_value, rem)
           if (take > 0) {
             const price = latestPrices.get(u.asset_id)?.price || 0
             const shares = price > 0 ? take / price : 0
-            suggestions.push({ asset_id: u.asset_id, ticker: u.ticker, name: u.name, suggested_amount: take, suggested_shares: shares, reason: `Deploy remaining proceeds to ${u.ticker} (underweight ${Math.abs(u.drift_percentage || 0).toFixed(2)}%)` })
+            suggestions.push({ asset_id: u.asset_id, ticker: u.ticker, name: u.name, suggested_amount: take, suggested_shares: shares, reason: `Deploy remaining proceeds to ${Math.abs(u.drift_percentage || 0).toFixed(2)}% underweight asset` })
             rem -= take
           }
         }
