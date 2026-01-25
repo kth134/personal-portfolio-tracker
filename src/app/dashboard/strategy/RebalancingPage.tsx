@@ -93,6 +93,53 @@ type AllocationSlice = {
 }
 
 export default function RebalancingPage() {
+  // Small component to show recommended accounts with per-account split and lot ids in a hover popover
+  function RecommendedAccountsPopover({ accounts }: { accounts: any[] }) {
+    const [open, setOpen] = useState(false)
+    if (!accounts || accounts.length === 0) return <span>-</span>
+
+    const triggerContent = (
+      <div className="space-y-1">
+        {accounts.slice(0, 2).map((acc: any, idx: number) => (
+          <div key={idx} className="text-xs">
+            <span className="font-medium">{acc.name}</span>
+            <span className="text-muted-foreground"> ({acc.type})</span>
+          </div>
+        ))}
+        {accounts.length > 2 && (
+          <div className="text-xs text-muted-foreground">+{accounts.length - 2} more</div>
+        )}
+      </div>
+    )
+
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <div onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+            {triggerContent}
+          </div>
+        </PopoverTrigger>
+
+        <PopoverContent className="w-72 p-2">
+          <div className="space-y-2 text-sm">
+            {accounts.map((acc: any, idx: number) => (
+              <div key={idx} className="border rounded p-2">
+                <div className="flex items-baseline justify-between">
+                  <div className="font-medium">{acc.name} <span className="text-muted-foreground">({acc.type})</span></div>
+                  <div className="text-xs">{acc.amount ? formatUSD(acc.amount) : ''}</div>
+                </div>
+                <div className="text-xs text-muted-foreground">Holding value: {formatUSD(acc.holding_value || 0)}</div>
+                {acc.lot_ids && acc.lot_ids.length > 0 && (
+                  <div className="text-xs mt-1">Lots: {acc.lot_ids.join(', ')}</div>
+                )}
+                {acc.reason && <div className="text-xs mt-1 text-muted-foreground">{acc.reason}</div>}
+              </div>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    )
+  }
   const [lens, setLens] = useState('total')
   const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([])
   const [selectedValues, setSelectedValues] = useState<string[]>([])
@@ -1298,29 +1345,13 @@ export default function RebalancingPage() {
                                       </TooltipTrigger>
                                       <TooltipContent>
                                         <p className="text-sm">
-                                          Estimated tax impact for this suggested transaction. Calculated from tax lots' cost bases and current prices; sells estimate capital gains tax (simplified 15% rate), buys indicate preferred account types.
+                                          Estimated tax impact for this suggested transaction. Calculated from the lots you actually hold: short-term lots use a higher tax rate, long-term lots a lower rate. Recommendations are split across accounts where the asset is held to minimize taxable gains or realize losses.
                                         </p>
                                       </TooltipContent>
                                     </Tooltip>
                                   </TableCell>
                                   <TableCell className="text-sm min-w-0 break-words">
-                                    {item.recommended_accounts.length > 0 ? (
-                                      <div className="space-y-1">
-                                        {item.recommended_accounts.slice(0, 2).map((acc: any, idx: number) => (
-                                          <div key={idx} className="text-xs">
-                                            <span className="font-medium">{acc.name}</span>
-                                            <span className="text-muted-foreground"> ({acc.type})</span>
-                                          </div>
-                                        ))}
-                                        {item.recommended_accounts.length > 2 && (
-                                          <div className="text-xs text-muted-foreground">
-                                            +{item.recommended_accounts.length - 2} more
-                                          </div>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      '-'
-                                    )}
+                                    <RecommendedAccountsPopover accounts={item.recommended_accounts} />
                                   </TableCell>
                                   <TableCell className="text-sm min-w-0 break-words">{item.tax_notes}</TableCell>
                                 </TableRow>

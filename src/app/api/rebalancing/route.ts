@@ -43,13 +43,15 @@ export async function GET() {
       .select('*')
       .eq('user_id', user.id)
 
-    // Fetch detailed tax lots for cost basis calculations
+    // Fetch detailed tax lots for cost basis calculations (include id and purchase_date)
     const { data: detailedTaxLots } = await supabase
       .from('tax_lots')
       .select(`
+        id,
         asset_id,
         remaining_quantity,
         cost_basis_per_unit,
+        purchase_date,
         account_id,
         asset:assets (
           ticker,
@@ -76,7 +78,7 @@ export async function GET() {
         case 'Buy':
           if (tx.funding_source === 'cash') {
             delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
-          } // else (including 'external'): no impact to cash balance
+          }
           break
         case 'Sell':
           delta += (amt - fee)  // increase cash balance by sale amount less fees
@@ -97,6 +99,7 @@ export async function GET() {
       const newBalance = current + delta
       cashBalances.set(tx.account_id, newBalance)
     })
+
     const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
 
     // Fetch current holdings
@@ -132,7 +135,6 @@ export async function GET() {
       }
     })
 
-    // Calculate current allocations
     const holdingsValue = taxLots?.reduce((sum, lot) => {
       const price = latestPrices.get(lot.asset.ticker)?.price || 0
       return sum + (lot.remaining_quantity * price)
@@ -246,62 +248,141 @@ export async function GET() {
       let taxNotes = allocation.tax_notes
 
       if (allocation.action === 'sell') {
-        // Calculate tax impact for selling
-        const assetTaxLots = detailedTaxLots?.filter(lot => 
-          lot.asset_id === allocation.asset_id && lot.account_id
-        ) || []
+        // Allocate sells across accounts where the asset is held and compute per-lot tax rates
+        const assetTaxLots = detailedTaxLots?.filter(lot => lot.asset_id === allocation.asset_id && lot.account_id) || []
+        const price = latestPrices.get(allocation.ticker)?.price || 0
 
-        let totalCostBasis = 0
-        let totalProceeds = allocation.amount
-        let estimatedGain = 0
-
-        // Calculate weighted average cost basis for the lots being sold
+        const accountMap = new Map<string, { lots: any[]; totalValue: number; totalCostBasis: number; tax_status?: string; account?: any }>()
         assetTaxLots.forEach((lot: any) => {
-          if (!lot.asset?.ticker) return
-          const lotValue = lot.remaining_quantity * (latestPrices.get(lot.asset.ticker)?.price || 0)
-          const lotCostBasis = lot.remaining_quantity * lot.cost_basis_per_unit
-          totalCostBasis += lotCostBasis
-
-          // Estimate how much of this lot would be sold
-          const currentPrice = latestPrices.get(lot.asset.ticker)?.price || 0
-          const sellRatio = currentPrice > 0 ? Math.min(1, totalProceeds / (allocation.quantity * currentPrice)) : 0
-          estimatedGain += (lotValue * sellRatio) - (lotCostBasis * sellRatio)
-        })
-
-        // Estimate capital gains tax (simplified - long-term rate)
-        taxImpact = Math.max(0, estimatedGain) * 0.15 // 15% long-term capital gains rate
-
-        // Recommend accounts for selling (prioritize taxable accounts for tax-loss harvesting)
-        const sellAccounts = accounts?.filter(acc => acc.tax_status === 'Taxable') || []
-        recommendedAccounts = sellAccounts.map(acc => ({
-          id: acc.id,
-          name: acc.name,
-          type: acc.type,
-          reason: 'Taxable account preferred for potential tax-loss harvesting'
-        }))
-
-        // Smart reinvestment: Suggest what to buy with proceeds
-        const underweightAssets = allocations.filter(a => 
-          a.action === 'buy' && a.sub_portfolio_id === allocation.sub_portfolio_id
-        ).sort((a, b) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
-
-        reinvestmentSuggestions = underweightAssets.slice(0, 3).map(asset => {
-          const availableProceeds = allocation.amount - taxImpact
-          const price = latestPrices.get(asset.ticker)?.price || 0
-          const suggestedShares = price > 0 ? availableProceeds * (asset.amount / underweightAssets.reduce((sum, a) => sum + a.amount, 0)) / price : 0
-
-          return {
-            asset_id: asset.asset_id,
-            ticker: asset.ticker,
-            name: asset.name,
-            suggested_amount: availableProceeds * (asset.amount / underweightAssets.reduce((sum, a) => sum + a.amount, 0)),
-            suggested_shares: suggestedShares,
-            reason: `Underweight by ${Math.abs(asset.drift_percentage).toFixed(2)}% in same sub-portfolio`
+          const accId = lot.account_id
+          const lotValue = price * lot.remaining_quantity
+          const lotCost = lot.remaining_quantity * lot.cost_basis_per_unit
+          if (!accountMap.has(accId)) {
+            const acc = accounts?.find((a: any) => a.id === accId)
+            accountMap.set(accId, { lots: [], totalValue: 0, totalCostBasis: 0, tax_status: acc?.tax_status, account: acc })
           }
+          const entry = accountMap.get(accId)!
+          entry.lots.push({ ...lot, lotValue, lotCost })
+          entry.totalValue += lotValue
+          entry.totalCostBasis += lotCost
         })
 
-        taxNotes = `Estimated tax impact: $${taxImpact.toFixed(2)} (${(taxImpact/totalProceeds*100).toFixed(1)}% of proceeds). Consider tax-loss harvesting.`
+        if (accountMap.size === 0) {
+          // Fallback: proportional across lots, apply per-lot rates
+          const now = new Date()
+          const SHORT_TERM_DAYS = 365
+          const SHORT_TERM_RATE = 0.37
+          const LONG_TERM_RATE = 0.15
+          let estimatedTaxSum = 0
+          assetTaxLots.forEach((lot: any) => {
+            const lotCostBasis = lot.remaining_quantity * lot.cost_basis_per_unit
+            const lotValue = lot.remaining_quantity * price
+            const sellRatio = price > 0 ? Math.min(1, allocation.amount / lotValue) : 0
+            const lotGain = (lotValue * sellRatio) - (lotCostBasis * sellRatio)
+            if (lotGain > 0) {
+              let lotRate = LONG_TERM_RATE
+              if (lot.purchase_date) {
+                const ageDays = Math.floor((now.getTime() - new Date(lot.purchase_date).getTime()) / (1000 * 60 * 60 * 24))
+                if (ageDays < SHORT_TERM_DAYS) lotRate = SHORT_TERM_RATE
+              }
+              estimatedTaxSum += lotGain * lotRate
+            }
+          })
+          taxImpact = Math.max(0, estimatedTaxSum)
+          // Recommend taxable accounts if available
+          const sellAccounts = accounts?.filter(acc => acc.tax_status === 'Taxable') || []
+          recommendedAccounts = sellAccounts.map(acc => ({ id: acc.id, name: acc.name, type: acc.type, reason: 'Taxable account preferred for potential tax-loss harvesting' }))
+        } else {
+          // Determine net unrealized gain/loss across holdings
+          let totalUnrealizedGain = 0
+          accountMap.forEach(entry => { totalUnrealizedGain += (entry.totalValue - entry.totalCostBasis) })
+          const isNetGain = totalUnrealizedGain > 0
 
+          // Sort accounts by priority (net gain -> prefer tax-advantaged; net loss -> prefer taxable)
+          const accountsList = Array.from(accountMap.entries()).map(([id, entry]) => ({ id, ...entry }))
+          accountsList.sort((a, b) => {
+            if (isNetGain) {
+              const aAdv = a.tax_status && a.tax_status !== 'Taxable'
+              const bAdv = b.tax_status && b.tax_status !== 'Taxable'
+              if (aAdv && !bAdv) return -1
+              if (!aAdv && bAdv) return 1
+            } else {
+              const aTax = a.tax_status === 'Taxable'
+              const bTax = b.tax_status === 'Taxable'
+              if (aTax && !bTax) return -1
+              if (!aTax && bTax) return 1
+            }
+            return b.totalValue - a.totalValue
+          })
+
+          let remaining = allocation.amount || 0
+          const accountSellPlan: { accountId: string; amount: number; account?: any }[] = []
+          for (const accEntry of accountsList) {
+            if (remaining <= 0) break
+            const sellFromAccount = Math.min(accEntry.totalValue, remaining)
+            if (sellFromAccount <= 0) continue
+            accountSellPlan.push({ accountId: accEntry.id, amount: sellFromAccount, account: accEntry.account })
+            remaining -= sellFromAccount
+          }
+
+          // Compute tax only for taxable accounts, applying per-lot short/long-term rates
+          let taxableTaxSum = 0
+          const now = new Date()
+          const SHORT_TERM_DAYS = 365
+          const SHORT_TERM_RATE = 0.37
+          const LONG_TERM_RATE = 0.15
+
+          accountSellPlan.forEach(plan => {
+            const acc = accountMap.get(plan.accountId)!
+            const accTotalValue = acc.totalValue || 0
+            if (accTotalValue <= 0) return
+            const sellRatioForAccount = plan.amount / accTotalValue
+            acc.lots.forEach((lot: any) => {
+              const lotSellValue = lot.lotValue * sellRatioForAccount
+              const lotCostSoldPortion = lot.lotCost * (lotSellValue / (lot.lotValue || 1) || 0)
+              const lotGain = lotSellValue - lotCostSoldPortion
+              if (acc.tax_status === 'Taxable') {
+                let lotRate = LONG_TERM_RATE
+                if (lot.purchase_date) {
+                  const ageDays = Math.floor((now.getTime() - new Date(lot.purchase_date).getTime()) / (1000 * 60 * 60 * 24))
+                  if (ageDays < SHORT_TERM_DAYS) lotRate = SHORT_TERM_RATE
+                }
+                taxableTaxSum += Math.max(0, lotGain) * lotRate
+              }
+            })
+          })
+
+          taxImpact = Math.max(0, taxableTaxSum)
+
+          // Recommended accounts with holding values and lot ids used
+          recommendedAccounts = accountSellPlan.map(p => ({
+            id: p.accountId,
+            name: p.account?.name || 'Account',
+            type: p.account?.type || 'Account',
+            amount: p.amount,
+            holding_value: accountMap.get(p.accountId)?.totalValue || 0,
+            lot_ids: (accountMap.get(p.accountId)?.lots || []).map((l: any) => l.id).filter(Boolean),
+            reason: isNetGain ? 'Prioritize tax-advantaged holdings to limit taxable gains' : 'Prioritize taxable holdings to realize losses'
+          }))
+
+          // Smart reinvestment suggestions based on proceeds after tax
+          const underweightAssets = allocations.filter(a => a.action === 'buy' && a.sub_portfolio_id === allocation.sub_portfolio_id).sort((a, b) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
+          reinvestmentSuggestions = underweightAssets.slice(0, 3).map(asset => {
+            const availableProceeds = allocation.amount - taxImpact
+            const price = latestPrices.get(asset.ticker)?.price || 0
+            const totalUnderweight = underweightAssets.reduce((sum, a) => sum + a.amount, 0) || 1
+            const suggestedAmount = availableProceeds * (asset.amount / totalUnderweight)
+            const suggestedShares = price > 0 ? suggestedAmount / price : 0
+            return {
+              asset_id: asset.asset_id,
+              ticker: asset.ticker,
+              name: asset.name,
+              suggested_amount: suggestedAmount,
+              suggested_shares: suggestedShares,
+              reason: `Underweight by ${Math.abs(asset.drift_percentage).toFixed(2)}% in same sub-portfolio`
+            }
+          })
+        }
       } else if (allocation.action === 'buy') {
         // For buys, recommend tax-advantaged accounts
         const buyAccounts = accounts?.filter(acc => acc.tax_status === 'Tax-Advantaged') || []
