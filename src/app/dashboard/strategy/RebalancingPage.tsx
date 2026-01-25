@@ -722,8 +722,8 @@ export default function RebalancingPage() {
         </div>
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground">Total Portfolio Drift</h3>
-          <p className={cn("text-2xl font-bold", totalPortfolioDrift > 0 ? "text-green-600" : totalPortfolioDrift < 0 ? "text-red-600" : "text-green-600")}>
-            {totalPortfolioDrift > 0 ? '+' : ''}{totalPortfolioDrift.toFixed(2)}%
+          <p className="text-2xl font-bold">
+            {totalPortfolioDrift.toFixed(2)}%
           </p>
         </div>
         <div className="bg-card p-4 rounded-lg border">
@@ -1114,7 +1114,7 @@ export default function RebalancingPage() {
                                 <TableCell className="text-right font-bold min-w-0 break-words">{totals.current_percentage.toFixed(2)}%</TableCell>
                                 <TableCell className="text-right font-bold min-w-0 break-words">{totals.target_percentage.toFixed(2)}%</TableCell>
                                 <TableCell className="text-right font-bold min-w-0 break-words">{totals.implied_overall_target.toFixed(2)}%</TableCell>
-                                <TableCell className="text-right font-bold min-w-0 break-words">{totals.drift_percentage > 0 ? '+' : ''}{totals.drift_percentage.toFixed(2)}%</TableCell>
+                                <TableCell className="text-right font-bold min-w-0 break-words">{totals.drift_percentage.toFixed(2)}%</TableCell>
                                 <TableCell className="text-center font-bold min-w-0 break-words">-</TableCell>
                                 <TableCell className="text-center font-bold min-w-0 break-words">-</TableCell>
                                 <TableCell className="text-right font-bold min-w-0 break-words">
