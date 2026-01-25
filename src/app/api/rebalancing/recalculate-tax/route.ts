@@ -63,7 +63,9 @@ export async function POST(request: NextRequest) {
 
         // Suggest sells to fund this buy using provided currentAllocations (fallback to empty)
         const allAllocations = (currentAllocations || []) as any[]
-        const sellCandidates = allAllocations.filter(a => a.action === 'sell' && a.amount > 0).sort((a, b) => b.amount - a.amount)
+        const sellCandidates = allAllocations
+          .filter(a => a.sub_portfolio_id === allocation.sub_portfolio_id && a.action === 'sell' && a.amount > 0)
+          .sort((a, b) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
         let remainingNeed = allocation.amount || 0
         const fundingSuggestions: any[] = []
         for (const cand of sellCandidates) {
@@ -71,7 +73,7 @@ export async function POST(request: NextRequest) {
           const take = Math.min(cand.amount, remainingNeed)
           const price = latestPrices.get(cand.asset_id)?.price || 0
           const shares = price > 0 ? take / price : 0
-          fundingSuggestions.push({ asset_id: cand.asset_id, ticker: cand.ticker, name: cand.name, suggested_amount: take, suggested_shares: shares, reason: `Sell to fund buy of ${allocation.asset_id}` })
+          fundingSuggestions.push({ asset_id: cand.asset_id, ticker: cand.ticker, name: cand.name, suggested_amount: take, suggested_shares: shares, reason: `Trim ${Math.abs(cand.drift_percentage).toFixed(2)}% overweight first` })
           remainingNeed -= take
         }
         if (fundingSuggestions.length > 0) {
@@ -222,8 +224,26 @@ export async function POST(request: NextRequest) {
             lot_ids: (accountMap.get(p.accountId)?.lots || []).map((l: any) => l.id).filter(Boolean),
             reason: isNetGain ? 'Prioritize tax-advantaged holdings to limit taxable gains' : 'Prioritize taxable holdings to realize losses'
           }))
-
           taxNotes = taxImpact > 0 ? `Estimated capital gains tax on taxable portion: $${taxImpact.toFixed(2)}` : 'Potential tax-loss harvesting opportunity'
+
+          // Smart reinvestment suggestions: cascade proceeds into underweight assets in same sub-portfolio by drift %
+          const proceeds = Math.max(0, (allocation.amount || 0) - (taxImpact || 0))
+          const underweightAssets = allocations
+            .filter((a: any) => a.action === 'buy' && a.sub_portfolio_id === allocation.sub_portfolio_id)
+            .sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
+          const suggestions: any[] = []
+          let remainingProceeds = proceeds
+          for (const asset of underweightAssets) {
+            if (remainingProceeds <= 0) break
+            const needed = asset.amount || 0
+            const take = Math.min(needed, remainingProceeds)
+            if (take <= 0) continue
+            const price = latestPrices.get(asset.asset_id)?.price || 0
+            const shares = price > 0 ? take / price : 0
+            suggestions.push({ asset_id: asset.asset_id, ticker: asset.ticker, name: asset.name, suggested_amount: take, suggested_shares: shares, reason: `Underweight by ${Math.abs(asset.drift_percentage).toFixed(2)}% — highest drift prioritized` })
+            remainingProceeds -= take
+          }
+          reinvestmentSuggestions = suggestions
         }
       }
 
@@ -234,6 +254,59 @@ export async function POST(request: NextRequest) {
         recommended_accounts: recommendedAccounts,
         tax_notes: taxNotes,
         reinvestment_suggestions: reinvestmentSuggestions
+      }
+    })
+
+    // Post-process taxUpdates per sub-portfolio to produce consolidated, netted suggestions
+    const grouped = new Map<string, any[]>()
+    taxUpdates.forEach((t: any) => {
+      const key = t.sub_portfolio_id || 'unassigned'
+      if (!grouped.has(key)) grouped.set(key, [])
+      grouped.get(key)!.push(t)
+    })
+
+    grouped.forEach((group) => {
+      const totalSellProceeds = group.filter((g: any) => g.action === 'sell').reduce((s: number, g: any) => s + Math.max(0, (g.amount || 0) - (g.tax_impact || 0)), 0)
+      const totalBuyNeeds = group.filter((g: any) => g.action === 'buy').reduce((s: number, g: any) => s + (g.amount || 0), 0)
+      let remainingProceeds = Math.max(0, totalSellProceeds - totalBuyNeeds)
+
+      // Fund buys first
+      const buys = group.filter((g: any) => g.action === 'buy').sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
+      const suggestions: any[] = []
+      let fundingPool = totalSellProceeds
+      for (const b of buys) {
+        if (fundingPool <= 0) break
+        const take = Math.min(b.amount || 0, fundingPool)
+        const price = latestPrices.get(b.asset_id)?.price || 0
+        const shares = price > 0 ? take / price : 0
+        if (take > 0) suggestions.push({ asset_id: b.asset_id, ticker: b.ticker, name: b.name, suggested_amount: take, suggested_shares: shares, reason: `Fund buy: ${Math.abs(b.drift_percentage || 0).toFixed(2)}% underweight` })
+        fundingPool -= take
+      }
+
+      if (remainingProceeds > 0) {
+        const underweights = group.filter((g: any) => g.action === 'buy').sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
+        let rem = remainingProceeds
+        for (const u of underweights) {
+          if (rem <= 0) break
+          const needed = u.amount || 0
+          const already = suggestions.reduce((s, it) => s + (it.asset_id === u.asset_id ? it.suggested_amount : 0), 0)
+          const want = Math.max(0, needed - already)
+          const take = Math.min(want, rem)
+          if (take > 0) {
+            const price = latestPrices.get(u.asset_id)?.price || 0
+            const shares = price > 0 ? take / price : 0
+            suggestions.push({ asset_id: u.asset_id, ticker: u.ticker, name: u.name, suggested_amount: take, suggested_shares: shares, reason: `Deploy remaining proceeds to ${u.ticker} (underweight ${Math.abs(u.drift_percentage || 0).toFixed(2)}%)` })
+            rem -= take
+          }
+        }
+      }
+
+      const firstSell = group.find((g: any) => g.action === 'sell')
+      if (firstSell) {
+        firstSell.reinvestment_suggestions = suggestions
+        group.forEach((g: any) => { if (g !== firstSell) g.reinvestment_suggestions = [] })
+      } else {
+        group.forEach((g: any) => { g.reinvestment_suggestions = [] })
       }
     })
 

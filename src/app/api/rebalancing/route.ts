@@ -394,23 +394,32 @@ export async function GET() {
             reason: isNetGain ? 'Prioritize tax-advantaged holdings to limit taxable gains' : 'Prioritize taxable holdings to realize losses'
           }))
 
-          // Smart reinvestment suggestions based on proceeds after tax
-          const underweightAssets = allocations.filter(a => a.action === 'buy' && a.sub_portfolio_id === allocation.sub_portfolio_id).sort((a, b) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
-          reinvestmentSuggestions = underweightAssets.slice(0, 3).map(asset => {
-            const availableProceeds = allocation.amount - taxImpact
+          // Smart reinvestment suggestions based on proceeds after estimated tax
+          const proceeds = Math.max(0, (allocation.amount || 0) - (taxImpact || 0))
+          const underweightAssets = allocations
+            .filter(a => a.action === 'buy' && a.sub_portfolio_id === allocation.sub_portfolio_id)
+            .sort((a, b) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
+
+          const suggestions: any[] = []
+          let remainingProceeds = proceeds
+          for (const asset of underweightAssets) {
+            if (remainingProceeds <= 0) break
+            const needed = asset.amount || 0
+            const take = Math.min(needed, remainingProceeds)
+            if (take <= 0) continue
             const price = latestPrices.get(asset.ticker)?.price || 0
-            const totalUnderweight = underweightAssets.reduce((sum, a) => sum + a.amount, 0) || 1
-            const suggestedAmount = availableProceeds * (asset.amount / totalUnderweight)
-            const suggestedShares = price > 0 ? suggestedAmount / price : 0
-            return {
+            const shares = price > 0 ? take / price : 0
+            suggestions.push({
               asset_id: asset.asset_id,
               ticker: asset.ticker,
               name: asset.name,
-              suggested_amount: suggestedAmount,
-              suggested_shares: suggestedShares,
-              reason: `Underweight by ${Math.abs(asset.drift_percentage).toFixed(2)}% in same sub-portfolio`
-            }
-          })
+              suggested_amount: take,
+              suggested_shares: shares,
+              reason: `Underweight by ${Math.abs(asset.drift_percentage).toFixed(2)}% — highest drift prioritized`
+            })
+            remainingProceeds -= take
+          }
+          reinvestmentSuggestions = suggestions
         }
       } else if (allocation.action === 'buy') {
         // For buys, recommend tax-advantaged accounts
@@ -423,6 +432,26 @@ export async function GET() {
         }))
 
         taxNotes = 'Use tax-advantaged accounts for long-term tax benefits.'
+
+        // Smart funding suggestions: cascade sells from overweight assets in same sub-portfolio
+        const need = allocation.amount || 0
+        const sellSources = allocations
+          .filter(a => a.sub_portfolio_id === allocation.sub_portfolio_id && a.action === 'sell')
+          .sort((a, b) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
+
+        const funding: any[] = []
+        let remainingNeed = need
+        for (const src of sellSources) {
+          if (remainingNeed <= 0) break
+          const avail = src.amount || 0
+          const take = Math.min(avail, remainingNeed)
+          if (take <= 0) continue
+          const price = latestPrices.get(src.ticker)?.price || 0
+          const shares = price > 0 ? take / price : 0
+          funding.push({ asset_id: src.asset_id, ticker: src.ticker, name: src.name, suggested_amount: take, suggested_shares: shares, reason: `Trim ${Math.abs(src.drift_percentage).toFixed(2)}% overweight first` })
+          remainingNeed -= take
+        }
+        if (funding.length > 0) reinvestmentSuggestions = funding
       }
 
       return {
@@ -431,6 +460,64 @@ export async function GET() {
         reinvestment_suggestions: reinvestmentSuggestions,
         recommended_accounts: recommendedAccounts,
         tax_notes: taxNotes
+      }
+    })
+
+    // Post-process enhancedAllocations to compute sub-portfolio netting and consolidated suggestions
+    const groupedBySub = new Map<string, any[]>()
+    enhancedAllocations.forEach((ea: any) => {
+      const key = ea.sub_portfolio_id || 'unassigned'
+      if (!groupedBySub.has(key)) groupedBySub.set(key, [])
+      groupedBySub.get(key)!.push(ea)
+    })
+
+    groupedBySub.forEach((group, key) => {
+      // compute total sell proceeds (after estimated tax) and total buy needs
+      const totalSellProceeds = group.filter((g: any) => g.action === 'sell').reduce((s: number, g: any) => s + Math.max(0, (g.amount || 0) - (g.tax_impact || 0)), 0)
+      const totalBuyNeeds = group.filter((g: any) => g.action === 'buy').reduce((s: number, g: any) => s + (g.amount || 0), 0)
+      let remainingProceeds = Math.max(0, totalSellProceeds - totalBuyNeeds)
+
+      // build suggestions: first, fund buys (these are essentially the buy allocations themselves, but include them for clarity)
+      const buys = group.filter((g: any) => g.action === 'buy').sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
+      const suggestions: any[] = []
+      let fundingPool = totalSellProceeds
+      for (const b of buys) {
+        if (fundingPool <= 0) break
+        const take = Math.min(b.amount || 0, fundingPool)
+        const price = latestPrices.get(b.ticker)?.price || 0
+        const shares = price > 0 ? take / price : 0
+        if (take > 0) suggestions.push({ asset_id: b.asset_id, ticker: b.ticker, name: b.name, suggested_amount: take, suggested_shares: shares, reason: `Fund buy: ${Math.abs(b.drift_percentage).toFixed(2)}% underweight` })
+        fundingPool -= take
+      }
+
+      // if any proceeds remain after funding buys, cascade into remaining underweights by drift %
+      if (remainingProceeds > 0) {
+        const underweights = group.filter((g: any) => g.action === 'buy').sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
+        let rem = remainingProceeds
+        for (const u of underweights) {
+          if (rem <= 0) break
+          const needed = u.amount || 0
+          const already = suggestions.reduce((s, it) => s + (it.asset_id === u.asset_id ? it.suggested_amount : 0), 0)
+          const want = Math.max(0, needed - already)
+          const take = Math.min(want, rem)
+          if (take > 0) {
+            const price = latestPrices.get(u.ticker)?.price || 0
+            const shares = price > 0 ? take / price : 0
+            suggestions.push({ asset_id: u.asset_id, ticker: u.ticker, name: u.name, suggested_amount: take, suggested_shares: shares, reason: `Deploy remaining proceeds to ${u.ticker} (underweight ${Math.abs(u.drift_percentage).toFixed(2)}%)` })
+            rem -= take
+          }
+        }
+      }
+
+      // attach consolidated suggestions to the first sell allocation in group (so UI shows them once)
+      const firstSell = group.find((g: any) => g.action === 'sell')
+      if (firstSell) {
+        firstSell.reinvestment_suggestions = suggestions
+        // clear reinvestment suggestions from other allocations to avoid duplication
+        group.forEach((g: any) => { if (g !== firstSell) g.reinvestment_suggestions = [] })
+      } else {
+        // no sells: clear any reinvestment suggestions
+        group.forEach((g: any) => { g.reinvestment_suggestions = [] })
       }
     })
 
