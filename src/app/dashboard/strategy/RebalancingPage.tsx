@@ -946,10 +946,10 @@ export default function RebalancingPage() {
                             <Input
                               type="number"
                               step="1"
-                              defaultValue={subPortfolio.upside_threshold}
-                              onBlur={(e) => {
+                              value={subPortfolio.upside_threshold}
+                              onChange={(e) => {
                                 const newValue = parseFloat(e.target.value) || 25
-                                if (newValue !== subPortfolio.upside_threshold) {
+                                if (!isNaN(newValue)) {
                                   updateThresholds(subPortfolioId, newValue, subPortfolio.downside_threshold, subPortfolio.band_mode)
                                 }
                               }}
@@ -961,10 +961,10 @@ export default function RebalancingPage() {
                             <Input
                               type="number"
                               step="1"
-                              defaultValue={subPortfolio.downside_threshold}
-                              onBlur={(e) => {
+                              value={subPortfolio.downside_threshold}
+                              onChange={(e) => {
                                 const newValue = parseFloat(e.target.value) || 25
-                                if (newValue !== subPortfolio.downside_threshold) {
+                                if (!isNaN(newValue)) {
                                   updateThresholds(subPortfolioId, subPortfolio.upside_threshold, newValue, subPortfolio.band_mode)
                                 }
                               }}
@@ -997,7 +997,7 @@ export default function RebalancingPage() {
                   </div>
 
                   {/* Assets Table */}
-                  <div className="w-full">
+                  <div className="w-full pb-2">
                     <Table>
                       <TableHeader>
                         <TableRow>
