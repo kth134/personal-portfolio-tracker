@@ -131,6 +131,73 @@ export default function RebalancingPage() {
     }
   }, [data])
 
+  // Recalculate actions/amounts whenever sub-portfolio settings change (e.g., thresholds or band mode)
+  useEffect(() => {
+    if (!data) return
+
+    const subPortfolios = data.subPortfolios
+    // Build a map of sub-portfolio total values
+    const subValues = new Map<string, number>()
+    data.currentAllocations.forEach(a => {
+      const key = a.sub_portfolio_id || 'unassigned'
+      subValues.set(key, (subValues.get(key) || 0) + a.current_value)
+    })
+
+    const updatedAllocations = data.currentAllocations.map(allocation => {
+      const subId = allocation.sub_portfolio_id || 'unassigned'
+      const subPortfolio = subPortfolios.find(sp => sp.id === subId)
+      const assetTarget = data.assetTargets.find(at => at.asset_id === allocation.asset_id && at.sub_portfolio_id === allocation.sub_portfolio_id)?.target_percentage || allocation.sub_portfolio_target_percentage || 0
+
+      const subValue = subValues.get(subId) || 0
+      const targetValue = (subValue * assetTarget) / 100
+      const transactionAmount = Math.abs(targetValue - allocation.current_value)
+
+      const driftPercentage = assetTarget > 0 ? ((allocation.sub_portfolio_percentage - assetTarget) / assetTarget) * 100 : 0
+      const driftDollar = (driftPercentage / 100) * data.totalValue
+
+      let action: 'buy' | 'sell' | 'hold' = 'hold'
+      let amount = 0
+
+      if (subPortfolio) {
+        const upsideThreshold = subPortfolio.upside_threshold
+        const downsideThreshold = subPortfolio.downside_threshold
+        const bandMode = subPortfolio.band_mode
+
+        if (driftPercentage <= -Math.abs(downsideThreshold)) {
+          action = 'buy'
+        } else if (driftPercentage >= Math.abs(upsideThreshold)) {
+          action = 'sell'
+        } else {
+          action = 'hold'
+        }
+
+        if (action === 'buy' || action === 'sell') {
+          if (bandMode) {
+            const targetDrift = action === 'sell' ? upsideThreshold : -downsideThreshold
+            const targetPercentage = assetTarget * (1 + targetDrift / 100)
+            const targetValueBand = (subValue * targetPercentage) / 100
+            amount = Math.abs(targetValueBand - allocation.current_value)
+          } else {
+            amount = transactionAmount
+          }
+        }
+      }
+
+      const impliedOverallTarget = (subPortfolio?.target_allocation || 0) * assetTarget / 100
+
+      return {
+        ...allocation,
+        drift_percentage: driftPercentage,
+        drift_dollar: driftDollar,
+        action,
+        amount: Math.abs(amount),
+        implied_overall_target: impliedOverallTarget
+      }
+    })
+
+    setData(prev => prev ? { ...prev, currentAllocations: updatedAllocations } : prev)
+  }, [JSON.stringify(data?.subPortfolios)])
+
   useEffect(() => {
     if (lens === 'total') {
       setAvailableValues([])
@@ -497,16 +564,19 @@ export default function RebalancingPage() {
             )
           : [...prevData.assetTargets, { asset_id: assetId, sub_portfolio_id: subPortfolioId, target_percentage: target }]
 
-        // Recalculate drift for affected assets
+        // Recalculate drift/action/amount for all assets in this sub-portfolio to match server logic
         const updatedAllocations = prevData.currentAllocations.map(allocation => {
-          if (allocation.asset_id === assetId && allocation.sub_portfolio_id === subPortfolioId) {
-            // Recalculate drift using the same logic as the API
-            const assetTarget = target
+          if ((allocation.sub_portfolio_id || 'unassigned') === (subPortfolioId || 'unassigned')) {
+            const assetTarget = updatedAssetTargets.find(at => at.asset_id === allocation.asset_id && at.sub_portfolio_id === subPortfolioId)?.target_percentage || allocation.sub_portfolio_target_percentage || allocation.sub_portfolio_percentage || 0
+
             const driftPercentage = assetTarget > 0 ? ((allocation.sub_portfolio_percentage - assetTarget) / assetTarget) * 100 : 0
             const driftDollar = (driftPercentage / 100) * prevData.totalValue
 
-            // Recalculate action and amount
             const subPortfolio = prevData.subPortfolios.find(sp => sp.id === subPortfolioId)
+            const subValue = prevData.currentAllocations.filter(a => (a.sub_portfolio_id || 'unassigned') === (subPortfolioId || 'unassigned')).reduce((s, a) => s + a.current_value, 0)
+            const targetValue = (subValue * assetTarget) / 100
+            const transactionAmount = Math.abs(targetValue - allocation.current_value)
+
             let action: 'buy' | 'sell' | 'hold' = 'hold'
             let amount = 0
 
@@ -515,31 +585,31 @@ export default function RebalancingPage() {
               const downsideThreshold = subPortfolio.downside_threshold
               const bandMode = subPortfolio.band_mode
 
-              const relativeUpsideThreshold = assetTarget > 0 ? (upsideThreshold / assetTarget) * 100 : upsideThreshold
-              const relativeDownsideThreshold = assetTarget > 0 ? (downsideThreshold / assetTarget) * 100 : downsideThreshold
+              if (driftPercentage <= -Math.abs(downsideThreshold)) {
+                action = 'buy'
+              } else if (driftPercentage >= Math.abs(upsideThreshold)) {
+                action = 'sell'
+              } else {
+                action = 'hold'
+              }
 
-              if (Math.abs(driftPercentage) > relativeDownsideThreshold || Math.abs(driftPercentage) > relativeUpsideThreshold) {
-                if (driftPercentage > 0) {
-                  action = 'sell'
-                  amount = bandMode
-                    ? (driftPercentage - relativeUpsideThreshold) / 100 * prevData.totalValue
-                    : driftDollar
+              if (action === 'buy' || action === 'sell') {
+                if (bandMode) {
+                  const targetDrift = action === 'sell' ? upsideThreshold : -downsideThreshold
+                  const targetPercentage = assetTarget * (1 + targetDrift / 100)
+                  const targetValueBand = (subValue * targetPercentage) / 100
+                  amount = Math.abs(targetValueBand - allocation.current_value)
                 } else {
-                  action = 'buy'
-                  amount = bandMode
-                    ? (relativeDownsideThreshold + driftPercentage) / 100 * prevData.totalValue
-                    : Math.abs(driftDollar)
+                  amount = transactionAmount
                 }
               }
             }
 
-            // Recalculate implied overall target
-            const subPortfolioTarget = subPortfolio?.target_allocation || 0
-            const impliedOverallTarget = (subPortfolioTarget * assetTarget) / 100
+            const impliedOverallTarget = (subPortfolio?.target_allocation || 0) * assetTarget / 100
 
             return {
               ...allocation,
-              sub_portfolio_target_percentage: target,
+              sub_portfolio_target_percentage: assetTarget,
               drift_percentage: driftPercentage,
               drift_dollar: driftDollar,
               implied_overall_target: impliedOverallTarget,
@@ -613,25 +683,40 @@ export default function RebalancingPage() {
               // Full recalculation: thresholds changed -> action and amount may change
               action = 'hold'
               amount = 0
-              if (Math.abs(driftPercentage) > relativeDownsideThreshold || Math.abs(driftPercentage) > relativeUpsideThreshold) {
-                if (driftPercentage > 0) {
-                  action = 'sell'
-                  amount = bandMode
-                    ? (driftPercentage - relativeUpsideThreshold) / 100 * prevData.totalValue
-                    : driftDollar
+              if (driftPercentage <= -Math.abs(downside) ) {
+                action = 'buy'
+              } else if (driftPercentage >= Math.abs(upside)) {
+                action = 'sell'
+              } else {
+                action = 'hold'
+              }
+
+              if (action === 'buy' || action === 'sell') {
+                if (bandMode) {
+                  const targetDrift = action === 'sell' ? upside : -downside
+                  const targetPercentage = assetTarget * (1 + targetDrift / 100)
+                  const subValue = prevData.currentAllocations.filter(a => (a.sub_portfolio_id || 'unassigned') === id).reduce((s, a) => s + a.current_value, 0)
+                  const targetValueBand = (subValue * targetPercentage) / 100
+                  amount = Math.abs(targetValueBand - allocation.current_value)
                 } else {
-                  action = 'buy'
-                  amount = bandMode
-                    ? (relativeDownsideThreshold + driftPercentage) / 100 * prevData.totalValue
-                    : Math.abs(driftDollar)
+                  const subValue = prevData.currentAllocations.filter(a => (a.sub_portfolio_id || 'unassigned') === id).reduce((s, a) => s + a.current_value, 0)
+                  const targetValue = (subValue * assetTarget) / 100
+                  amount = Math.abs(targetValue - allocation.current_value)
                 }
               }
             } else if (bandModeChanged) {
               // Only band mode changed: preserve action, recompute amount according to new bandMode
-              if (allocation.action === 'sell') {
-                amount = bandMode ? (driftPercentage - relativeUpsideThreshold) / 100 * prevData.totalValue : driftDollar
-              } else if (allocation.action === 'buy') {
-                amount = bandMode ? (relativeDownsideThreshold + driftPercentage) / 100 * prevData.totalValue : Math.abs(driftDollar)
+              if (allocation.action === 'sell' || allocation.action === 'buy') {
+                const subValue = prevData.currentAllocations.filter(a => (a.sub_portfolio_id || 'unassigned') === id).reduce((s, a) => s + a.current_value, 0)
+                if (bandMode) {
+                  const targetDrift = allocation.action === 'sell' ? upside : -downside
+                  const targetPercentage = assetTarget * (1 + targetDrift / 100)
+                  const targetValueBand = (subValue * targetPercentage) / 100
+                  amount = Math.abs(targetValueBand - allocation.current_value)
+                } else {
+                  const targetValue = (subValue * assetTarget) / 100
+                  amount = Math.abs(targetValue - allocation.current_value)
+                }
               } else {
                 amount = 0
               }
@@ -1016,8 +1101,8 @@ export default function RebalancingPage() {
                   </div>
 
                   {/* Assets Table */}
-                  <div className="w-full pb-6">
-                    <Table>
+                  <div className="w-full">
+                    <Table containerClassName="pb-10">
                       <TableHeader>
                         <TableRow>
                           <TableHead className="min-w-0 break-words">Asset</TableHead>
