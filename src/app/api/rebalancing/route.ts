@@ -477,23 +477,39 @@ export async function GET() {
       const totalBuyNeeds = group.filter((g: any) => g.action === 'buy').reduce((s: number, g: any) => s + (g.amount || 0), 0)
       let remainingProceeds = Math.max(0, totalSellProceeds - totalBuyNeeds)
 
-      // build suggestions: first, fund buys (these are essentially the buy allocations themselves, but include them for clarity)
+      // build suggestions: first, fund buys from sell proceeds, then from overweight assets
       const buys = group.filter((g: any) => g.action === 'buy').sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
+      const overweight = group.filter((g: any) => g.drift_percentage > 0).sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
       const suggestions: any[] = []
       let fundingPool = totalSellProceeds
+      let unfunded = totalBuyNeeds
       for (const b of buys) {
-        if (fundingPool <= 0) break
         const take = Math.min(b.amount || 0, fundingPool)
-        const price = latestPrices.get(b.ticker)?.price || 0
-        const shares = price > 0 ? take / price : 0
-        if (take > 0) suggestions.push({ asset_id: b.asset_id, ticker: b.ticker, name: b.name, suggested_amount: take, suggested_shares: shares, reason: `Fund buy: ${Math.abs(b.drift_percentage).toFixed(2)}% underweight` })
-        fundingPool -= take
+        if (take > 0) {
+          const price = latestPrices.get(b.ticker)?.price || 0
+          const shares = price > 0 ? take / price : 0
+          suggestions.push({ asset_id: b.asset_id, ticker: b.ticker, name: b.name, suggested_amount: take, suggested_shares: shares, reason: `Fund buy from sell proceeds: ${Math.abs(b.drift_percentage).toFixed(2)}% underweight` })
+          fundingPool -= take
+          unfunded -= take
+        }
+      }
+      if (unfunded > 0) {
+        for (const o of overweight) {
+          if (unfunded <= 0) break
+          const take = Math.min(o.current_value, unfunded)
+          if (take > 0) {
+            const price = latestPrices.get(o.ticker)?.price || 0
+            const shares = price > 0 ? take / price : 0
+            suggestions.push({ asset_id: o.asset_id, ticker: o.ticker, name: o.name, suggested_amount: take, suggested_shares: shares, reason: `Trim ${Math.abs(o.drift_percentage).toFixed(2)}% overweight to fund buy` })
+            unfunded -= take
+          }
+        }
       }
 
       // if any proceeds remain after funding buys, cascade into remaining underweights by drift %
+      let rem = remainingProceeds
       if (remainingProceeds > 0) {
         const underweights = group.filter((g: any) => g.action === 'buy').sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
-        let rem = remainingProceeds
         for (const u of underweights) {
           if (rem <= 0) break
           const needed = u.amount || 0

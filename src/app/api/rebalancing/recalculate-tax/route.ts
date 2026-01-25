@@ -271,15 +271,31 @@ export async function POST(request: NextRequest) {
 
       // Fund buys first
       const buys = group.filter((g: any) => g.action === 'buy').sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
+      const overweight = group.filter((g: any) => g.drift_percentage > 0).sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage))
       const suggestions: any[] = []
       let fundingPool = totalSellProceeds
+      let unfunded = totalBuyNeeds
       for (const b of buys) {
-        if (fundingPool <= 0) break
         const take = Math.min(b.amount || 0, fundingPool)
-        const price = latestPrices.get(b.asset_id)?.price || 0
-        const shares = price > 0 ? take / price : 0
-        if (take > 0) suggestions.push({ asset_id: b.asset_id, ticker: b.ticker, name: b.name, suggested_amount: take, suggested_shares: shares, reason: `Fund buy: ${Math.abs(b.drift_percentage || 0).toFixed(2)}% underweight` })
-        fundingPool -= take
+        if (take > 0) {
+          const price = latestPrices.get(b.asset_id)?.price || 0
+          const shares = price > 0 ? take / price : 0
+          suggestions.push({ asset_id: b.asset_id, ticker: b.ticker, name: b.name, suggested_amount: take, suggested_shares: shares, reason: `Fund buy from sell proceeds: ${Math.abs(b.drift_percentage || 0).toFixed(2)}% underweight` })
+          fundingPool -= take
+          unfunded -= take
+        }
+      }
+      if (unfunded > 0) {
+        for (const o of overweight) {
+          if (unfunded <= 0) break
+          const take = Math.min(o.current_value, unfunded)
+          if (take > 0) {
+            const price = latestPrices.get(o.asset_id)?.price || 0
+            const shares = price > 0 ? take / price : 0
+            suggestions.push({ asset_id: o.asset_id, ticker: o.ticker, name: o.name, suggested_amount: take, suggested_shares: shares, reason: `Trim ${Math.abs(o.drift_percentage || 0).toFixed(2)}% overweight to fund buy` })
+            unfunded -= take
+          }
+        }
       }
 
       if (remainingProceeds > 0) {
