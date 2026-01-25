@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
 } from 'recharts'
@@ -158,6 +158,12 @@ export default function RebalancingPage() {
   }>({ subPortfolios: {}, assets: {} })
   const [draftSubTargets, setDraftSubTargets] = useState<Record<string, number>>({})
   const [draftAssetTargets, setDraftAssetTargets] = useState<Record<string, Record<string, number>>>({})
+  const [savingSubTargets, setSavingSubTargets] = useState<Record<string, boolean>>({})
+  const [errorSubTargets, setErrorSubTargets] = useState<Record<string, string>>({})
+  const [savingAssetTargets, setSavingAssetTargets] = useState<Record<string, Record<string, boolean>>>({})
+  const [errorAssetTargets, setErrorAssetTargets] = useState<Record<string, Record<string, string>>>({})
+  const recalcTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingRecalcRef = useRef<Record<string, any>>({})
 
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string>('current_value')
@@ -255,7 +261,7 @@ export default function RebalancingPage() {
         amount: a.amount
       }))
       if (allocationsToUpdate.length > 0) {
-        await recalculateTaxData(allocationsToUpdate)
+        scheduleRecalculate(allocationsToUpdate)
       }
     })()
   }, [JSON.stringify(data?.subPortfolios)])
@@ -407,6 +413,23 @@ export default function RebalancingPage() {
     } catch (error) {
       console.error('Error recalculating tax data:', error)
     }
+  }
+
+  // Debounced scheduler: merge allocations by key and delay calls to reduce churn
+  const scheduleRecalculate = (allocationsToUpdate: any[], delay = 400) => {
+    // merge incoming allocations into pending map using key asset|sub
+    allocationsToUpdate.forEach(a => {
+      const key = `${a.asset_id}::${a.sub_portfolio_id}`
+      pendingRecalcRef.current[key] = a
+    })
+
+    if (recalcTimerRef.current) clearTimeout(recalcTimerRef.current)
+    recalcTimerRef.current = setTimeout(() => {
+      const merged = Object.values(pendingRecalcRef.current)
+      pendingRecalcRef.current = {}
+      recalcTimerRef.current = null
+      recalculateTaxData(merged as any[])
+    }, delay)
   }
 
   const validateAllocations = (data: RebalancingData) => {
@@ -603,6 +626,8 @@ export default function RebalancingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, target_percentage: target })
       })
+      setSavingSubTargets(prev => ({ ...prev, [id]: true }))
+      setErrorSubTargets(prev => ({ ...prev, [id]: '' }))
       if (!res.ok) throw new Error('Failed to update target')
 
       // Update local state instead of triggering full refresh
@@ -641,10 +666,16 @@ export default function RebalancingPage() {
       // Recalculate tax data for all allocations in this sub-portfolio
       const affectedAllocations = data?.currentAllocations.filter(a => a.sub_portfolio_id === id) || []
       if (affectedAllocations.length > 0) {
-        await recalculateTaxData(affectedAllocations)
+        scheduleRecalculate(affectedAllocations)
       }
+      setSavingSubTargets(prev => ({ ...prev, [id]: false }))
     } catch (error) {
+      // rollback draft to server value when available
+      const serverVal = data?.subPortfolios.find(sp => sp.id === id)?.target_allocation || 0
+      setDraftSubTargets(prev => ({ ...prev, [id]: serverVal }))
+      setErrorSubTargets(prev => ({ ...prev, [id]: (error as any)?.message || 'Save failed' }))
       console.error('Error updating sub-portfolio target:', error)
+      setSavingSubTargets(prev => ({ ...prev, [id]: false }))
     }
   }
 
@@ -655,6 +686,8 @@ export default function RebalancingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ asset_id: assetId, sub_portfolio_id: subPortfolioId, target_percentage: target })
       })
+      setSavingAssetTargets(prev => ({ ...prev, [subPortfolioId]: { ...(prev[subPortfolioId] || {}), [assetId]: true } }))
+      setErrorAssetTargets(prev => ({ ...prev, [subPortfolioId]: { ...(prev[subPortfolioId] || {}), [assetId]: '' } }))
       if (!res.ok) throw new Error('Failed to update target')
 
       // Prepare updated assetTargets based on current `data` so we can use it for tax recalculation
@@ -787,10 +820,16 @@ export default function RebalancingPage() {
         })
 
       if (affectedAllocations.length > 0) {
-        await recalculateTaxData(affectedAllocations)
+        scheduleRecalculate(affectedAllocations)
       }
+      setSavingAssetTargets(prev => ({ ...prev, [subPortfolioId]: { ...(prev[subPortfolioId] || {}), [assetId]: false } }))
     } catch (error) {
+      // rollback draft to server value when available
+      const serverVal = data?.currentAllocations.find(a => a.asset_id === assetId && a.sub_portfolio_id === subPortfolioId)?.sub_portfolio_target_percentage || 0
+      setDraftAssetTargets(prev => ({ ...prev, [subPortfolioId]: { ...(prev[subPortfolioId] || {}), [assetId]: serverVal } }))
+      setErrorAssetTargets(prev => ({ ...prev, [subPortfolioId]: { ...(prev[subPortfolioId] || {}), [assetId]: (error as any)?.message || 'Save failed' } }))
       console.error('Error updating asset target:', error)
+      setSavingAssetTargets(prev => ({ ...prev, [subPortfolioId]: { ...(prev[subPortfolioId] || {}), [assetId]: false } }))
     }
   }
 
@@ -938,7 +977,7 @@ export default function RebalancingPage() {
       }) || []
 
       if (affectedAllocations.length > 0) {
-        await recalculateTaxData(affectedAllocations)
+        scheduleRecalculate(affectedAllocations)
       }
     } catch (error) {
       console.error('Error updating thresholds:', error)
@@ -1219,30 +1258,31 @@ export default function RebalancingPage() {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                       <div>
                         <Label>Target % (sum to 100%)</Label>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              defaultValue={subPortfolioTarget}
-                              onBlur={(e) => {
-                                const newValue = parseFloat(e.target.value) || 0
-                                if (newValue !== subPortfolioTarget) {
-                                  updateSubPortfolioTarget(subPortfolioId, newValue)
-                                }
-                              }}
-                              className={cn(
-                                "w-24",
-                                validationErrors.subPortfolios[subPortfolioId] && "border-red-500 focus:border-red-500"
-                              )}
-                            />
-                          </TooltipTrigger>
-                          {validationErrors.subPortfolios[subPortfolioId] && (
-                            <TooltipContent>
-                              <p className="text-red-600 font-medium">{validationErrors.subPortfolios[subPortfolioId]}</p>
-                            </TooltipContent>
-                          )}
-                        </Tooltip>
+                        <div>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={draftSubTargets[subPortfolioId] ?? subPortfolioTarget}
+                            onChange={(e) => {
+                              const newVal = parseFloat(e.target.value) || 0
+                              setDraftSubTargets(prev => ({ ...prev, [subPortfolioId]: newVal }))
+                            }}
+                            onBlur={(e) => {
+                              const newValue = parseFloat((e.target as HTMLInputElement).value) || 0
+                              if (newValue !== subPortfolioTarget) {
+                                updateSubPortfolioTarget(subPortfolioId, newValue)
+                              }
+                            }}
+                            className={cn(
+                              "w-24",
+                              validationErrors.subPortfolios[subPortfolioId] && "border-red-500 focus:border-red-500"
+                            )}
+                          />
+                          <div className="mt-1 text-xs">
+                            {savingSubTargets[subPortfolioId] && <span className="text-blue-600">Saving...</span>}
+                            {errorSubTargets[subPortfolioId] && <span className="text-red-600">{errorSubTargets[subPortfolioId]}</span>}
+                          </div>
+                        </div>
                       </div>
                       {subPortfolio && (
                         <>
@@ -1374,6 +1414,10 @@ export default function RebalancingPage() {
                                         </TooltipContent>
                                       )}
                                     </Tooltip>
+                                    <div className="mt-1 text-xs">
+                                      {savingAssetTargets[subPortfolioId]?.[item.asset_id] && <span className="text-blue-600">Saving...</span>}
+                                      {errorAssetTargets[subPortfolioId]?.[item.asset_id] && <span className="text-red-600">{errorAssetTargets[subPortfolioId][item.asset_id]}</span>}
+                                    </div>
                                   </TableCell>
                                   <TableCell className="text-right min-w-0 break-words">{item.implied_overall_target.toFixed(2)}%</TableCell>
                                   <TableCell className={cn(

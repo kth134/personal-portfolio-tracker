@@ -94,9 +94,15 @@ export async function POST(request: NextRequest) {
             }
           })
           taxImpact = Math.max(0, estimatedTaxSum)
-          // Recommend accounts by tax_status available in user's accounts
+          // Recommend accounts by tax_status if available; otherwise fall back to any account or a generic placeholder
           const sellAccounts = (accounts || []).filter((acc: any) => acc.tax_status === 'Taxable')
-          recommendedAccounts = sellAccounts.slice(0, 2).map((acc: any) => ({ id: acc.id, name: acc.name, type: acc.type, reason: 'Taxable account preferred for potential tax-loss harvesting' }))
+          const fallbackAccounts = (accounts || [])
+          const chosen = sellAccounts.length > 0 ? sellAccounts : fallbackAccounts
+          if (chosen.length > 0) {
+            recommendedAccounts = chosen.slice(0, 2).map((acc: any) => ({ id: acc.id, name: acc.name, type: acc.type, reason: 'Recommended based on account availability' }))
+          } else {
+            recommendedAccounts = [{ id: 'unknown', name: 'Account (unknown)', type: 'Account', reason: 'No account metadata available' }]
+          }
           taxNotes = taxImpact > 0 ? 'Capital gains tax estimated' : 'Potential tax-loss harvesting opportunity'
         } else {
           // Determine whether selling will be net gain or loss by checking unrealized gain across all lots
