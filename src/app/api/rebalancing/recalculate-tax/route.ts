@@ -140,8 +140,9 @@ export async function POST(request: NextRequest) {
             remaining -= sellFromAccount
           }
 
-            // Compute gains only for amounts sold from taxable accounts, applying per-lot tax rates
-            let taxableTaxSum = 0
+            // Compute tax impact and loss benefit for amounts sold from taxable accounts, per-lot
+            let gainTaxSum = 0
+            let lossBenefitSum = 0
             const now = new Date()
             const SHORT_TERM_DAYS = 365
             const SHORT_TERM_RATE = 0.37
@@ -152,25 +153,29 @@ export async function POST(request: NextRequest) {
               const accTotalValue = acc.totalValue || 0
               if (accTotalValue <= 0) return
               const sellRatioForAccount = plan.amount / accTotalValue
-              // Distribute sell across lots proportionally and sum tax for taxable lots
               acc.lots.forEach((lot: any) => {
                 const lotSellValue = lot.lotValue * sellRatioForAccount
                 const lotCostSoldPortion = lot.lotCost * (lotSellValue / (lot.lotValue || 1) || 0)
                 const lotGain = lotSellValue - lotCostSoldPortion
                 const accTaxStatus = acc.tax_status || (acc.account && acc.account.tax_status)
                 if (accTaxStatus === 'Taxable') {
-                  // Determine lot age to choose tax rate
                   let lotRate = LONG_TERM_RATE
                   if (lot.purchase_date) {
                     const ageDays = Math.floor((now.getTime() - new Date(lot.purchase_date).getTime()) / (1000 * 60 * 60 * 24))
                     if (ageDays < SHORT_TERM_DAYS) lotRate = SHORT_TERM_RATE
                   }
-                  taxableTaxSum += Math.max(0, lotGain) * lotRate
+                  if (lotGain > 0) {
+                    gainTaxSum += lotGain * lotRate
+                  } else if (lotGain < 0) {
+                    lossBenefitSum += Math.abs(lotGain) * lotRate
+                  }
                 }
               })
             })
 
-            taxImpact = Math.max(0, taxableTaxSum)
+            // net = gains tax - loss benefit; show negative for tax payable, positive for tax benefit
+            const net = gainTaxSum - lossBenefitSum
+            taxImpact = lossBenefitSum - gainTaxSum
 
           // Build recommended accounts list with amounts to sell per account
           // Include account holding value and lot ids used in recommendation

@@ -273,22 +273,22 @@ export async function GET() {
           const SHORT_TERM_DAYS = 365
           const SHORT_TERM_RATE = 0.37
           const LONG_TERM_RATE = 0.15
-          let estimatedTaxSum = 0
+          let gainTaxSum = 0
+          let lossBenefitSum = 0
           assetTaxLots.forEach((lot: any) => {
             const lotCostBasis = lot.remaining_quantity * lot.cost_basis_per_unit
             const lotValue = lot.remaining_quantity * price
             const sellRatio = price > 0 ? Math.min(1, allocation.amount / lotValue) : 0
             const lotGain = (lotValue * sellRatio) - (lotCostBasis * sellRatio)
-            if (lotGain > 0) {
-              let lotRate = LONG_TERM_RATE
-              if (lot.purchase_date) {
-                const ageDays = Math.floor((now.getTime() - new Date(lot.purchase_date).getTime()) / (1000 * 60 * 60 * 24))
-                if (ageDays < SHORT_TERM_DAYS) lotRate = SHORT_TERM_RATE
-              }
-              estimatedTaxSum += lotGain * lotRate
+            let lotRate = LONG_TERM_RATE
+            if (lot.purchase_date) {
+              const ageDays = Math.floor((now.getTime() - new Date(lot.purchase_date).getTime()) / (1000 * 60 * 60 * 24))
+              if (ageDays < SHORT_TERM_DAYS) lotRate = SHORT_TERM_RATE
             }
+            if (lotGain > 0) gainTaxSum += lotGain * lotRate
+            else if (lotGain < 0) lossBenefitSum += Math.abs(lotGain) * lotRate
           })
-          taxImpact = Math.max(0, estimatedTaxSum)
+          taxImpact = lossBenefitSum - gainTaxSum
           // Recommend taxable accounts if available
           const sellAccounts = accounts?.filter(acc => acc.tax_status === 'Taxable') || []
           recommendedAccounts = sellAccounts.map(acc => ({ id: acc.id, name: acc.name, type: acc.type, reason: 'Taxable account preferred for potential tax-loss harvesting' }))
@@ -325,8 +325,9 @@ export async function GET() {
             remaining -= sellFromAccount
           }
 
-          // Compute tax only for taxable accounts, applying per-lot short/long-term rates
-          let taxableTaxSum = 0
+          // Compute tax impact and loss benefit for taxable accounts, per-lot
+          let gainTaxSum = 0
+          let lossBenefitSum = 0
           const now = new Date()
           const SHORT_TERM_DAYS = 365
           const SHORT_TERM_RATE = 0.37
@@ -347,12 +348,14 @@ export async function GET() {
                   const ageDays = Math.floor((now.getTime() - new Date(lot.purchase_date).getTime()) / (1000 * 60 * 60 * 24))
                   if (ageDays < SHORT_TERM_DAYS) lotRate = SHORT_TERM_RATE
                 }
-                taxableTaxSum += Math.max(0, lotGain) * lotRate
+                if (lotGain > 0) gainTaxSum += lotGain * lotRate
+                else if (lotGain < 0) lossBenefitSum += Math.abs(lotGain) * lotRate
               }
             })
           })
 
-          taxImpact = Math.max(0, taxableTaxSum)
+          // net = gains tax - loss benefit; taxImpact = lossBenefit - gainTax (positive benefit, negative payable)
+          taxImpact = lossBenefitSum - gainTaxSum
 
           // Recommended accounts with holding values and lot ids used
           recommendedAccounts = accountSellPlan.map(p => ({
