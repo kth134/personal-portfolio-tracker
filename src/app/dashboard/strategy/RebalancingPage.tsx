@@ -190,6 +190,64 @@ export default function RebalancingPage() {
     URL.revokeObjectURL(url)
   }
 
+  const recalculateTaxData = async (allocationsToUpdate: any[]) => {
+    if (!data || allocationsToUpdate.length === 0) return
+
+    try {
+      // Create a temporary data object with updated allocations for tax calculation
+      const tempData = {
+        ...data,
+        currentAllocations: data.currentAllocations.map(allocation => {
+          const updated = allocationsToUpdate.find(a => a.asset_id === allocation.asset_id && a.sub_portfolio_id === allocation.sub_portfolio_id)
+          return updated || allocation
+        })
+      }
+
+      // Call the API to recalculate tax data for these specific allocations
+      const res = await fetch('/api/rebalancing/recalculate-tax', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          allocations: allocationsToUpdate,
+          totalValue: data.totalValue,
+          accounts: data.currentAllocations.map(a => ({ id: a.asset_id, name: a.ticker, type: 'Taxable', tax_status: 'Taxable' })) // Simplified
+        })
+      })
+
+      if (res.ok) {
+        const taxUpdates = await res.json()
+        
+        // Update the local state with the recalculated tax data
+        setData(prevData => {
+          if (!prevData) return prevData
+          
+          const updatedAllocations = prevData.currentAllocations.map(allocation => {
+            const taxUpdate = taxUpdates.find((update: any) => 
+              update.asset_id === allocation.asset_id && update.sub_portfolio_id === allocation.sub_portfolio_id
+            )
+            if (taxUpdate) {
+              return {
+                ...allocation,
+                tax_impact: taxUpdate.tax_impact,
+                recommended_accounts: taxUpdate.recommended_accounts,
+                tax_notes: taxUpdate.tax_notes,
+                reinvestment_suggestions: taxUpdate.reinvestment_suggestions
+              }
+            }
+            return allocation
+          })
+          
+          return {
+            ...prevData,
+            currentAllocations: updatedAllocations
+          }
+        })
+      }
+    } catch (error) {
+      console.error('Error recalculating tax data:', error)
+    }
+  }
+
   const validateAllocations = (data: RebalancingData) => {
     const messages: {[key: string]: string} = {}
 
@@ -224,7 +282,7 @@ export default function RebalancingPage() {
       'Implied Overall Target %', 
       'Drift %', 
       'Action', 
-      'Amount', 
+      'Recommended Transaction Amount', 
       'Tax Impact', 
       'Recommended Accounts', 
       'Tax Notes',
@@ -245,7 +303,7 @@ export default function RebalancingPage() {
         item.implied_overall_target.toFixed(2),
         item.drift_percentage.toFixed(2),
         item.action,
-        formatUSD(item.amount),
+        (item.action === 'sell' ? '-' : '') + formatUSD(item.amount).replace('$', ''),
         formatUSD(item.tax_impact),
         recommendedAccounts,
         item.tax_notes,
@@ -296,6 +354,12 @@ export default function RebalancingPage() {
         validateAllocations(updatedData)
         return updatedData
       })
+      
+      // Recalculate tax data for all allocations in this sub-portfolio
+      const affectedAllocations = data?.currentAllocations.filter(a => a.sub_portfolio_id === id) || []
+      if (affectedAllocations.length > 0) {
+        await recalculateTaxData(affectedAllocations)
+      }
     } catch (error) {
       console.error('Error updating sub-portfolio target:', error)
     }
@@ -387,6 +451,12 @@ export default function RebalancingPage() {
       
       // Validate allocations after update
       if (data) validateAllocations(data)
+      
+      // Recalculate tax data for the updated allocation
+      const updatedAllocation = data?.currentAllocations.find(a => a.asset_id === assetId && a.sub_portfolio_id === subPortfolioId)
+      if (updatedAllocation) {
+        await recalculateTaxData([updatedAllocation])
+      }
     } catch (error) {
       console.error('Error updating asset target:', error)
     }
@@ -782,7 +852,7 @@ export default function RebalancingPage() {
                           <TableHead className="text-right">Implied Overall Target %</TableHead>
                           <TableHead className="text-right">Drift %</TableHead>
                           <TableHead>Action</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead className="text-right">Recommended Transaction Amount</TableHead>
                           <TableHead className="text-right">Tax Impact</TableHead>
                           <TableHead>Recommended Accounts</TableHead>
                           <TableHead>Tax Notes</TableHead>
@@ -827,7 +897,9 @@ export default function RebalancingPage() {
                             )}>
                               {item.action.toUpperCase()}
                             </TableCell>
-                            <TableCell className="text-right">{formatUSD(item.amount)}</TableCell>
+                            <TableCell className="text-right">
+                              {item.action === 'sell' ? '-' : ''}{formatUSD(item.amount)}
+                            </TableCell>
                             <TableCell className="text-right">
                               {item.tax_impact > 0 ? (
                                 <span className="text-red-600 font-medium">
