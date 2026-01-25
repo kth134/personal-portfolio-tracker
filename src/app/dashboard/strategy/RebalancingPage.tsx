@@ -935,13 +935,15 @@ export default function RebalancingPage() {
                                     checked={subPortfolio.band_mode}
                                     onCheckedChange={(checked) => updateThresholds(subPortfolioId, subPortfolio.upside_threshold, subPortfolio.downside_threshold, checked)}
                                   />
-                                  <Label>Band Mode</Label>
+                                  <Label>Conservative Mode</Label>
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p className="max-w-xs">
-                                  When enabled, rebalancing amounts are calculated as the difference between current drift and the threshold (band approach). 
-                                  When disabled, the full drift amount is recommended for rebalancing (absolute approach).
+                                  <strong>When enabled:</strong> Only rebalance enough to bring assets back within acceptable ranges (not to exact targets). 
+                                  This prevents over-rebalancing when assets are only slightly out of balance.<br/><br/>
+                                  <strong>When disabled:</strong> Calculate the full amount needed to reach exact target allocations. 
+                                  More aggressive but may result in excessive trading.
                                 </p>
                               </TooltipContent>
                             </Tooltip>
