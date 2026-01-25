@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Calendar } from '@/components/ui/calendar'
 import { Checkbox } from '@/components/ui/checkbox'
-import { CalendarIcon, Check, ChevronsUpDown, Edit2, Trash2, ArrowUpDown } from 'lucide-react'
+import { CalendarIcon, Check, ChevronsUpDown, Edit2, Trash2, ArrowUpDown, Filter } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
@@ -35,9 +35,12 @@ type TaxLot = {
 
 type TaxLotsListProps = {
   initialTaxLots: TaxLot[]
+  total: number
+  currentPage: number
+  pageSize: number
 }
 
-export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
+export default function TaxLotsList({ initialTaxLots, total, currentPage, pageSize }: TaxLotsListProps) {
   const [taxLots, setTaxLots] = useState(initialTaxLots)
   const [open, setOpen] = useState(false)
   const [editingLot, setEditingLot] = useState<TaxLot | null>(null)
@@ -60,6 +63,15 @@ export default function TaxLotsList({ initialTaxLots }: TaxLotsListProps) {
   const [search, setSearch] = useState('')
   const [selectedLots, setSelectedLots] = useState<string[]>([])
   const [selectAll, setSelectAll] = useState(false)
+
+  // Filters
+  const [filterAccount, setFilterAccount] = useState('')
+  const [filterAsset, setFilterAsset] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [filterRemainingMin, setFilterRemainingMin] = useState('')
+  const [filterRemainingMax, setFilterRemainingMax] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
   // Fetch accounts & assets
   useEffect(() => {
     const fetchData = async () => {
@@ -203,7 +215,8 @@ const handleSort = (key: SortKey) => {
     }
   }
 
-  const filteredLots = [...taxLots].sort((a, b) => {
+  const filteredLots = useMemo(() => {
+    return [...taxLots].sort((a, b) => {
     let va: any, vb: any
     switch (sortKey) {
       case 'account':
@@ -247,6 +260,23 @@ const handleSort = (key: SortKey) => {
       lot.asset?.name?.toLowerCase().includes(low) ||
       lot.purchase_date.includes(low)
     )
+  }).filter(lot => {
+    if (filterAccount && !lot.account?.name?.toLowerCase().includes(filterAccount.toLowerCase())) return false
+    if (filterAsset && !lot.asset?.ticker?.toLowerCase().includes(filterAsset.toLowerCase()) && !lot.asset?.name?.toLowerCase().includes(filterAsset.toLowerCase())) return false
+    if (filterDateFrom && lot.purchase_date < filterDateFrom) return false
+    if (filterDateTo && lot.purchase_date > filterDateTo) return false
+    if (filterRemainingMin && lot.remaining_quantity < Number(filterRemainingMin)) return false
+    if (filterRemainingMax && lot.remaining_quantity > Number(filterRemainingMax)) return false
+    return true
+  })
+  }, [taxLots, search, sortKey, sortDir, filterAccount, filterAsset, filterDateFrom, filterDateTo, filterRemainingMin, filterRemainingMax]).filter(lot => {
+    if (filterAccount && !lot.account?.name?.toLowerCase().includes(filterAccount.toLowerCase())) return false
+    if (filterAsset && !lot.asset?.ticker?.toLowerCase().includes(filterAsset.toLowerCase()) && !lot.asset?.name?.toLowerCase().includes(filterAsset.toLowerCase())) return false
+    if (filterDateFrom && lot.purchase_date < filterDateFrom) return false
+    if (filterDateTo && lot.purchase_date > filterDateTo) return false
+    if (filterRemainingMin && lot.remaining_quantity < Number(filterRemainingMin)) return false
+    if (filterRemainingMax && lot.remaining_quantity > Number(filterRemainingMax)) return false
+    return true
   })
 
   // Update select all
@@ -375,6 +405,11 @@ const handleSort = (key: SortKey) => {
           className="w-64"
         />
 
+        <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+          <Filter className="h-4 w-4 mr-2" />
+          Filters
+        </Button>
+
         {selectedLots.length > 0 && (
           <div className="flex gap-2 items-center">
             <span className="text-sm text-muted-foreground">
@@ -386,6 +421,73 @@ const handleSort = (key: SortKey) => {
           </div>
         )}
       </div>
+
+      {showFilters && (
+        <div className="mb-4 p-4 border rounded-lg bg-muted/20">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <Label>Account</Label>
+              <Input
+                placeholder="Filter by account"
+                value={filterAccount}
+                onChange={(e) => setFilterAccount(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Asset</Label>
+              <Input
+                placeholder="Filter by asset"
+                value={filterAsset}
+                onChange={(e) => setFilterAsset(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Date From</Label>
+              <Input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Date To</Label>
+              <Input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Remaining Qty Min</Label>
+              <Input
+                type="number"
+                value={filterRemainingMin}
+                onChange={(e) => setFilterRemainingMin(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Remaining Qty Max</Label>
+              <Input
+                type="number"
+                value={filterRemainingMax}
+                onChange={(e) => setFilterRemainingMax(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button variant="outline" onClick={() => {
+              setFilterAccount('')
+              setFilterAsset('')
+              setFilterDateFrom('')
+              setFilterDateTo('')
+              setFilterRemainingMin('')
+              setFilterRemainingMax('')
+            }}>
+              Clear Filters
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Tax Lots Table */}
       {taxLots.length > 0 ? (
@@ -471,6 +573,17 @@ const handleSort = (key: SortKey) => {
         <p className="text-muted-foreground">No tax lots yet—add buys to create them.</p>
       )}
 
+      <PaginationControls
+        currentPage={currentPage}
+        total={total}
+        pageSize={pageSize}
+        onPageChange={(page) => {
+          const url = new URL(window.location.href)
+          url.searchParams.set('page', page.toString())
+          window.location.href = url.toString()
+        }}
+      />
+
       {/* Confirm delete */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
@@ -484,5 +597,30 @@ const handleSort = (key: SortKey) => {
         </AlertDialogContent>
       </AlertDialog>
     </main>
+  )
+}
+
+function PaginationControls({ currentPage, total, pageSize, onPageChange }: { currentPage: number, total: number, pageSize: number, onPageChange: (page: number) => void }) {
+  const totalPages = Math.ceil(total / pageSize)
+  return (
+    <div className="flex justify-between items-center mt-4">
+      <Button
+        variant="outline"
+        disabled={currentPage <= 1}
+        onClick={() => onPageChange(currentPage - 1)}
+      >
+        Previous
+      </Button>
+      <span className="text-sm text-muted-foreground">
+        Page {currentPage} of {totalPages} ({total} total)
+      </span>
+      <Button
+        variant="outline"
+        disabled={currentPage >= totalPages}
+        onClick={() => onPageChange(currentPage + 1)}
+      >
+        Next
+      </Button>
+    </div>
   )
 }

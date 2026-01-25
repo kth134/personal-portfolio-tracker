@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Calendar } from '@/components/ui/calendar'
-import { CalendarIcon, Check, ChevronsUpDown, Edit2, Trash2, ArrowUpDown } from 'lucide-react'
+import { CalendarIcon, Check, ChevronsUpDown, Edit2, Trash2, ArrowUpDown, Filter } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -55,9 +55,12 @@ type ValidatedRow = {
 
 type TransactionsListProps = {
   initialTransactions: Transaction[]
+  total: number
+  currentPage: number
+  pageSize: number
 }
 
-export default function TransactionsList({ initialTransactions }: TransactionsListProps) {
+export default function TransactionsList({ initialTransactions, total, currentPage, pageSize }: TransactionsListProps) {
   const router = useRouter()
   const [transactions, setTransactions] = useState(initialTransactions)
   const [displayTransactions, setDisplayTransactions] = useState(initialTransactions)
@@ -77,6 +80,17 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<keyof Transaction | 'account_name' | 'asset_ticker'>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  // Filters
+  const [filterType, setFilterType] = useState('')
+  const [filterAccount, setFilterAccount] = useState('')
+  const [filterAsset, setFilterAsset] = useState('')
+  const [filterFundingSource, setFilterFundingSource] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [filterAmountMin, setFilterAmountMin] = useState('')
+  const [filterAmountMax, setFilterAmountMax] = useState('')
+  const [filterNotes, setFilterNotes] = useState('')
 
   // Mass actions
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([])
@@ -104,6 +118,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
   const [showImportHelp, setShowImportHelp] = useState(false)
   const [dontShowAgain, setDontShowAgain] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
 
   const isBuyOrSellEdit = !!editingTx && (editingTx.type === 'Buy' || editingTx.type === 'Sell')
   const disableSelects = !!editingTx
@@ -142,7 +157,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
     if (type !== 'Buy') setFundingSource('cash')
   }, [type])
 
-  // Search + sort effect
+  // Search + sort + filter effect
   useEffect(() => {
     let list = [...transactions]
     if (search) {
@@ -154,6 +169,36 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
         tx.notes?.toLowerCase().includes(low) ||
         tx.type.toLowerCase().includes(low)
       )
+    }
+    // Apply filters
+    if (filterType) {
+      list = list.filter(tx => tx.type === filterType)
+    }
+    if (filterAccount) {
+      list = list.filter(tx => tx.account?.name?.toLowerCase().includes(filterAccount.toLowerCase()))
+    }
+    if (filterAsset) {
+      list = list.filter(tx => tx.asset?.ticker?.toLowerCase().includes(filterAsset.toLowerCase()) || tx.asset?.name?.toLowerCase().includes(filterAsset.toLowerCase()))
+    }
+    if (filterFundingSource) {
+      list = list.filter(tx => tx.funding_source === filterFundingSource)
+    }
+    if (filterDateFrom) {
+      list = list.filter(tx => tx.date >= filterDateFrom)
+    }
+    if (filterDateTo) {
+      list = list.filter(tx => tx.date <= filterDateTo)
+    }
+    if (filterAmountMin) {
+      const min = Number(filterAmountMin)
+      list = list.filter(tx => tx.amount && tx.amount >= min)
+    }
+    if (filterAmountMax) {
+      const max = Number(filterAmountMax)
+      list = list.filter(tx => tx.amount && tx.amount <= max)
+    }
+    if (filterNotes) {
+      list = list.filter(tx => tx.notes?.toLowerCase().includes(filterNotes.toLowerCase()))
     }
     list.sort((a, b) => {
       const aVal: any = sortKey === 'account_name' ? a.account?.name ?? null :
@@ -172,7 +217,7 @@ export default function TransactionsList({ initialTransactions }: TransactionsLi
       return sortDir === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr)
     })
     setDisplayTransactions(list)
-  }, [transactions, search, sortKey, sortDir])
+  }, [transactions, search, sortKey, sortDir, filterType, filterAccount, filterAsset, filterFundingSource, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, filterNotes])
 
   // Update select all state
   useEffect(() => {
@@ -662,6 +707,11 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             className="w-64"
           />
 
+          <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+            <Filter className="h-4 w-4 mr-2" />
+            Filters
+          </Button>
+
           {selectedTransactions.length > 0 && (
             <div className="flex gap-2 items-center">
               <span className="text-sm text-muted-foreground">
@@ -695,6 +745,114 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
           <Button variant="outline" onClick={handleDownloadTemplate}>
             Download CSV Template
           </Button>
+
+      {showFilters && (
+        <div className="mb-4 p-4 border rounded-lg bg-muted/20">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <Label>Type</Label>
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="Buy">Buy</SelectItem>
+                  <SelectItem value="Sell">Sell</SelectItem>
+                  <SelectItem value="Dividend">Dividend</SelectItem>
+                  <SelectItem value="Deposit">Deposit</SelectItem>
+                  <SelectItem value="Withdrawal">Withdrawal</SelectItem>
+                  <SelectItem value="Interest">Interest</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Account</Label>
+              <Input
+                placeholder="Filter by account"
+                value={filterAccount}
+                onChange={(e) => setFilterAccount(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Asset</Label>
+              <Input
+                placeholder="Filter by asset"
+                value={filterAsset}
+                onChange={(e) => setFilterAsset(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Funding Source</Label>
+              <Select value={filterFundingSource} onValueChange={setFilterFundingSource}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="external">External</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Date From</Label>
+              <Input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Date To</Label>
+              <Input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Amount Min</Label>
+              <Input
+                type="number"
+                value={filterAmountMin}
+                onChange={(e) => setFilterAmountMin(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Amount Max</Label>
+              <Input
+                type="number"
+                value={filterAmountMax}
+                onChange={(e) => setFilterAmountMax(e.target.value)}
+              />
+            </div>
+            <div className="md:col-span-2 lg:col-span-4">
+              <Label>Notes</Label>
+              <Input
+                placeholder="Filter by notes"
+                value={filterNotes}
+                onChange={(e) => setFilterNotes(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button variant="outline" onClick={() => {
+              setFilterType('')
+              setFilterAccount('')
+              setFilterAsset('')
+              setFilterFundingSource('')
+              setFilterDateFrom('')
+              setFilterDateTo('')
+              setFilterAmountMin('')
+              setFilterAmountMax('')
+              setFilterNotes('')
+            }}>
+              Clear Filters
+            </Button>
+          </div>
+        </div>
+      )}
 
             {isImporting && (
               <div className="mt-4 p-4 bg-muted rounded-lg text-center">
@@ -830,7 +988,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                 {type === 'Buy' && (
                   <div className="space-y-2">
                     <Label>Funding Source <span className="text-red-500">*</span></Label>
-                    <Select value={fundingSource} onValueChange={(v: 'cash' | 'external') => setFundingSource(v)} disabled={disableCriticalFields}>
+                    <Select value={fundingSource} onValueChange={(v: 'cash' | 'external') => setFundingSource(v)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -1011,6 +1169,17 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         <p className="text-muted-foreground">No transactions yet. Add one to get started!</p>
       )}
 
+      <PaginationControls
+        currentPage={currentPage}
+        total={total}
+        pageSize={pageSize}
+        onPageChange={(page) => {
+          const url = new URL(window.location.href)
+          url.searchParams.set('page', page.toString())
+          window.location.href = url.toString()
+        }}
+      />
+
       <AlertDialog open={!!deletingTx} onOpenChange={(o) => !o && setDeletingTx(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1086,5 +1255,30 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         </DialogContent>
       </Dialog>
     </main>
+  )
+}
+
+function PaginationControls({ currentPage, total, pageSize, onPageChange }: { currentPage: number, total: number, pageSize: number, onPageChange: (page: number) => void }) {
+  const totalPages = Math.ceil(total / pageSize)
+  return (
+    <div className="flex justify-between items-center mt-4">
+      <Button
+        variant="outline"
+        disabled={currentPage <= 1}
+        onClick={() => onPageChange(currentPage - 1)}
+      >
+        Previous
+      </Button>
+      <span className="text-sm text-muted-foreground">
+        Page {currentPage} of {totalPages} ({total} total)
+      </span>
+      <Button
+        variant="outline"
+        disabled={currentPage >= totalPages}
+        onClick={() => onPageChange(currentPage + 1)}
+      >
+        Next
+      </Button>
+    </div>
   )
 }

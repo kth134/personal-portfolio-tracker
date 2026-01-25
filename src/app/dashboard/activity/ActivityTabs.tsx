@@ -9,9 +9,20 @@ import TaxLotsList from '@/components/TaxLotsList';
 interface ActivityTabsProps {
   initialTransactions: any[];
   initialTaxLots: any[];
+  transactionsTotal: number;
+  taxLotsTotal: number;
+  currentPage: number;
+  pageSize: number;
 }
 
-export default function ActivityTabs({ initialTransactions, initialTaxLots }: ActivityTabsProps) {
+export default function ActivityTabs({ 
+  initialTransactions, 
+  initialTaxLots, 
+  transactionsTotal, 
+  taxLotsTotal, 
+  currentPage, 
+  pageSize 
+}: ActivityTabsProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tab = searchParams.get('tab') || 'transactions';
@@ -27,10 +38,20 @@ export default function ActivityTabs({ initialTransactions, initialTaxLots }: Ac
         <TabsTrigger value="tax-lots">Tax Lots</TabsTrigger>
       </TabsList>
       <TabsContent value="transactions">
-        <TransactionsList initialTransactions={initialTransactions} />
+        <TransactionsList 
+          initialTransactions={initialTransactions} 
+          total={transactionsTotal}
+          currentPage={currentPage}
+          pageSize={pageSize}
+        />
       </TabsContent>
       <TabsContent value="tax-lots">
-        <TaxLotsList initialTaxLots={initialTaxLots} />
+        <TaxLotsList 
+          initialTaxLots={initialTaxLots}
+          total={taxLotsTotal}
+          currentPage={currentPage}
+          pageSize={pageSize}
+        />
       </TabsContent>
     </Tabs>
   );
