@@ -174,14 +174,18 @@ export default function RebalancingPage() {
 
   // Editing state
   const [editingSubPortfolio, setEditingSubPortfolio] = useState<string | null>(null)
+  const initialLoadRef = useRef(true)
 
   useEffect(() => {
     fetchData()
   }, [refreshTrigger])
 
   useEffect(() => {
-    // Set open items to empty (collapsed by default)
-    setOpenItems([])
+    // Set open items to empty (collapsed by default) only on initial load
+    if (initialLoadRef.current && data) {
+      setOpenItems([])
+      initialLoadRef.current = false
+    }
   }, [data])
 
   // Recalculate actions/amounts whenever sub-portfolio settings change (e.g., thresholds or band mode)
@@ -1047,10 +1051,6 @@ export default function RebalancingPage() {
   return (
     <TooltipProvider>
       <div className="space-y-8">
-        <div className="text-center text-red-600 font-semibold text-lg bg-red-50 p-4 rounded-md border border-red-200">
-          Under Construction
-        </div>
-
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-card p-4 rounded-lg border">

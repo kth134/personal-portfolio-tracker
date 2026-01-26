@@ -93,8 +93,5 @@ export async function refreshAssetPrices() {
     }
   }
 
-  // Success → revalidate
-  revalidatePath('/dashboard/portfolio')
-
   return { success: true, message: 'Prices refreshed successfully.' }
 }

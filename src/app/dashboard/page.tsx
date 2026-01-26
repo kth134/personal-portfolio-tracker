@@ -1008,42 +1008,53 @@ export default function DashboardHome() {
                         </div>
                       </div>
 
-                      {/* Sub-Portfolios List */}
+                      {/* Sub-Portfolios Table */}
                       <div>
                         <h4 className="font-semibold mb-2">Sub-Portfolios</h4>
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {(() => {
-                            // Group allocations by sub_portfolio_id
-                            const grouped = new Map()
-                            rebalancingData.currentAllocations.forEach((item: any) => {
-                              const key = item.sub_portfolio_id || 'unassigned'
-                              if (!grouped.has(key)) grouped.set(key, [])
-                              grouped.get(key).push(item)
-                            })
+                        <div className="max-h-48 overflow-y-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="text-left">Name</TableHead>
+                                <TableHead className="text-right">Current Value</TableHead>
+                                <TableHead className="text-right">Target Allocation</TableHead>
+                                <TableHead className="text-right">Actual Allocation</TableHead>
+                                <TableHead className="text-right">Drift</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {(() => {
+                                // Group allocations by sub_portfolio_id
+                                const grouped = new Map()
+                                rebalancingData.currentAllocations.forEach((item: any) => {
+                                  const key = item.sub_portfolio_id || 'unassigned'
+                                  if (!grouped.has(key)) grouped.set(key, [])
+                                  grouped.get(key).push(item)
+                                })
 
-                            // Calculate sub-portfolio data and sort by current value descending
-                            const subPortfolios = Array.from(grouped.entries()).map(([id, allocations]) => {
-                              const subPortfolio = rebalancingData.subPortfolios.find((sp: any) => sp.id === id)
-                              const name = subPortfolio?.name || 'Unassigned'
-                              const target = subPortfolio?.target_allocation || 0
-                              const currentValue = allocations.reduce((sum: number, item: any) => sum + item.current_value, 0)
-                              const currentPct = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
-                              const drift = target > 0 ? ((currentPct - target) / target) * 100 : 0
-                              return { name, target, currentValue, currentPct, drift }
-                            }).sort((a, b) => b.currentValue - a.currentValue)
+                                // Calculate sub-portfolio data and sort by current value descending
+                                const subPortfolios = Array.from(grouped.entries()).map(([id, allocations]) => {
+                                  const subPortfolio = rebalancingData.subPortfolios.find((sp: any) => sp.id === id)
+                                  const name = subPortfolio?.name || 'Unassigned'
+                                  const target = subPortfolio?.target_allocation || 0
+                                  const currentValue = allocations.reduce((sum: number, item: any) => sum + item.current_value, 0)
+                                  const currentPct = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
+                                  const drift = target > 0 ? ((currentPct - target) / target) * 100 : 0
+                                  return { name, target, currentValue, currentPct, drift }
+                                }).sort((a, b) => b.currentValue - a.currentValue)
 
-                            return subPortfolios.map((sp, idx) => (
-                              <div key={idx} className="flex justify-between text-sm border-b pb-1">
-                                <span className="font-medium">{sp.name}</span>
-                                <div className="text-right">
-                                  <div>{formatUSD(sp.currentValue)}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    Target: {sp.target.toFixed(1)}% | Actual: {sp.currentPct.toFixed(1)}% | Drift: {sp.drift.toFixed(1)}%
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                          })()}
+                                return subPortfolios.map((sp, idx) => (
+                                  <TableRow key={idx}>
+                                    <TableCell className="font-medium">{sp.name}</TableCell>
+                                    <TableCell className="text-right">{formatUSD(sp.currentValue)}</TableCell>
+                                    <TableCell className="text-right">{sp.target.toFixed(1)}%</TableCell>
+                                    <TableCell className="text-right">{sp.currentPct.toFixed(1)}%</TableCell>
+                                    <TableCell className="text-right">{sp.drift.toFixed(1)}%</TableCell>
+                                  </TableRow>
+                                ))
+                              })()}
+                            </TableBody>
+                          </Table>
                         </div>
                       </div>
                     </div>
