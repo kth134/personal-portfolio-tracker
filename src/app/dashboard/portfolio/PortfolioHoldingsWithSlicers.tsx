@@ -427,7 +427,7 @@ export default function PortfolioHoldingsWithSlicers({
                     {lens === 'account' && (() => {
                       const accountCash = cashByAccountName.get(key) || 0
                       const cashWeight = selectedTotalValue > 0 ? (accountCash / selectedTotalValue) * 100 : 0
-                      return accountCash > 0 ? (
+                      return (
                         <TableRow key="cash">
                           <TableCell className="w-32">
                             <div className="flex flex-col">
@@ -441,7 +441,7 @@ export default function PortfolioHoldingsWithSlicers({
                           <TableCell className="text-right">{formatUSD(accountCash)}</TableCell>
                           <TableCell className="text-right">{cashWeight.toFixed(2)}%</TableCell>
                         </TableRow>
-                      ) : null
+                      )
                     })()}
                     <TableRow className="font-semibold bg-gray-200 text-black">
                       <TableCell className="w-32">Sub-Total</TableCell>

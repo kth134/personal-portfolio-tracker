@@ -72,7 +72,7 @@ export async function serverCreateBuyWithLot(input: BuyInput, userId: string) {
   }
 
   // Create tax lot
-  const basis_per_unit = Math.abs(input.amount) / input.quantity
+  const basis_per_unit = (Math.abs(input.amount) + (input.fees || 0)) / input.quantity
 
   const { error: lotErr } = await supabase.from('tax_lots').insert({
     account_id: input.account_id,
