@@ -146,7 +146,7 @@ export default function PortfolioHoldingsWithSlicers({
     allocations.forEach(slice => {
       (slice.items || []).forEach(item => {
         const currValue = item.value || 0
-        const totalBasis = (item.cost_basis || 0) + (lens === 'account' ? (cashByAccountName.get(item.key || '') || 0) : 0)
+        const totalBasis = item.cost_basis || 0
         const quantity = item.quantity || 0
         rows.push({
           ticker: item.ticker || item.key || 'Unknown',
@@ -383,11 +383,16 @@ export default function PortfolioHoldingsWithSlicers({
       )}
 
         <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
-          {Array.from(groupedRows).map(([key, groupRows]) => {
-            const groupTotalQuantity = groupRows.reduce((sum, r) => sum + r.quantity, 0)
-            const groupTotalBasis = groupRows.reduce((sum, r) => sum + r.totalBasis, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0)
-            const groupCurrValue = groupRows.reduce((sum, r) => sum + r.currValue, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0)
-            const groupWeight = selectedTotalValue > 0 ? (groupCurrValue / selectedTotalValue) * 100 : 0
+          {Array.from(groupedRows)
+            .map(([key, groupRows]) => {
+              const groupTotalQuantity = groupRows.reduce((sum, r) => sum + r.quantity, 0)
+              const groupTotalBasis = groupRows.reduce((sum, r) => sum + r.totalBasis, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0)
+              const groupCurrValue = groupRows.reduce((sum, r) => sum + r.currValue, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0)
+              const groupWeight = selectedTotalValue > 0 ? (groupCurrValue / selectedTotalValue) * 100 : 0
+              return { key, groupRows, groupCurrValue, groupTotalQuantity, groupTotalBasis, groupWeight }
+            })
+            .sort((a, b) => b.groupCurrValue - a.groupCurrValue)
+            .map(({ key, groupRows, groupCurrValue, groupTotalQuantity, groupTotalBasis, groupWeight }) => {
 
             return (
               <AccordionItem key={key} value={key}>

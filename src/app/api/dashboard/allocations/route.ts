@@ -199,7 +199,7 @@ filteredLots?.forEach((lot: Lot) => {
   const key = lens === 'total' ? 'Total' : (() => {
     switch (lens) {
       case 'sub_portfolio': return (lot.asset.sub_portfolios?.name || 'No Sub-Portfolio').trim();
-      case 'account': return (lot.account?.name || 'Unknown').trim().toLowerCase();
+      case 'account': return (lot.account?.name || 'Unknown').trim();
       case 'asset_type': return (lot.asset.asset_type || 'Unknown').trim();
       case 'asset_subtype': return (lot.asset.asset_subtype || 'Unknown').trim();
       case 'geography': return (lot.asset.geography || 'Unknown').trim();
