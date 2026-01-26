@@ -290,7 +290,7 @@ export default function RebalancingPage() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/rebalancing')
+      const res = await fetch('/api/rebalancing', { cache: 'no-store' })
       if (!res.ok) throw new Error('Failed to fetch rebalancing data')
       const rebalancingData = await res.json()
       setData(rebalancingData)
@@ -1246,15 +1246,15 @@ export default function RebalancingPage() {
                 <div className="flex justify-between items-center w-full mr-4">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{subPortfolioName}</span>
-                    <span className="text-sm text-gray-300">({formatUSD(currentSubValue)})</span>
                     {hasBreached && <AlertTriangle className="h-4 w-4 text-yellow-400" />}
                   </div>
-                  <div className="flex gap-4 text-sm">
+                  <div className="flex gap-4 text-sm items-center">
+                    <span className="text-white font-medium">{formatUSD(currentSubValue)}</span>
                     <span>Current: {currentSubPercentage.toFixed(2)}%</span>
                     <span>Target: {subPortfolioTarget.toFixed(2)}%</span>
                     <span className={cn(
-                      subPortfolioTarget > 0 ? ((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100 > 0 ? "text-green-600" :
-                      ((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100 < 0 ? "text-red-600" : "text-green-600" : "text-green-600"
+                      subPortfolioTarget > 0 ? ((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100 > 0 ? "text-green-400" :
+                      ((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100 < 0 ? "text-red-400" : "text-green-400" : "text-green-400"
                     )}>
                       Drift: {subPortfolioTarget > 0 ? (((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100).toFixed(2) : '0.00'}%
                     </span>

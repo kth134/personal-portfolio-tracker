@@ -188,6 +188,8 @@ export default function DashboardHome() {
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [performanceTotals, setPerformanceTotals] = useState<any>(null);
   const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
+  const [rebalancingData, setRebalancingData] = useState<any>(null);
+  const [rebalancingLoading, setRebalancingLoading] = useState(true);
 
   // MFA states
   const [mfaStatus, setMfaStatus] = useState<'checking' | 'prompt' | 'verified' | 'none'>('checking');
@@ -466,11 +468,23 @@ export default function DashboardHome() {
         ).slice(0, 10) || [];
 
         setRecentTransactions(filteredTransactions);
+
+        // Fetch rebalancing data
+        try {
+          const rebalancingRes = await fetch('/api/rebalancing');
+          if (rebalancingRes.ok) {
+            const rebalancingData = await rebalancingRes.json();
+            setRebalancingData(rebalancingData);
+          }
+        } catch (err) {
+          console.error('Rebalancing data fetch failed:', err);
+        }
       }
     } catch (err) {
       console.error('Dashboard data fetch failed:', err);
     } finally {
       setLoading(false);
+      setRebalancingLoading(false);
     }
   };
 
@@ -956,7 +970,86 @@ export default function DashboardHome() {
                   <CardTitle className="text-center text-4xl">Strategy</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p>Under Construction</p>
+                  {rebalancingLoading ? (
+                    <p>Loading strategy data...</p>
+                  ) : rebalancingData ? (
+                    <div className="space-y-4">
+                      {/* Top Metrics in 3 columns */}
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="text-center">
+                          <h4 className="font-semibold text-sm text-muted-foreground">Total Portfolio Drift</h4>
+                          <p className="text-xl font-bold">
+                            {(() => {
+                              const totalDrift = rebalancingData.totalValue > 0 
+                                ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
+                                    const weight = item.current_value / rebalancingData.totalValue
+                                    return sum + (Math.abs(item.drift_percentage) * weight)
+                                  }, 0)
+                                : 0
+                              return totalDrift.toFixed(2) + '%'
+                            })()}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>
+                          <p className="text-xl font-bold">
+                            {rebalancingData.currentAllocations.some((item: any) => item.action !== 'hold') ? (
+                              <span className="text-yellow-600">Yes</span>
+                            ) : (
+                              'No'
+                            )}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <h4 className="font-semibold text-sm text-muted-foreground">Magnitude of Rebalance Actions (Net)</h4>
+                          <p className={cn("text-xl font-bold", rebalancingData.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
+                            {formatUSD(Math.abs(rebalancingData.cashNeeded))}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Sub-Portfolios List */}
+                      <div>
+                        <h4 className="font-semibold mb-2">Sub-Portfolios</h4>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {(() => {
+                            // Group allocations by sub_portfolio_id
+                            const grouped = new Map()
+                            rebalancingData.currentAllocations.forEach((item: any) => {
+                              const key = item.sub_portfolio_id || 'unassigned'
+                              if (!grouped.has(key)) grouped.set(key, [])
+                              grouped.get(key).push(item)
+                            })
+
+                            // Calculate sub-portfolio data and sort by current value descending
+                            const subPortfolios = Array.from(grouped.entries()).map(([id, allocations]) => {
+                              const subPortfolio = rebalancingData.subPortfolios.find((sp: any) => sp.id === id)
+                              const name = subPortfolio?.name || 'Unassigned'
+                              const target = subPortfolio?.target_allocation || 0
+                              const currentValue = allocations.reduce((sum: number, item: any) => sum + item.current_value, 0)
+                              const currentPct = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
+                              const drift = target > 0 ? ((currentPct - target) / target) * 100 : 0
+                              return { name, target, currentValue, currentPct, drift }
+                            }).sort((a, b) => b.currentValue - a.currentValue)
+
+                            return subPortfolios.map((sp, idx) => (
+                              <div key={idx} className="flex justify-between text-sm border-b pb-1">
+                                <span className="font-medium">{sp.name}</span>
+                                <div className="text-right">
+                                  <div>{formatUSD(sp.currentValue)}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    Target: {sp.target.toFixed(1)}% | Actual: {sp.currentPct.toFixed(1)}% | Drift: {sp.drift.toFixed(1)}%
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p>Failed to load strategy data</p>
+                  )}
                 </CardContent>
               </Card>
             </div>
