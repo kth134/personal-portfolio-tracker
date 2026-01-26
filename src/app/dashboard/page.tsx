@@ -977,18 +977,50 @@ export default function DashboardHome() {
                       {/* Top Metrics in 3 columns */}
                       <div className="grid grid-cols-3 gap-4">
                         <div className="text-center">
-                          <h4 className="font-semibold text-sm text-muted-foreground">Total Portfolio Drift</h4>
-                          <p className="text-xl font-bold">
-                            {(() => {
-                              const totalDrift = rebalancingData.totalValue > 0 
-                                ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
-                                    const weight = item.current_value / rebalancingData.totalValue
-                                    return sum + (Math.abs(item.drift_percentage) * weight)
-                                  }, 0)
-                                : 0
-                              return totalDrift.toFixed(2) + '%'
-                            })()}
-                          </p>
+                          <h4 className="font-semibold text-sm text-muted-foreground">Portfolio Drift</h4>
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            <div className="text-center">
+                              <p className="text-xs text-muted-foreground">Sub-Portfolio</p>
+                              <p className="text-sm font-bold">
+                                {(() => {
+                                  // Calculate sub-portfolio drift
+                                  const subPortfolioAllocations: { [key: string]: number } = {}
+                                  rebalancingData.currentAllocations.forEach((item: any) => {
+                                    const subId = item.sub_portfolio_id || 'unassigned'
+                                    subPortfolioAllocations[subId] = (subPortfolioAllocations[subId] || 0) + item.current_value
+                                  })
+
+                                  let totalWeightedDrift = 0
+                                  let totalValue = 0
+
+                                  rebalancingData.subPortfolios.forEach((sp: any) => {
+                                    const currentValue = subPortfolioAllocations[sp.id] || 0
+                                    const targetValue = (sp.target_allocation / 100) * rebalancingData.totalValue
+                                    const drift = Math.abs((currentValue - targetValue) / rebalancingData.totalValue * 100)
+                                    
+                                    totalWeightedDrift += drift * currentValue
+                                    totalValue += currentValue
+                                  })
+
+                                  return (totalValue > 0 ? totalWeightedDrift / totalValue : 0).toFixed(2) + '%'
+                                })()}
+                              </p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs text-muted-foreground">Asset</p>
+                              <p className="text-sm font-bold">
+                                {(() => {
+                                  const assetDrift = rebalancingData.totalValue > 0 
+                                    ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
+                                        const weight = item.current_value / rebalancingData.totalValue
+                                        return sum + (Math.abs(item.drift_percentage) * weight)
+                                      }, 0)
+                                    : 0
+                                  return assetDrift.toFixed(2) + '%'
+                                })()}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                         <div className="text-center">
                           <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>
@@ -1231,18 +1263,50 @@ export default function DashboardHome() {
                     {/* Top Metrics in 3 columns */}
                     <div className="grid grid-cols-3 gap-4">
                       <div className="text-center">
-                        <h4 className="font-semibold text-sm text-muted-foreground">Total Portfolio Drift</h4>
-                        <p className="text-xl font-bold">
-                          {(() => {
-                            const totalDrift = rebalancingData.totalValue > 0 
-                              ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
-                                  const weight = item.current_value / rebalancingData.totalValue
-                                  return sum + (Math.abs(item.drift_percentage) * weight)
-                                }, 0)
-                              : 0
-                            return totalDrift.toFixed(2) + '%'
-                          })()}
-                        </p>
+                        <h4 className="font-semibold text-sm text-muted-foreground">Portfolio Drift</h4>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground">Sub-Portfolio</p>
+                            <p className="text-sm font-bold">
+                              {(() => {
+                                // Calculate sub-portfolio drift
+                                const subPortfolioAllocations: { [key: string]: number } = {}
+                                rebalancingData.currentAllocations.forEach((item: any) => {
+                                  const subId = item.sub_portfolio_id || 'unassigned'
+                                  subPortfolioAllocations[subId] = (subPortfolioAllocations[subId] || 0) + item.current_value
+                                })
+
+                                let totalWeightedDrift = 0
+                                let totalValue = 0
+
+                                rebalancingData.subPortfolios.forEach((sp: any) => {
+                                  const currentValue = subPortfolioAllocations[sp.id] || 0
+                                  const targetValue = (sp.target_allocation / 100) * rebalancingData.totalValue
+                                  const drift = Math.abs((currentValue - targetValue) / rebalancingData.totalValue * 100)
+                                  
+                                  totalWeightedDrift += drift * currentValue
+                                  totalValue += currentValue
+                                })
+
+                                return (totalValue > 0 ? totalWeightedDrift / totalValue : 0).toFixed(2) + '%'
+                              })()}
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground">Asset</p>
+                            <p className="text-sm font-bold">
+                              {(() => {
+                                const assetDrift = rebalancingData.totalValue > 0 
+                                  ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
+                                      const weight = item.current_value / rebalancingData.totalValue
+                                      return sum + (Math.abs(item.drift_percentage) * weight)
+                                    }, 0)
+                                  : 0
+                                return assetDrift.toFixed(2) + '%'
+                              })()}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                       <div className="text-center">
                         <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>

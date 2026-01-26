@@ -187,6 +187,33 @@ export default function RebalancingPage() {
       : 0
   }, [data])
 
+  const subPortfolioDrift = useMemo(() => {
+    if (!data) return 0
+    // Calculate current allocation for each sub-portfolio
+    const subPortfolioAllocations: { [key: string]: number } = {}
+    data.currentAllocations.forEach(item => {
+      const subId = item.sub_portfolio_id || 'unassigned'
+      subPortfolioAllocations[subId] = (subPortfolioAllocations[subId] || 0) + item.current_value
+    })
+
+    // Calculate weighted average of absolute sub-portfolio drift
+    let totalWeightedDrift = 0
+    let totalValue = 0
+
+    data.subPortfolios.forEach(sp => {
+      const currentValue = subPortfolioAllocations[sp.id] || 0
+      const targetValue = (sp.target_allocation / 100) * data.totalValue
+      const drift = Math.abs((currentValue - targetValue) / data.totalValue * 100)
+      
+      totalWeightedDrift += drift * currentValue
+      totalValue += currentValue
+    })
+
+    return totalValue > 0 ? totalWeightedDrift / totalValue : 0
+  }, [data])
+
+  const assetDrift = totalPortfolioDrift
+
   const magnitudeOfRebalance = useMemo(() => {
     return data?.cashNeeded || 0
   }, [data])
@@ -1067,8 +1094,17 @@ export default function RebalancingPage() {
         </div>
 
         <div className="bg-card p-4 rounded-lg border">
-          <h3 className="font-semibold text-sm text-muted-foreground text-center">Total Portfolio Drift</h3>
-          <p className="text-2xl font-bold text-center">{totalPortfolioDrift.toFixed(2)}%</p>
+          <h3 className="font-semibold text-sm text-muted-foreground text-center">Portfolio Drift</h3>
+          <div className="grid grid-cols-2 gap-4 mt-2">
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">Sub-Portfolio Drift</p>
+              <p className="text-lg font-bold">{subPortfolioDrift.toFixed(2)}%</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">Asset Drift</p>
+              <p className="text-lg font-bold">{assetDrift.toFixed(2)}%</p>
+            </div>
+          </div>
         </div>
 
         <div className="bg-card p-4 rounded-lg border">
@@ -1374,17 +1410,17 @@ export default function RebalancingPage() {
                     <Table containerClassName="pb-10 min-w-full">
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="min-w-0 break-words whitespace-nowrap">Asset</TableHead>
-                          <SortableTableHead column="current_value" className="text-right min-w-0 break-words whitespace-nowrap">Current Value</SortableTableHead>
-                          <SortableTableHead column="current_percentage" className="text-right min-w-0 break-words whitespace-nowrap">Current % (Sub)</SortableTableHead>
-                          <SortableTableHead column="sub_portfolio_target_percentage" className="text-right min-w-0 break-words whitespace-nowrap">Target % (Sub)</SortableTableHead>
-                          <SortableTableHead column="implied_overall_target" className="text-right min-w-0 break-words whitespace-nowrap">Implied Overall Target %</SortableTableHead>
-                          <SortableTableHead column="drift_percentage" className="text-right min-w-0 break-words whitespace-nowrap">Drift %</SortableTableHead>
-                          <TableHead className="min-w-0 break-words whitespace-nowrap">Action</TableHead>
-                          <SortableTableHead column="amount" className="text-right min-w-0 break-words whitespace-nowrap">Recommended Transaction Amount</SortableTableHead>
-                          <SortableTableHead column="tax_impact" className="text-right min-w-0 break-words whitespace-nowrap">Tax Impact</SortableTableHead>
-                          <TableHead className="min-w-0 break-words whitespace-nowrap">Recommended Accounts</TableHead>
-                          <TableHead className="min-w-0 break-words whitespace-nowrap">Tax Notes</TableHead>
+                          <TableHead className="text-center min-w-0 break-words whitespace-nowrap">Asset</TableHead>
+                          <SortableTableHead column="current_value" className="text-center min-w-0 break-words whitespace-nowrap">Current Value</SortableTableHead>
+                          <SortableTableHead column="current_percentage" className="text-center min-w-0 break-words whitespace-nowrap">Current % (Sub)</SortableTableHead>
+                          <SortableTableHead column="sub_portfolio_target_percentage" className="text-center min-w-0 break-words whitespace-nowrap">Target % (Sub)</SortableTableHead>
+                          <SortableTableHead column="implied_overall_target" className="text-center min-w-0 break-words whitespace-nowrap">Implied Overall Target %</SortableTableHead>
+                          <SortableTableHead column="drift_percentage" className="text-center min-w-0 break-words whitespace-nowrap">Drift %</SortableTableHead>
+                          <TableHead className="text-center min-w-0 break-words whitespace-nowrap">Action</TableHead>
+                          <SortableTableHead column="amount" className="text-center min-w-0 break-words whitespace-nowrap">Recommended Transaction Amount</SortableTableHead>
+                          <SortableTableHead column="tax_impact" className="text-center min-w-0 break-words whitespace-nowrap">Tax Impact</SortableTableHead>
+                          <TableHead className="text-center min-w-0 break-words whitespace-nowrap">Recommended Accounts</TableHead>
+                          <TableHead className="text-center min-w-0 break-words whitespace-nowrap">Tax Notes</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1397,15 +1433,15 @@ export default function RebalancingPage() {
                             <>
                               {sortedAllocations.map((item) => (
                                 <TableRow key={item.asset_id}>
-                                  <TableCell className="min-w-0 break-words">
+                                  <TableCell className="text-center min-w-0 break-words">
                                     <div>
                                       <div className="font-bold">{item.ticker}</div>
                                       <div className="text-sm text-muted-foreground">{item.name}</div>
                                     </div>
                                   </TableCell>
-                                  <TableCell className="text-right min-w-0 break-words">{formatUSD(item.current_value)}</TableCell>
-                                  <TableCell className="text-right min-w-0 break-words">{item.sub_portfolio_percentage.toFixed(2)}%</TableCell>
-                                  <TableCell className="text-right">
+                                  <TableCell className="text-center min-w-0 break-words">{formatUSD(item.current_value)}</TableCell>
+                                  <TableCell className="text-center min-w-0 break-words">{item.sub_portfolio_percentage.toFixed(2)}%</TableCell>
+                                  <TableCell className="text-center">
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                                     <Input
@@ -1447,24 +1483,24 @@ export default function RebalancingPage() {
                                       {errorAssetTargets[subPortfolioId]?.[item.asset_id] && <span className="text-red-600">{errorAssetTargets[subPortfolioId][item.asset_id]}</span>}
                                     </div>
                                   </TableCell>
-                                  <TableCell className="text-right min-w-0 break-words">{item.implied_overall_target.toFixed(2)}%</TableCell>
+                                  <TableCell className="text-center min-w-0 break-words">{item.implied_overall_target.toFixed(2)}%</TableCell>
                                   <TableCell className={cn(
-                                    "text-right font-medium min-w-0 break-words",
+                                    "text-center font-medium min-w-0 break-words",
                                     item.drift_percentage > 0 ? "text-green-600" : item.drift_percentage < 0 ? "text-red-600" : "text-green-600"
                                   )}>
                                     {item.drift_percentage > 0 ? '+' : ''}{item.drift_percentage.toFixed(2)}%
                                   </TableCell>
                                   <TableCell className={cn(
-                                    "font-bold min-w-0 break-words",
+                                    "text-center font-bold min-w-0 break-words",
                                     item.action === 'buy' ? "text-green-600" :
                                     item.action === 'sell' ? "text-red-600" : "text-black"
                                   )}>
                                     {item.action.toUpperCase()}
                                   </TableCell>
-                                  <TableCell className="text-right min-w-0 break-words">
+                                  <TableCell className="text-center min-w-0 break-words">
                                     {item.action === 'sell' ? '-' : ''}{formatUSD(item.amount)}
                                   </TableCell>
-                                  <TableCell className="text-right min-w-0 break-words">
+                                  <TableCell className="text-center min-w-0 break-words">
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span className={cn(
@@ -1480,10 +1516,10 @@ export default function RebalancingPage() {
                                       </TooltipContent>
                                     </Tooltip>
                                   </TableCell>
-                                  <TableCell className="min-w-0 break-words">
+                                  <TableCell className="text-center min-w-0 break-words">
                                     <RecommendedAccountsPopover accounts={item.recommended_accounts} />
                                   </TableCell>
-                                  <TableCell className="min-w-0 break-words">
+                                  <TableCell className="text-center min-w-0 break-words">
                                     <div className="text-sm text-muted-foreground">{item.tax_notes}</div>
                                     {item.action === 'sell' && (!item.recommended_accounts || item.recommended_accounts.length === 0) && (
                                       <div className="text-xs text-muted-foreground mt-1">No account/lot-level data available to compute per-account tax — ensure your tax lots are linked to accounts.</div>
@@ -1494,15 +1530,15 @@ export default function RebalancingPage() {
 
                               {/* Total Row */}
                               <TableRow className="bg-gray-100 font-semibold">
-                                <TableCell className="font-bold min-w-0 break-words">TOTAL</TableCell>
-                                <TableCell className="text-right font-bold min-w-0 break-words">{formatUSD(totals.current_value)}</TableCell>
-                                <TableCell className="text-right font-bold min-w-0 break-words">{totals.current_percentage.toFixed(2)}%</TableCell>
-                                <TableCell className="text-right font-bold min-w-0 break-words">{totals.target_percentage.toFixed(2)}%</TableCell>
-                                <TableCell className="text-right font-bold min-w-0 break-words">{totals.implied_overall_target.toFixed(2)}%</TableCell>
-                                <TableCell className="text-right font-bold min-w-0 break-words">{totals.drift_percentage.toFixed(2)}%</TableCell>
+                                <TableCell className="text-center font-bold min-w-0 break-words">TOTAL</TableCell>
+                                <TableCell className="text-center font-bold min-w-0 break-words">{formatUSD(totals.current_value)}</TableCell>
+                                <TableCell className="text-center font-bold min-w-0 break-words">{totals.current_percentage.toFixed(2)}%</TableCell>
+                                <TableCell className="text-center font-bold min-w-0 break-words">{totals.target_percentage.toFixed(2)}%</TableCell>
+                                <TableCell className="text-center font-bold min-w-0 break-words">{totals.implied_overall_target.toFixed(2)}%</TableCell>
+                                <TableCell className="text-center font-bold min-w-0 break-words">{totals.drift_percentage.toFixed(2)}%</TableCell>
                                 <TableCell className="text-center font-bold min-w-0 break-words">-</TableCell>
                                 <TableCell className="text-center font-bold min-w-0 break-words">-</TableCell>
-                                <TableCell className="text-right font-bold min-w-0 break-words">
+                                <TableCell className="text-center font-bold min-w-0 break-words">
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className={cn(
