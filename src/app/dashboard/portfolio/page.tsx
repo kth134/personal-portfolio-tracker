@@ -64,11 +64,7 @@ export default async function PortfolioPage() {
     const fee = Number(tx.fees || 0)
     switch (tx.type) {
       case 'Buy':
-        // Only deduct from cash if funding source is 'cash'
-        // External funding means money came from outside, so no cash deduction
-        if (tx.funding_source === 'cash') {
-          delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
-        }
+        delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
         break
       case 'Sell':
         delta += (amt - fee)  // increase cash balance by sale amount less fees
