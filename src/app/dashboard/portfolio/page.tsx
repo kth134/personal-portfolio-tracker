@@ -25,7 +25,7 @@ export default async function PortfolioPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
 
-  // Fetch data (keep minimal for Holdings tab; other tabs unchanged)
+  // Fetch data
   const [lotsRes, accountsRes, assetsRes, transactionsRes] = await Promise.all([
     supabase
       .from('tax_lots')
@@ -54,37 +54,28 @@ export default async function PortfolioPage() {
   const initialAssets = assetsRes.data || []
   const transactions = transactionsRes.data || []
 
-  // Compute cash balances
+  // Compute cash balances using Unified Signed Math
   const cashBalances = new Map<string, number>()
+  
   transactions.forEach((tx: any) => {
     if (!tx.account_id) return
+    
     const current = cashBalances.get(tx.account_id) || 0
-    let delta = 0
     const amt = Number(tx.amount || 0)
     const fee = Number(tx.fees || 0)
-    switch (tx.type) {
-      case 'Buy':
-        delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
-        break
-      case 'Sell':
-        delta += (amt - fee)  // increase cash balance by sale amount less fees
-        break
-      case 'Dividend':
-        delta += amt  // increase cash balance
-        break
-      case 'Interest':
-        delta += amt  // increase cash balance
-        break
-      case 'Deposit':
-        delta += amt  // increase cash balance
-        break
-      case 'Withdrawal':
-        delta -= Math.abs(amt)  // decrease cash balance
-        break
-    }
-    const newBalance = current + delta
-    cashBalances.set(tx.account_id, newBalance)
+
+    /**
+     * LOGIC RECONCILIATION:
+     * 1. amt is positive for inflows (Sell, Dividend, Interest, Deposit)
+     * 2. amt is negative for outflows (Buy, Withdrawal)
+     * 3. fee is always a positive number in the DB representing a cost (outflow)
+     * * Formula: delta = amount - fee
+     */
+    const delta = amt - fee
+    
+    cashBalances.set(tx.account_id, current + delta)
   })
+
   const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
 
   // Map cash by account name for account-specific display
