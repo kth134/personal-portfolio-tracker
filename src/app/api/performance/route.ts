@@ -237,10 +237,10 @@ export async function POST(request: Request) {
       let f = 0;
       if (tx.type === 'Buy') f = tx.amount || 0;
       if (tx.type === 'Sell') f = tx.amount || 0;
-      if (tx.type === 'Dividend') f = (tx.amount || 0) - (tx.fees || 0);
-      if (tx.type === 'Deposit') f = (tx.amount || 0) - (tx.fees || 0);
-      if (tx.type === 'Withdrawal') f = -(Math.abs(tx.amount || 0)) - (tx.fees || 0);
-      if (tx.type === 'Interest') f = (tx.amount || 0) - (tx.fees || 0);
+      if (tx.type === 'Dividend') f = tx.amount || 0;
+      if (tx.type === 'Deposit') f = tx.amount || 0;
+      if (tx.type === 'Withdrawal') f = -(Math.abs(tx.amount || 0));
+      f -= (tx.fees || 0);
       return f;
     });
     cashFlows.push(currentValue);

@@ -67,14 +67,31 @@ export async function GET() {
     transactions?.forEach((tx: any) => {
       if (!tx.account_id) return
       const current = cashBalances.get(tx.account_id) || 0
+      let delta = 0
       const amt = Number(tx.amount || 0)
       const fee = Number(tx.fees || 0)
-      
-      // For Buy/Sell: amount already includes fee adjustments
-      // For other transactions: subtract fees from amount
-      const delta = ['Buy', 'Sell'].includes(tx.type) ? amt : amt - fee
-      
-      cashBalances.set(tx.account_id, current + delta)
+      switch (tx.type) {
+        case 'Buy':
+          delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
+          break
+        case 'Sell':
+          delta += (amt - fee)  // increase cash balance by sale amount less fees
+          break
+        case 'Dividend':
+          delta += amt  // increase cash balance
+          break
+        case 'Interest':
+          delta += amt  // increase cash balance
+          break
+        case 'Deposit':
+          delta += amt  // increase cash balance
+          break
+        case 'Withdrawal':
+          delta -= Math.abs(amt)  // decrease cash balance
+          break
+      }
+      const newBalance = current + delta
+      cashBalances.set(tx.account_id, newBalance)
     })
 
     const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
