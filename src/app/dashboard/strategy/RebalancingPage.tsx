@@ -1248,6 +1248,8 @@ export default function RebalancingPage() {
           const currentSubPercentage = data.totalValue > 0 ? (currentSubValue / data.totalValue) * 100 : 0
           const hasBreached = allocations.some(a => a.action !== 'hold')
 
+          const assetLevelDrift = currentSubValue > 0 ? allocations.reduce((sum, item) => sum + (Math.abs(item.drift_percentage) * item.current_value), 0) / currentSubValue : 0
+
           return (
             <AccordionItem key={subPortfolioId} value={subPortfolioId}>
               <AccordionTrigger className="bg-black text-white font-semibold px-4 py-2 hover:bg-gray-800 [&>svg]:text-white [&>svg]:stroke-2 [&>svg]:w-5 [&>svg]:h-5">
@@ -1264,7 +1266,11 @@ export default function RebalancingPage() {
                       subPortfolioTarget > 0 ? ((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100 > 0 ? "text-green-400" :
                       ((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100 < 0 ? "text-red-400" : "text-green-400" : "text-green-400"
                     )}>
-                      Drift: {subPortfolioTarget > 0 ? (((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100).toFixed(2) : '0.00'}%
+                      Sub-Portfolio Drift: {subPortfolioTarget > 0 ? (((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100).toFixed(2) : '0.00'}%
+                    </span>
+
+                    <span className="text-white">
+                      Asset-Level Drift: {assetLevelDrift.toFixed(2)}%
                     </span>
                   </div>
                 </div>
