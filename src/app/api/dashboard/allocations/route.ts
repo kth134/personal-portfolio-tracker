@@ -126,7 +126,7 @@ if (lens !== 'total' && selectedValues?.length > 0) {
       case 'asset':
         return selectedValues.includes(asset.id);
       case 'account':
-        return selectedValues.includes((lot.account?.name || 'Unknown').trim().toLowerCase());
+        return selectedValues.includes((lot.account?.name || 'Unknown').trim());
       case 'sub_portfolio':
         return selectedValues.includes((asset.sub_portfolios?.name || 'No Sub-Portfolio').trim());
       case 'asset_type':

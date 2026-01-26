@@ -77,7 +77,7 @@ export async function POST(req: Request) {
         if (lens === 'sub_portfolio') {
           value = (row.asset?.sub_portfolios?.name || '').trim();
         } else if (lens === 'account') {
-          value = (row.account?.name || '').trim().toLowerCase();
+          value = (row.account?.name || '').trim();
         } else {
           value = (row.asset?.[lens] || '').trim();
         }
