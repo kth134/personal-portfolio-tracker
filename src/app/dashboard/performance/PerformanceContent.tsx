@@ -251,38 +251,18 @@ function PerformanceContent() {
 
         if (accountsError) throw accountsError;
 
-        // Compute cash balances
-        const cashBalances = new Map<string, number>()
+        // Compute cash balances using unified signed math: delta = amount - fees
+        // (amount sign indicates inflow/outflow; fees are always deducted)
+        const cashBalances = new Map<string, number>();
         transactionsData.forEach((tx: any) => {
-          if (!tx.account_id) return
-          const current = cashBalances.get(tx.account_id) || 0
-          let delta = 0
-          const amt = Number(tx.amount || 0)
-          const fee = Number(tx.fees || 0)
-          switch (tx.type) {
-            case 'Buy':
-              delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
-              break
-            case 'Sell':
-              delta += (amt - fee)  // increase cash balance by sale amount less fees
-              break
-            case 'Dividend':
-              delta += amt  // increase cash balance
-              break
-            case 'Interest':
-              delta += amt  // increase cash balance
-              break
-            case 'Deposit':
-              delta += amt  // increase cash balance
-              break
-            case 'Withdrawal':
-              delta -= Math.abs(amt)  // decrease cash balance
-              break
-          }
-          const newBalance = current + delta
-          cashBalances.set(tx.account_id, newBalance)
-        })
-        const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
+          if (!tx.account_id) return;
+          const current = cashBalances.get(tx.account_id) || 0;
+          const amt = Number(tx.amount || 0);
+          const fee = Number(tx.fees || 0);
+          const delta = amt - fee;
+          cashBalances.set(tx.account_id, current + delta);
+        });
+        const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0);
 
         // Map cash by account name
         const cashByAccountName = new Map<string, number>()
@@ -528,23 +508,19 @@ function PerformanceContent() {
             const cashFlows: number[] = [];
             const flowDates: Date[] = [];
 
-            // Add transaction cash flows
+            // Add transaction cash flows using unified signed math: flow = amount - fees
             groupTxs.forEach((tx: any) => {
-              let flow = 0;
-              if (tx.type === 'Buy') {
-                flow = (tx.amount || 0) - (tx.fees || 0);
-              } else if (tx.type === 'Deposit') {
-                flow = (tx.amount || 0) - (tx.fees || 0);
-              } else if (tx.type === 'Sell' || tx.type === 'Dividend' || tx.type === 'Interest') {
-                flow = (tx.amount || 0) - (tx.fees || 0);
-              } else if (tx.type === 'Withdrawal') {
-                flow = -(Math.abs(tx.amount || 0)) - (tx.fees || 0);
-              }
-              if (flow !== 0 && tx.date) {
-                const date = new Date(tx.date);
-                if (!isNaN(date.getTime())) {
-                  cashFlows.push(flow);
-                  flowDates.push(date);
+              const amt = Number(tx.amount || 0);
+              const fee = Number(tx.fees || 0);
+              // Only include transaction types that represent cash movements
+              if (['Buy', 'Sell', 'Deposit', 'Withdrawal', 'Dividend', 'Interest'].includes(tx.type)) {
+                const flow = amt - fee;
+                if (flow !== 0 && tx.date) {
+                  const date = new Date(tx.date);
+                  if (!isNaN(date.getTime())) {
+                    cashFlows.push(flow);
+                    flowDates.push(date);
+                  }
                 }
               }
             });
@@ -594,21 +570,16 @@ function PerformanceContent() {
           const allFlowDates: Date[] = [];
 
           transactionsData.forEach((tx: any) => {
-            let flow = 0;
-
-            if (tx.type === 'Buy') {
-              flow = (tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Deposit') {
-              flow = (tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Withdrawal') {
-              flow = -(Math.abs(tx.amount || 0)) - (tx.fees || 0);
-            }
-
-            if (flow !== 0 && tx.date) {
-              const date = new Date(tx.date);
-              if (!isNaN(date.getTime())) {
-                allCashFlows.push(flow);
-                allFlowDates.push(date);
+            const amt = Number(tx.amount || 0);
+            const fee = Number(tx.fees || 0);
+            if (['Buy', 'Sell', 'Deposit', 'Withdrawal', 'Dividend', 'Interest'].includes(tx.type)) {
+              const flow = amt - fee;
+              if (flow !== 0 && tx.date) {
+                const date = new Date(tx.date);
+                if (!isNaN(date.getTime())) {
+                  allCashFlows.push(flow);
+                  allFlowDates.push(date);
+                }
               }
             }
           });

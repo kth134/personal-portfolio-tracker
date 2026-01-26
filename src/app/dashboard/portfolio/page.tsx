@@ -54,29 +54,27 @@ export default async function PortfolioPage() {
   const initialAssets = assetsRes.data || []
   const transactions = transactionsRes.data || []
 
-  // Compute cash balances using Unified Signed Math
+  // Compute cash using transaction-centric unified signed math.
+  // Portfolio total includes all transactions; per-account balances only include transactions tied to that account.
   const cashBalances = new Map<string, number>()
-  
+
+  // First compute per-account balances by summing (amount - fees) for transactions with an account_id
   transactions.forEach((tx: any) => {
-    if (!tx.account_id) return
-    
-    const current = cashBalances.get(tx.account_id) || 0
+    const acctId = tx.account_id
+    if (!acctId) return
+    const current = cashBalances.get(acctId) || 0
     const amt = Number(tx.amount || 0)
     const fee = Number(tx.fees || 0)
-
-    /**
-     * LOGIC RECONCILIATION:
-     * 1. amt is positive for inflows (Sell, Dividend, Interest, Deposit)
-     * 2. amt is negative for outflows (Buy, Withdrawal)
-     * 3. fee is always a positive number in the DB representing a cost (outflow)
-     * * Formula: delta = amount - fee
-     */
     const delta = amt - fee
-    
-    cashBalances.set(tx.account_id, current + delta)
+    cashBalances.set(acctId, current + delta)
   })
 
-  const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
+  // Total portfolio cash should include all transactions (including those not tied to an account)
+  const totalCash = transactions.reduce((sum: number, tx: any) => {
+    const amt = Number(tx.amount || 0)
+    const fee = Number(tx.fees || 0)
+    return sum + (amt - fee)
+  }, 0)
 
   // Map cash by account name for account-specific display
   const cashByAccountName = new Map<string, number>()
