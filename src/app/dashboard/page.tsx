@@ -1011,15 +1011,15 @@ export default function DashboardHome() {
                       {/* Sub-Portfolios Table */}
                       <div>
                         <h4 className="font-semibold mb-2">Sub-Portfolios</h4>
-                        <div className="max-h-48 overflow-y-auto">
+                        <div className="max-h-48 overflow-y-auto overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead className="text-left">Name</TableHead>
-                                <TableHead className="text-right">Current Value</TableHead>
-                                <TableHead className="text-right">Target Allocation</TableHead>
-                                <TableHead className="text-right">Actual Allocation</TableHead>
-                                <TableHead className="text-right">Asset-Level Drift</TableHead>
+                                <TableHead className="text-center break-words">Name</TableHead>
+                                <TableHead className="text-center break-words">Current Value</TableHead>
+                                <TableHead className="text-center break-words">Target Allocation</TableHead>
+                                <TableHead className="text-center break-words">Actual Allocation</TableHead>
+                                <TableHead className="text-center break-words">Asset-Level Drift</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -1045,11 +1045,11 @@ export default function DashboardHome() {
 
                                 return subPortfolios.map((sp, idx) => (
                                   <TableRow key={idx}>
-                                    <TableCell className="font-medium">{sp.name}</TableCell>
-                                    <TableCell className="text-right">{formatUSD(sp.currentValue)}</TableCell>
-                                    <TableCell className="text-right">{sp.target.toFixed(1)}%</TableCell>
-                                    <TableCell className="text-right">{sp.currentPct.toFixed(1)}%</TableCell>
-                                    <TableCell className="text-right">{sp.assetLevelDrift.toFixed(1)}%</TableCell>
+                                    <TableCell className="text-center font-medium break-words">{sp.name}</TableCell>
+                                    <TableCell className="text-center break-words">{formatUSD(sp.currentValue)}</TableCell>
+                                    <TableCell className="text-center break-words">{sp.target.toFixed(1)}%</TableCell>
+                                    <TableCell className="text-center break-words">{sp.currentPct.toFixed(1)}%</TableCell>
+                                    <TableCell className="text-center break-words">{sp.assetLevelDrift.toFixed(1)}%</TableCell>
                                   </TableRow>
                                 ))
                               })()}
@@ -1138,21 +1138,21 @@ export default function DashboardHome() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Account</TableHead>
-                        <TableHead>Ticker</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Amount</TableHead>
+                        <TableHead className="text-center">Date</TableHead>
+                        <TableHead className="text-center">Account</TableHead>
+                        <TableHead className="text-center">Ticker</TableHead>
+                        <TableHead className="text-center">Type</TableHead>
+                        <TableHead className="text-center">Amount</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {recentTransactions.map((tx) => (
                         <TableRow key={tx.id}>
-                          <TableCell>{tx.date}</TableCell>
-                          <TableCell>{tx.account?.name || ''}</TableCell>
-                          <TableCell>{tx.asset?.ticker || ''}</TableCell>
-                          <TableCell>{tx.type}</TableCell>
-                          <TableCell>{formatUSD(tx.amount)}</TableCell>
+                          <TableCell className="text-center">{tx.date}</TableCell>
+                          <TableCell className="text-center">{tx.account?.name || ''}</TableCell>
+                          <TableCell className="text-center">{tx.asset?.ticker || ''}</TableCell>
+                          <TableCell className="text-center">{tx.type}</TableCell>
+                          <TableCell className="text-center">{formatUSD(tx.amount)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
