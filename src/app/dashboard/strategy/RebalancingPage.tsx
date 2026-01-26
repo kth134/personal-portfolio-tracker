@@ -180,10 +180,8 @@ export default function RebalancingPage() {
   }, [refreshTrigger])
 
   useEffect(() => {
-    // Set open items to all sub-portfolio IDs when data changes
-    if (data?.subPortfolios) {
-      setOpenItems(data.subPortfolios.map(sp => sp.id))
-    }
+    // Set open items to empty (collapsed by default)
+    setOpenItems([])
   }, [data])
 
   // Recalculate actions/amounts whenever sub-portfolio settings change (e.g., thresholds or band mode)
@@ -1056,17 +1054,17 @@ export default function RebalancingPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-card p-4 rounded-lg border">
-          <h3 className="font-semibold text-sm text-muted-foreground">Total Portfolio Value</h3>
+          <h3 className="font-semibold text-sm text-muted-foreground text-center">Total Portfolio Value</h3>
           <p className="text-2xl font-bold">{formatUSD(data.totalValue)}</p>
         </div>
 
         <div className="bg-card p-4 rounded-lg border">
-          <h3 className="font-semibold text-sm text-muted-foreground">Total Portfolio Drift</h3>
+          <h3 className="font-semibold text-sm text-muted-foreground text-center">Total Portfolio Drift</h3>
           <p className="text-2xl font-bold">{totalPortfolioDrift.toFixed(2)}%</p>
         </div>
 
         <div className="bg-card p-4 rounded-lg border">
-          <h3 className="font-semibold text-sm text-muted-foreground">Rebalance Alert</h3>
+          <h3 className="font-semibold text-sm text-muted-foreground text-center">Rebalance Alert</h3>
           <p className="text-2xl font-bold flex items-center">
             {data.currentAllocations.some(item => item.action !== 'hold') ? (
               <><AlertTriangle className="h-6 w-6 text-yellow-500 mr-2" /> Needed</>
@@ -1077,14 +1075,14 @@ export default function RebalancingPage() {
         </div>
 
         <div className="bg-card p-4 rounded-lg border">
-          <h3 className="font-semibold text-sm text-muted-foreground">Cash Impact of Suggested Rebalance Actions</h3>
+          <h3 className="font-semibold text-sm text-muted-foreground text-center">Magnitude of Rebalance Actions (Net)</h3>
           <p className={cn("text-2xl font-bold", data.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
             {formatUSD(Math.abs(data.cashNeeded))}
           </p>
         </div>
 
         <div className="bg-card p-4 rounded-lg border">
-          <h3 className="font-semibold text-sm text-muted-foreground">Last Price Update</h3>
+          <h3 className="font-semibold text-sm text-muted-foreground text-center">Last Price Update</h3>
           <p className="text-sm">{data.lastPriceUpdate ? new Date(data.lastPriceUpdate).toLocaleString() : 'Never'}</p>
         </div>
       </div>
@@ -1160,7 +1158,7 @@ export default function RebalancingPage() {
         )}
 
         <div className="flex gap-2">
-          <Button onClick={handleRefreshPrices} disabled={refreshing} variant="outline">
+          <Button onClick={handleRefreshPrices} disabled={refreshing} variant="default" className="bg-black text-white hover:bg-gray-800">
             <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
             Refresh Prices
           </Button>
@@ -1236,12 +1234,17 @@ export default function RebalancingPage() {
           const subPortfolioTarget = subPortfolio?.target_allocation || 0
           const currentSubValue = allocations.reduce((sum, item) => sum + item.current_value, 0)
           const currentSubPercentage = data.totalValue > 0 ? (currentSubValue / data.totalValue) * 100 : 0
+          const hasBreached = allocations.some(a => a.action !== 'hold')
 
           return (
             <AccordionItem key={subPortfolioId} value={subPortfolioId}>
               <AccordionTrigger className="bg-black text-white font-semibold px-4 py-2 hover:bg-gray-800 [&>svg]:text-white [&>svg]:stroke-2 [&>svg]:w-5 [&>svg]:h-5">
                 <div className="flex justify-between items-center w-full mr-4">
-                  <span className="font-semibold">{subPortfolioName}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{subPortfolioName}</span>
+                    <span className="text-sm text-gray-300">({formatUSD(currentSubValue)})</span>
+                    {hasBreached && <AlertTriangle className="h-4 w-4 text-yellow-400" />}
+                  </div>
                   <div className="flex gap-4 text-sm">
                     <span>Current: {currentSubPercentage.toFixed(2)}%</span>
                     <span>Target: {subPortfolioTarget.toFixed(2)}%</span>
