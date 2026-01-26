@@ -915,14 +915,14 @@ export default function DashboardHome() {
               <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
                 <CardHeader>
                   <CardTitle className="text-center text-4xl">Performance</CardTitle>
+                  <div className="text-center mt-4">
+                    <CardTitle className="text-lg">Total Portfolio Value</CardTitle>
+                    <p className="text-3xl font-bold text-black mt-2">
+                      {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
+                    </p>
+                  </div>
                   <div className="grid grid-cols-2 gap-8 mt-6">
-                    <div className="space-y-8">
-                      <div>
-                        <CardTitle>Total Portfolio Value</CardTitle>
-                        <p className="text-2xl font-bold text-black mt-2">
-                          {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
-                        </p>
-                      </div>
+                    <div className="space-y-6">
                       <div>
                         <CardTitle>Net Gain/Loss</CardTitle>
                         <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
@@ -942,7 +942,7 @@ export default function DashboardHome() {
                         </p>
                       </div>
                     </div>
-                    <div className="space-y-8">
+                    <div className="space-y-6">
                       <div>
                         <CardTitle>Unrealized G/L</CardTitle>
                         <p className={cn("text-2xl font-bold mt-2", performanceTotals?.unrealized_gain >= 0 ? "text-green-600" : "text-red-600")}>
