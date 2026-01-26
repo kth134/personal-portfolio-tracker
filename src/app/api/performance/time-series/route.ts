@@ -114,14 +114,14 @@ export async function POST(req: Request) {
         // Cash balances (from PerformanceContent)
         const cashBalances = new Map<string, number>()
         groupTxs.forEach((tx: any) => {
-          if (!tx.account_id || tx.notes === 'Auto-deposit for external buy') return
+          if (!tx.account_id) return
           const current = cashBalances.get(tx.account_id) || 0
           let delta = 0
           const amt = Number(tx.amount || 0)
           const fee = Number(tx.fees || 0)
           switch (tx.type) {
             case 'Buy':
-              if (tx.funding_source === 'cash') delta -= (Math.abs(amt) + fee)
+              delta -= (Math.abs(amt) + fee)
               break
             case 'Sell':
               delta += (amt - fee)

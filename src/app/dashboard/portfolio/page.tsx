@@ -58,19 +58,13 @@ export default async function PortfolioPage() {
   const cashBalances = new Map<string, number>()
   transactions.forEach((tx: any) => {
     if (!tx.account_id) return
-    // Skip automatic deposits for external buys
-    if (tx.notes === 'Auto-deposit for external buy') {
-      return
-    }
     const current = cashBalances.get(tx.account_id) || 0
     let delta = 0
     const amt = Number(tx.amount || 0)
     const fee = Number(tx.fees || 0)
     switch (tx.type) {
       case 'Buy':
-        if (tx.funding_source === 'cash') {
-          delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
-        } // else (including 'external'): no impact to cash balance
+        delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
         break
       case 'Sell':
         delta += (amt - fee)  // increase cash balance by sale amount less fees

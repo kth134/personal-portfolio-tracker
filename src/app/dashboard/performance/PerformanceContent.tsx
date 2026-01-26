@@ -255,19 +255,13 @@ function PerformanceContent() {
         const cashBalances = new Map<string, number>()
         transactionsData.forEach((tx: any) => {
           if (!tx.account_id) return
-          // Skip automatic deposits for external buys
-          if (tx.notes === 'Auto-deposit for external buy') {
-            return
-          }
           const current = cashBalances.get(tx.account_id) || 0
           let delta = 0
           const amt = Number(tx.amount || 0)
           const fee = Number(tx.fees || 0)
           switch (tx.type) {
             case 'Buy':
-              if (tx.funding_source === 'cash') {
-                delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
-              }
+              delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
               break
             case 'Sell':
               delta += (amt - fee)  // increase cash balance by sale amount less fees
@@ -539,7 +533,7 @@ function PerformanceContent() {
               let flow = 0;
               if (tx.type === 'Buy') {
                 flow = (tx.amount || 0) - (tx.fees || 0);
-              } else if (tx.type === 'Deposit' && tx.notes !== "Auto-deposit for external buy") {
+              } else if (tx.type === 'Deposit') {
                 flow = (tx.amount || 0) - (tx.fees || 0);
               } else if (tx.type === 'Sell' || tx.type === 'Dividend' || tx.type === 'Interest') {
                 flow = (tx.amount || 0) - (tx.fees || 0);
@@ -602,17 +596,13 @@ function PerformanceContent() {
           transactionsData.forEach((tx: any) => {
             let flow = 0;
 
-            // Only external new money going in
-            if (tx.type === 'Buy' && tx.funding_source === 'external') {
+            if (tx.type === 'Buy') {
               flow = (tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Deposit' && tx.notes !== "Auto-deposit for external buy") {
+            } else if (tx.type === 'Deposit') {
               flow = (tx.amount || 0) - (tx.fees || 0);
-            } 
-            // Explicit money coming out
-            else if (tx.type === 'Withdrawal') {
+            } else if (tx.type === 'Withdrawal') {
               flow = -(Math.abs(tx.amount || 0)) - (tx.fees || 0);
             }
-            // IMPORTANT: Do NOT add Sell, Dividend, Interest here — they are internal unless withdrawn
 
             if (flow !== 0 && tx.date) {
               const date = new Date(tx.date);

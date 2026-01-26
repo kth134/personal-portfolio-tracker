@@ -369,16 +369,13 @@ export default function DashboardHome() {
           const cashBalances = new Map<string, number>()
           transactionsData.forEach((tx: any) => {
             if (!tx.account_id) return
-            if (tx.notes === 'Auto-deposit for external buy') return
             const current = cashBalances.get(tx.account_id) || 0
             let delta = 0
             const amt = Number(tx.amount || 0)
             const fee = Number(tx.fees || 0)
             switch (tx.type) {
               case 'Buy':
-                if (tx.funding_source === 'cash') {
-                  delta -= (Math.abs(amt) + fee)
-                }
+                delta -= (Math.abs(amt) + fee)
                 break
               case 'Sell':
                 delta += (amt - fee)
@@ -407,9 +404,9 @@ export default function DashboardHome() {
 
           transactionsData.forEach((tx: any) => {
             let flow = 0;
-            if (tx.type === 'Buy' && tx.funding_source === 'external') {
+            if (tx.type === 'Buy') {
               flow = (tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Deposit' && tx.notes !== "Auto-deposit for external buy") {
+            } else if (tx.type === 'Deposit') {
               flow = (tx.amount || 0) - (tx.fees || 0);
             } else if (tx.type === 'Withdrawal') {
               flow = -(Math.abs(tx.amount || 0)) - (tx.fees || 0);
@@ -605,16 +602,13 @@ export default function DashboardHome() {
           const cashBalances = new Map<string, number>()
           transactionsData.forEach((tx: any) => {
             if (!tx.account_id) return
-            if (tx.notes === 'Auto-deposit for external buy') return
             const current = cashBalances.get(tx.account_id) || 0
             let delta = 0
             const amt = Number(tx.amount || 0)
             const fee = Number(tx.fees || 0)
             switch (tx.type) {
               case 'Buy':
-                if (tx.funding_source === 'cash') {
-                  delta -= (Math.abs(amt) + fee)
-                }
+                delta -= (Math.abs(amt) + fee)
                 break
               case 'Sell':
                 delta += (amt - fee)
@@ -643,9 +637,9 @@ export default function DashboardHome() {
 
           transactionsData.forEach((tx: any) => {
             let flow = 0;
-            if (tx.type === 'Buy' && tx.funding_source === 'external') {
+            if (tx.type === 'Buy') {
               flow = (tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Deposit' && tx.notes !== "Auto-deposit for external buy") {
+            } else if (tx.type === 'Deposit') {
               flow = (tx.amount || 0) - (tx.fees || 0);
             } else if (tx.type === 'Withdrawal') {
               flow = -(Math.abs(tx.amount || 0)) - (tx.fees || 0);
