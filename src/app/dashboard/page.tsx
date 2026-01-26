@@ -1005,7 +1005,7 @@ export default function DashboardHome() {
                                     totalValue += currentValue
                                   })
 
-                                  return (totalValue > 0 ? totalWeightedDrift / totalValue : 0).toFixed(2) + '%'
+                                  return (totalValue > 0 ? totalWeightedDrift / totalValue * 100 : 0).toFixed(2) + '%'
                                 })()}
                               </p>
                             </div>
@@ -1294,7 +1294,7 @@ export default function DashboardHome() {
                                   totalValue += currentValue
                                 })
 
-                                return (totalValue > 0 ? totalWeightedDrift / totalValue : 0).toFixed(2) + '%'
+                                return (totalValue > 0 ? totalWeightedDrift / totalValue * 100 : 0).toFixed(2) + '%'
                               })()}
                             </p>
                           </div>
