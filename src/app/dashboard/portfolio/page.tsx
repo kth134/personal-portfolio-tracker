@@ -66,12 +66,10 @@ export default async function PortfolioPage() {
 
     /**
      * LOGIC RECONCILIATION:
-     * 1. amt is positive for inflows (Sell, Dividend, Interest, Deposit)
-     * 2. amt is negative for outflows (Buy, Withdrawal)
-     * 3. fee is always a positive number in the DB representing a cost (outflow)
-     * * Formula: delta = amount - fee
+     * 1. For Buy/Sell: amount already includes fees, so delta = amount
+     * 2. For other transactions: delta = amount - fee
      */
-    const delta = amt - fee
+    const delta = ['Buy', 'Sell'].includes(tx.type) ? amt : amt - fee
     
     cashBalances.set(tx.account_id, current + delta)
   })
@@ -82,7 +80,9 @@ export default async function PortfolioPage() {
   const cashByAccountName = new Map<string, number>()
   initialAccounts.forEach(account => {
     const balance = cashBalances.get(account.id) || 0
-    cashByAccountName.set(account.name.trim(), balance)
+    // Use case-insensitive key for more robust matching
+    const key = account.name.trim().toLowerCase()
+    cashByAccountName.set(key, balance)
   })
 
   // Prices fetch

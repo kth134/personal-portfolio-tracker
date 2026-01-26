@@ -121,20 +121,18 @@ export async function POST(req: Request) {
           const fee = Number(tx.fees || 0)
           switch (tx.type) {
             case 'Buy':
-              delta -= (Math.abs(amt) + fee)
-              break
             case 'Sell':
-              delta += (amt - fee)
+              delta += amt  // amount already includes fee adjustments
               break
             case 'Dividend':
             case 'Interest':
-              delta += amt
+              delta += amt - fee
               break
             case 'Deposit':
-              delta += amt
+              delta += amt - fee
               break
             case 'Withdrawal':
-              delta -= Math.abs(amt)
+              delta += amt - fee  // amt is negative for withdrawals
               break
           }
           cashBalances.set(tx.account_id, current + delta)

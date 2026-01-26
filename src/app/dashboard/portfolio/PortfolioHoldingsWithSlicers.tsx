@@ -425,7 +425,7 @@ export default function PortfolioHoldingsWithSlicers({
                       </TableRow>
                     ))}
                     {lens === 'account' && (() => {
-                      const accountCash = cashByAccountName.get(key) || 0
+                      const accountCash = cashByAccountName.get(key.toLowerCase()) || 0
                       const cashWeight = selectedTotalValue > 0 ? (accountCash / selectedTotalValue) * 100 : 0
                       return (
                         <TableRow key="cash">
