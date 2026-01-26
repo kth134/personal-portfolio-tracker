@@ -206,7 +206,7 @@ export default function PortfolioHoldingsWithSlicers({
     allocations.forEach(slice => {
       (slice.items || []).forEach(item => {
         const currValue = item.value || 0
-        const totalBasis = (item.cost_basis || 0) + (lens === 'account' ? (cashByAccountName.get(item.key || '') || 0) : 0)
+        const totalBasis = item.cost_basis || 0  // Remove cash addition from individual items
         const quantity = item.quantity || 0
         rows.push({
           ticker: item.ticker || item.key || 'Unknown',
