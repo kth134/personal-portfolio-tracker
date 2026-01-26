@@ -1105,7 +1105,7 @@ export default function RebalancingPage() {
             </div>
             <div className="text-center">
               <p className="text-xs text-muted-foreground">Asset Drift</p>
-              <p className="text-lg font-bold">{(assetDrift * 100).toFixed(2)}%</p>
+              <p className="text-lg font-bold">{assetDrift.toFixed(2)}%</p>
             </div>
           </div>
         </div>
