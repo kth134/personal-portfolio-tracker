@@ -1019,7 +1019,7 @@ export default function DashboardHome() {
                                 <TableHead className="text-right">Current Value</TableHead>
                                 <TableHead className="text-right">Target Allocation</TableHead>
                                 <TableHead className="text-right">Actual Allocation</TableHead>
-                                <TableHead className="text-right">Drift</TableHead>
+                                <TableHead className="text-right">Asset-Level Drift</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -1039,8 +1039,8 @@ export default function DashboardHome() {
                                   const target = subPortfolio?.target_allocation || 0
                                   const currentValue = allocations.reduce((sum: number, item: any) => sum + item.current_value, 0)
                                   const currentPct = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
-                                  const drift = target > 0 ? ((currentPct - target) / target) * 100 : 0
-                                  return { name, target, currentValue, currentPct, drift }
+                                  const assetLevelDrift = currentValue > 0 ? allocations.reduce((sum: number, item: any) => sum + (Math.abs(item.drift_percentage) * item.current_value), 0) / currentValue : 0
+                                  return { name, target, currentValue, currentPct, assetLevelDrift }
                                 }).sort((a, b) => b.currentValue - a.currentValue)
 
                                 return subPortfolios.map((sp, idx) => (
@@ -1049,7 +1049,7 @@ export default function DashboardHome() {
                                     <TableCell className="text-right">{formatUSD(sp.currentValue)}</TableCell>
                                     <TableCell className="text-right">{sp.target.toFixed(1)}%</TableCell>
                                     <TableCell className="text-right">{sp.currentPct.toFixed(1)}%</TableCell>
-                                    <TableCell className="text-right">{sp.drift.toFixed(1)}%</TableCell>
+                                    <TableCell className="text-right">{sp.assetLevelDrift.toFixed(1)}%</TableCell>
                                   </TableRow>
                                 ))
                               })()}
