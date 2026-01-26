@@ -1169,47 +1169,47 @@ export default function DashboardHome() {
             <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">Performance</CardTitle>
+                <div className="text-center mt-4">
+                  <CardTitle className="text-lg">Total Portfolio Value</CardTitle>
+                  <p className="text-3xl font-bold text-black mt-2">
+                    {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-8 mt-6">
-                  <div className="space-y-8">
-                    <div>
-                      <CardTitle>Total Portfolio Value</CardTitle>
-                      <p className="text-2xl font-bold text-black mt-2">
-                        {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
-                      </p>
-                    </div>
-                    <div>
+                  <div className="space-y-6">
+                    <div className="text-center">
                       <CardTitle>Net Gain/Loss</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
                         {performanceTotals ? formatUSD(performanceTotals.net_gain) : 'Loading...'}
                       </p>
                     </div>
-                    <div>
+                    <div className="text-center">
                       <CardTitle>Total Return %</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", performanceTotals?.total_return_pct >= 0 ? "text-green-600" : "text-red-600")}>
                         {performanceTotals ? `${performanceTotals.total_return_pct.toFixed(2)}%` : 'Loading...'}
                       </p>
                     </div>
-                    <div>
+                    <div className="text-center">
                       <CardTitle>Annualized IRR</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", (performanceTotals?.irr_pct || 0) >= 0 ? "text-green-600" : "text-red-600")}>
                         {performanceTotals ? `${(performanceTotals.irr_pct || 0).toFixed(2)}%` : 'Loading...'}
                       </p>
                     </div>
                   </div>
-                  <div className="space-y-8">
-                    <div>
+                  <div className="space-y-6">
+                    <div className="text-center">
                       <CardTitle>Unrealized G/L</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", performanceTotals?.unrealized_gain >= 0 ? "text-green-600" : "text-red-600")}>
                         {performanceTotals ? formatUSD(performanceTotals.unrealized_gain) : 'Loading...'}
                       </p>
                     </div>
-                    <div>
+                    <div className="text-center">
                       <CardTitle>Realized G/L</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", performanceTotals?.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
                         {performanceTotals ? formatUSD(performanceTotals.realized_gain) : 'Loading...'}
                       </p>
                     </div>
-                    <div>
+                    <div className="text-center">
                       <CardTitle>Income</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", performanceTotals?.dividends >= 0 ? "text-green-600" : "text-red-600")}>
                         {performanceTotals ? formatUSD(performanceTotals.dividends) : 'Loading...'}
@@ -1224,7 +1224,97 @@ export default function DashboardHome() {
                 <CardTitle className="text-center text-4xl">Strategy</CardTitle>
               </CardHeader>
               <CardContent>
-                <p>Under Construction</p>
+                {rebalancingLoading ? (
+                  <p>Loading strategy data...</p>
+                ) : rebalancingData ? (
+                  <div className="space-y-4">
+                    {/* Top Metrics in 3 columns */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="text-center">
+                        <h4 className="font-semibold text-sm text-muted-foreground">Total Portfolio Drift</h4>
+                        <p className="text-xl font-bold">
+                          {(() => {
+                            const totalDrift = rebalancingData.totalValue > 0 
+                              ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
+                                  const weight = item.current_value / rebalancingData.totalValue
+                                  return sum + (Math.abs(item.drift_percentage) * weight)
+                                }, 0)
+                              : 0
+                            return totalDrift.toFixed(2) + '%'
+                          })()}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>
+                        <p className="text-xl font-bold">
+                          {rebalancingData.currentAllocations.some((item: any) => item.action !== 'hold') ? (
+                            <span className="text-yellow-600">Yes</span>
+                          ) : (
+                            'No'
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <h4 className="font-semibold text-sm text-muted-foreground">Magnitude of Rebalance Actions (Net)</h4>
+                        <p className={cn("text-xl font-bold", rebalancingData.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
+                          {formatUSD(Math.abs(rebalancingData.cashNeeded))}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Sub-Portfolios Table */}
+                    <div>
+                      <h4 className="font-semibold mb-2">Sub-Portfolios</h4>
+                      <div className="max-h-48 overflow-y-auto overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-center break-words">Name</TableHead>
+                              <TableHead className="text-center break-words">Current Value</TableHead>
+                              <TableHead className="text-center break-words">Target Allocation</TableHead>
+                              <TableHead className="text-center break-words">Actual Allocation</TableHead>
+                              <TableHead className="text-center break-words">Asset-Level Drift</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(() => {
+                              // Group allocations by sub_portfolio_id
+                              const grouped = new Map()
+                              rebalancingData.currentAllocations.forEach((item: any) => {
+                                const key = item.sub_portfolio_id || 'unassigned'
+                                if (!grouped.has(key)) grouped.set(key, [])
+                                grouped.get(key).push(item)
+                              })
+
+                              // Calculate sub-portfolio data and sort by current value descending
+                              const subPortfolios = Array.from(grouped.entries()).map(([id, allocations]) => {
+                                const subPortfolio = rebalancingData.subPortfolios.find((sp: any) => sp.id === id)
+                                const name = subPortfolio?.name || 'Unassigned'
+                                const target = subPortfolio?.target_allocation || 0
+                                const currentValue = allocations.reduce((sum: number, item: any) => sum + item.current_value, 0)
+                                const currentPct = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
+                                const assetLevelDrift = currentValue > 0 ? allocations.reduce((sum: number, item: any) => sum + (Math.abs(item.drift_percentage) * item.current_value), 0) / currentValue : 0
+                                return { name, target, currentValue, currentPct, assetLevelDrift }
+                              }).sort((a, b) => b.currentValue - a.currentValue)
+
+                              return subPortfolios.map((sp, idx) => (
+                                <TableRow key={idx}>
+                                  <TableCell className="text-center font-medium break-words">{sp.name}</TableCell>
+                                  <TableCell className="text-center break-words">{formatUSD(sp.currentValue)}</TableCell>
+                                  <TableCell className="text-center break-words">{sp.target.toFixed(1)}%</TableCell>
+                                  <TableCell className="text-center break-words">{sp.currentPct.toFixed(1)}%</TableCell>
+                                  <TableCell className="text-center break-words">{sp.assetLevelDrift.toFixed(1)}%</TableCell>
+                                </TableRow>
+                              ))
+                            })()}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p>Failed to load strategy data</p>
+                )}
               </CardContent>
             </Card>
 
@@ -1300,21 +1390,21 @@ export default function DashboardHome() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Account</TableHead>
-                      <TableHead>Ticker</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Amount</TableHead>
+                      <TableHead className="text-center">Date</TableHead>
+                      <TableHead className="text-center">Account</TableHead>
+                      <TableHead className="text-center">Ticker</TableHead>
+                      <TableHead className="text-center">Type</TableHead>
+                      <TableHead className="text-center">Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {recentTransactions.map((tx) => (
                       <TableRow key={tx.id}>
-                        <TableCell>{tx.date}</TableCell>
-                        <TableCell>{tx.account?.name || ''}</TableCell>
-                        <TableCell>{tx.asset?.ticker || ''}</TableCell>
-                        <TableCell>{tx.type}</TableCell>
-                        <TableCell>{formatUSD(tx.amount)}</TableCell>
+                        <TableCell className="text-center">{tx.date}</TableCell>
+                        <TableCell className="text-center">{tx.account?.name || ''}</TableCell>
+                        <TableCell className="text-center">{tx.asset?.ticker || ''}</TableCell>
+                        <TableCell className="text-center">{tx.type}</TableCell>
+                        <TableCell className="text-center">{formatUSD(tx.amount)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
