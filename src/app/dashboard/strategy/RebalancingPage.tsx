@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
 } from 'recharts'
@@ -175,6 +175,21 @@ export default function RebalancingPage() {
   // Editing state
   const [editingSubPortfolio, setEditingSubPortfolio] = useState<string | null>(null)
   const initialLoadRef = useRef(true)
+
+  // Calculate summary metrics dynamically
+  const totalPortfolioDrift = useMemo(() => {
+    if (!data) return 0
+    return data.totalValue > 0 
+      ? data.currentAllocations.reduce((sum, item) => {
+          const weight = item.current_value / data.totalValue
+          return sum + (Math.abs(item.drift_percentage) * weight)
+        }, 0)
+      : 0
+  }, [data])
+
+  const magnitudeOfRebalance = useMemo(() => {
+    return data?.cashNeeded || 0
+  }, [data])
 
   useEffect(() => {
     fetchData()
@@ -1041,13 +1056,6 @@ export default function RebalancingPage() {
           percentage: item.implied_overall_target
         }))
 
-  const totalPortfolioDrift = data.totalValue > 0 
-    ? data.currentAllocations.reduce((sum, item) => {
-        const weight = item.current_value / data.totalValue
-        return sum + (Math.abs(item.drift_percentage) * weight)
-      }, 0)
-    : 0
-
   return (
     <TooltipProvider>
       <div className="space-y-8">
@@ -1076,8 +1084,8 @@ export default function RebalancingPage() {
 
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground text-center">Magnitude of Rebalance Actions (Net)</h3>
-          <p className={cn("text-2xl font-bold text-center", data.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
-            {formatUSD(Math.abs(data.cashNeeded))}
+          <p className={cn("text-2xl font-bold text-center", magnitudeOfRebalance > 0 ? "text-red-600" : "text-green-600")}>
+            {formatUSD(Math.abs(magnitudeOfRebalance))}
           </p>
         </div>
 
