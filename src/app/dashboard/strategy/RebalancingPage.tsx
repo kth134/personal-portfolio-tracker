@@ -1260,15 +1260,18 @@ export default function RebalancingPage() {
                   </div>
                   <div className="flex gap-4 text-sm items-center">
                     <span className="text-white font-medium">{formatUSD(currentSubValue)}</span>
+                    <span className="text-white">|</span>
                     <span>Current: {currentSubPercentage.toFixed(2)}%</span>
+                    <span className="text-white">|</span>
                     <span>Target: {subPortfolioTarget.toFixed(2)}%</span>
+                    <span className="text-white">|</span>
                     <span className={cn(
                       subPortfolioTarget > 0 ? ((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100 > 0 ? "text-green-400" :
                       ((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100 < 0 ? "text-red-400" : "text-green-400" : "text-green-400"
                     )}>
                       Sub-Portfolio Drift: {subPortfolioTarget > 0 ? (((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100).toFixed(2) : '0.00'}%
                     </span>
-
+                    <span className="text-white">|</span>
                     <span className="text-white">
                       Asset-Level Drift: {assetLevelDrift.toFixed(2)}%
                     </span>
