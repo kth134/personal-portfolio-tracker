@@ -983,7 +983,7 @@ export default function DashboardHome() {
                               <p className="text-xs text-muted-foreground">Sub-Portfolio</p>
                               <p className="text-sm font-bold">
                                 {(() => {
-                                  // Calculate sub-portfolio drift
+                                  // Calculate sub-portfolio relative drift from target allocations
                                   const subPortfolioAllocations: { [key: string]: number } = {}
                                   rebalancingData.currentAllocations.forEach((item: any) => {
                                     const subId = item.sub_portfolio_id || 'unassigned'
@@ -995,10 +995,13 @@ export default function DashboardHome() {
 
                                   rebalancingData.subPortfolios.forEach((sp: any) => {
                                     const currentValue = subPortfolioAllocations[sp.id] || 0
-                                    const targetValue = (sp.target_allocation / 100) * rebalancingData.totalValue
-                                    const drift = Math.abs((currentValue - targetValue) / rebalancingData.totalValue * 100)
+                                    const currentAllocation = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
+                                    const targetAllocation = sp.target_allocation
                                     
-                                    totalWeightedDrift += drift * currentValue
+                                    // Calculate relative drift: |(actual - target) / target|
+                                    const relativeDrift = targetAllocation > 0 ? Math.abs((currentAllocation - targetAllocation) / targetAllocation) : 0
+                                    
+                                    totalWeightedDrift += relativeDrift * currentValue
                                     totalValue += currentValue
                                   })
 
@@ -1269,7 +1272,7 @@ export default function DashboardHome() {
                             <p className="text-xs text-muted-foreground">Sub-Portfolio</p>
                             <p className="text-sm font-bold">
                               {(() => {
-                                // Calculate sub-portfolio drift
+                                // Calculate sub-portfolio relative drift from target allocations
                                 const subPortfolioAllocations: { [key: string]: number } = {}
                                 rebalancingData.currentAllocations.forEach((item: any) => {
                                   const subId = item.sub_portfolio_id || 'unassigned'
@@ -1281,10 +1284,13 @@ export default function DashboardHome() {
 
                                 rebalancingData.subPortfolios.forEach((sp: any) => {
                                   const currentValue = subPortfolioAllocations[sp.id] || 0
-                                  const targetValue = (sp.target_allocation / 100) * rebalancingData.totalValue
-                                  const drift = Math.abs((currentValue - targetValue) / rebalancingData.totalValue * 100)
+                                  const currentAllocation = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
+                                  const targetAllocation = sp.target_allocation
                                   
-                                  totalWeightedDrift += drift * currentValue
+                                  // Calculate relative drift: |(actual - target) / target|
+                                  const relativeDrift = targetAllocation > 0 ? Math.abs((currentAllocation - targetAllocation) / targetAllocation) : 0
+                                  
+                                  totalWeightedDrift += relativeDrift * currentValue
                                   totalValue += currentValue
                                 })
 

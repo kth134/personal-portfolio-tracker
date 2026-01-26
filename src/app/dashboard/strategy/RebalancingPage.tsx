@@ -196,16 +196,19 @@ export default function RebalancingPage() {
       subPortfolioAllocations[subId] = (subPortfolioAllocations[subId] || 0) + item.current_value
     })
 
-    // Calculate weighted average of absolute sub-portfolio drift
+    // Calculate weighted average of absolute relative sub-portfolio drift from target allocations
     let totalWeightedDrift = 0
     let totalValue = 0
 
     data.subPortfolios.forEach(sp => {
       const currentValue = subPortfolioAllocations[sp.id] || 0
-      const targetValue = (sp.target_allocation / 100) * data.totalValue
-      const drift = Math.abs((currentValue - targetValue) / data.totalValue * 100)
+      const currentAllocation = data.totalValue > 0 ? (currentValue / data.totalValue) * 100 : 0
+      const targetAllocation = sp.target_allocation
       
-      totalWeightedDrift += drift * currentValue
+      // Calculate relative drift: |(actual - target) / target|
+      const relativeDrift = targetAllocation > 0 ? Math.abs((currentAllocation - targetAllocation) / targetAllocation) : 0
+      
+      totalWeightedDrift += relativeDrift * currentValue
       totalValue += currentValue
     })
 
