@@ -1253,26 +1253,27 @@ export default function RebalancingPage() {
           return (
             <AccordionItem key={subPortfolioId} value={subPortfolioId}>
               <AccordionTrigger className="bg-black text-white font-semibold px-4 py-2 hover:bg-gray-800 [&>svg]:text-white [&>svg]:stroke-2 [&>svg]:w-5 [&>svg]:h-5">
-                <div className="flex justify-between items-center w-full mr-4">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center w-full mr-4 gap-2 sm:gap-0">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{subPortfolioName}</span>
                     {hasBreached && <AlertTriangle className="h-4 w-4 text-yellow-400" />}
                   </div>
-                  <div className="flex gap-4 text-sm items-center">
-                    <span className="text-white font-medium">{formatUSD(currentSubValue)}</span>
-                    <span className="text-white">|</span>
-                    <span>Current: {currentSubPercentage.toFixed(2)}%</span>
-                    <span className="text-white">|</span>
-                    <span>Target: {subPortfolioTarget.toFixed(2)}%</span>
-                    <span className="text-white">|</span>
+                  <div className="flex flex-wrap gap-2 sm:gap-4 text-sm items-center sm:flex-nowrap sm:overflow-x-auto">
+                    <span className="text-white font-medium whitespace-nowrap">{formatUSD(currentSubValue)}</span>
+                    <span className="text-white hidden sm:inline">|</span>
+                    <span className="whitespace-nowrap">Current: {currentSubPercentage.toFixed(2)}%</span>
+                    <span className="text-white hidden sm:inline">|</span>
+                    <span className="whitespace-nowrap">Target: {subPortfolioTarget.toFixed(2)}%</span>
+                    <span className="text-white hidden sm:inline">|</span>
                     <span className={cn(
+                      "whitespace-nowrap",
                       subPortfolioTarget > 0 ? ((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100 > 0 ? "text-green-400" :
                       ((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100 < 0 ? "text-red-400" : "text-green-400" : "text-green-400"
                     )}>
                       Sub-Portfolio Drift: {subPortfolioTarget > 0 ? (((currentSubPercentage - subPortfolioTarget) / subPortfolioTarget) * 100).toFixed(2) : '0.00'}%
                     </span>
-                    <span className="text-white">|</span>
-                    <span className="text-white">
+                    <span className="text-white hidden sm:inline">|</span>
+                    <span className="text-white whitespace-nowrap">
                       Asset-Level Drift: {assetLevelDrift.toFixed(2)}%
                     </span>
                   </div>
@@ -1369,21 +1370,21 @@ export default function RebalancingPage() {
                   </div>
 
                   {/* Assets Table */}
-                  <div className="w-full">
-                    <Table containerClassName="pb-10">
+                  <div className="w-full overflow-x-auto">
+                    <Table containerClassName="pb-10 min-w-full">
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="min-w-0 break-words">Asset</TableHead>
-                          <SortableTableHead column="current_value" className="text-right min-w-0 break-words">Current Value</SortableTableHead>
-                          <SortableTableHead column="current_percentage" className="text-right min-w-0 break-words">Current % (Sub)</SortableTableHead>
-                          <SortableTableHead column="sub_portfolio_target_percentage" className="text-right min-w-0 break-words">Target % (Sub)</SortableTableHead>
-                          <SortableTableHead column="implied_overall_target" className="text-right min-w-0 break-words">Implied Overall Target %</SortableTableHead>
-                          <SortableTableHead column="drift_percentage" className="text-right min-w-0 break-words">Drift %</SortableTableHead>
-                          <TableHead className="min-w-0 break-words">Action</TableHead>
-                          <SortableTableHead column="amount" className="text-right min-w-0 break-words">Recommended Transaction Amount</SortableTableHead>
-                          <SortableTableHead column="tax_impact" className="text-right min-w-0 break-words">Tax Impact</SortableTableHead>
-                          <TableHead className="min-w-0 break-words">Recommended Accounts</TableHead>
-                          <TableHead className="min-w-0 break-words">Tax Notes</TableHead>
+                          <TableHead className="min-w-0 break-words whitespace-nowrap">Asset</TableHead>
+                          <SortableTableHead column="current_value" className="text-right min-w-0 break-words whitespace-nowrap">Current Value</SortableTableHead>
+                          <SortableTableHead column="current_percentage" className="text-right min-w-0 break-words whitespace-nowrap">Current % (Sub)</SortableTableHead>
+                          <SortableTableHead column="sub_portfolio_target_percentage" className="text-right min-w-0 break-words whitespace-nowrap">Target % (Sub)</SortableTableHead>
+                          <SortableTableHead column="implied_overall_target" className="text-right min-w-0 break-words whitespace-nowrap">Implied Overall Target %</SortableTableHead>
+                          <SortableTableHead column="drift_percentage" className="text-right min-w-0 break-words whitespace-nowrap">Drift %</SortableTableHead>
+                          <TableHead className="min-w-0 break-words whitespace-nowrap">Action</TableHead>
+                          <SortableTableHead column="amount" className="text-right min-w-0 break-words whitespace-nowrap">Recommended Transaction Amount</SortableTableHead>
+                          <SortableTableHead column="tax_impact" className="text-right min-w-0 break-words whitespace-nowrap">Tax Impact</SortableTableHead>
+                          <TableHead className="min-w-0 break-words whitespace-nowrap">Recommended Accounts</TableHead>
+                          <TableHead className="min-w-0 break-words whitespace-nowrap">Tax Notes</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
