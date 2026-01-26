@@ -1055,17 +1055,17 @@ export default function RebalancingPage() {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground text-center">Total Portfolio Value</h3>
-          <p className="text-2xl font-bold">{formatUSD(data.totalValue)}</p>
+          <p className="text-2xl font-bold text-center">{formatUSD(data.totalValue)}</p>
         </div>
 
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground text-center">Total Portfolio Drift</h3>
-          <p className="text-2xl font-bold">{totalPortfolioDrift.toFixed(2)}%</p>
+          <p className="text-2xl font-bold text-center">{totalPortfolioDrift.toFixed(2)}%</p>
         </div>
 
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground text-center">Rebalance Alert</h3>
-          <p className="text-2xl font-bold flex items-center">
+          <p className="text-2xl font-bold flex items-center justify-center">
             {data.currentAllocations.some(item => item.action !== 'hold') ? (
               <><AlertTriangle className="h-6 w-6 text-yellow-500 mr-2" /> Needed</>
             ) : (
@@ -1076,14 +1076,14 @@ export default function RebalancingPage() {
 
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground text-center">Magnitude of Rebalance Actions (Net)</h3>
-          <p className={cn("text-2xl font-bold", data.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
+          <p className={cn("text-2xl font-bold text-center", data.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
             {formatUSD(Math.abs(data.cashNeeded))}
           </p>
         </div>
 
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground text-center">Last Price Update</h3>
-          <p className="text-sm">{data.lastPriceUpdate ? new Date(data.lastPriceUpdate).toLocaleString() : 'Never'}</p>
+          <p className="text-sm text-center">{data.lastPriceUpdate ? new Date(data.lastPriceUpdate).toLocaleString() : 'Never'}</p>
         </div>
       </div>
 
@@ -1228,7 +1228,11 @@ export default function RebalancingPage() {
 
       {/* Accordion Table */}
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
-        {Array.from(groupedAllocations.entries()).map(([subPortfolioId, allocations]) => {
+        {Array.from(groupedAllocations.entries()).sort(([aId, aAllocations], [bId, bAllocations]) => {
+          const aValue = aAllocations.reduce((sum, item) => sum + item.current_value, 0)
+          const bValue = bAllocations.reduce((sum, item) => sum + item.current_value, 0)
+          return bValue - aValue // descending order
+        }).map(([subPortfolioId, allocations]) => {
           const subPortfolio = data.subPortfolios.find(sp => sp.id === subPortfolioId)
           const subPortfolioName = subPortfolio?.name || 'Unassigned'
           const subPortfolioTarget = subPortfolio?.target_allocation || 0
