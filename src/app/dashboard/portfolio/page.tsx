@@ -59,22 +59,26 @@ export default async function PortfolioPage() {
   const cashBalances = new Map<string, number>()
 
   // First compute per-account balances by summing (amount - fees) for transactions with an account_id
+  // Use transaction-type-aware cash delta:
+  // - Buys/Sells: `amount` is already the net cash delta (fees included when created)
+  // - Dividend/Interest/Deposit/Withdrawal: `amount` is stored as gross, so net = amount - |fees|
+  const txCashDelta = (tx: any) => {
+    const amt = Number(tx.amount || 0)
+    const fee = Math.abs(Number(tx.fees || 0))
+    if (tx.type === 'Buy' || tx.type === 'Sell') return amt
+    if (tx.type === 'Dividend' || tx.type === 'Interest' || tx.type === 'Deposit' || tx.type === 'Withdrawal') return amt - fee
+    return amt
+  }
+
   transactions.forEach((tx: any) => {
     const acctId = tx.account_id
     if (!acctId) return
     const current = cashBalances.get(acctId) || 0
-    const amt = Number(tx.amount || 0)
-    const fee = Number(tx.fees || 0)
-    const delta = amt - fee
-    cashBalances.set(acctId, current + delta)
+    cashBalances.set(acctId, current + txCashDelta(tx))
   })
 
   // Total portfolio cash should include all transactions (including those not tied to an account)
-  const totalCash = transactions.reduce((sum: number, tx: any) => {
-    const amt = Number(tx.amount || 0)
-    const fee = Number(tx.fees || 0)
-    return sum + (amt - fee)
-  }, 0)
+  const totalCash = transactions.reduce((sum: number, tx: any) => sum + txCashDelta(tx), 0)
 
   // Map cash by account name for account-specific display
   const cashByAccountName = new Map<string, number>()

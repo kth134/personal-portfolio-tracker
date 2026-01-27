@@ -167,12 +167,23 @@ if (lens !== 'total' && selectedValues?.length > 0) {
       .eq('user_id', user.id);
 
     // Aggregate net gains by asset_id
+    // Note: `realized_gain` for Sell transactions is calculated server-side and already nets fees.
+    // For Dividend/Interest, use (amount - fees). For Buys and other transaction types, do not
+    // treat fees as realized gains (fees are capitalized into basis for Buys).
     const netGainByAsset = new Map<string, number>();
     transactions?.forEach((tx: Transaction) => {
       if (!tx.asset_id) return;
-      let gain = (tx.realized_gain || 0);
-      if (tx.type === 'Dividend' || tx.type === 'Interest') gain += (tx.amount || 0);
-      gain -= Math.abs(tx.fees || 0);
+      let gain = 0;
+      if (tx.type === 'Sell' && tx.realized_gain != null) {
+        // realized_gain already accounts for fees
+        gain = tx.realized_gain;
+      } else if (tx.type === 'Dividend' || tx.type === 'Interest') {
+        // dividends/interest contribute their amount net of any fees
+        gain = (tx.amount || 0) - Math.abs(tx.fees || 0);
+      } else {
+        // Buys and other types do not contribute to realized/net gain here
+        gain = 0;
+      }
       netGainByAsset.set(tx.asset_id, (netGainByAsset.get(tx.asset_id) || 0) + gain);
     });
 
