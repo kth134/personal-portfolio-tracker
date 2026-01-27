@@ -211,6 +211,7 @@ export default function TransactionsList({ initialTransactions, total, currentPa
     }
     
     let list = isSearchMode ? [...allTransactions] : [...transactions]
+    console.log('initial list length:', list.length)
     if (search) {
       const low = search.toLowerCase()
       list = list.filter(tx =>
@@ -220,36 +221,46 @@ export default function TransactionsList({ initialTransactions, total, currentPa
         tx.notes?.toLowerCase().includes(low) ||
         tx.type.toLowerCase().includes(low)
       )
+      console.log('after search filter length:', list.length)
     }
     // Apply filters
     if (filterType.length > 0) {
       list = list.filter(tx => filterType.includes(tx.type))
+      console.log('after type filter length:', list.length)
     }
     if (filterAccount.length > 0) {
       list = list.filter(tx => tx.account?.name && filterAccount.some(acc => tx.account!.name.toLowerCase().includes(acc.toLowerCase())))
+      console.log('after account filter length:', list.length)
     }
     if (filterAsset.length > 0) {
       list = list.filter(tx => tx.asset?.ticker && filterAsset.some(ast => tx.asset!.ticker.toLowerCase().includes(ast.toLowerCase()) || (tx.asset!.name && tx.asset!.name.toLowerCase().includes(ast.toLowerCase()))))
+      console.log('after asset filter length:', list.length)
     }
     if (filterFundingSource.length > 0) {
       list = list.filter(tx => tx.funding_source && filterFundingSource.includes(tx.funding_source))
+      console.log('after funding source filter length:', list.length)
     }
     if (filterDateFrom) {
       list = list.filter(tx => tx.date >= filterDateFrom)
+      console.log('after date from filter length:', list.length)
     }
     if (filterDateTo) {
       list = list.filter(tx => tx.date <= filterDateTo)
+      console.log('after date to filter length:', list.length)
     }
     if (filterAmountMin) {
       const min = Number(filterAmountMin)
       list = list.filter(tx => tx.amount && tx.amount >= min)
+      console.log('after amount min filter length:', list.length)
     }
     if (filterAmountMax) {
       const max = Number(filterAmountMax)
       list = list.filter(tx => tx.amount && tx.amount <= max)
+      console.log('after amount max filter length:', list.length)
     }
     if (filterNotes) {
       list = list.filter(tx => tx.notes?.toLowerCase().includes(filterNotes.toLowerCase()))
+      console.log('after notes filter length:', list.length)
     }
     list.sort((a, b) => {
       const aVal: any = sortKey === 'account_name' ? a.account?.name ?? null :
