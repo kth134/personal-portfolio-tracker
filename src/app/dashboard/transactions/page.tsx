@@ -85,6 +85,8 @@ export default async function TransactionManagementPage({
     throw new Error('Failed to fetch transactions')
   }
 
+  console.log(`transactions batch fetch: batchFrom=${batchFrom} batchTo=${batchTo} returned=${(batchTransactions||[]).length} total=${transactionsCount}`)
+
   let transactions = (batchTransactions || []).slice(from - batchFrom, from - batchFrom + pageSize)
 
   // Fallback: if the batch query returned no rows (some proxies cap ranges),
@@ -118,7 +120,7 @@ export default async function TransactionManagementPage({
             // reverse to descending so UI ordering matches normal pages
             const rev = remainingRows.reverse()
             transactions = rev.slice(0, pageSize)
-            console.log(`transactions fallback: used ascending-remaining fetch (remaining=${remaining}, returned=${transactions.length}) for page=${page}`)
+            console.log(`transactions fallback: used ascending-remaining fetch (remaining=${remaining}, returned=${transactions.length}) for page=${page} firstId=${transactions[0]?.id} lastId=${transactions[transactions.length-1]?.id}`)
           }
         }
       } catch (e) {
@@ -176,6 +178,7 @@ export default async function TransactionManagementPage({
         const last = chunkRows[chunkRows.length - 1]
         cursorDate = last.date
         cursorId = last.id
+        console.log(`keyset traversal: advanced cursor to date=${cursorDate} id=${cursorId} skipped=${skipped}`)
         continue
       }
 
@@ -208,17 +211,20 @@ export default async function TransactionManagementPage({
         console.error('keyset page fetch error', pageChunkErr)
         break
       }
-
       const sliceStart = needToSkipInChunk
       const sliceEnd = sliceStart + pageSize
       transactions = (pageChunk || []).slice(sliceStart, sliceEnd)
+      console.log(`keyset pageChunk fetch: chunkRows=${(pageChunk||[]).length} sliceStart=${sliceStart} sliceEnd=${sliceEnd} returned=${transactions.length}`)
+      if (transactions.length > 0) console.log(`keyset page: firstId=${transactions[0]?.id} lastId=${transactions[transactions.length-1]?.id}`)
       reached = true
     }
 
     // As a final safety, if traversal failed to produce rows, fallback to full server fetch
     if ((!transactions || transactions.length === 0) && (transactionsCount || 0) > 0) {
+      console.log('traversal produced no rows, falling back to full server fetch')
       const all = await fetchAllUserTransactionsServer(supabase, user.id)
       transactions = (all || []).slice(from, from + pageSize)
+      console.log(`full server fetch fallback: totalFetched=${(all||[]).length} slicedReturned=${transactions.length}`)
     }
   }
 
