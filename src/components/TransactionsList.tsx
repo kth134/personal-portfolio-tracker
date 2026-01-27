@@ -63,7 +63,9 @@ type TransactionsListProps = {
 export default function TransactionsList({ initialTransactions, total, currentPage: currentPageProp, pageSize }: TransactionsListProps) {
   const router = useRouter()
   const [transactions, setTransactions] = useState(initialTransactions)
-  const [displayTransactions, setDisplayTransactions] = useState(initialTransactions)
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
+  const [displayTransactions, setDisplayTransactions] = useState<Transaction[]>(initialTransactions)
+  const [isSearchMode, setIsSearchMode] = useState(false)
   const [currentPage, setCurrentPage] = useState(currentPageProp)
   const [open, setOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
@@ -141,6 +143,32 @@ export default function TransactionsList({ initialTransactions, total, currentPa
     setCurrentPage(currentPageProp)
   }, [currentPageProp])
 
+  // Load all transactions when search/filter is active
+  const loadAllTransactions = async () => {
+    if (isSearchMode || allTransactions.length > 0) return // Already loaded or loading
+    
+    setIsSearchMode(true)
+    try {
+      const supabase = createClient()
+      const { data: allTx, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          account:accounts (name, type),
+          asset:assets (ticker, name)
+        `)
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .order('date', { ascending: false })
+      
+      if (error) throw error
+      setAllTransactions(allTx || [])
+      setTransactions(allTx || [])
+    } catch (err) {
+      console.error('Failed to load all transactions:', err)
+      setIsSearchMode(false)
+    }
+  }
+
   // Fetch accounts & assets
   useEffect(() => {
     const fetchData = async () => {
@@ -170,7 +198,16 @@ export default function TransactionsList({ initialTransactions, total, currentPa
 
   // Search + sort + filter effect
   useEffect(() => {
-    let list = [...transactions]
+    const hasActiveSearch = search || filterType.length > 0 || filterAccount.length > 0 || 
+                           filterAsset.length > 0 || filterFundingSource.length > 0 || 
+                           filterDateFrom || filterDateTo || filterAmountMin || filterAmountMax || filterNotes
+    
+    if (hasActiveSearch && !isSearchMode) {
+      loadAllTransactions()
+      return // Will re-run after all transactions are loaded
+    }
+    
+    let list = isSearchMode ? [...allTransactions] : [...transactions]
     if (search) {
       const low = search.toLowerCase()
       list = list.filter(tx =>
@@ -229,6 +266,19 @@ export default function TransactionsList({ initialTransactions, total, currentPa
     })
     setDisplayTransactions(list)
   }, [transactions, search, sortKey, sortDir, filterType, filterAccount, filterAsset, filterFundingSource, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, filterNotes])
+
+  // Switch back to paginated mode when search/filter is cleared
+  useEffect(() => {
+    const hasActiveSearch = search || filterType.length > 0 || filterAccount.length > 0 || 
+                           filterAsset.length > 0 || filterFundingSource.length > 0 || 
+                           filterDateFrom || filterDateTo || filterAmountMin || filterAmountMax || filterNotes
+    
+    if (!hasActiveSearch && isSearchMode && allTransactions.length > 0) {
+      setIsSearchMode(false)
+      setTransactions(initialTransactions)
+      setDisplayTransactions(initialTransactions)
+    }
+  }, [search, filterType, filterAccount, filterAsset, filterFundingSource, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, filterNotes, isSearchMode, allTransactions.length, initialTransactions])
 
   // Update select all state
   useEffect(() => {
