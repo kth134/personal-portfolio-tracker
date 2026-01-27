@@ -253,6 +253,18 @@ export async function POST(req: Request) {
       finalByGroup.set(key, vals[vals.length - 1] || 1);
     });
 
+    // If requested, add an aggregated 'Portfolio' group summing all groups so
+    // we can compute portfolio-level TWR/MWR when `aggregate` is true.
+    if (aggregate && groups.size > 1) {
+      const groupKeys = Array.from(groupValues.keys());
+      const aggValues = dates.map((_, i) => {
+        return groupKeys.reduce((s, k) => s + ((groupValues.get(k) || [])[i] || 0), 0);
+      });
+      groupValues.set('Portfolio', aggValues);
+      initialByGroup.set('Portfolio', aggValues[0] || 1);
+      finalByGroup.set('Portfolio', aggValues[aggValues.length - 1] || 1);
+    }
+
     // TWR per group
     const twrByGroup = new Map<string, number>();
     groupValues.forEach((vals, key) => {
@@ -286,6 +298,7 @@ export async function POST(req: Request) {
       }
     });
 
+    // Compute MWR per group and also compute Portfolio MWR when present
     groups.forEach((_, key) => {
       const groupTx = txsByGroup.get(key) || [];
 
@@ -305,6 +318,25 @@ export async function POST(req: Request) {
       const irr = cfs.length > 1 ? calculateIRR(cfs, cfDates) : NaN;
       mwrByGroup.set(key, irr); // may be NaN — handle fallback when producing metrics
     });
+
+    // If we added an aggregated 'Portfolio' key earlier, compute its MWR from
+    // the union of group transactions and the aggregated final value.
+    if (groupValues.has('Portfolio')) {
+      const portfolioTxs = Array.from(txsByGroup.values()).flat();
+      const cfs: number[] = [];
+      const cfDates: Date[] = [];
+      portfolioTxs.forEach((tx: any) => {
+        const d = parseISO(tx.date);
+        if (isNaN(d.getTime())) return;
+        cfs.push(normalizeTransactionToFlow(tx));
+        cfDates.push(d);
+      });
+      const finalVal = finalByGroup.get('Portfolio') || 0;
+      cfs.push(finalVal);
+      cfDates.push(endDate);
+      const irr = cfs.length > 1 ? calculateIRR(cfs, cfDates) : NaN;
+      mwrByGroup.set('Portfolio', irr);
+    }
 
     // Net gains per group (all time filtered)
     const netGainByGroup = new Map<string, number>();
