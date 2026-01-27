@@ -858,7 +858,7 @@ export default function DashboardHome() {
                           <div className="grid grid-cols-2 gap-2 mt-2">
                             <div className="text-center">
                               <p className="text-xs text-muted-foreground">Sub-Portfolio</p>
-                              <p className="text-sm font-bold">
+                              <p className="text-xl font-bold">
                                 {(() => {
                                   // Calculate sub-portfolio relative drift from target allocations
                                   const subPortfolioAllocations: { [key: string]: number } = {}
@@ -888,7 +888,7 @@ export default function DashboardHome() {
                             </div>
                             <div className="text-center">
                               <p className="text-xs text-muted-foreground">Asset</p>
-                              <p className="text-sm font-bold">
+                              <p className="text-xl font-bold">
                                 {(() => {
                                   const assetDrift = rebalancingData.totalValue > 0 
                                     ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
@@ -922,12 +922,11 @@ export default function DashboardHome() {
 
                       {/* Sub-Portfolios Table */}
                       <div>
-                        <h4 className="font-semibold mb-2">Sub-Portfolios</h4>
                         <div className="max-h-48 overflow-y-auto overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead className="text-center break-words">Name</TableHead>
+                                <TableHead className="text-center break-words">Sub-Portfolio</TableHead>
                                 <TableHead className="text-center break-words">Current Value</TableHead>
                                 <TableHead className="text-center break-words">Target Allocation</TableHead>
                                 <TableHead className="text-center break-words">Actual Allocation</TableHead>
@@ -1147,7 +1146,7 @@ export default function DashboardHome() {
                         <div className="grid grid-cols-2 gap-2 mt-2">
                           <div className="text-center">
                             <p className="text-xs text-muted-foreground">Sub-Portfolio</p>
-                            <p className="text-sm font-bold">
+                            <p className="text-xl font-bold">
                               {(() => {
                                 // Calculate sub-portfolio relative drift from target allocations
                                 const subPortfolioAllocations: { [key: string]: number } = {}
@@ -1177,7 +1176,7 @@ export default function DashboardHome() {
                           </div>
                           <div className="text-center">
                             <p className="text-xs text-muted-foreground">Asset</p>
-                            <p className="text-sm font-bold">
+                            <p className="text-xl font-bold">
                               {(() => {
                                 const assetDrift = rebalancingData.totalValue > 0 
                                   ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
@@ -1211,12 +1210,11 @@ export default function DashboardHome() {
 
                     {/* Sub-Portfolios Table */}
                     <div>
-                      <h4 className="font-semibold mb-2">Sub-Portfolios</h4>
                       <div className="max-h-48 overflow-y-auto overflow-x-auto">
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead className="text-center break-words">Name</TableHead>
+                              <TableHead className="text-center break-words">Sub-Portfolio</TableHead>
                               <TableHead className="text-center break-words">Current Value</TableHead>
                               <TableHead className="text-center break-words">Target Allocation</TableHead>
                               <TableHead className="text-center break-words">Actual Allocation</TableHead>
