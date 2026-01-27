@@ -19,6 +19,7 @@ import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances } from '@/lib/finance';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7'];
 
@@ -33,48 +34,7 @@ const LENSES = [
   { value: 'factor_tag', label: 'Factor' },
 ];
 
-function calculateIRR(cashFlows: number[], dates: Date[]): number {
-  // Sort by date just in case
-  const sorted = dates.map((d, i) => ({ d, cf: cashFlows[i] }))
-    .sort((a, b) => a.d.getTime() - b.d.getTime());
-  const sortedDates = sorted.map(({ d }) => d);
-  const sortedCashFlows = sorted.map(({ cf }) => cf);
-
-  // Newton-Raphson (increased iter, better guess)
-  let guess = 0.1;  // Start higher for growth portfolios
-  const maxIter = 1000;
-  const precision = 1e-8;
-  for (let i = 0; i < maxIter; i++) {
-    let npv = 0;
-    let dnpv = 0;
-    sortedCashFlows.forEach((cf, j) => {
-      const years = (sortedDates[j].getTime() - sortedDates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-      const denom = Math.pow(1 + guess, years);
-      npv += cf / denom;
-      dnpv -= years * cf / (denom * (1 + guess));
-    });
-    if (Math.abs(npv) < precision) return guess;
-    if (Math.abs(dnpv) < precision) break;  // Avoid div/0
-    guess -= npv / dnpv;
-    if (guess < -0.99 || guess > 50) break;  // Bound extreme - increased for high-growth assets
-  }
-
-  // Fallback to bisection if Newton fails
-  let low = -0.99;
-  let high = 20.0;  // Cap at 2000% for high-growth assets like crypto
-  for (let i = 0; i < 200; i++) {  // Increased iterations
-    const mid = (low + high) / 2;
-    let npv = 0;
-    sortedCashFlows.forEach((cf, j) => {
-      const years = (sortedDates[j].getTime() - sortedDates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-      npv += cf / Math.pow(1 + mid, years);
-    });
-    if (Math.abs(npv) < precision) return mid;
-    if (npv > 0) low = mid;
-    else high = mid;
-  }
-  return NaN;  // Still fail? Rare
-}
+// use centralized calculateIRR and normalizeTransactionToFlow from src/lib/finance
 
 // Portfolio Details Card Component - handles its own loading state
 function PortfolioDetailsCard({ lens, selectedValues, aggregate, refreshing }: {
@@ -365,59 +325,17 @@ export default function DashboardHome() {
           .order('date');
 
         if (transactionsData && transactionsData.length > 0) {
-          // Compute cash balances for terminal value
-          const cashBalances = new Map<string, number>()
-          transactionsData.forEach((tx: any) => {
-            if (!tx.account_id) return
-            const current = cashBalances.get(tx.account_id) || 0
-            let delta = 0
-            const amt = Number(tx.amount || 0)
-            const fee = Number(tx.fees || 0)
-            switch (tx.type) {
-              case 'Buy':
-                delta -= (Math.abs(amt) + fee)
-                break
-              case 'Sell':
-                delta += (amt - fee)
-                break
-              case 'Dividend':
-                delta += amt
-                break
-              case 'Interest':
-                delta += amt
-                break
-              case 'Deposit':
-                delta += amt
-                break
-              case 'Withdrawal':
-                delta -= Math.abs(amt)
-                break
-            }
-            const newBalance = current + delta
-            cashBalances.set(tx.account_id, newBalance)
-          })
-          const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
+          // Compute cash balances for terminal value using centralized helper
+          const { balances: cashBalances, totalCash } = calculateCashBalances(transactionsData);
 
-          // Calculate IRR cash flows
+          // Calculate IRR cash flows using canonical normalization
           const allCashFlows: number[] = [];
           const allFlowDates: Date[] = [];
-
           transactionsData.forEach((tx: any) => {
-            let flow = 0;
-            if (tx.type === 'Buy') {
-              flow = (tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Deposit') {
-              flow = (tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Withdrawal') {
-              flow = -(Math.abs(tx.amount || 0)) - (tx.fees || 0);
-            }
-            if (flow !== 0 && tx.date) {
-              const date = new Date(tx.date);
-              if (!isNaN(date.getTime())) {
-                allCashFlows.push(flow);
-                allFlowDates.push(date);
-              }
-            }
+            const date = new Date(tx.date);
+            if (isNaN(date.getTime())) return;
+            allCashFlows.push(normalizeTransactionToFlow(tx));
+            allFlowDates.push(date);
           });
 
           // Terminal value
@@ -598,59 +516,17 @@ export default function DashboardHome() {
           .order('date');
 
         if (transactionsData && transactionsData.length > 0) {
-          // Compute cash balances for terminal value
-          const cashBalances = new Map<string, number>()
-          transactionsData.forEach((tx: any) => {
-            if (!tx.account_id) return
-            const current = cashBalances.get(tx.account_id) || 0
-            let delta = 0
-            const amt = Number(tx.amount || 0)
-            const fee = Number(tx.fees || 0)
-            switch (tx.type) {
-              case 'Buy':
-                delta -= (Math.abs(amt) + fee)
-                break
-              case 'Sell':
-                delta += (amt - fee)
-                break
-              case 'Dividend':
-                delta += amt
-                break
-              case 'Interest':
-                delta += amt
-                break
-              case 'Deposit':
-                delta += amt
-                break
-              case 'Withdrawal':
-                delta -= Math.abs(amt)
-                break
-            }
-            const newBalance = current + delta
-            cashBalances.set(tx.account_id, newBalance)
-          })
-          const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
+          // Compute cash balances for terminal value using centralized helper
+          const { balances: cashBalances, totalCash } = calculateCashBalances(transactionsData);
 
-          // Calculate IRR cash flows
+          // Calculate IRR cash flows using canonical normalization
           const allCashFlows: number[] = [];
           const allFlowDates: Date[] = [];
-
           transactionsData.forEach((tx: any) => {
-            let flow = 0;
-            if (tx.type === 'Buy') {
-              flow = (tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Deposit') {
-              flow = (tx.amount || 0) - (tx.fees || 0);
-            } else if (tx.type === 'Withdrawal') {
-              flow = -(Math.abs(tx.amount || 0)) - (tx.fees || 0);
-            }
-            if (flow !== 0 && tx.date) {
-              const date = new Date(tx.date);
-              if (!isNaN(date.getTime())) {
-                allCashFlows.push(flow);
-                allFlowDates.push(date);
-              }
-            }
+            const date = new Date(tx.date);
+            if (isNaN(date.getTime())) return;
+            allCashFlows.push(normalizeTransactionToFlow(tx));
+            allFlowDates.push(date);
           });
 
           // Terminal value

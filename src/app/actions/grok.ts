@@ -3,6 +3,7 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
+import { calculateCashBalances } from '@/lib/finance';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -385,38 +386,8 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     .slice(0, 10) // Limit to 10 recent as original
     .map(tx => ({ type: tx.type, date: tx.date }));
 
-  // Compute cash balances
-  const cashBalances = new Map<string, number>()
-  transactions.forEach((tx: any) => {
-    if (!tx.account_id) return
-    const current = cashBalances.get(tx.account_id) || 0
-    let delta = 0
-    const amt = Number(tx.amount || 0)
-    const fee = Number(tx.fees || 0)
-    switch (tx.type) {
-      case 'Buy':
-        delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
-        break
-      case 'Sell':
-        delta += (amt - fee)  // increase cash balance by sale amount less fees
-        break
-      case 'Dividend':
-        delta += amt  // increase cash balance
-        break
-      case 'Interest':
-        delta += amt  // increase cash balance
-        break
-      case 'Deposit':
-        delta += amt  // increase cash balance
-        break
-      case 'Withdrawal':
-        delta -= Math.abs(amt)  // decrease cash balance
-        break
-    }
-    const newBalance = current + delta
-    cashBalances.set(tx.account_id, newBalance)
-  })
-  const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
+  // Compute cash balances using centralized helper
+  const { balances: cashBalances, totalCash } = calculateCashBalances(transactions);
 
   // Compute balances for accounts and currentValues for assets
   const accountBalances = new Map<string, number>();

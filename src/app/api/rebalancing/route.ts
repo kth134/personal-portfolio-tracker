@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { calculateCashBalances } from '@/lib/finance'
 import { NextRequest, NextResponse } from 'next/server'
 
 type TaxLot = {
@@ -62,39 +63,8 @@ export async function GET() {
       .gt('remaining_quantity', 0)
       .eq('user_id', user.id)
 
-    // Compute cash balances (same logic as portfolio page)
-    const cashBalances = new Map<string, number>()
-    transactions?.forEach((tx: any) => {
-      if (!tx.account_id) return
-      const current = cashBalances.get(tx.account_id) || 0
-      let delta = 0
-      const amt = Number(tx.amount || 0)
-      const fee = Number(tx.fees || 0)
-      switch (tx.type) {
-        case 'Buy':
-          delta -= (Math.abs(amt) + fee)  // deduct purchase amount and fee from cash balance
-          break
-        case 'Sell':
-          delta += (amt - fee)  // increase cash balance by sale amount less fees
-          break
-        case 'Dividend':
-          delta += amt  // increase cash balance
-          break
-        case 'Interest':
-          delta += amt  // increase cash balance
-          break
-        case 'Deposit':
-          delta += amt  // increase cash balance
-          break
-        case 'Withdrawal':
-          delta -= Math.abs(amt)  // decrease cash balance
-          break
-      }
-      const newBalance = current + delta
-      cashBalances.set(tx.account_id, newBalance)
-    })
-
-    const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
+    // Compute cash balances using centralized helper
+    const { balances: cashBalances, totalCash } = calculateCashBalances(transactions || [])
 
     // Fetch current holdings
     const { data: taxLotsData } = await supabase

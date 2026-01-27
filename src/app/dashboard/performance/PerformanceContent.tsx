@@ -30,49 +30,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances } from '@/lib/finance';
 
-function calculateIRR(cashFlows: number[], dates: Date[]): number {
-  // Sort by date just in case
-  const sorted = dates.map((d, i) => ({ d, cf: cashFlows[i] }))
-    .sort((a, b) => a.d.getTime() - b.d.getTime());
-  const sortedDates = sorted.map(({ d }) => d);
-  const sortedCashFlows = sorted.map(({ cf }) => cf);
-
-  // Newton-Raphson (increased iter, better guess)
-  let guess = 0.1;  // Start higher for growth portfolios
-  const maxIter = 1000;
-  const precision = 1e-8;
-  for (let i = 0; i < maxIter; i++) {
-    let npv = 0;
-    let dnpv = 0;
-    sortedCashFlows.forEach((cf, j) => {
-      const years = (sortedDates[j].getTime() - sortedDates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-      const denom = Math.pow(1 + guess, years);
-      npv += cf / denom;
-      dnpv -= years * cf / (denom * (1 + guess));
-    });
-    if (Math.abs(npv) < precision) return guess;
-    if (Math.abs(dnpv) < precision) break;  // Avoid div/0
-    guess -= npv / dnpv;
-    if (guess < -0.99 || guess > 50) break;  // Bound extreme - increased for high-growth assets
-  }
-
-  // Fallback to bisection if Newton fails
-  let low = -0.99;
-  let high = 20.0;  // Cap at 2000% for high-growth assets like crypto
-  for (let i = 0; i < 200; i++) {  // Increased iterations
-    const mid = (low + high) / 2;
-    let npv = 0;
-    sortedCashFlows.forEach((cf, j) => {
-      const years = (sortedDates[j].getTime() - sortedDates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-      npv += cf / Math.pow(1 + mid, years);
-    });
-    if (Math.abs(npv) < precision) return mid;
-    if (npv > 0) low = mid;
-    else high = mid;
-  }
-  return NaN;  // Still fail? Rare
-}
+// use centralized calculateIRR and normalizeTransactionToFlow from src/lib/finance
 
 const LENSES = [
   { value: 'asset', label: 'Asset' },
@@ -251,18 +211,8 @@ function PerformanceContent() {
 
         if (accountsError) throw accountsError;
 
-        // Compute cash balances using unified signed math: delta = amount - fees
-        // (amount sign indicates inflow/outflow; fees are always deducted)
-        const cashBalances = new Map<string, number>();
-        transactionsData.forEach((tx: any) => {
-          if (!tx.account_id) return;
-          const current = cashBalances.get(tx.account_id) || 0;
-          const amt = Number(tx.amount || 0);
-          const fee = Number(tx.fees || 0);
-          const delta = amt - fee;
-          cashBalances.set(tx.account_id, current + delta);
-        });
-        const totalCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0);
+        // Compute cash balances using centralized helper (portfolio canonical logic)
+        const { balances: cashBalances, totalCash } = calculateCashBalances(transactionsData || []);
 
         // Map cash by account name
         const cashByAccountName = new Map<string, number>()
@@ -508,21 +458,13 @@ function PerformanceContent() {
             const cashFlows: number[] = [];
             const flowDates: Date[] = [];
 
-            // Add transaction cash flows using unified signed math: flow = amount - fees
+            // Add transaction cash flows using canonical normalization
             groupTxs.forEach((tx: any) => {
-              const amt = Number(tx.amount || 0);
-              const fee = Number(tx.fees || 0);
-              // Only include transaction types that represent cash movements
-              if (['Buy', 'Sell', 'Deposit', 'Withdrawal', 'Dividend', 'Interest'].includes(tx.type)) {
-                const flow = amt - fee;
-                if (flow !== 0 && tx.date) {
-                  const date = new Date(tx.date);
-                  if (!isNaN(date.getTime())) {
-                    cashFlows.push(flow);
-                    flowDates.push(date);
-                  }
-                }
-              }
+              if (!['Buy', 'Sell', 'Deposit', 'Withdrawal', 'Dividend', 'Interest'].includes(tx.type)) return;
+              const date = new Date(tx.date);
+              if (isNaN(date.getTime())) return;
+              cashFlows.push(normalizeTransactionToFlow(tx));
+              flowDates.push(date);
             });
 
             // Add current market value as final cash flow
@@ -570,18 +512,11 @@ function PerformanceContent() {
           const allFlowDates: Date[] = [];
 
           transactionsData.forEach((tx: any) => {
-            const amt = Number(tx.amount || 0);
-            const fee = Number(tx.fees || 0);
-            if (['Buy', 'Sell', 'Deposit', 'Withdrawal', 'Dividend', 'Interest'].includes(tx.type)) {
-              const flow = amt - fee;
-              if (flow !== 0 && tx.date) {
-                const date = new Date(tx.date);
-                if (!isNaN(date.getTime())) {
-                  allCashFlows.push(flow);
-                  allFlowDates.push(date);
-                }
-              }
-            }
+            if (!['Buy', 'Sell', 'Deposit', 'Withdrawal', 'Dividend', 'Interest'].includes(tx.type)) return;
+            const date = new Date(tx.date);
+            if (isNaN(date.getTime())) return;
+            allCashFlows.push(normalizeTransactionToFlow(tx));
+            allFlowDates.push(date);
           });
 
           // Terminal value (what everything is worth today)

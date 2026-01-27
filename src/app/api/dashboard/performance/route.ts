@@ -1,25 +1,16 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { format, differenceInDays, parseISO } from 'date-fns';
+import { calculateIRR, normalizeTransactionToFlow } from '@/lib/finance';
 
-function calculateIRR(cashFlows: number[], dates: Date[]): number {
-  let guess = 0.1;
-  const maxIter = 100;
-  const precision = 1e-8;
-  for (let i = 0; i < maxIter; i++) {
-    let npv = 0;
-    let dnpv = 0;
-    cashFlows.forEach((cf, j) => {
-      const years = (dates[j].getTime() - dates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-      const denom = Math.pow(1 + guess, years);
-      npv += cf / denom;
-      dnpv -= years * cf / (denom * (1 + guess));
-    });
-    if (Math.abs(npv) < precision) return guess;
-    guess -= npv / dnpv;
-  }
-  return NaN;
-}
+/*
+  Notes (canonical conventions):
+  - Cash-flow normalization follows the rules in `src/lib/finance.ts` via
+    `normalizeTransactionToFlow` (buys/sells, deposits/withdrawals, fees handling).
+  - Grouping is performed by stable IDs (account.id, sub_portfolio.id, or explicit
+    tag values). Transactions are fetched with joined asset/account fields so
+    grouping/filtering is ID-based and unambiguous.
+*/
 
 export async function POST(req: Request) {
   try {
@@ -65,9 +56,22 @@ export async function POST(req: Request) {
       .gt('remaining_quantity', 0)
       .eq('user_id', user.id);
 
+    // Fetch transactions joined with asset and account metadata so we can
+    // group and filter by IDs server-side (single query, then group in-memory).
     let txQuery = supabase
       .from('transactions')
-      .select('date, type, amount, fees, realized_gain, asset_id')
+      .select(`
+        id,
+        date,
+        type,
+        amount,
+        fees,
+        realized_gain,
+        funding_source,
+        notes,
+        asset:assets (id, ticker, sub_portfolio_id, asset_type, asset_subtype, geography, size_tag, factor_tag),
+        account:accounts (id, name)
+      `)
       .gte('date', start)
       .lte('date', end)
       .eq('user_id', user.id);
@@ -181,39 +185,58 @@ export async function POST(req: Request) {
       return NextResponse.json({ series: [], lines: [], metrics: [], benchmarks: null });
     }
 
-    // Group lots by lens key
-    const groups = new Map<string, any[]>();
+    // Group lots by lens using IDs for correctness. Keep a display name map
+    // so the UI still receives readable labels while we filter/group by IDs.
+    const groups = new Map<string, { name: string; lots: any[] }>();
+    const groupMeta = new Map<string, string>(); // id -> display name
+
     lotsTyped.forEach(lot => {
-      let key = 'Portfolio';
+      let idKey = 'portfolio';
+      let display = 'Portfolio';
       if (lens !== 'total') {
         switch (lens) {
-          case 'sub_portfolio': key = lot.asset.sub_portfolio?.name || 'Untagged'; break;
-          case 'account': key = lot.account?.name || 'Untagged'; break;
-          default: key = lot.asset[lens] || 'Untagged';
+          case 'sub_portfolio':
+            idKey = String(lot.asset?.sub_portfolio?.id ?? 'unassigned');
+            display = lot.asset?.sub_portfolio?.name ?? 'Untagged';
+            break;
+          case 'account':
+            idKey = String(lot.account?.id ?? 'unassigned');
+            display = lot.account?.name ?? 'Untagged';
+            break;
+          default:
+            // For tag-like lenses (strings on the asset), use the tag value as the id/display.
+            idKey = String(lot.asset?.[lens] ?? 'Untagged');
+            display = idKey;
         }
       }
-      if (!selectedValues.includes(key) && lens !== 'total') return; // filter
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(lot);
+
+      // If the caller passed selectedValues, treat them as IDs (or tag values)
+      if (lens !== 'total' && Array.isArray(selectedValues) && selectedValues.length > 0 && !selectedValues.includes(idKey)) return;
+
+      if (!groups.has(idKey)) {
+        groups.set(idKey, { name: display, lots: [] });
+        groupMeta.set(idKey, display);
+      }
+      groups.get(idKey)!.lots.push(lot);
     });
 
     // Compute daily values per group
     const groupValues = new Map<string, number[]>();
-    groups.forEach((groupLots, key) => {
+    groups.forEach(({ lots: groupLots }, key) => {
       const values = dates.map(date => {
         return groupLots.reduce((sum, lot) => {
           const series = historicalData[lot.asset.ticker] || [];
           let price = series.find(p => p.date === date)?.close || 0;
           if (price === 0) {
-            // Forward fill
-            for (let i = series.findIndex(p => p.date >= date); i >= 0; i--) {
-              if (series[i]) {
+            // Forward fill: find the most recent available price up to this date
+            for (let i = series.length - 1; i >= 0; i--) {
+              if (series[i].date <= date) {
                 price = series[i].close;
                 break;
               }
             }
           }
-          return sum + lot.remaining_quantity * price;
+          return sum + (Number(lot.remaining_quantity) || 0) * price;
         }, 0);
       });
       groupValues.set(key, values);
@@ -234,37 +257,61 @@ export async function POST(req: Request) {
       twrByGroup.set(key, init > 0 ? (vals[vals.length - 1] / init) - 1 : 0);
     });
 
-    // MWR per group (cash flows + final value)
+    // MWR per group (cash flows + final value) — normalize flows and use centralized IRR
     const mwrByGroup = new Map<string, number>();
+    // Group transactions by the same ID keys so MWR includes only group-relevant flows.
+    const txsByGroup = new Map<string, any[]>();
+    (transactions || []).forEach((tx: any) => {
+      // Determine tx's group id according to the lens (use joined asset/account fields)
+      let txGroupId = 'portfolio';
+      if (lens !== 'total') {
+        switch (lens) {
+          case 'sub_portfolio':
+            txGroupId = String(tx.asset?.sub_portfolio_id ?? 'unassigned');
+            break;
+          case 'account':
+            txGroupId = String(tx.account?.id ?? 'unassigned');
+            break;
+          default:
+            txGroupId = String(tx.asset?.[lens] ?? 'Untagged');
+        }
+      }
+      // Only include transactions for groups we care about (selectedValues filter applied earlier to lots)
+      if (groups.has(txGroupId)) {
+        if (!txsByGroup.has(txGroupId)) txsByGroup.set(txGroupId, []);
+        txsByGroup.get(txGroupId)!.push(tx);
+      }
+    });
+
     groups.forEach((_, key) => {
-      const groupTx = (transactions || []).filter((tx: any) => {
-        // Approximate filter - in real app, join properly
-        return true; // refine with asset tag match
+      const groupTx = txsByGroup.get(key) || [];
+
+      const cfs: number[] = [];
+      const cfDates: Date[] = [];
+      groupTx.forEach((tx: any) => {
+        const d = parseISO(tx.date);
+        if (isNaN(d.getTime())) return;
+        cfs.push(normalizeTransactionToFlow(tx));
+        cfDates.push(d);
       });
-      const cfs = groupTx.map((tx: any) => {
-        let f = 0;
-        if (tx.type === 'Buy') f = tx.amount || 0;
-        if (tx.type === 'Sell') f = tx.amount || 0;
-        if (tx.type === 'Dividend') f = tx.amount || 0;
-        if (tx.type === 'Deposit') f = tx.amount || 0;
-        if (tx.type === 'Withdrawal') f = -(Math.abs(tx.amount || 0));
-        f -= (tx.fees || 0);
-        return f;
-      });
+
       const finalVal = finalByGroup.get(key) || 0;
       cfs.push(finalVal);
-      const cfDates = [...groupTx.map((t: any) => parseISO(t.date)), endDate];
-      const irr = calculateIRR(cfs, cfDates);
-      mwrByGroup.set(key, isNaN(irr) ? 0 : irr);
+      cfDates.push(endDate);
+
+      const irr = cfs.length > 1 ? calculateIRR(cfs, cfDates) : NaN;
+      mwrByGroup.set(key, irr); // may be NaN — handle fallback when producing metrics
     });
 
     // Net gains per group (all time filtered)
     const netGainByGroup = new Map<string, number>();
-    groups.forEach((groupLots, key) => {
-      const unreal = finalByGroup.get(key)! - groupLots.reduce((sum, l) => sum + l.remaining_quantity * l.cost_basis_per_unit, 0);
-      const realized = (transactions || []).reduce((sum: number, t: any) => sum + (t.realized_gain || 0), 0);
-      const div = (transactions || []).filter((t: any) => t.type === 'Dividend' || t.type === 'Interest').reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
-      const fees = (transactions || []).reduce((sum: number, t: any) => sum + Math.abs(t.fees || 0), 0);
+    // Compute net gains per group using only transactions assigned to that group
+    groups.forEach(({ lots: groupLots }, key) => {
+      const unreal = (finalByGroup.get(key) || 0) - groupLots.reduce((sum, l) => sum + (Number(l.remaining_quantity) || 0) * Number(l.cost_basis_per_unit || 0), 0);
+      const groupTxs = txsByGroup.get(key) || [];
+      const realized = groupTxs.reduce((sum: number, t: any) => sum + (t.realized_gain || 0), 0);
+      const div = groupTxs.filter((t: any) => t.type === 'Dividend' || t.type === 'Interest').reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+      const fees = groupTxs.reduce((sum: number, t: any) => sum + Math.abs(Number(t.fees) || 0), 0);
       netGainByGroup.set(key, unreal + realized + div - fees);
     });
 
@@ -292,8 +339,22 @@ export async function POST(req: Request) {
 
     const keys = aggregate && groups.size > 1 ? ['Portfolio'] : Array.from(groups.keys());
     keys.forEach(key => {
-      const totalReturn = metric === 'twr' ? twrByGroup.get(key) || 0 : mwrByGroup.get(key) || 0;
-      const annualized = years > 0 ? Math.pow(1 + totalReturn, 1 / years) - 1 : totalReturn;
+      const twrVal = twrByGroup.get(key) || 0;
+      const mwrVal = mwrByGroup.get(key); // may be NaN
+
+      // Determine totalReturn for display purposes (keep previous behavior: twr is multi-period return)
+      const totalReturn = metric === 'twr' ? twrVal : (!isNaN(mwrVal as number) ? (mwrVal as number) : twrVal);
+
+      // Annualized: if TWR metric, annualize the multi-period totalReturn; if MWR metric, use IRR (already annual).
+      let annualized: number;
+      if (metric === 'twr') {
+        annualized = years > 0 ? Math.pow(1 + twrVal, 1 / years) - 1 : twrVal;
+      } else {
+        // MWR
+        if (!isNaN(mwrVal as number)) annualized = mwrVal as number;
+        else annualized = years > 0 ? Math.pow(1 + twrVal, 1 / years) - 1 : twrVal; // fallback
+      }
+
       lines.push({ key, name: key });
       metrics.push({
         key,

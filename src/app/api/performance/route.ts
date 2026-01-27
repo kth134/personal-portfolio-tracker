@@ -3,42 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { subDays, subMonths, subYears, format, differenceInDays } from 'date-fns';
 import { POST as historicalPOST } from '../historical-prices/route';
+import { calculateIRR, normalizeTransactionToFlow } from '@/lib/finance';
 
-function calculateIRR(cashFlows: number[], dates: Date[]): number {
-  let guess = 0.1;
-  const maxIter = 1000;  // Increased iterations
-  const precision = 1e-8;
-  for (let i = 0; i < maxIter; i++) {
-    let npv = 0;
-    let dnpv = 0;
-    cashFlows.forEach((cf, j) => {
-      const years = (dates[j].getTime() - dates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-      const denom = Math.pow(1 + guess, years);
-      npv += cf / denom;
-      dnpv -= years * cf / (denom * (1 + guess));
-    });
-    if (Math.abs(npv) < precision) return guess;
-    if (Math.abs(dnpv) < precision) break;  // Avoid div/0
-    guess -= npv / dnpv;
-    if (guess < -0.99 || guess > 50) break;  // Increased bound
-  }
-  
-  // Fallback to bisection
-  let low = -0.99;
-  let high = 20.0;  // Increased for high-growth assets
-  for (let i = 0; i < 200; i++) {
-    const mid = (low + high) / 2;
-    let npv = 0;
-    cashFlows.forEach((cf, j) => {
-      const years = (dates[j].getTime() - dates[0].getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-      npv += cf / Math.pow(1 + mid, years);
-    });
-    if (Math.abs(npv) < precision) return mid;
-    if (npv > 0) low = mid;
-    else high = mid;
-  }
-  return NaN;
-}
+// use centralized calculateIRR from src/lib/finance
 
 export async function POST(request: Request) {
   try {
@@ -233,28 +200,46 @@ export async function POST(request: Request) {
     const totalReturn = initialValue > 0 ? (currentValue / initialValue) - 1 : 0;
     const twr = totalReturn;
 
-    const cashFlows = transactions.map(tx => {
-      let f = 0;
-      if (tx.type === 'Buy') f = tx.amount || 0;
-      if (tx.type === 'Sell') f = tx.amount || 0;
-      if (tx.type === 'Dividend') f = tx.amount || 0;
-      if (tx.type === 'Deposit') f = tx.amount || 0;
-      if (tx.type === 'Withdrawal') f = -(Math.abs(tx.amount || 0));
-      f -= (tx.fees || 0);
-      return f;
+    // Build cash flows and matching dates (only include tx with valid dates)
+    const cashFlows: number[] = [];
+    const flowDates: Date[] = [];
+    transactions.forEach((tx: any) => {
+      const date = new Date(tx.date);
+      if (isNaN(date.getTime())) return;
+      cashFlows.push(normalizeTransactionToFlow(tx));
+      flowDates.push(date);
     });
-    cashFlows.push(currentValue);
 
-    const flowDates = transactions.map(t => new Date(t.date)).filter(d => !isNaN(d.getTime()));
-    flowDates.push(today);
+    // Terminal value
+    if (cashFlows.length >= 0) {
+      cashFlows.push(currentValue);
+      flowDates.push(today);
+    }
 
-    const mwr = cashFlows.length > 1 && flowDates.length === cashFlows.length && !isNaN(calculateIRR(cashFlows, flowDates))
-      ? calculateIRR(cashFlows, flowDates)
-      : totalReturn;
+    // Compute MWR (IRR) using centralized solver. calculateIRR returns an annual rate (decimal).
+    const irrVal = cashFlows.length > 1 ? calculateIRR(cashFlows, flowDates) : NaN;
+    const mwr = !isNaN(irrVal) ? irrVal : NaN;
 
-    const finalReturn = metricType === 'twr' ? twr : mwr;
     const years = differenceInDays(today, startDate) / 365.25;
-    const annualized = years > 0 ? Math.pow(1 + finalReturn, 1 / years) - 1 : finalReturn;
+
+    // Final annualized metric: TWR must be annualized from multi-period total return;
+    // MWR (IRR) is already an annual rate returned by calculateIRR. If IRR fails, fall back to annualized TWR.
+    let annualized: number;
+    if (metricType === 'twr') {
+      annualized = years > 0 ? Math.pow(1 + twr, 1 / years) - 1 : twr;
+    } else {
+      if (!isNaN(mwr)) {
+        annualized = mwr;
+      } else {
+        // Fallback: derive annualized from totalReturn
+        annualized = years > 0 ? Math.pow(1 + totalReturn, 1 / years) - 1 : totalReturn;
+      }
+    }
+
+    // Return a consistent `totalReturn` field similar to previous behavior:
+    // - for TWR metric return multi-period TWR
+    // - for MWR metric return the IRR (annual) when available, else fallback to multi-period totalReturn
+    const finalReturn = metricType === 'twr' ? twr : (!isNaN(mwr) ? mwr : totalReturn);
 
     return NextResponse.json({
       totalReturn: finalReturn,

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { calculateCashBalances } from '@/lib/finance'
 import { redirect } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AccountsList from '@/components/AccountsList'
@@ -54,31 +55,8 @@ export default async function PortfolioPage() {
   const initialAssets = assetsRes.data || []
   const transactions = transactionsRes.data || []
 
-  // Compute cash using transaction-centric unified signed math.
-  // Portfolio total includes all transactions; per-account balances only include transactions tied to that account.
-  const cashBalances = new Map<string, number>()
-
-  // First compute per-account balances by summing (amount - fees) for transactions with an account_id
-  // Use transaction-type-aware cash delta:
-  // - Buys/Sells: `amount` is already the net cash delta (fees included when created)
-  // - Dividend/Interest/Deposit/Withdrawal: `amount` is stored as gross, so net = amount - |fees|
-  const txCashDelta = (tx: any) => {
-    const amt = Number(tx.amount || 0)
-    const fee = Math.abs(Number(tx.fees || 0))
-    if (tx.type === 'Buy' || tx.type === 'Sell') return amt
-    if (tx.type === 'Dividend' || tx.type === 'Interest' || tx.type === 'Deposit' || tx.type === 'Withdrawal') return amt - fee
-    return amt
-  }
-
-  transactions.forEach((tx: any) => {
-    const acctId = tx.account_id
-    if (!acctId) return
-    const current = cashBalances.get(acctId) || 0
-    cashBalances.set(acctId, current + txCashDelta(tx))
-  })
-
-  // Total portfolio cash should include all transactions (including those not tied to an account)
-  const totalCash = transactions.reduce((sum: number, tx: any) => sum + txCashDelta(tx), 0)
+  // Compute cash balances using centralized helper to ensure canonical behavior
+  const { balances: cashBalances, totalCash } = calculateCashBalances(transactions || [])
 
   // Map cash by account name for account-specific display
   const cashByAccountName = new Map<string, number>()

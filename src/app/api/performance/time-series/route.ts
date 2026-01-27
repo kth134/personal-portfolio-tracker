@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { endOfMonth, startOfMonth, addMonths, parseISO, isAfter, format, formatISO } from 'date-fns'
+import { calculateCashBalances } from '@/lib/finance'
 
 export async function POST(req: Request) {
   try {
@@ -111,35 +112,8 @@ export async function POST(req: Request) {
       for (const [groupKey, { tx: groupTxs, lots: groupLots }] of groups) {
         if (!series[groupKey]) series[groupKey] = []
 
-        // Cash balances (from PerformanceContent)
-        const cashBalances = new Map<string, number>()
-        groupTxs.forEach((tx: any) => {
-          if (!tx.account_id) return
-          const current = cashBalances.get(tx.account_id) || 0
-          let delta = 0
-          const amt = Number(tx.amount || 0)
-          const fee = Number(tx.fees || 0)
-          switch (tx.type) {
-            case 'Buy':
-              delta -= (Math.abs(amt) + fee)
-              break
-            case 'Sell':
-              delta += (amt - fee)
-              break
-            case 'Dividend':
-            case 'Interest':
-              delta += amt
-              break
-            case 'Deposit':
-              delta += amt
-              break
-            case 'Withdrawal':
-              delta -= Math.abs(amt)
-              break
-          }
-          cashBalances.set(tx.account_id, current + delta)
-        })
-        const groupCash = Array.from(cashBalances.values()).reduce((sum, bal) => sum + bal, 0)
+        // Cash balances using centralized helper
+        const { balances: cashBalances, totalCash: groupCash } = calculateCashBalances(groupTxs)
 
         // Total original investment (sum cost from all lots <= d)
         const groupOriginalInvestment = groupLots.reduce((sum, lot) => 
