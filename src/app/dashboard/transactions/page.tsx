@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllUserTransactionsServer } from '@/lib/finance'
 import { redirect } from 'next/navigation'
 import TransactionManagement from '../../../components/TransactionManagement'
 
@@ -47,7 +48,102 @@ export default async function TransactionManagementPage({
     throw new Error('Failed to fetch transactions')
   }
 
-  const transactions = (batchTransactions || []).slice(from - batchFrom, from - batchFrom + pageSize)
+  let transactions = (batchTransactions || []).slice(from - batchFrom, from - batchFrom + pageSize)
+
+  // Fallback: if the batch query returned no rows (some proxies cap ranges),
+  // perform a deterministic keyset traversal in reasonably-sized chunks to
+  // reach the requested offset without loading all rows into memory.
+  if ((!batchTransactions || batchTransactions.length === 0) && (transactionsCount || 0) > 0) {
+    const chunk = 200 // traverse in 200-row keyset chunks
+    let skipped = 0
+    let cursorDate: string | null = null
+    let cursorId: string | null = null
+    let reached = false
+
+    // helper to build keyset-filtered query
+    const buildChunkQuery = (q: any) => {
+      q = q.limit(chunk)
+      if (cursorDate && cursorId) {
+        // Use PostgREST OR filter to get rows with date < cursorDate OR (date = cursorDate AND id < cursorId)
+        // Format: or(date.lt.<cursorDate>,and(date.eq.<cursorDate>,id.lt.<cursorId>))
+        const filter = `or(date.lt.${cursorDate},and(date.eq.${cursorDate},id.lt.${cursorId}))`
+        q = q.or(filter)
+      }
+      return q
+    }
+
+    while (!reached) {
+      let q = supabase
+        .from('transactions')
+        .select(`
+          id,
+          date
+        `)
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+        .order('id', { ascending: false })
+
+      q = buildChunkQuery(q)
+
+      const { data: chunkRows, error: chunkErr } = await q
+      if (chunkErr) {
+        console.error('keyset traversal error', chunkErr)
+        break
+      }
+
+      if (!chunkRows || chunkRows.length === 0) break
+
+      // If skipping this chunk would still be before desired offset, advance cursor
+      if (skipped + chunkRows.length <= from) {
+        skipped += chunkRows.length
+        const last = chunkRows[chunkRows.length - 1]
+        cursorDate = last.date
+        cursorId = last.id
+        continue
+      }
+
+      // We've reached the chunk that contains the first row of the desired page.
+      // Use the cursor to fetch the page-sized set starting at the appropriate position.
+      // Build filter to fetch rows older than current cursor (if set), then slice locally.
+      const needToSkipInChunk = Math.max(0, from - skipped)
+
+      // Fetch the full chunk (including the portion we may need to slice out)
+      // but include requested fields for display
+      let q2 = supabase
+        .from('transactions')
+        .select(`
+          *,
+          account:accounts (name, type),
+          asset:assets (ticker, name)
+        `)
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+        .order('id', { ascending: false })
+
+      if (cursorDate && cursorId) {
+        const filter = `or(date.lt.${cursorDate},and(date.eq.${cursorDate},id.lt.${cursorId}))`
+        q2 = q2.or(filter)
+      }
+
+      q2 = q2.limit(chunk)
+      const { data: pageChunk, error: pageChunkErr } = await q2
+      if (pageChunkErr) {
+        console.error('keyset page fetch error', pageChunkErr)
+        break
+      }
+
+      const sliceStart = needToSkipInChunk
+      const sliceEnd = sliceStart + pageSize
+      transactions = (pageChunk || []).slice(sliceStart, sliceEnd)
+      reached = true
+    }
+
+    // As a final safety, if traversal failed to produce rows, fallback to full server fetch
+    if ((!transactions || transactions.length === 0) && (transactionsCount || 0) > 0) {
+      const all = await fetchAllUserTransactionsServer(supabase, user.id)
+      transactions = (all || []).slice(from, from + pageSize)
+    }
+  }
 
   // Get total count for tax lots separately
   const { count: taxLotsCount } = await supabase
