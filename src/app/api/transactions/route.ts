@@ -40,10 +40,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'Query failed' }, { status: 500 });
       }
       const txs = transactions || [];
-      const countsByType: Record<string, number> = {};
-      txs.forEach((t: any) => { countsByType[t.type] = (countsByType[t.type] || 0) + 1; });
-      console.debug('transactions counts by type (range):', countsByType);
-      return NextResponse.json({ transactions: txs, debug: { countsByType } });
+      return NextResponse.json({ transactions: txs });
     }
 
     // No start/end: page through all transactions in batches to avoid server-side caps
@@ -79,10 +76,7 @@ export async function GET(req: Request) {
     }
 
     const transactions = allTransactions;
-    const countsByType: Record<string, number> = {};
-    transactions.forEach((t: any) => { countsByType[t.type] = (countsByType[t.type] || 0) + 1; });
-    console.debug('transactions counts by type (paged):', countsByType);
-    return NextResponse.json({ transactions, debug: { countsByType } });
+    return NextResponse.json({ transactions });
   } catch (err) {
     console.error('transactions route error', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

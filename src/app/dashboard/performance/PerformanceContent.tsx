@@ -182,23 +182,7 @@ function PerformanceContent() {
         const txJson = await txRes.json();
         const transactionsData = txJson?.transactions || [];
 
-        try {
-          console.debug('transactionsData fetched count:', transactionsData?.length, 'sample:', (transactionsData || []).slice(0,10));
-          // Targeted check for the known sell transaction that was missing
-          try {
-            const searchId = 'b26e135c-97a3-44c1-a6b1-c4aa1ebaf864';
-            const foundById = (transactionsData || []).find((t: any) => t.id === searchId);
-            const foundByAmountDate = (transactionsData || []).find((t: any) => {
-              return Number(t.amount) >= 49999.89 && Number(t.amount) <= 49999.9 && String(t.date).startsWith('2025-10-17');
-            });
-            console.debug('search sell by id result:', foundById);
-            console.debug('search sell by amount/date result:', foundByAmountDate);
-          } catch (e2) {
-            /* ignore */
-          }
-        } catch (e) {
-          /* ignore */
-        }
+        // fetched transactions for IRR calculations
 
         // Fetch accounts for cash calculation
         const { data: accountsData, error: accountsError } = await supabase
@@ -451,18 +435,7 @@ function PerformanceContent() {
           let annualizedReturnPct = 0;
           let irrSkipped = false;
           const groupTxs = transactionsByGroup.get(row.grouping_id) || [];
-          // TEMP DEBUG: log raw transactions for this group to help diagnose missing flows
-          try {
-            console.debug('raw groupTxs for', row.grouping_id, (groupTxs || []).map((t: any) => ({
-              id: t?.id,
-              type: t?.type,
-              amount: t?.amount,
-              asset_id: t?.asset_id || (Array.isArray(t?.asset) ? t.asset[0]?.id : t?.asset?.id),
-              date: t?.date,
-            })));
-          } catch (e) {
-            // swallow - debugging only
-          }
+          // raw group transactions used for IRR
           if (groupTxs.length > 0 || metrics.marketValue > 0) {
             const cashFlows: number[] = [];
             const flowDates: Date[] = [];
