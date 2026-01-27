@@ -203,6 +203,12 @@ function PerformanceContent() {
 
         if (txError) throw txError;
 
+        try {
+          console.debug('transactionsData fetched count:', transactionsData?.length, 'sample:', (transactionsData || []).slice(0,10));
+        } catch (e) {
+          /* ignore */
+        }
+
         // Fetch accounts for cash calculation
         const { data: accountsData, error: accountsError } = await supabase
           .from('accounts')
