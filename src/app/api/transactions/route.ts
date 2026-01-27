@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     const start = searchParams.get('start');
     const end = searchParams.get('end');
 
-    const pageSize = 1000;
+    const pageSize = 500;
     const allTransactions: any[] = [];
 
     // If start/end provided, do a single ranged query covering that window.
