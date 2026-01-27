@@ -47,7 +47,12 @@ export default async function PortfolioPage() {
       .eq('user_id', user.id),
     supabase.from('accounts').select('*').eq('user_id', user.id),
     supabase.from('assets').select('*').eq('user_id', user.id),
-    supabase.from('transactions').select('*').eq('user_id', user.id)
+    // Fetch all transactions using paginated API for comprehensive cash calculations
+    (async () => {
+      const txRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/transactions?start=&end=`);
+      const txJson = await txRes.json();
+      return { data: txJson?.transactions || [], error: txRes.ok ? null : new Error(txJson?.error || 'Failed to fetch transactions') };
+    })()
   ])
 
   const lots = lotsRes.data as TaxLot[] | null

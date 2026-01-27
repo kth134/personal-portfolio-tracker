@@ -233,14 +233,11 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     .gt('remaining_quantity', 0) as { data: TaxLotSimple[] | null, error: any };
   if (lotsError) throw lotsError;
 
-  // Fetch transactions (full history, but limit to last 100 for sanity; add param if needed)
-  const { data: transactions, error: txError } = await supabase
-    .from('transactions')
-    .select('id, account_id, asset_id, type, date, quantity, price_per_unit, fees, notes')
-    .eq('user_id', userId)
-    .order('date', { ascending: false })
-    .limit(100); // Adjustable; full could be too much
-  if (txError) throw txError;
+  // Fetch transactions (full history using paginated API for comprehensive cash calculations)
+  const txRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/transactions?start=&end=`);
+  const txJson = await txRes.json();
+  const transactions: any[] = txJson?.transactions || [];
+  if (!txRes.ok) throw new Error(`Failed to fetch transactions: ${txJson?.error || 'Unknown error'}`);
 
   // Fetch glide_path (full)
   let glidePath: GlidePathItem[] = [];

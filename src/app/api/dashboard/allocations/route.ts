@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { fetchAllUserTransactions } from '@/lib/finance';
 
 interface Asset {
   id: string;
@@ -160,11 +161,17 @@ if (lens !== 'total' && selectedValues?.length > 0) {
       }
     });
 
-    // Fetch transactions for realized/dividends/fees (all time, filtered if needed)
-    const { data: transactions } = await supabase
-      .from('transactions')
-      .select('asset_id, realized_gain, amount, fees, type')
-      .eq('user_id', user.id);
+    // Fetch all transactions for realized/dividends/fees using centralized pagination
+    const allTransactions = await fetchAllUserTransactions(process.env.NEXT_PUBLIC_SITE_URL);
+
+    // Filter transactions for the required fields
+    const transactions = allTransactions.map(tx => ({
+      asset_id: tx.asset_id,
+      realized_gain: tx.realized_gain,
+      amount: tx.amount,
+      fees: tx.fees,
+      type: tx.type
+    }));
 
     // Aggregate net gains by asset_id
     // Note: `realized_gain` for Sell transactions is calculated server-side and already nets fees.

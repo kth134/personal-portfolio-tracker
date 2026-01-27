@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { endOfMonth, startOfMonth, addMonths, parseISO, isAfter, format, formatISO } from 'date-fns'
-import { calculateCashBalances } from '@/lib/finance'
+import { calculateCashBalances, fetchAllUserTransactions } from '@/lib/finance'
 
 export async function POST(req: Request) {
   try {
@@ -12,18 +12,14 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { lens, selectedValues, aggregate, benchmarks } = body
 
-    // Base queries (full data, will filter per date later)
-    const txQuery = supabase.from('transactions').select(`
-      date, type, amount, fees, funding_source, notes, asset_id, account_id, realized_gain,
-      asset:assets (id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolio_id)
-    `).eq('user_id', user.id).order('date')
+    // Fetch all transactions using centralized pagination
+    const allTx = await fetchAllUserTransactions(process.env.NEXT_PUBLIC_SITE_URL)
 
     const lotsQuery = supabase.from('tax_lots').select(`
       asset_id, account_id, purchase_date, remaining_quantity, cost_basis_per_unit, quantity,
       asset:assets (id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolio_id)
     `).eq('user_id', user.id)
 
-    const { data: allTx } = await txQuery
     const { data: allLots } = await lotsQuery
 
     console.log('Fetched transactions count:', allTx?.length || 0);

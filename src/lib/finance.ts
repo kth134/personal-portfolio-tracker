@@ -225,3 +225,19 @@ export function calculateCashBalances(transactions: any[]): { balances: Map<stri
   const totalCash = Array.from(cashBalances.values()).reduce((s, v) => s + v, 0);
   return { balances: cashBalances, totalCash };
 }
+
+/**
+ * Centralized function to fetch all transactions for a user using pagination.
+ * This ensures consistent handling of large transaction datasets across the application.
+ * @param siteUrl - The base URL of the application (for API calls)
+ * @returns Promise resolving to array of transaction objects
+ */
+export async function fetchAllUserTransactions(siteUrl: string = 'http://localhost:3000'): Promise<any[]> {
+  const txRes = await fetch(`${siteUrl}/api/transactions?start=&end=`);
+  const txJson = await txRes.json();
+  if (!txRes.ok) {
+    throw new Error(`Failed to fetch transactions: ${txJson?.error || 'Unknown error'}`);
+  }
+  return txJson?.transactions || [];
+}
+
