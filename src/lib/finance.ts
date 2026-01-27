@@ -136,6 +136,19 @@ export function netCashFlowsByDate(cashFlows: number[], dates: Date[]): { netFlo
 }
 
 /**
+ * Produce the cash flow value to use for IRR for a given transaction.
+ * - Uses `normalizeTransactionToFlow` then applies IRR sign conventions:
+ *   - Deposits are investor contributions and should be negative for IRR
+ *   - Withdrawals are distributions and should be positive for IRR
+ */
+export function transactionFlowForIRR(tx: { type?: string; amount?: any; fees?: any }): number {
+  const base = normalizeTransactionToFlow(tx);
+  const t = (tx?.type || '').toString();
+  if (t === 'Deposit' || t === 'Withdrawal') return -base;
+  return base;
+}
+
+/**
  * Normalize a transaction record into a signed cash flow value following
  * the project's canonical convention:
  *

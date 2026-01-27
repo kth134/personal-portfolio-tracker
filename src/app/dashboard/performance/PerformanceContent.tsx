@@ -30,7 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, formatCashFlowsDebug, netCashFlowsByDate } from '@/lib/finance';
+import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, formatCashFlowsDebug, netCashFlowsByDate, transactionFlowForIRR } from '@/lib/finance';
 
 // use centralized calculateIRR and normalizeTransactionToFlow from src/lib/finance
 
@@ -472,7 +472,7 @@ function PerformanceContent() {
               }
               const date = new Date(tx.date);
               if (isNaN(date.getTime())) return;
-              txFlows.push(normalizeTransactionToFlow(tx));
+              txFlows.push(transactionFlowForIRR(tx));
               txDates.push(date);
             });
 
@@ -538,7 +538,7 @@ function PerformanceContent() {
             if (!externalTypes.includes(tx.type)) return; // total IRR considers external flows only
             const date = new Date(tx.date);
             if (isNaN(date.getTime())) return;
-            txFlows.push(normalizeTransactionToFlow(tx));
+            txFlows.push(transactionFlowForIRR(tx));
             txDates.push(date);
           });
 

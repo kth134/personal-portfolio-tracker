@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { format, differenceInDays, parseISO } from 'date-fns';
-import { calculateIRR, normalizeTransactionToFlow, logCashFlows, netCashFlowsByDate } from '@/lib/finance';
+import { calculateIRR, normalizeTransactionToFlow, logCashFlows, netCashFlowsByDate, transactionFlowForIRR } from '@/lib/finance';
 
 /*
   Notes (canonical conventions):
@@ -330,7 +330,7 @@ export async function POST(req: Request) {
         }
         const d = parseISO(tx.date);
         if (isNaN(d.getTime())) return;
-        txFlows.push(normalizeTransactionToFlow(tx));
+        txFlows.push(transactionFlowForIRR(tx));
         txDates.push(d);
       });
 
@@ -361,7 +361,7 @@ export async function POST(req: Request) {
         if (!externalTypes.includes(tx.type)) return;
         const d = parseISO(tx.date);
         if (isNaN(d.getTime())) return;
-        cfs.push(normalizeTransactionToFlow(tx));
+        cfs.push(transactionFlowForIRR(tx));
         cfDates.push(d);
       });
       // Net same-day flows
