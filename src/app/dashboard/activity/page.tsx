@@ -11,8 +11,15 @@ export default async function ActivityPage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
-
   const page = Math.max(1, parseInt(searchParams.page as string) || 1)
+  const tab = (searchParams.tab as string) || undefined
+
+  // If caller requested the `transactions` tab via the activity route,
+  // redirect to the canonical `/dashboard/transactions` route so server-side
+  // pagination and fallbacks run consistently.
+  if (tab === 'transactions') {
+    redirect(`/dashboard/transactions?page=${page}`)
+  }
   const pageSize = 100
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
