@@ -3,7 +3,7 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
-import { calculateCashBalances } from '@/lib/finance';
+import { calculateCashBalances, fetchAllUserTransactionsServer } from '@/lib/finance';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -233,11 +233,8 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     .gt('remaining_quantity', 0) as { data: TaxLotSimple[] | null, error: any };
   if (lotsError) throw lotsError;
 
-  // Fetch transactions (full history using paginated API for comprehensive cash calculations)
-  const txRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/transactions?start=&end=`);
-  const txJson = await txRes.json();
-  const transactions: any[] = txJson?.transactions || [];
-  if (!txRes.ok) throw new Error(`Failed to fetch transactions: ${txJson?.error || 'Unknown error'}`);
+  // Fetch transactions (full history using server-side pagination for comprehensive cash calculations)
+  const transactions = await fetchAllUserTransactionsServer(supabase, userId);
 
   // Fetch glide_path (full)
   let glidePath: GlidePathItem[] = [];

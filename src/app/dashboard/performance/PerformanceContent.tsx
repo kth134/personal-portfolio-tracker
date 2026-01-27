@@ -30,7 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, formatCashFlowsDebug, netCashFlowsByDate, transactionFlowForIRR } from '@/lib/finance';
+import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, formatCashFlowsDebug, netCashFlowsByDate, transactionFlowForIRR, fetchAllUserTransactions } from '@/lib/finance';
 
 // use centralized calculateIRR and normalizeTransactionToFlow from src/lib/finance
 
@@ -177,10 +177,8 @@ function PerformanceContent() {
 
         if (allLotsError) throw allLotsError;
 
-        // Fetch all transactions for IRR calculation via server-side API
-        const txRes = await fetch(`/api/transactions?start=&end=`);
-        const txJson = await txRes.json();
-        const transactionsData = txJson?.transactions || [];
+        // Fetch all transactions for IRR calculation using centralized pagination
+        const transactionsData = await fetchAllUserTransactions();
 
         // fetched transactions for IRR calculations
 
