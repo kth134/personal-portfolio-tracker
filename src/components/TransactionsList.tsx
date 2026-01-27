@@ -202,6 +202,8 @@ export default function TransactionsList({ initialTransactions, total, currentPa
     const hasActiveSearch = search || filterType.length > 0 || filterAccount.length > 0 || 
                            filterAsset.length > 0 || filterFundingSource.length > 0 || 
                            filterDateFrom || filterDateTo || filterAmountMin || filterAmountMax || filterNotes
+    // Debug: log current filter state to help diagnose multi-filter issues
+    console.log('filters:', { search, filterType, filterAccount, filterAsset, filterFundingSource, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, filterNotes })
     
     if (hasActiveSearch && !isSearchMode) {
       loadAllTransactions()

@@ -256,5 +256,6 @@ export default async function TransactionManagementPage({
     currentPage={page}
     pageSize={pageSize}
     currentTab={tab}
+    diagnostics={searchParams.debug === '1' ? `batchFrom=${batchFrom} batchTo=${batchTo} batchReturned=${(batchTransactions||[]).length} pageFrom=${from} pageSize=${pageSize} transactionsReturned=${(transactions||[]).length} total=${transactionsCount}` : undefined}
   />
 }
