@@ -13,6 +13,7 @@ type Props = {
   currentPage: number
   pageSize: number
   currentTab?: string
+  diagnostics?: string
 }
 
 export default function TransactionManagement({ 
@@ -22,7 +23,8 @@ export default function TransactionManagement({
   taxLotsTotal, 
   currentPage, 
   pageSize,
-  currentTab = 'transactions'
+  currentTab = 'transactions',
+  diagnostics,
 }: Props) {
   const router = useRouter()
 
@@ -40,6 +42,7 @@ export default function TransactionManagement({
         <TransactionsList 
           initialTransactions={initialTransactions} 
           total={transactionsTotal}
+          diagnostics={diagnostics}
           currentPage={currentPage}
           pageSize={pageSize}
         />

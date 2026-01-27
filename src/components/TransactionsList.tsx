@@ -58,9 +58,10 @@ type TransactionsListProps = {
   total: number
   currentPage: number
   pageSize: number
+  diagnostics?: string
 }
 
-export default function TransactionsList({ initialTransactions, total, currentPage: currentPageProp, pageSize }: TransactionsListProps) {
+export default function TransactionsList({ initialTransactions, total, currentPage: currentPageProp, pageSize, diagnostics }: TransactionsListProps) {
   const router = useRouter()
   const [transactions, setTransactions] = useState(initialTransactions)
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
@@ -774,6 +775,11 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
 
   return (
     <main className="container mx-auto py-8">
+      {diagnostics && (
+        <div className="mb-4">
+          <pre className="text-xs bg-yellow-50 border border-yellow-200 p-2 rounded overflow-auto">{diagnostics}</pre>
+        </div>
+      )}
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Transactions</h1>
         <div className="flex gap-4 items-center flex-wrap">
