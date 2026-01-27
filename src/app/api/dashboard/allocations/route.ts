@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { fetchAllUserTransactions } from '@/lib/finance';
+import { fetchAllUserTransactionsServer } from '@/lib/finance';
 
 interface Asset {
   id: string;
@@ -162,7 +162,7 @@ if (lens !== 'total' && selectedValues?.length > 0) {
     });
 
     // Fetch all transactions for realized/dividends/fees using centralized pagination
-    const allTransactions = await fetchAllUserTransactions(process.env.NEXT_PUBLIC_SITE_URL);
+    const allTransactions = await fetchAllUserTransactionsServer(supabase, user.id);
 
     // Filter transactions for the required fields
     const transactions = allTransactions.map(tx => ({

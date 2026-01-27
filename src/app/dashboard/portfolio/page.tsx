@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { calculateCashBalances } from '@/lib/finance'
+import { calculateCashBalances, fetchAllUserTransactionsServer } from '@/lib/finance'
 import { redirect } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AccountsList from '@/components/AccountsList'
@@ -47,18 +47,14 @@ export default async function PortfolioPage() {
       .eq('user_id', user.id),
     supabase.from('accounts').select('*').eq('user_id', user.id),
     supabase.from('assets').select('*').eq('user_id', user.id),
-    // Fetch all transactions using paginated API for comprehensive cash calculations
-    (async () => {
-      const txRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/transactions?start=&end=`);
-      const txJson = await txRes.json();
-      return { data: txJson?.transactions || [], error: txRes.ok ? null : new Error(txJson?.error || 'Failed to fetch transactions') };
-    })()
+    // Fetch all transactions using server-side pagination for comprehensive cash calculations
+    fetchAllUserTransactionsServer(supabase, user.id)
   ])
 
   const lots = lotsRes.data as TaxLot[] | null
   const initialAccounts = accountsRes.data || []
   const initialAssets = assetsRes.data || []
-  const transactions = transactionsRes.data || []
+  const transactions = transactionsRes
 
   // Compute cash balances using centralized helper to ensure canonical behavior
   const { balances: cashBalances, totalCash } = calculateCashBalances(transactions || [])

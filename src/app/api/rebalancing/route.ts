@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { calculateCashBalances, fetchAllUserTransactions } from '@/lib/finance'
+import { calculateCashBalances, fetchAllUserTransactionsServer } from '@/lib/finance'
 import { NextRequest, NextResponse } from 'next/server'
 
 type TaxLot = {
@@ -39,7 +39,7 @@ export async function GET() {
       .eq('user_id', user.id)
 
     // Fetch all transactions for cash balance calculation using centralized pagination
-    const transactions = await fetchAllUserTransactions(process.env.NEXT_PUBLIC_SITE_URL)
+    const transactions = await fetchAllUserTransactionsServer(supabase, user.id)
 
     // Fetch detailed tax lots for cost basis calculations (include id and purchase_date)
     const { data: detailedTaxLots } = await supabase

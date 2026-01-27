@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { endOfMonth, startOfMonth, addMonths, parseISO, isAfter, format, formatISO } from 'date-fns'
-import { calculateCashBalances, fetchAllUserTransactions } from '@/lib/finance'
+import { calculateCashBalances, fetchAllUserTransactionsServer } from '@/lib/finance'
 
 export async function POST(req: Request) {
   try {
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const { lens, selectedValues, aggregate, benchmarks } = body
 
     // Fetch all transactions using centralized pagination
-    const allTx = await fetchAllUserTransactions(process.env.NEXT_PUBLIC_SITE_URL)
+    const allTx = await fetchAllUserTransactionsServer(supabase, user.id)
 
     const lotsQuery = supabase.from('tax_lots').select(`
       asset_id, account_id, purchase_date, remaining_quantity, cost_basis_per_unit, quantity,

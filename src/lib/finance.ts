@@ -241,3 +241,52 @@ export async function fetchAllUserTransactions(siteUrl: string = 'http://localho
   return txJson?.transactions || [];
 }
 
+/**
+ * Server-side function to fetch all transactions for a user using Supabase client directly.
+ * This avoids HTTP calls and should be used in server-side API routes.
+ * @param supabase - The Supabase client instance
+ * @param userId - The user ID to fetch transactions for
+ * @returns Promise resolving to array of transaction objects
+ */
+export async function fetchAllUserTransactionsServer(supabase: any, userId: string): Promise<any[]> {
+  const pageSize = 1000;
+  const allTransactions: any[] = [];
+
+  let offset = 0;
+  while (true) {
+    const from = offset * pageSize;
+    const to = from + pageSize - 1;
+
+    const { data: page, error } = await supabase
+      .from('transactions')
+      .select(`
+        id,
+        date,
+        type,
+        amount,
+        fees,
+        funding_source,
+        notes,
+        asset_id,
+        account_id,
+        realized_gain,
+        asset:assets (id, ticker, sub_portfolio_id, asset_type, asset_subtype, geography, size_tag, factor_tag)
+      `)
+      .eq('user_id', userId)
+      .order('date', { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      console.error('Server-side transaction fetch error', error);
+      throw new Error('Failed to fetch transactions');
+    }
+
+    if (!page || page.length === 0) break;
+    allTransactions.push(...page);
+    if (page.length < pageSize) break; // last page
+    offset += 1;
+  }
+
+  return allTransactions;
+}
+

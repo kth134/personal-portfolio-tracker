@@ -19,7 +19,7 @@ import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, transactionFlowForIRR, netCashFlowsByDate } from '@/lib/finance';
+import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, transactionFlowForIRR, netCashFlowsByDate, fetchAllUserTransactions } from '@/lib/finance';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7'];
 
@@ -318,9 +318,7 @@ export default function DashboardHome() {
 
         // Calculate IRR
         let totalIrrPct = 0;
-        const txRes = await fetch(`/api/transactions?start=&end=`);
-        const txJson = await txRes.json();
-        const transactionsData = txJson?.transactions || [];
+        const transactionsData = await fetchAllUserTransactions();
 
         if (transactionsData && transactionsData.length > 0) {
           // Compute cash balances for terminal value using centralized helper
