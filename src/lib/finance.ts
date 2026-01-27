@@ -232,8 +232,10 @@ export function calculateCashBalances(transactions: any[]): { balances: Map<stri
  * @param siteUrl - The base URL of the application (for API calls)
  * @returns Promise resolving to array of transaction objects
  */
-export async function fetchAllUserTransactions(siteUrl: string = 'http://localhost:3000'): Promise<any[]> {
-  const txRes = await fetch(`${siteUrl}/api/transactions?start=&end=`);
+export async function fetchAllUserTransactions(siteUrl?: string): Promise<any[]> {
+  // Use relative URL for client-side requests to avoid CSP issues
+  const url = typeof window !== 'undefined' ? '/api/transactions?start=&end=' : `${siteUrl || 'http://localhost:3000'}/api/transactions?start=&end=`;
+  const txRes = await fetch(url);
   const txJson = await txRes.json();
   if (!txRes.ok) {
     throw new Error(`Failed to fetch transactions: ${txJson?.error || 'Unknown error'}`);
