@@ -150,18 +150,9 @@ export default function TransactionsList({ initialTransactions, total, currentPa
     
     setIsSearchMode(true)
     try {
-      const supabase = createClient()
-      const { data: allTx, error } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          account:accounts (name, type),
-          asset:assets (ticker, name)
-        `)
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
-        .order('date', { ascending: false })
-      
-      if (error) throw error
+      const response = await fetch('/api/transactions')
+      if (!response.ok) throw new Error('Failed to fetch transactions')
+      const { transactions: allTx } = await response.json()
       setAllTransactions(allTx || [])
       setTransactions(allTx || [])
     } catch (err) {

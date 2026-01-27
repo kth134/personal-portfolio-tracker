@@ -88,8 +88,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </PopoverTrigger>
                   <PopoverContent className="w-48 p-2" onMouseEnter={() => setActivityOpen(true)} onMouseLeave={() => setActivityOpen(false)}>
                     <div className="flex flex-col gap-2">
-                      <Link href="/dashboard/transactions" className="hover:bg-gray-100 p-2 rounded">Transactions</Link>
-                      <Link href="/dashboard/transactions?tab=tax-lots" className="hover:bg-gray-100 p-2 rounded">Tax Lots</Link>
+                      <Link href="/dashboard/activity?tab=transactions" className="hover:bg-gray-100 p-2 rounded">Transactions</Link>
+                      <Link href="/dashboard/activity?tab=tax-lots" className="hover:bg-gray-100 p-2 rounded">Tax Lots</Link>
                     </div>
                   </PopoverContent>
                 </Popover>

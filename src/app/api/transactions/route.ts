@@ -31,7 +31,7 @@ export async function GET(req: Request) {
           asset:assets (id, ticker, sub_portfolio_id, asset_type, asset_subtype, geography, size_tag, factor_tag)
         `)
         .eq('user_id', user.id)
-        .order('date', { ascending: true });
+        .order('date', { ascending: false });
       if (start) q = q.gte('date', start);
       if (end) q = q.lte('date', end);
       const { data: transactions, error } = await q.range(0, pageSize - 1);
@@ -63,7 +63,7 @@ export async function GET(req: Request) {
           asset:assets (id, ticker, sub_portfolio_id, asset_type, asset_subtype, geography, size_tag, factor_tag)
         `)
         .eq('user_id', user.id)
-        .order('date', { ascending: true })
+        .order('date', { ascending: false })
         .range(from, to);
       if (error) {
         console.error('transactions API error', error);

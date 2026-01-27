@@ -1325,7 +1325,7 @@ export default function DashboardHome() {
             </div>
 
             <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} refreshing={refreshing} />
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/transactions')}>
+            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/activity?tab=transactions')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">Recent Activity</CardTitle>
               </CardHeader>

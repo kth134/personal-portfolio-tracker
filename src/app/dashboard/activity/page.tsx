@@ -12,7 +12,7 @@ export default async function ActivityPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
   const page = Math.max(1, parseInt(searchParams.page as string) || 1)
-  const tab = (searchParams.tab as string) || undefined
+  const tab = (searchParams.tab as string) || 'transactions'
   const debug = (searchParams.debug as string) === '1'
 
   const pageSize = 100

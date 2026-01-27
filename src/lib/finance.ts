@@ -275,7 +275,7 @@ export async function fetchAllUserTransactionsServer(supabase: any, userId: stri
         asset:assets (id, ticker, sub_portfolio_id, asset_type, asset_subtype, geography, size_tag, factor_tag)
       `)
       .eq('user_id', userId)
-      .order('date', { ascending: true })
+      .order('date', { ascending: false })
       .range(from, to);
 
     if (error) {
