@@ -454,6 +454,18 @@ function PerformanceContent() {
           let annualizedReturnPct = 0;
           let irrSkipped = false;
           const groupTxs = transactionsByGroup.get(row.grouping_id) || [];
+          // TEMP DEBUG: log raw transactions for this group to help diagnose missing flows
+          try {
+            console.debug('raw groupTxs for', row.grouping_id, (groupTxs || []).map((t: any) => ({
+              id: t?.id,
+              type: t?.type,
+              amount: t?.amount,
+              asset_id: t?.asset_id || (Array.isArray(t?.asset) ? t.asset[0]?.id : t?.asset?.id),
+              date: t?.date,
+            })));
+          } catch (e) {
+            // swallow - debugging only
+          }
           if (groupTxs.length > 0 || metrics.marketValue > 0) {
             const cashFlows: number[] = [];
             const flowDates: Date[] = [];
