@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
+import { fetchAllUserTransactionsServer } from '@/lib/finance'
 import ActivityTabs from './ActivityTabs'
 
 export default async function ActivityPage({
@@ -25,24 +26,10 @@ export default async function ActivityPage({
 
   if (tab === 'transactions') {
     // Fetch all transactions for client-side pagination
-    const { data, count, error } = await supabase
-      .from('transactions')
-      .select(`
-        *,
-        account:accounts (name, type),
-        asset:assets (ticker, name)
-      `, { count: 'exact' })
-      .eq('user_id', user.id)
-      .order('date', { ascending: false })
-      .limit(2000) // Ensure we get all, since total ~1093
-
-    if (error) {
-      diagnostics += `Error fetching all transactions: ${error.message}\n`
-    } else {
-      transactions = data || []
-      transactionsCount = count || 0
-      diagnostics += `Fetched all transactions: ${transactions.length} items\n`
-    }
+    const all = await fetchAllUserTransactionsServer(supabase, user.id)
+    transactions = all || []
+    transactionsCount = transactions.length
+    diagnostics += `Fetched all transactions: ${transactions.length} items\n`
   }
 
   const { data: taxLots, count: taxLotsCount } = await supabase
