@@ -27,6 +27,8 @@ export async function GET(req: Request) {
       `)
       .eq('user_id', user.id)
       .order('date', { ascending: true });
+    // Increase range to include more rows than the default (PostgREST/Supabase may cap at 1000)
+    q = q.range(0, 20000);
 
     if (start) q = q.gte('date', start);
     if (end) q = q.lte('date', end);
