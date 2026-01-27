@@ -16,18 +16,30 @@ export default async function TransactionManagementPage({
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
-  const { data: transactions, count: transactionsCount } = await supabase
+  // Get total count separately to avoid range affecting the count
+  const { count: transactionsCount } = await supabase
+    .from('transactions')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+
+  const { data: transactions } = await supabase
     .from('transactions')
     .select(`
       *,
       account:accounts (name, type),
       asset:assets (ticker, name)
-    `, { count: 'exact' })
+    `)
     .eq('user_id', user.id)
     .order('date', { ascending: false })
     .range(from, to)
 
-  const { data: taxLots, count: taxLotsCount } = await supabase
+  // Get total count for tax lots separately
+  const { count: taxLotsCount } = await supabase
+    .from('tax_lots')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+
+  const { data: taxLots } = await supabase
     .from('tax_lots')
     .select(`
       *,
@@ -35,7 +47,7 @@ export default async function TransactionManagementPage({
       asset:assets (id, ticker, name),
       account_id,
       asset_id
-    `, { count: 'exact' })
+    `)
     .eq('user_id', user.id)
     .order('purchase_date', { ascending: false })
     .range(from, to)
