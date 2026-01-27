@@ -184,6 +184,18 @@ function PerformanceContent() {
 
         try {
           console.debug('transactionsData fetched count:', transactionsData?.length, 'sample:', (transactionsData || []).slice(0,10));
+          // Targeted check for the known sell transaction that was missing
+          try {
+            const searchId = 'b26e135c-97a3-44c1-a6b1-c4aa1ebaf864';
+            const foundById = (transactionsData || []).find((t: any) => t.id === searchId);
+            const foundByAmountDate = (transactionsData || []).find((t: any) => {
+              return Number(t.amount) >= 49999.89 && Number(t.amount) <= 49999.9 && String(t.date).startsWith('2025-10-17');
+            });
+            console.debug('search sell by id result:', foundById);
+            console.debug('search sell by amount/date result:', foundByAmountDate);
+          } catch (e2) {
+            /* ignore */
+          }
         } catch (e) {
           /* ignore */
         }
