@@ -498,6 +498,11 @@ function PerformanceContent() {
               }
               const irr = calculateIRR(netFlows, netDates);
               annualizedReturnPct = isNaN(irr) ? 0 : irr * 100;
+              try {
+                console.debug(`Group ${row.grouping_id} IRR:`, isNaN(irr) ? 'NaN' : irr, 'annualized_pct:', annualizedReturnPct);
+              } catch (e) {
+                /* swallow */
+              }
             }
           }
 
