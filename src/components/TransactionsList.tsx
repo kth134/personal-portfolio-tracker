@@ -147,7 +147,12 @@ export default function TransactionsList({ initialTransactions, total, currentPa
 
   // Load all transactions when search/filter is active
   const loadAllTransactions = async () => {
-    if (isSearchMode || allTransactions.length > 0) return // Already loaded or loading
+    if (isSearchMode) return // Already in search mode
+    if (allTransactions.length > 0) {
+      setIsSearchMode(true)
+      setTransactions(allTransactions)
+      return
+    }
     console.log('loadAllTransactions called')
     
     setIsSearchMode(true)
