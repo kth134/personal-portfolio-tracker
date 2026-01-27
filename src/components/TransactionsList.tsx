@@ -304,6 +304,12 @@ export default function TransactionsList({ initialTransactions, total, currentPa
     }
   }, [displayTransactions, pageSize, currentPage, totalPages, router])
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+    router.push(`?tab=transactions&page=1`)
+  }, [filterType, filterAccount, filterAsset, filterFundingSource, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, filterNotes])
+
   const toggleSort = (key: typeof sortKey) => {
     if (sortKey === key) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc')

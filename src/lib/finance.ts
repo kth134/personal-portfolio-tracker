@@ -251,7 +251,7 @@ export async function fetchAllUserTransactions(siteUrl?: string): Promise<any[]>
  * @returns Promise resolving to array of transaction objects
  */
 export async function fetchAllUserTransactionsServer(supabase: any, userId: string): Promise<any[]> {
-  const pageSize = 1000;
+  const pageSize = 2000;
   const allTransactions: any[] = [];
 
   let offset = 0;

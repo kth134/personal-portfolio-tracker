@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     const start = searchParams.get('start');
     const end = searchParams.get('end');
 
-    const pageSize = 1000;
+    const pageSize = 2000;
     const allTransactions: any[] = [];
 
     // If start/end provided, do a single ranged query covering that window.
@@ -28,7 +28,8 @@ export async function GET(req: Request) {
           notes,
           asset_id,
           account_id,
-          asset:assets (id, ticker, sub_portfolio_id, asset_type, asset_subtype, geography, size_tag, factor_tag)
+          asset:assets (id, ticker, sub_portfolio_id, asset_type, asset_subtype, geography, size_tag, factor_tag),
+          account:accounts (id, name, type)
         `)
         .eq('user_id', user.id)
         .order('date', { ascending: false });
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ transactions: txs });
     }
 
-    // No start/end: page through all transactions in batches to avoid server-side caps
+    // No start/end: fetch all transactions in batches
     let offset = 0;
     while (true) {
       const from = offset * pageSize;
@@ -60,7 +61,8 @@ export async function GET(req: Request) {
           notes,
           asset_id,
           account_id,
-          asset:assets (id, ticker, sub_portfolio_id, asset_type, asset_subtype, geography, size_tag, factor_tag)
+          asset:assets (id, ticker, sub_portfolio_id, asset_type, asset_subtype, geography, size_tag, factor_tag),
+          account:accounts (id, name, type)
         `)
         .eq('user_id', user.id)
         .order('date', { ascending: false })
@@ -75,8 +77,7 @@ export async function GET(req: Request) {
       offset += 1;
     }
 
-    const transactions = allTransactions;
-    return NextResponse.json({ transactions });
+    return NextResponse.json({ transactions: allTransactions });
   } catch (err) {
     console.error('transactions route error', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
