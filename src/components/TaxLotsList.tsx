@@ -590,6 +590,12 @@ const handleSort = (key: SortKey) => {
       {/* Tax Lots Table */}
       {taxLots.length > 0 ? (
         <div className="overflow-x-auto">
+          <div className="flex justify-end text-sm text-muted-foreground mb-2">
+            {(() => {
+              const totalCount = total || 0
+              return `Total: ${totalCount}`
+            })()}
+          </div>
           <Table>
           <TableHeader>
             <TableRow>

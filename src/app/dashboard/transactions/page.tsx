@@ -24,7 +24,14 @@ export default async function TransactionManagementPage({
     .eq('user_id', user.id)
     .limit(0)
 
-  const { data: transactions } = await supabase
+  // Fetch the requested page by retrieving the containing 1000-row batch
+  // and slicing to the desired page to avoid issues with large-range queries.
+  const batchSize = 1000
+  const batchIndex = Math.floor(from / batchSize)
+  const batchFrom = batchIndex * batchSize
+  const batchTo = batchFrom + batchSize - 1
+
+  const { data: batchTransactions, error: batchError } = await supabase
     .from('transactions')
     .select(`
       *,
@@ -33,7 +40,14 @@ export default async function TransactionManagementPage({
     `)
     .eq('user_id', user.id)
     .order('date', { ascending: false })
-    .range(from, to)
+    .range(batchFrom, batchTo)
+
+  if (batchError) {
+    console.error('transactions page fetch error', batchError)
+    throw new Error('Failed to fetch transactions')
+  }
+
+  const transactions = (batchTransactions || []).slice(from - batchFrom, from - batchFrom + pageSize)
 
   // Get total count for tax lots separately
   const { count: taxLotsCount } = await supabase
