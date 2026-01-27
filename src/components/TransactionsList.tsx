@@ -150,11 +150,15 @@ export default function TransactionsList({ initialTransactions, total, currentPa
     
     setIsSearchMode(true)
     try {
+      console.log('Loading all transactions...')
       const response = await fetch('/api/transactions')
-      if (!response.ok) throw new Error('Failed to fetch transactions')
-      const { transactions: allTx } = await response.json()
-      setAllTransactions(allTx || [])
-      setTransactions(allTx || [])
+      console.log('API response status:', response.status)
+      const data = await response.json()
+      console.log('API response data:', data)
+      console.log('Transactions length:', data.transactions?.length || 0)
+      console.log('Debug info:', data.debug)
+      setAllTransactions(data.transactions || [])
+      setTransactions(data.transactions || [])
     } catch (err) {
       console.error('Failed to load all transactions:', err)
       setIsSearchMode(false)

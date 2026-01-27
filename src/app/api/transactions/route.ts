@@ -47,7 +47,9 @@ export async function GET(req: Request) {
     // No start/end: fetch all transactions using keyset pagination
     let cursorDate: string | null = null;
     let cursorId: string | null = null;
+    let batchCount = 0;
     while (true) {
+      batchCount++;
       let q = supabase
         .from('transactions')
         .select(`
@@ -87,7 +89,7 @@ export async function GET(req: Request) {
       cursorId = last.id;
     }
 
-    return NextResponse.json({ transactions: allTransactions });
+    return NextResponse.json({ transactions: allTransactions, debug: { batchCount, total: allTransactions.length } });
   } catch (err) {
     console.error('transactions route error', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
