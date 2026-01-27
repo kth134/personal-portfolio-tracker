@@ -62,6 +62,7 @@ type TransactionsListProps = {
 }
 
 export default function TransactionsList({ initialTransactions, total, currentPage: currentPageProp, pageSize, diagnostics }: TransactionsListProps) {
+  console.log('TransactionsList rendered')
   const router = useRouter()
   const [transactions, setTransactions] = useState(initialTransactions)
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
@@ -147,6 +148,7 @@ export default function TransactionsList({ initialTransactions, total, currentPa
   // Load all transactions when search/filter is active
   const loadAllTransactions = async () => {
     if (isSearchMode || allTransactions.length > 0) return // Already loaded or loading
+    console.log('loadAllTransactions called')
     
     setIsSearchMode(true)
     try {
@@ -154,7 +156,7 @@ export default function TransactionsList({ initialTransactions, total, currentPa
       const response = await fetch('/api/transactions')
       console.log('API response status:', response.status)
       const data = await response.json()
-      console.log('API response data:', data)
+      console.log('API response data keys:', Object.keys(data))
       console.log('Transactions length:', data.transactions?.length || 0)
       console.log('Debug info:', data.debug)
       setAllTransactions(data.transactions || [])
@@ -197,6 +199,7 @@ export default function TransactionsList({ initialTransactions, total, currentPa
     const hasActiveSearch = search || filterType.length > 0 || filterAccount.length > 0 || 
                            filterAsset.length > 0 || filterFundingSource.length > 0 || 
                            filterDateFrom || filterDateTo || filterAmountMin || filterAmountMax || filterNotes
+    console.log('Filtering useEffect triggered', {hasActiveSearch, isSearchMode, allTransactionsLength: allTransactions.length, search: !!search, filterType: filterType.length, filterAccount: filterAccount.length, filterAsset: filterAsset.length})
     // Debug: log current filter state to help diagnose multi-filter issues
     console.log('filters:', { search, filterType, filterAccount, filterAsset, filterFundingSource, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, filterNotes })
     

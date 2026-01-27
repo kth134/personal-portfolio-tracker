@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     const start = searchParams.get('start');
     const end = searchParams.get('end');
 
-    const pageSize = 500;
+    const pageSize = 1000;
     const allTransactions: any[] = [];
 
     // If start/end provided, do a single ranged query covering that window.
@@ -72,10 +72,12 @@ export async function GET(req: Request) {
 
       if (cursorDate && cursorId) {
         const filter = `or(date.lt.${cursorDate},and(date.eq.${cursorDate},id.lt.${cursorId}))`;
+        console.log('Using filter:', filter);
         q = q.or(filter);
       }
 
       const { data: page, error } = await q;
+      console.log('Batch', batchCount, 'query result: rows=', page?.length || 0, 'error=', error);
       if (error) {
         console.error('transactions API error', error);
         return NextResponse.json({ error: 'Query failed' }, { status: 500 });
@@ -87,6 +89,7 @@ export async function GET(req: Request) {
       const last = page[page.length - 1];
       cursorDate = last.date;
       cursorId = last.id;
+      console.log('Set cursor to date:', cursorDate, 'id:', cursorId);
     }
 
     return NextResponse.json({ transactions: allTransactions, debug: { batchCount, total: allTransactions.length } });
