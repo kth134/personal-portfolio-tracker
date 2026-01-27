@@ -13,6 +13,7 @@ interface ActivityTabsProps {
   taxLotsTotal: number;
   currentPage: number;
   pageSize: number;
+  diagnostics?: string;
 }
 
 export default function ActivityTabs({ 
@@ -21,7 +22,8 @@ export default function ActivityTabs({
   transactionsTotal, 
   taxLotsTotal, 
   currentPage, 
-  pageSize 
+  pageSize,
+  diagnostics
 }: ActivityTabsProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -43,6 +45,7 @@ export default function ActivityTabs({
           total={transactionsTotal}
           currentPage={currentPage}
           pageSize={pageSize}
+          diagnostics={diagnostics}
         />
       </TabsContent>
       <TabsContent value="tax-lots">
