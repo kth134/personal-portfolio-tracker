@@ -513,7 +513,7 @@ export default function DashboardHome() {
         const net = unrealized + summaryTotals.realized_gain + summaryTotals.dividends + summaryTotals.interest;
         const totalReturnPct = totalOriginalInvestment > 0 ? (net / totalOriginalInvestment) * 100 : 0;
 
-        // Calculate IRR
+        // Calculate IRR (use same canonical logic as PerformanceContent)
         let totalIrrPct = 0;
         const { data: transactionsData } = await supabase
           .from('transactions')
@@ -525,24 +525,29 @@ export default function DashboardHome() {
           // Compute cash balances for terminal value using centralized helper
           const { balances: cashBalances, totalCash } = calculateCashBalances(transactionsData);
 
-          // Calculate IRR cash flows using canonical normalization
-          const allCashFlows: number[] = [];
-          const allFlowDates: Date[] = [];
+          // Build external-only cash flows (Deposits/Withdrawals/Dividend/Interest)
+          const externalTypes = ['Deposit', 'Withdrawal', 'Dividend', 'Interest'];
+          const txFlows: number[] = [];
+          const txDates: Date[] = [];
           transactionsData.forEach((tx: any) => {
+            if (!externalTypes.includes(tx.type)) return; // total IRR considers external flows only
             const date = new Date(tx.date);
             if (isNaN(date.getTime())) return;
-            allCashFlows.push(normalizeTransactionToFlow(tx));
-            allFlowDates.push(date);
+            txFlows.push(transactionFlowForIRR(tx));
+            txDates.push(date);
           });
+
+          // Net same-day flows
+          const { netFlows, netDates } = netCashFlowsByDate(txFlows, txDates);
 
           // Terminal value
           if (marketValue + totalCash > 0) {
-            allCashFlows.push(marketValue + totalCash);
-            allFlowDates.push(new Date());
+            netFlows.push(marketValue + totalCash);
+            netDates.push(new Date());
           }
 
-          if (allCashFlows.length >= 2 && allFlowDates.every(d => !isNaN(d.getTime()))) {
-            const irr = calculateIRR(allCashFlows, allFlowDates);
+          if (netFlows.length >= 2 && netDates.every((d: Date) => !isNaN(d.getTime()))) {
+            const irr = calculateIRR(netFlows, netDates);
             totalIrrPct = isNaN(irr) ? 0 : irr * 100;
           }
         }
