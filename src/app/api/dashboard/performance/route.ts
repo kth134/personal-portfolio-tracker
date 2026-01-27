@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { format, differenceInDays, parseISO } from 'date-fns';
-import { calculateIRR, normalizeTransactionToFlow } from '@/lib/finance';
+import { calculateIRR, normalizeTransactionToFlow, logCashFlows } from '@/lib/finance';
 
 /*
   Notes (canonical conventions):
@@ -310,7 +310,10 @@ export async function POST(req: Request) {
 
     // Compute MWR per group and also compute Portfolio MWR when present
     groups.forEach((_, key) => {
-      const groupTx = txsByGroup.get(key) || [];
+      let groupTx = txsByGroup.get(key) || [];
+
+      // Sort transactions by date ascending to ensure cash flows are chronological
+      groupTx = groupTx.slice().sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       const cfs: number[] = [];
       const cfDates: Date[] = [];
@@ -325,6 +328,9 @@ export async function POST(req: Request) {
       cfs.push(finalVal);
       cfDates.push(endDate);
 
+      // Optional verbose logging for debugging IRR inputs
+      if (process.env.DEBUG_IRR) logCashFlows(`Group ${key} cash flows:`, cfs, cfDates);
+
       const irr = cfs.length > 1 ? calculateIRR(cfs, cfDates) : NaN;
       mwrByGroup.set(key, irr); // may be NaN — handle fallback when producing metrics
     });
@@ -335,7 +341,9 @@ export async function POST(req: Request) {
       const portfolioTxs = Array.from(txsByGroup.values()).flat();
       const cfs: number[] = [];
       const cfDates: Date[] = [];
-      portfolioTxs.forEach((tx: any) => {
+      // Sort portfolio-level txs by date to ensure chronological flows
+      const sortedPortfolioTxs = portfolioTxs.slice().sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      sortedPortfolioTxs.forEach((tx: any) => {
         const d = parseISO(tx.date);
         if (isNaN(d.getTime())) return;
         cfs.push(normalizeTransactionToFlow(tx));
@@ -344,6 +352,7 @@ export async function POST(req: Request) {
       const finalVal = finalByGroup.get('Portfolio') || 0;
       cfs.push(finalVal);
       cfDates.push(endDate);
+      if (process.env.DEBUG_IRR) logCashFlows('Total portfolio EXTERNAL cash flows:', cfs, cfDates);
       const irr = cfs.length > 1 ? calculateIRR(cfs, cfDates) : NaN;
       mwrByGroup.set('Portfolio', irr);
     }

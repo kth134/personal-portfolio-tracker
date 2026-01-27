@@ -26,10 +26,8 @@
 export function calculateIRR(cashFlows: number[], dates: Date[]): number {
   if (!cashFlows || !dates || cashFlows.length !== dates.length || cashFlows.length < 2) return NaN;
 
-  // Sort by date
-  const sorted = dates.map((d, i) => ({ d, cf: cashFlows[i] })).sort((a, b) => a.d.getTime() - b.d.getTime());
-  const sortedDates = sorted.map(s => s.d);
-  const sortedCashFlows = sorted.map(s => s.cf);
+  // Ensure cash flows and dates are sorted together by date (stable)
+  const { sortedCashFlows, sortedDates } = sortCashFlowsAndDates(cashFlows, dates);
 
   const precision = 1e-8;
 
@@ -70,6 +68,48 @@ export function calculateIRR(cashFlows: number[], dates: Date[]): number {
   }
 
   return NaN;
+}
+
+/**
+ * Stable sort cash flows and dates by date ascending and return aligned arrays.
+ */
+export function sortCashFlowsAndDates(cashFlows: number[], dates: Date[]): { sortedCashFlows: number[]; sortedDates: Date[] } {
+  const paired = dates.map((d, i) => ({ d: new Date(d), cf: cashFlows[i] }));
+  paired.sort((a, b) => a.d.getTime() - b.d.getTime());
+  return {
+    sortedCashFlows: paired.map(p => p.cf),
+    sortedDates: paired.map(p => p.d),
+  };
+}
+
+/**
+ * Format cash flows and dates for debug display.
+ * Returns an array of { date: string, flow: number } items.
+ */
+export function formatCashFlowsDebug(cashFlows: number[], dates: Date[]): { date: string; flow: number }[] {
+  const { sortedCashFlows, sortedDates } = sortCashFlowsAndDates(cashFlows, dates);
+  return sortedDates.map((d, i) => ({ date: sortedDates[i].toISOString(), flow: sortedCashFlows[i] }));
+}
+
+/**
+ * Log cash flows to the server console when `DEBUG_IRR` env var is truthy.
+ * This is intentionally verbose for debugging and may be removed later.
+ */
+export function logCashFlows(label: string, cashFlows: number[], dates: Date[]) {
+  try {
+    if (!process.env.DEBUG_IRR) return;
+    const formatted = formatCashFlowsDebug(cashFlows, dates);
+    // Use console.debug for detailed diagnostic output
+    // Limit output size to a reasonable amount to avoid spamming logs
+    const max = 200;
+    const out = formatted.slice(0, max);
+    console.debug(`${label} (${formatted.length})`, out);
+    if (formatted.length > max) console.debug(`${label}: output truncated to ${max} entries`);
+  } catch (e) {
+    // swallow logging errors to avoid affecting production behavior
+    // but surface minimal info
+    console.debug('logCashFlows error', (e as any)?.message || e);
+  }
 }
 
 /**
