@@ -24,68 +24,24 @@ export default async function ActivityPage({
   let diagnostics = ''
 
   if (tab === 'transactions') {
-    // Determine if we need ascending fetch for large offsets
-    const useAscending = from > 50000 // Conservative threshold for PostgREST range limits
+    // Fetch all transactions for client-side pagination
+    const { data, count, error } = await supabase
+      .from('transactions')
+      .select(`
+        *,
+        account:accounts (name, type),
+        asset:assets (ticker, name)
+      `, { count: 'exact' })
+      .eq('user_id', user.id)
+      .order('date', { ascending: false })
+      .limit(2000) // Ensure we get all, since total ~1093
 
-    if (useAscending) {
-      // Fetch remaining transactions in ascending order (newest first, but reversed later)
-      const { data, count, error } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          account:accounts (name, type),
-          asset:assets (ticker, name)
-        `, { count: 'exact' })
-        .eq('user_id', user.id)
-        .order('date', { ascending: true }) // Ascending to get oldest first
-        .limit(pageSize)
-
-      if (error) {
-        diagnostics += `Error in ascending fetch: ${error.message}\n`
-      } else {
-        transactions = data?.reverse() || [] // Reverse to get newest first
-        transactionsCount = count || 0
-        diagnostics += `Used ascending fetch: fetched ${transactions.length} transactions\n`
-      }
+    if (error) {
+      diagnostics += `Error fetching all transactions: ${error.message}\n`
     } else {
-      // Standard range query
-      const { data, count, error } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          account:accounts (name, type),
-          asset:assets (ticker, name)
-        `, { count: 'exact' })
-        .eq('user_id', user.id)
-        .order('date', { ascending: false })
-        .range(from, to)
-
-      if (error) {
-        diagnostics += `Error in range fetch: ${error.message}\n`
-        // Fallback to ascending if range fails
-        const { data: fallbackData, count: fallbackCount, error: fallbackError } = await supabase
-          .from('transactions')
-          .select(`
-            *,
-            account:accounts (name, type),
-            asset:assets (ticker, name)
-          `, { count: 'exact' })
-          .eq('user_id', user.id)
-          .order('date', { ascending: true })
-          .limit(pageSize)
-
-        if (fallbackError) {
-          diagnostics += `Fallback error: ${fallbackError.message}\n`
-        } else {
-          transactions = fallbackData?.reverse() || []
-          transactionsCount = fallbackCount || 0
-          diagnostics += `Used fallback ascending fetch: fetched ${transactions.length} transactions\n`
-        }
-      } else {
-        transactions = data || []
-        transactionsCount = count || 0
-        diagnostics += `Used range fetch: from ${from} to ${to}, fetched ${transactions.length} transactions\n`
-      }
+      transactions = data || []
+      transactionsCount = count || 0
+      diagnostics += `Fetched all transactions: ${transactions.length} items\n`
     }
   }
 
