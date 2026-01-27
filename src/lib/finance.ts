@@ -254,12 +254,10 @@ export async function fetchAllUserTransactionsServer(supabase: any, userId: stri
   const pageSize = 500;
   const allTransactions: any[] = [];
 
-  let offset = 0;
+  let cursorDate: string | null = null;
+  let cursorId: string | null = null;
   while (true) {
-    const from = offset * pageSize;
-    const to = from + pageSize - 1;
-
-    const { data: page, error } = await supabase
+    let q = supabase
       .from('transactions')
       .select(`
         id,
@@ -276,8 +274,15 @@ export async function fetchAllUserTransactionsServer(supabase: any, userId: stri
       `)
       .eq('user_id', userId)
       .order('date', { ascending: false })
-      .range(from, to);
+      .order('id', { ascending: false })
+      .limit(pageSize);
 
+    if (cursorDate && cursorId) {
+      const filter = `or(date.lt.${cursorDate},and(date.eq.${cursorDate},id.lt.${cursorId}))`;
+      q = q.or(filter);
+    }
+
+    const { data: page, error } = await q;
     if (error) {
       console.error('Server-side transaction fetch error', error);
       throw new Error('Failed to fetch transactions');
@@ -285,8 +290,11 @@ export async function fetchAllUserTransactionsServer(supabase: any, userId: stri
 
     if (!page || page.length === 0) break;
     allTransactions.push(...page);
-    if (page.length < pageSize) break; // last page
-    offset += 1;
+    if (page.length < pageSize) break;
+    // Set cursor to last item
+    const last = page[page.length - 1];
+    cursorDate = last.date;
+    cursorId = last.id;
   }
 
   return allTransactions;

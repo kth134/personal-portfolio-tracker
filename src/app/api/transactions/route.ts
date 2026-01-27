@@ -44,12 +44,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ transactions: txs });
     }
 
-    // No start/end: fetch all transactions in batches
-    let offset = 0;
+    // No start/end: fetch all transactions using keyset pagination
+    let cursorDate: string | null = null;
+    let cursorId: string | null = null;
     while (true) {
-      const from = offset * pageSize;
-      const to = from + pageSize - 1;
-      const { data: page, error } = await supabase
+      let q = supabase
         .from('transactions')
         .select(`
           id,
@@ -66,15 +65,26 @@ export async function GET(req: Request) {
         `)
         .eq('user_id', user.id)
         .order('date', { ascending: false })
-        .range(from, to);
+        .order('id', { ascending: false })
+        .limit(pageSize);
+
+      if (cursorDate && cursorId) {
+        const filter = `or(date.lt.${cursorDate},and(date.eq.${cursorDate},id.lt.${cursorId}))`;
+        q = q.or(filter);
+      }
+
+      const { data: page, error } = await q;
       if (error) {
         console.error('transactions API error', error);
         return NextResponse.json({ error: 'Query failed' }, { status: 500 });
       }
       if (!page || page.length === 0) break;
       allTransactions.push(...page);
-      if (page.length < pageSize) break; // last page
-      offset += 1;
+      if (page.length < pageSize) break;
+      // Set cursor to last item
+      const last = page[page.length - 1];
+      cursorDate = last.date;
+      cursorId = last.id;
     }
 
     return NextResponse.json({ transactions: allTransactions });
