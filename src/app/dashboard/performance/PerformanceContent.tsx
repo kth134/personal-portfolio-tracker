@@ -30,7 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, formatCashFlowsDebug } from '@/lib/finance';
+import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, formatCashFlowsDebug, netCashFlowsByDate } from '@/lib/finance';
 
 // use centralized calculateIRR and normalizeTransactionToFlow from src/lib/finance
 
@@ -459,33 +459,44 @@ function PerformanceContent() {
             const flowDates: Date[] = [];
 
             // Add transaction cash flows using canonical normalization
+            const txFlows: number[] = [];
+            const txDates: Date[] = [];
             groupTxs.forEach((tx: any) => {
-              if (!['Buy', 'Sell', 'Deposit', 'Withdrawal', 'Dividend', 'Interest'].includes(tx.type)) return;
+              // Exclude Buy/Sell for account-level IRR; include for other lenses
+              const externalTypes = ['Deposit', 'Withdrawal', 'Dividend', 'Interest'];
+              const type = tx.type;
+              if (type === 'Buy' || type === 'Sell') {
+                if (lens === 'account') return; // do not include trades for account lens
+              } else {
+                if (!externalTypes.includes(type)) return;
+              }
               const date = new Date(tx.date);
               if (isNaN(date.getTime())) return;
-              cashFlows.push(normalizeTransactionToFlow(tx));
-              flowDates.push(date);
+              txFlows.push(normalizeTransactionToFlow(tx));
+              txDates.push(date);
             });
 
+            // Net same-day flows before appending terminal value
+            const { netFlows, netDates } = netCashFlowsByDate(txFlows, txDates);
+
             // Add current market value as final cash flow
-            const accountCash = lens === 'account' ? (cashByAccountName.get(accountIdToName.get(row.grouping_id) || '') || 0) : 0
+            const accountCash = lens === 'account' ? (cashByAccountName.get(accountIdToName.get(row.grouping_id) || '') || 0) : 0;
             if (metrics.marketValue > 0 || accountCash > 0) {
-              cashFlows.push(metrics.marketValue + accountCash);
-              flowDates.push(new Date());
+              netFlows.push(metrics.marketValue + accountCash);
+              netDates.push(new Date());
             }
 
-            if (cashFlows.length < 2 || flowDates.some(d => isNaN(d.getTime()))) {
+            if (netFlows.length < 2 || netDates.some(d => isNaN(d.getTime()))) {
               annualizedReturnPct = 0;
               irrSkipped = true;
             } else {
-              // Log formatted cash flows (chronological) for browser-side debugging
               try {
-                const debugFlows = formatCashFlowsDebug(cashFlows, flowDates);
+                const debugFlows = netDates.map((d, i) => ({ date: netDates[i].toISOString(), flow: netFlows[i] }));
                 console.debug(`Group ${row.grouping_id} cash flows:`, debugFlows);
               } catch (e) {
-                console.debug(`Group ${row.grouping_id} cash flows:`, cashFlows, flowDates.map(d => d.toISOString()));
+                console.debug(`Group ${row.grouping_id} cash flows:`, netFlows, netDates.map(d => d.toISOString()));
               }
-              const irr = calculateIRR(cashFlows, flowDates);
+              const irr = calculateIRR(netFlows, netDates);
               annualizedReturnPct = isNaN(irr) ? 0 : irr * 100;
             }
           }
@@ -514,33 +525,37 @@ function PerformanceContent() {
         // Calculate total annualized return (personal money-weighted, external flows only)
         let totalAnnualizedReturnPct = 0;
         if (transactionsData && transactionsData.length > 0) {
-          const allCashFlows: number[] = [];
-          const allFlowDates: Date[] = [];
+          const txFlows: number[] = [];
+          const txDates: Date[] = [];
+          const externalTypes = ['Deposit', 'Withdrawal', 'Dividend', 'Interest'];
 
           transactionsData.forEach((tx: any) => {
-            if (!['Buy', 'Sell', 'Deposit', 'Withdrawal', 'Dividend', 'Interest'].includes(tx.type)) return;
+            if (!externalTypes.includes(tx.type)) return; // total IRR considers external flows only
             const date = new Date(tx.date);
             if (isNaN(date.getTime())) return;
-            allCashFlows.push(normalizeTransactionToFlow(tx));
-            allFlowDates.push(date);
+            txFlows.push(normalizeTransactionToFlow(tx));
+            txDates.push(date);
           });
+
+          // Net same-day flows
+          const { netFlows, netDates } = netCashFlowsByDate(txFlows, txDates);
 
           // Terminal value (what everything is worth today)
           if (totalPortfolioValue + totalCash > 0) {
-            allCashFlows.push(totalPortfolioValue + totalCash);
-            allFlowDates.push(new Date());
+            netFlows.push(totalPortfolioValue + totalCash);
+            netDates.push(new Date());
           }
 
-          if (allCashFlows.length < 2 || allFlowDates.some(d => isNaN(d.getTime()))) {
+          if (netFlows.length < 2 || netDates.some(d => isNaN(d.getTime()))) {
             totalAnnualizedReturnPct = 0;
           } else {
             try {
-              const debugAll = formatCashFlowsDebug(allCashFlows, allFlowDates);
+              const debugAll = netDates.map((d, i) => ({ date: netDates[i].toISOString(), flow: netFlows[i] }));
               console.debug('Total portfolio EXTERNAL cash flows:', debugAll);
             } catch (e) {
-              console.debug('Total portfolio EXTERNAL cash flows:', allCashFlows, allFlowDates.map(d => d.toISOString()));
+              console.debug('Total portfolio EXTERNAL cash flows:', netFlows, netDates.map(d => d.toISOString()));
             }
-            const irr = calculateIRR(allCashFlows, allFlowDates);
+            const irr = calculateIRR(netFlows, netDates);
             totalAnnualizedReturnPct = isNaN(irr) ? 0 : irr * 100;
           }
         }

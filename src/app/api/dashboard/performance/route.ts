@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { format, differenceInDays, parseISO } from 'date-fns';
-import { calculateIRR, normalizeTransactionToFlow, logCashFlows } from '@/lib/finance';
+import { calculateIRR, normalizeTransactionToFlow, logCashFlows, netCashFlowsByDate } from '@/lib/finance';
 
 /*
   Notes (canonical conventions):
@@ -315,24 +315,36 @@ export async function POST(req: Request) {
       // Sort transactions by date ascending to ensure cash flows are chronological
       groupTx = groupTx.slice().sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      const cfs: number[] = [];
-      const cfDates: Date[] = [];
+      // Transaction types considered external; buys/sells are handled differently
+      const externalTypes = ['Deposit', 'Withdrawal', 'Dividend', 'Interest'];
+
+      const txFlows: number[] = [];
+      const txDates: Date[] = [];
       groupTx.forEach((tx: any) => {
+        const type = tx.type;
+        // Exclude Buy/Sell for account-level IRR; include for other lenses
+        if (type === 'Buy' || type === 'Sell') {
+          if (lens === 'account') return; // do not include trades for account lens
+        } else {
+          if (!externalTypes.includes(type)) return;
+        }
         const d = parseISO(tx.date);
         if (isNaN(d.getTime())) return;
-        cfs.push(normalizeTransactionToFlow(tx));
-        cfDates.push(d);
+        txFlows.push(normalizeTransactionToFlow(tx));
+        txDates.push(d);
       });
 
-      const finalVal = finalByGroup.get(key) || 0;
-      cfs.push(finalVal);
-      cfDates.push(endDate);
+      // Net same-day flows so matching deposit+buy pairs cancel before IRR
+      const { netFlows, netDates } = netCashFlowsByDate(txFlows, txDates);
 
-      // Optional verbose logging for debugging IRR inputs
-      if (process.env.DEBUG_IRR) logCashFlows(`Group ${key} cash flows:`, cfs, cfDates);
+      // Append final value as terminal cash flow (do not net with transactions)
+      netFlows.push(finalByGroup.get(key) || 0);
+      netDates.push(endDate);
 
-      const irr = cfs.length > 1 ? calculateIRR(cfs, cfDates) : NaN;
-      mwrByGroup.set(key, irr); // may be NaN — handle fallback when producing metrics
+      if (process.env.DEBUG_IRR) logCashFlows(`Group ${key} cash flows:`, netFlows, netDates);
+
+      const irr = netFlows.length > 1 ? calculateIRR(netFlows, netDates) : NaN;
+      mwrByGroup.set(key, irr);
     });
 
     // If we added an aggregated 'Portfolio' key earlier, compute its MWR from
@@ -343,17 +355,22 @@ export async function POST(req: Request) {
       const cfDates: Date[] = [];
       // Sort portfolio-level txs by date to ensure chronological flows
       const sortedPortfolioTxs = portfolioTxs.slice().sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const externalTypes = ['Deposit', 'Withdrawal', 'Dividend', 'Interest'];
       sortedPortfolioTxs.forEach((tx: any) => {
+        // For aggregate/portfolio MWR we consider only external flows (deposits/withdrawals/dividends/interest)
+        if (!externalTypes.includes(tx.type)) return;
         const d = parseISO(tx.date);
         if (isNaN(d.getTime())) return;
         cfs.push(normalizeTransactionToFlow(tx));
         cfDates.push(d);
       });
-      const finalVal = finalByGroup.get('Portfolio') || 0;
-      cfs.push(finalVal);
-      cfDates.push(endDate);
-      if (process.env.DEBUG_IRR) logCashFlows('Total portfolio EXTERNAL cash flows:', cfs, cfDates);
-      const irr = cfs.length > 1 ? calculateIRR(cfs, cfDates) : NaN;
+      // Net same-day flows
+      const { netFlows, netDates } = netCashFlowsByDate(cfs, cfDates);
+      // Append final aggregated value
+      netFlows.push(finalByGroup.get('Portfolio') || 0);
+      netDates.push(endDate);
+      if (process.env.DEBUG_IRR) logCashFlows('Total portfolio EXTERNAL cash flows:', netFlows, netDates);
+      const irr = netFlows.length > 1 ? calculateIRR(netFlows, netDates) : NaN;
       mwrByGroup.set('Portfolio', irr);
     }
 

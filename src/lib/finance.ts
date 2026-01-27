@@ -113,6 +113,29 @@ export function logCashFlows(label: string, cashFlows: number[], dates: Date[]) 
 }
 
 /**
+ * Net cash flows by day (UTC). Collapses multiple flows on the same calendar
+ * day into a single net flow. Returns arrays sorted by date ascending.
+ * Zero-net days are removed.
+ */
+export function netCashFlowsByDate(cashFlows: number[], dates: Date[]): { netFlows: number[]; netDates: Date[] } {
+  const map = new Map<string, number>();
+  for (let i = 0; i < cashFlows.length; i++) {
+    const d = new Date(dates[i]);
+    // Normalize to UTC date (midnight) so all flows on same day collapse
+    const key = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString();
+    map.set(key, (map.get(key) || 0) + Number(cashFlows[i] || 0));
+  }
+  const entries = Array.from(map.entries())
+    .map(([k, v]) => ({ k, v }))
+    .filter(e => Math.abs(e.v) > 1e-12) // remove near-zero nets
+    .sort((a, b) => new Date(a.k).getTime() - new Date(b.k).getTime());
+
+  const netDates = entries.map(e => new Date(e.k));
+  const netFlows = entries.map(e => e.v);
+  return { netFlows, netDates };
+}
+
+/**
  * Normalize a transaction record into a signed cash flow value following
  * the project's canonical convention:
  *
