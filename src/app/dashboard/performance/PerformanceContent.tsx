@@ -177,31 +177,10 @@ function PerformanceContent() {
 
         if (allLotsError) throw allLotsError;
 
-        // Fetch all transactions for IRR calculation
-        const { data: transactionsData, error: txError } = await supabase
-          .from('transactions')
-          .select(`
-            date,
-            type,
-            amount,
-            fees,
-            funding_source,
-            notes,
-            asset_id,
-            account_id,
-            asset:assets (
-              asset_type,
-              asset_subtype,
-              geography,
-              size_tag,
-              factor_tag,
-              sub_portfolio_id
-            )
-          `)
-          .eq('user_id', userId)
-          .order('date');
-
-        if (txError) throw txError;
+        // Fetch all transactions for IRR calculation via server-side API
+        const txRes = await fetch(`/api/transactions?start=&end=`);
+        const txJson = await txRes.json();
+        const transactionsData = txJson?.transactions || [];
 
         try {
           console.debug('transactionsData fetched count:', transactionsData?.length, 'sample:', (transactionsData || []).slice(0,10));
