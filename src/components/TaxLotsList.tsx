@@ -316,7 +316,7 @@ const handleSort = (key: SortKey) => {
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(totalPages)
-      router.push(`?page=${totalPages}`)
+      router.push(`?tab=tax-lots&page=${totalPages}`)
     }
   }, [displayTaxLots, pageSize, currentPage, totalPages, router])
 
@@ -676,7 +676,7 @@ const handleSort = (key: SortKey) => {
         totalPages={totalPages}
         onPageChange={(page) => {
           setCurrentPage(page)
-          router.push(`?page=${page}`)
+          router.push(`?tab=tax-lots&page=${page}`)
         }}
       />
 

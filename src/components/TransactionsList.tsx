@@ -293,7 +293,7 @@ export default function TransactionsList({ initialTransactions, total, currentPa
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(totalPages)
-      router.push(`?page=${totalPages}`)
+      router.push(`?tab=transactions&page=${totalPages}`)
     }
   }, [displayTransactions, pageSize, currentPage, totalPages, router])
 
@@ -1358,7 +1358,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         totalPages={totalPages}
         onPageChange={(page) => {
           setCurrentPage(page)
-          router.push(`?page=${page}`)
+          router.push(`?tab=transactions&page=${page}`)
         }}
       />
 

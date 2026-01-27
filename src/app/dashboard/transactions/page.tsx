@@ -12,6 +12,7 @@ export default async function TransactionManagementPage({
   if (!user) redirect('/')
 
   const page = Math.max(1, parseInt(searchParams.page as string) || 1)
+  const tab = (searchParams.tab as string) || 'transactions'
   const pageSize = 100
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
@@ -19,8 +20,9 @@ export default async function TransactionManagementPage({
   // Get total count separately to avoid range affecting the count
   const { count: transactionsCount } = await supabase
     .from('transactions')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact' })
     .eq('user_id', user.id)
+    .limit(0)
 
   const { data: transactions } = await supabase
     .from('transactions')
@@ -36,8 +38,9 @@ export default async function TransactionManagementPage({
   // Get total count for tax lots separately
   const { count: taxLotsCount } = await supabase
     .from('tax_lots')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact' })
     .eq('user_id', user.id)
+    .limit(0)
 
   const { data: taxLots } = await supabase
     .from('tax_lots')
@@ -59,5 +62,6 @@ export default async function TransactionManagementPage({
     taxLotsTotal={taxLotsCount || 0}
     currentPage={page}
     pageSize={pageSize}
+    currentTab={tab}
   />
 }

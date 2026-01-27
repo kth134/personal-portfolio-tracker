@@ -1,6 +1,7 @@
 'use client'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useRouter } from 'next/navigation'
 import TransactionsList from './TransactionsList'
 import TaxLotsList from './TaxLotsList'
 
@@ -11,6 +12,7 @@ type Props = {
   taxLotsTotal: number
   currentPage: number
   pageSize: number
+  currentTab?: string
 }
 
 export default function TransactionManagement({ 
@@ -19,10 +21,17 @@ export default function TransactionManagement({
   transactionsTotal, 
   taxLotsTotal, 
   currentPage, 
-  pageSize 
+  pageSize,
+  currentTab = 'transactions'
 }: Props) {
+  const router = useRouter()
+
+  const handleTabChange = (value: string) => {
+    router.push(`/dashboard/transactions?tab=${value}&page=${currentPage}`)
+  }
+
   return (
-    <Tabs defaultValue="transactions" className="p-8">
+    <Tabs value={currentTab} onValueChange={handleTabChange} className="p-8">
       <TabsList className="mb-8">
         <TabsTrigger value="transactions">Transactions</TabsTrigger>
         <TabsTrigger value="tax-lots">Tax Lots</TabsTrigger>
