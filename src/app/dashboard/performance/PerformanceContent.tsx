@@ -30,7 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances } from '@/lib/finance';
+import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, formatCashFlowsDebug } from '@/lib/finance';
 
 // use centralized calculateIRR and normalizeTransactionToFlow from src/lib/finance
 
@@ -478,7 +478,13 @@ function PerformanceContent() {
               annualizedReturnPct = 0;
               irrSkipped = true;
             } else {
-              console.log(`Group ${row.grouping_id} cash flows:`, cashFlows, flowDates.map(d => d.toISOString()));
+              // Log formatted cash flows (chronological) for browser-side debugging
+              try {
+                const debugFlows = formatCashFlowsDebug(cashFlows, flowDates);
+                console.debug(`Group ${row.grouping_id} cash flows:`, debugFlows);
+              } catch (e) {
+                console.debug(`Group ${row.grouping_id} cash flows:`, cashFlows, flowDates.map(d => d.toISOString()));
+              }
               const irr = calculateIRR(cashFlows, flowDates);
               annualizedReturnPct = isNaN(irr) ? 0 : irr * 100;
             }
@@ -528,7 +534,12 @@ function PerformanceContent() {
           if (allCashFlows.length < 2 || allFlowDates.some(d => isNaN(d.getTime()))) {
             totalAnnualizedReturnPct = 0;
           } else {
-            console.log(`Total portfolio EXTERNAL cash flows:`, allCashFlows, allFlowDates.map(d => d.toISOString()));
+            try {
+              const debugAll = formatCashFlowsDebug(allCashFlows, allFlowDates);
+              console.debug('Total portfolio EXTERNAL cash flows:', debugAll);
+            } catch (e) {
+              console.debug('Total portfolio EXTERNAL cash flows:', allCashFlows, allFlowDates.map(d => d.toISOString()));
+            }
             const irr = calculateIRR(allCashFlows, allFlowDates);
             totalAnnualizedReturnPct = isNaN(irr) ? 0 : irr * 100;
           }
