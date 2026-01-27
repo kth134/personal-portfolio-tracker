@@ -103,8 +103,11 @@ export async function POST(req: Request) {
       });
     }
 
-    // Unique tickers for portfolio + benchmarks
-    const portfolioTickers = [...new Set(lotsTyped.map(l => l.asset.ticker))];
+    // Unique tickers for portfolio + benchmarks (normalize joined shapes)
+    const portfolioTickers = [...new Set(lotsTyped.map(l => {
+      const asset = Array.isArray(l.asset) ? l.asset[0] : l.asset;
+      return asset?.ticker;
+    }))];
     const benchmarkTickers = benchmarks ? ['^GSPC', '^IXIC', 'BTCUSD'] : [];
     const allTickers = [...new Set([...portfolioTickers, ...benchmarkTickers])];
 
@@ -194,21 +197,23 @@ export async function POST(req: Request) {
     const groupMeta = new Map<string, string>(); // id -> display name
 
     lotsTyped.forEach(lot => {
+      const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+      const account = Array.isArray(lot.account) ? lot.account[0] : lot.account;
       let idKey = 'portfolio';
       let display = 'Portfolio';
       if (lens !== 'total') {
         switch (lens) {
           case 'sub_portfolio':
-            idKey = String(lot.asset?.sub_portfolio?.id ?? 'unassigned');
-            display = lot.asset?.sub_portfolio?.name ?? 'Untagged';
+            idKey = String(asset?.sub_portfolio?.id ?? 'unassigned');
+            display = asset?.sub_portfolio?.name ?? 'Untagged';
             break;
           case 'account':
-            idKey = String(lot.account?.id ?? 'unassigned');
-            display = lot.account?.name ?? 'Untagged';
+            idKey = String(account?.id ?? 'unassigned');
+            display = account?.name ?? 'Untagged';
             break;
           default:
             // For tag-like lenses (strings on the asset), use the tag value as the id/display.
-            idKey = String(lot.asset?.[lens] ?? 'Untagged');
+            idKey = String(asset?.[lens] ?? 'Untagged');
             display = idKey;
         }
       }
@@ -228,7 +233,8 @@ export async function POST(req: Request) {
     groups.forEach(({ lots: groupLots }, key) => {
       const values = dates.map(date => {
         return groupLots.reduce((sum, lot) => {
-          const series = historicalData[lot.asset.ticker] || [];
+          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+          const series = historicalData[asset?.ticker] || [];
           let price = series.find(p => p.date === date)?.close || 0;
           if (price === 0) {
             // Forward fill: find the most recent available price up to this date
@@ -277,18 +283,22 @@ export async function POST(req: Request) {
     // Group transactions by the same ID keys so MWR includes only group-relevant flows.
     const txsByGroup = new Map<string, any[]>();
     (transactions || []).forEach((tx: any) => {
+      // Normalize joined shapes (Supabase may return joins as arrays)
+      const txAsset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset;
+      const txAccount = Array.isArray(tx.account) ? tx.account[0] : tx.account;
+
       // Determine tx's group id according to the lens (use joined asset/account fields)
       let txGroupId = 'portfolio';
       if (lens !== 'total') {
         switch (lens) {
           case 'sub_portfolio':
-            txGroupId = String(tx.asset?.sub_portfolio_id ?? 'unassigned');
+            txGroupId = String(txAsset?.sub_portfolio_id ?? 'unassigned');
             break;
           case 'account':
-            txGroupId = String(tx.account?.id ?? 'unassigned');
+            txGroupId = String(txAccount?.id ?? 'unassigned');
             break;
           default:
-            txGroupId = String(tx.asset?.[lens] ?? 'Untagged');
+            txGroupId = String(txAsset?.[lens] ?? 'Untagged');
         }
       }
       // Only include transactions for groups we care about (selectedValues filter applied earlier to lots)
