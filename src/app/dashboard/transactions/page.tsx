@@ -90,8 +90,48 @@ export default async function TransactionManagementPage({
   // Fallback: if the batch query returned no rows (some proxies cap ranges),
   // perform a deterministic keyset traversal in reasonably-sized chunks to
   // reach the requested offset without loading all rows into memory.
-  if ((!batchTransactions || batchTransactions.length === 0) && (transactionsCount || 0) > 0) {
-    const chunk = 200 // traverse in 200-row keyset chunks
+    if ((!batchTransactions || batchTransactions.length === 0) && (transactionsCount || 0) > 0) {
+      // Short-term deterministic fallback: if the requested `from` offset
+      // is beyond what the range returned, fetch the remaining rows by
+      // selecting the oldest `remaining` rows (ascending) then reverse
+      // into descending order for the UI. This avoids large-offset/range
+      // behavior differences in proxies/PostgREST for the last page.
+      try {
+        const total = transactionsCount || 0
+        const remaining = Math.max(0, total - from)
+        if (remaining > 0) {
+          const { data: remainingRows, error: remErr } = await supabase
+            .from('transactions')
+            .select(`
+              *,
+              account:accounts (name, type),
+              asset:assets (ticker, name)
+            `)
+            .eq('user_id', user.id)
+            .order('date', { ascending: true })
+            .order('id', { ascending: true })
+            .limit(remaining)
+
+          if (remErr) {
+            console.warn('ascending-remaining fallback error', remErr)
+          } else if (remainingRows && remainingRows.length > 0) {
+            // reverse to descending so UI ordering matches normal pages
+            const rev = remainingRows.reverse()
+            transactions = rev.slice(0, pageSize)
+            console.log(`transactions fallback: used ascending-remaining fetch (remaining=${remaining}, returned=${transactions.length}) for page=${page}`)
+          }
+        }
+      } catch (e) {
+        console.warn('transactions ascending fallback threw', e)
+      }
+
+      // If the ascending remaining fetch produced rows, skip the keyset traversal.
+      if (transactions && transactions.length > 0) {
+        // proceed to tax lots fetch and return
+      } else {
+        // proceed with existing keyset traversal below
+      }
+      const chunk = 200 // traverse in 200-row keyset chunks
     let skipped = 0
     let cursorDate: string | null = null
     let cursorId: string | null = null
