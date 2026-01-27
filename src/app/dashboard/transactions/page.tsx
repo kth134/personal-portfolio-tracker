@@ -25,6 +25,43 @@ export default async function TransactionManagementPage({
     .eq('user_id', user.id)
     .limit(0)
 
+  // If the total set is reasonably small, fetch all server-side and slice.
+  // This ensures deterministic results and avoids range/proxy caps for moderate sizes.
+  const SERVER_FETCH_THRESHOLD = 5000
+  if ((transactionsCount || 0) > 0 && (transactionsCount || 0) <= SERVER_FETCH_THRESHOLD) {
+    const all = await fetchAllUserTransactionsServer(supabase, user.id)
+    const transactions = (all || []).slice(from, from + pageSize)
+    // Get total count for tax lots separately
+    const { count: taxLotsCount } = await supabase
+      .from('tax_lots')
+      .select('id', { count: 'exact' })
+      .eq('user_id', user.id)
+      .limit(0)
+
+    const { data: taxLots } = await supabase
+      .from('tax_lots')
+      .select(`
+        *,
+        account:accounts (id, name),
+        asset:assets (id, ticker, name),
+        account_id,
+        asset_id
+      `)
+      .eq('user_id', user.id)
+      .order('purchase_date', { ascending: false })
+      .range(from, to)
+
+    return <TransactionManagement 
+      initialTransactions={transactions || []} 
+      initialTaxLots={taxLots || []}
+      transactionsTotal={transactionsCount || 0}
+      taxLotsTotal={taxLotsCount || 0}
+      currentPage={page}
+      pageSize={pageSize}
+      currentTab={tab}
+    />
+  }
+
   // Fetch the requested page by retrieving the containing 1000-row batch
   // and slicing to the desired page to avoid issues with large-range queries.
   const batchSize = 1000
