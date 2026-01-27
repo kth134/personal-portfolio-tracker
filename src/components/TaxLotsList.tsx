@@ -671,14 +671,25 @@ const handleSort = (key: SortKey) => {
         <p className="text-muted-foreground">No tax lots yet—add buys to create them.</p>
       )}
 
-      <PaginationControls
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={(page) => {
-          setCurrentPage(page)
-          router.push(`?tab=tax-lots&page=${page}`)
-        }}
-      />
+      <div className="flex items-center justify-between mt-4">
+        <div className="text-sm text-muted-foreground">
+          {(() => {
+            const itemsOnPage = displayTaxLots.slice((currentPage - 1) * pageSize, currentPage * pageSize).length
+            const start = ((currentPage - 1) * pageSize) + (itemsOnPage > 0 ? 1 : 0)
+            const end = start + Math.max(0, itemsOnPage - 1)
+            const totalCount = total || 0
+            return `Showing ${start}-${end} of ${totalCount} — Page ${currentPage} of ${totalPages}`
+          })()}
+        </div>
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page) => {
+            setCurrentPage(page)
+            router.push(`?tab=tax-lots&page=${page}`)
+          }}
+        />
+      </div>
 
       {/* Confirm delete */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>

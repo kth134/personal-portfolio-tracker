@@ -280,14 +280,16 @@ export default function TransactionsList({ initialTransactions, total, currentPa
     }
   }, [search, filterType, filterAccount, filterAsset, filterFundingSource, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, filterNotes, isSearchMode, allTransactions.length, initialTransactions])
 
-  // Update select all state
+  // Update select all state (use current page items depending on mode)
   useEffect(() => {
-    const paginatedTransactions = displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    const paginatedTransactions = isSearchMode
+      ? displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+      : transactions
     const allSelected = paginatedTransactions.length > 0 && selectedTransactions.length === paginatedTransactions.length && selectedTransactions.every(id => paginatedTransactions.some(tx => tx.id === id))
     setSelectAll(allSelected)
-  }, [selectedTransactions, displayTransactions, currentPage, pageSize])
+  }, [selectedTransactions, displayTransactions, transactions, isSearchMode, currentPage, pageSize])
 
-  const totalPages = Math.ceil(displayTransactions.length / pageSize)
+  const totalPages = isSearchMode ? Math.ceil(displayTransactions.length / pageSize) : Math.ceil((total || 0) / pageSize)
 
   // Adjust currentPage if out of bounds
   useEffect(() => {
@@ -315,7 +317,9 @@ export default function TransactionsList({ initialTransactions, total, currentPa
   }
 
   const handleSelectAll = (checked: boolean) => {
-    const paginatedTransactions = displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    const paginatedTransactions = isSearchMode
+      ? displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+      : transactions
     if (checked) {
       setSelectedTransactions(paginatedTransactions.map(tx => tx.id))
     } else {
@@ -1259,6 +1263,12 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
 
       {displayTransactions.length > 0 ? (
         <div className="overflow-x-auto">
+          <div className="flex justify-end text-sm text-muted-foreground mb-2">
+            {(() => {
+              const totalCount = isSearchMode ? displayTransactions.length : (total || 0)
+              return `Total: ${totalCount}`
+            })()}
+          </div>
           <Table>
           <TableHeader>
             <TableRow>
@@ -1353,14 +1363,27 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         <p className="text-muted-foreground">No transactions yet. Add one to get started!</p>
       )}
 
-      <PaginationControls
+      <div className="flex items-center justify-between mt-4">
+        <div className="text-sm text-muted-foreground">
+          {(() => {
+            const itemsOnPage = isSearchMode
+              ? displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize).length
+              : transactions.length
+            const start = ((currentPage - 1) * pageSize) + (itemsOnPage > 0 ? 1 : 0)
+            const end = start + Math.max(0, itemsOnPage - 1)
+            const totalCount = isSearchMode ? displayTransactions.length : (total || 0)
+            return `Showing ${start}-${end} of ${totalCount} — Page ${currentPage} of ${totalPages}`
+          })()}
+        </div>
+        <PaginationControls
         currentPage={currentPage}
         totalPages={totalPages}
         onPageChange={(page) => {
           setCurrentPage(page)
           router.push(`?tab=transactions&page=${page}`)
         }}
-      />
+        />
+      </div>
 
       <AlertDialog open={!!deletingTx} onOpenChange={(o) => !o && setDeletingTx(null)}>
         <AlertDialogContent>
