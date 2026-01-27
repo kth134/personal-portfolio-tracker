@@ -50,8 +50,8 @@ export async function POST(req: Request) {
           size_tag,
           factor_tag,
           sub_portfolio:sub_portfolios!inner (id, name)
-        ),
-        account:accounts!inner (name)
+          ),
+          account:accounts!inner (id, name)
       `)
       .gt('remaining_quantity', 0)
       .eq('user_id', user.id);
@@ -82,10 +82,13 @@ export async function POST(req: Request) {
         lotsQuery = lotsQuery.in(`asset.${lens}`, selectedValues);
         txQuery = txQuery.in(`asset.${lens}`, selectedValues); // transactions don't have direct tag, but join later if needed
       } else if (lens === 'sub_portfolio') {
-        // Sub-portfolio uses name → need IDs or filter on name
-        lotsQuery = lotsQuery.in('asset.sub_portfolio.name', selectedValues);
+        // Filter by sub_portfolio id
+        lotsQuery = lotsQuery.in('asset.sub_portfolio.id', selectedValues);
+        txQuery = txQuery.in('asset.sub_portfolio_id', selectedValues);
       } else if (lens === 'account') {
-        lotsQuery = lotsQuery.in('account.name', selectedValues);
+        // Filter by account id
+        lotsQuery = lotsQuery.in('account.id', selectedValues);
+        txQuery = txQuery.in('account.id', selectedValues);
       }
     }
 
