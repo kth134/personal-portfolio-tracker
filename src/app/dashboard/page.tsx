@@ -318,11 +318,9 @@ export default function DashboardHome() {
 
         // Calculate IRR
         let totalIrrPct = 0;
-        const { data: transactionsData } = await supabase
-          .from('transactions')
-          .select('date, type, amount, fees, funding_source, notes, account_id')
-          .eq('user_id', userId)
-          .order('date');
+        const txRes = await fetch(`/api/transactions?start=&end=`);
+        const txJson = await txRes.json();
+        const transactionsData = txJson?.transactions || [];
 
         if (transactionsData && transactionsData.length > 0) {
           // Compute cash balances for terminal value using centralized helper
@@ -515,11 +513,9 @@ export default function DashboardHome() {
 
         // Calculate IRR (use same canonical logic as PerformanceContent)
         let totalIrrPct = 0;
-        const { data: transactionsData } = await supabase
-          .from('transactions')
-          .select('date, type, amount, fees, funding_source, notes, account_id')
-          .eq('user_id', userId)
-          .order('date');
+        const txRes = await fetch(`/api/transactions?start=&end=`);
+        const txJson = await txRes.json();
+        const transactionsData = txJson?.transactions || [];
 
         if (transactionsData && transactionsData.length > 0) {
           // Compute cash balances for terminal value using centralized helper
