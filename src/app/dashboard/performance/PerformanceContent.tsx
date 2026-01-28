@@ -320,22 +320,30 @@ function PerformanceContent() {
           }
         }
 
-        // Fetch performance summaries for each grouping
-        const summaryPromises = Array.from(possibleGroupings.entries()).map(async ([groupId, group]) => {
-          const { data: summary } = await supabase
-            .from('performance_summaries')
-            .select('realized_gain, dividends, interest, fees')
-            .eq('user_id', userId)
-            .eq('grouping_type', lens)
-            .eq('grouping_id', groupId)
-            .single();
+        // Compute performance summaries for each grouping from transactions
+        const groupingsWithSummary = Array.from(possibleGroupings.entries()).map(([groupId, group]) => {
+          const groupTxs = transactionsByGroup.get(groupId) || [];
+          const summary = groupTxs.reduce(
+            (acc, tx: any) => {
+              if (tx.type === 'Sell' && tx.realized_gain != null) {
+                acc.realized_gain += tx.realized_gain;
+              } else if (tx.type === 'Dividend') {
+                acc.dividends += (tx.amount || 0) - Math.abs(tx.fees || 0);
+              } else if (tx.type === 'Interest') {
+                acc.interest += (tx.amount || 0) - Math.abs(tx.fees || 0);
+              } else if (tx.fees && (tx.type === 'Buy' || tx.type === 'Sell' || tx.type === 'Dividend' || tx.type === 'Interest')) {
+                acc.fees += Math.abs(tx.fees);
+              }
+              return acc;
+            },
+            { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
+          );
           return {
             grouping_id: groupId,
             display_name: group.displayName,
-            summary: summary || { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
+            summary
           };
         });
-        const groupingsWithSummary = await Promise.all(summaryPromises);
 
         // Get open lots for metrics
         const openLotsData = allLotsData.filter(lot => lot.remaining_quantity > 0);
