@@ -165,6 +165,7 @@ export async function serverBulkImportTransactions(rows: ValidatedRow[], userId:
   rows.sort((a, b) => a.date.localeCompare(b.date))
 
   const errors: string[] = []
+  let successCount = 0
 
   for (const [index, row] of rows.entries()) {
     try {
@@ -287,14 +288,17 @@ export async function serverBulkImportTransactions(rows: ValidatedRow[], userId:
           .eq('id', txId)
         if (gainErr) throw gainErr
       }
+
+      successCount++
     } catch (err: any) {
       errors.push(`Row ${index + 2}: ${err.message || 'Unknown error'}`)
     }
   }
 
-  if (errors.length > 0) {
-    throw new Error(`Import failed with ${errors.length} errors:\n${errors.join('\n')}`)
+  return { 
+    success: successCount > 0, 
+    imported: successCount, 
+    errors: errors.length > 0 ? errors : null,
+    total: rows.length
   }
-
-  return { success: true, imported: rows.length }
 }

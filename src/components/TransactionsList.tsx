@@ -740,7 +740,16 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
           const result = await serverBulkImportTransactions(validatedRows, user.id)
 
           router.refresh()
-          alert(`Success! Imported ${result.imported} transactions with tax lots processed.`)
+          
+          let message = `Success! Imported ${result.imported} transactions with tax lots processed.`
+          if (result.errors && result.errors.length > 0) {
+            message += `\n\nHowever, ${result.errors.length} rows had errors:\n${result.errors.slice(0, 5).join('\n')}`
+            if (result.errors.length > 5) {
+              message += `\n...and ${result.errors.length - 5} more errors.`
+            }
+          }
+          
+          alert(message)
         } catch (err: any) {
           alert(`Server import failed:\n${err.message}`)
         } finally {
