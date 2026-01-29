@@ -24,7 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7']
 
 const LENSES = [
-  { value: 'total', label: 'Total Portfolio' },
+  { value: 'total', label: 'Assets' },
   { value: 'sub_portfolio', label: 'Sub-Portfolio' },
   { value: 'asset_type', label: 'Asset Type' },
   { value: 'asset_subtype', label: 'Asset Sub-Type' },
@@ -32,7 +32,6 @@ const LENSES = [
   { value: 'size_tag', label: 'Size' },
   { value: 'factor_tag', label: 'Factor' },
 ]
-
 type SubPortfolioTarget = {
   id: string
   name: string
@@ -85,12 +84,6 @@ type RebalancingData = {
   totalValue: number
   cashNeeded: number
   lastPriceUpdate: string | null
-}
-
-type AllocationSlice = {
-  key: string
-  value: number
-  data: { subkey: string; value: number; percentage: number }[]
 }
 
 export default function RebalancingPage() {
@@ -151,6 +144,45 @@ export default function RebalancingPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  
+  // Load available values for the chosen lens (used by the multi-select)
+  useEffect(() => {
+    if (lens === 'total') {
+      setAvailableValues([])
+      setSelectedValues([])
+      setValuesLoading(false)
+      // ensure aggregate mode is off for asset-level view
+      setAggregate(false)
+      return
+    }
+
+    const fetchValues = async () => {
+      setValuesLoading(true)
+      try {
+        const res = await fetch('/api/dashboard/values', {
+          method: 'POST',
+          body: JSON.stringify({ lens }),
+        })
+        if (!res.ok) throw new Error('Failed to fetch values')
+        const payload = await res.json()
+        const vals = payload.values || []
+        setAvailableValues(vals)
+        setSelectedValues(vals.map((v: any) => v.value))
+      } catch (err) {
+        console.error('Error fetching values for lens', lens, err)
+        setAvailableValues([])
+        setSelectedValues([])
+      } finally {
+        setValuesLoading(false)
+      }
+    }
+
+    fetchValues()
+  }, [lens])
+
+  const toggleValue = (value: string) => {
+    setSelectedValues(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value])
+  }
 
   // Validation state
   const [validationErrors, setValidationErrors] = useState<{
@@ -1156,13 +1188,49 @@ export default function RebalancingPage() {
           </Select>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Label className="text-sm font-medium">Mode</Label>
-          <div className="flex items-center gap-2">
-            <Button variant={aggregate ? 'default' : 'ghost'} onClick={() => setAggregate(true)}>Aggregate</Button>
-            <Button variant={!aggregate ? 'default' : 'ghost'} onClick={() => setAggregate(false)}>Granular</Button>
+        {lens !== 'total' && (
+          <div className="min-w-64">
+            <Label className="text-sm font-medium">
+              Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  {selectedValues.length === availableValues.length ? 'All selected' :
+                   selectedValues.length === 0 ? 'None selected' :
+                   `${selectedValues.length} selected`}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandInput placeholder="Search..." />
+                  <CommandList>
+                    <CommandEmpty>No values found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableValues.map(item => (
+                        <CommandItem key={item.value} onSelect={() => toggleValue(item.value)}>
+                          <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />
+                          {item.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
-        </div>
+        )}
+
+        {lens !== 'total' && (
+          <div className="flex items-center gap-2">
+            <Label className="text-sm font-medium">Mode</Label>
+            <div className="flex items-center gap-2">
+              <Button variant={aggregate ? 'default' : 'ghost'} onClick={() => setAggregate(true)}>Aggregate</Button>
+              <Button variant={!aggregate ? 'default' : 'ghost'} onClick={() => setAggregate(false)}>Granular</Button>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <Label className="text-sm font-medium">Chart</Label>
@@ -1170,6 +1238,17 @@ export default function RebalancingPage() {
             <Button variant={barMode === 'divergent' ? 'default' : 'ghost'} onClick={() => setBarMode('divergent')}>Divergent</Button>
             <Button variant={barMode === 'stacked' ? 'default' : 'ghost'} onClick={() => setBarMode('stacked')}>Target vs Current</Button>
           </div>
+        </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          <Button onClick={handleRefreshPrices} disabled={refreshing} variant="default" className="bg-black text-white hover:bg-gray-800">
+            <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
+            Refresh Prices
+          </Button>
+          <Button onClick={handleExport} variant="outline">
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
         </div>
       </div>
     )
@@ -1186,15 +1265,21 @@ export default function RebalancingPage() {
       return '#ef4444'
     }
 
-    if (aggregate) {
-      const bars = grouped.map((g: any) => ({ name: g.label, currentPct: g.currentPct, targetPct: g.targetPct, relativeDriftPct: g.relativeDrift === Infinity ? 0 : g.relativeDrift * 100 }))
-      const pieCurrent = grouped.map((g: any, i: number) => ({ name: g.label, value: g.currentValue }))
-      const pieTarget = grouped.map((g: any) => ({ name: g.label, value: (g.targetPct || 0) * (data!.totalValue || 0) / 100 }))
+    // Asset-level (Assets lens) view: show per-asset charts across entire portfolio
+    if (lens === 'total') {
+      const bars = currentAllocations.map((item: any) => ({
+        name: item.ticker,
+        currentPct: item.current_percentage,
+        targetPct: item.implied_overall_target || 0,
+        relativeDriftPct: item.drift_percentage || 0
+      }))
+      const pieCurrent = currentAllocations.map((c: any) => ({ name: c.ticker, value: c.current_value }))
+      const pieTarget = currentAllocations.map((c: any) => ({ name: c.ticker, value: (c.implied_overall_target || 0) * (data!.totalValue || 0) / 100 }))
 
       return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-card p-4 rounded-lg border">
-            <h4 className="font-semibold mb-2">Drift Analysis</h4>
+            <h4 className="font-semibold mb-2">Drift Analysis (Assets)</h4>
             <ResponsiveContainer width="100%" height={320}>
               {barMode === 'divergent' ? (
                 <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
@@ -1227,7 +1312,7 @@ export default function RebalancingPage() {
               <h4 className="font-semibold mb-2">Current Allocation</h4>
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
-                  <Pie data={pieCurrent} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name}: ${(percent||0)*100}%`}>
+                  <Pie data={pieCurrent} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: any) => `${name}: ${(percent||0)*100}%`}>
                     {pieCurrent.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
                   </Pie>
                   <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
@@ -1240,7 +1325,7 @@ export default function RebalancingPage() {
               <h4 className="font-semibold mb-2">Target Allocation</h4>
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
-                  <Pie data={pieTarget} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name}: ${(percent||0)*100}%`}>
+                  <Pie data={pieTarget} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: any) => `${name}: ${(percent||0)*100}%`}>
                     {pieTarget.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
                   </Pie>
                   <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
@@ -1251,6 +1336,79 @@ export default function RebalancingPage() {
           </div>
           {debugMode && (
             <div className="mt-2 p-2 bg-yellow-50 text-xs text-gray-700">
+              <div>Debug: assets={currentAllocations.length}, pieCurrent={pieCurrent.length}, pieTarget={pieTarget.length}</div>
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    if (aggregate) {
+      const bars = grouped.map((g: any) => ({ name: g.label, currentPct: g.currentPct, targetPct: g.targetPct, relativeDriftPct: g.relativeDrift === Infinity ? 0 : g.relativeDrift * 100 }))
+      const pieCurrent = grouped.map((g: any, i: number) => ({ name: g.label, value: g.currentValue }))
+      const pieTarget = grouped.map((g: any) => ({ name: g.label, value: (g.targetPct || 0) * (data!.totalValue || 0) / 100 }))
+
+      return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="flex flex-col space-y-4">
+            <div className="bg-card p-4 rounded-lg border flex-1" style={{ minWidth: 260 }}>
+              <h4 className="font-semibold mb-2">Current Allocation</h4>
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={pieCurrent} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${(percent||0)*100}%`}>
+                    {pieCurrent.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
+                  </Pie>
+                  <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-card p-4 rounded-lg border flex-1" style={{ minWidth: 260 }}>
+              <h4 className="font-semibold mb-2">Target Allocation</h4>
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={pieTarget} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${(percent||0)*100}%`}>
+                    {pieTarget.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
+                  </Pie>
+                  <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-card p-4 rounded-lg border h-full">
+            <h4 className="font-semibold mb-2">Drift Analysis</h4>
+            <ResponsiveContainer width="100%" height={580}>
+              {barMode === 'divergent' ? (
+                <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" unit="%" />
+                  <YAxis type="category" dataKey="name" />
+                  <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
+                  <Bar dataKey="relativeDriftPct" fill="#8884d8">
+                    {bars.map((entry: any, idx: number) => (
+                      <Cell key={`cell-${idx}`} fill={getDriftColor(entry.relativeDriftPct / 100)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              ) : (
+                <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="name" />
+                  <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
+                  <Legend />
+                  <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" />
+                  <Bar dataKey="currentPct" name="Current %" fill="#10b981" />
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+
+          {debugMode && (
+            <div className="mt-2 p-2 bg-yellow-50 text-xs text-gray-700">
               <div>Debug: grouped={grouped.length}, pieCurrent={pieCurrent.length}, pieTarget={pieTarget.length}</div>
             </div>
           )}
@@ -1259,7 +1417,7 @@ export default function RebalancingPage() {
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
         {grouped.map((g: any, gi: number) => {
           const assets = g.items
           const pieCurr = assets.map((a: any) => ({ name: a.ticker, value: a.current_value }))
@@ -1267,7 +1425,7 @@ export default function RebalancingPage() {
           const bars = assets.map((a: any) => ({ name: a.ticker, currentPct: g.currentValue > 0 ? (a.current_value / g.currentValue) * 100 : 0, targetPct: g.targetPctSum > 0 ? ((a.implied_overall_target || 0) / g.targetPctSum) * 100 : 0, relativeDriftPct: g.targetPctSum > 0 ? (( (a.current_value / g.currentValue)*100 - ((a.implied_overall_target||0)/g.targetPctSum*100) ) ) : 0 }))
 
           return (
-            <div key={g.key} className="bg-card p-4 rounded-lg border">
+            <div key={g.key} className="bg-card p-4 rounded-lg border min-w-0" style={{ minWidth: 260 }}>
               <h4 className="font-semibold mb-2">{g.label}</h4>
               <div className="mb-3">
                 <ResponsiveContainer width="100%" height={160}>
@@ -1379,87 +1537,7 @@ export default function RebalancingPage() {
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="flex flex-wrap gap-4 items-end">
-        <div>
-          <Label className="text-sm font-medium">View Lens</Label>
-          <Select value={lens} onValueChange={setLens}>
-            <SelectTrigger className="w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LENSES.map(l => (
-                <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={aggregate}
-            onCheckedChange={setAggregate}
-          />
-          <Label className="text-sm font-medium">Aggregate</Label>
-        </div>
-
-        {lens !== 'total' && (
-          <div className="min-w-64">
-            <Label className="text-sm font-medium">
-              Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
-            </Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-between">
-                  {selectedValues.length === availableValues.length ? 'All selected' :
-                   selectedValues.length === 0 ? 'None selected' :
-                   `${selectedValues.length} selected`}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0">
-                <Command>
-                  <CommandInput placeholder="Search..." />
-                  <CommandList>
-                    <CommandEmpty>No items found.</CommandEmpty>
-                    <CommandGroup>
-                      {availableValues.map((item) => (
-                        <CommandItem
-                          key={item.value}
-                          onSelect={() => {
-                            if (selectedValues.includes(item.value)) {
-                              setSelectedValues(selectedValues.filter(v => v !== item.value))
-                            } else {
-                              setSelectedValues([...selectedValues, item.value])
-                            }
-                          }}
-                        >
-                          <Checkbox
-                            checked={selectedValues.includes(item.value)}
-                            className="mr-2"
-                          />
-                          {item.label}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
-        )}
-
-        <div className="flex gap-2">
-          <Button onClick={handleRefreshPrices} disabled={refreshing} variant="default" className="bg-black text-white hover:bg-gray-800">
-            <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
-            Refresh Prices
-          </Button>
-          <Button onClick={handleExport} variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
-        </div>
-      </div>
+      {/* Controls moved into VisualController to avoid duplication */}
 
       {refreshMessage && (
         <div className="p-4 bg-muted rounded-lg">
