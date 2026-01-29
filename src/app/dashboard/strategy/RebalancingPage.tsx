@@ -1111,8 +1111,46 @@ export default function RebalancingPage() {
   const RebalanceContext = createContext(null as any)
 
   function RebalanceProvider({ children }: { children: React.ReactNode }) {
+    const [apiAllocations, setApiAllocations] = useState<any[]>([])
+
+    useEffect(() => {
+      if (lens === 'total') {
+        setApiAllocations([])
+        return
+      }
+
+      const loadAlloc = async () => {
+        try {
+          const payload = { lens, selectedValues: lens === 'total' ? [] : selectedValues, aggregate }
+          const res = await fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' })
+          if (!res.ok) throw new Error('Failed to fetch allocations')
+          const payloadData = await res.json()
+          setApiAllocations(payloadData.allocations || [])
+        } catch (err) {
+          console.error('Error fetching allocations for visuals', err)
+          setApiAllocations([])
+        }
+      }
+
+      loadAlloc()
+    }, [lens, selectedValues, aggregate, refreshTrigger])
+
     const grouped = useMemo(() => {
       if (!data) return []
+
+      // Use API-provided allocations for non-asset lenses to match holdings page behavior
+      if (lens !== 'total' && apiAllocations && apiAllocations.length > 0) {
+        const totalValue = data.totalValue || apiAllocations.reduce((s: number, a: any) => s + (a.value || 0), 0)
+        return apiAllocations.map((a: any) => {
+          const items = (a.items && a.items.length) ? a.items : (a.data || []).map((d: any) => ({ ticker: d.subkey, current_value: d.value, current_percentage: d.percentage }))
+          const currentValue = a.value || items.reduce((s: number, it: any) => s + (it.current_value || it.value || 0), 0)
+          const currentPct = totalValue > 0 ? (currentValue / totalValue) * 100 : 0
+          const targetPct = a.target_pct || a.percentage || 0
+          const relativeDrift = targetPct > 0 ? (currentPct - targetPct) / targetPct : (currentPct === 0 ? 0 : Infinity)
+          return { key: a.key, label: a.key, items, currentValue, targetPct, currentPct, relativeDrift }
+        })
+      }
+
       const items = currentAllocations
 
       const getKey = (item: any) => {
@@ -1168,7 +1206,7 @@ export default function RebalancingPage() {
           relativeDrift
         }
       })
-    }, [data, lens, aggregate, selectedValues, JSON.stringify(currentAllocations)])
+    }, [data, lens, aggregate, selectedValues, JSON.stringify(currentAllocations), JSON.stringify(apiAllocations)])
 
     return (
       <RebalanceContext.Provider value={{ grouped }}>{children}</RebalanceContext.Provider>
@@ -1193,10 +1231,27 @@ export default function RebalancingPage() {
           </div>
           <div className="flex items-center gap-2">
             <span className="inline-block w-3 h-3 rounded" style={{ backgroundColor: '#ef4444' }} />
-            <span>&gt;20% from target — Rebalance</span>
+            <span>&gt;20% from target - Rebalance Consideration</span>
           </div>
         </div>
         <div className="mt-1">We color by absolute distance from target (closer = green).</div>
+      </div>
+    )
+  }
+
+  function StackedTooltip({ active, payload, label }: any) {
+    if (!active || !payload || payload.length === 0) return null
+    const current = payload.find((p: any) => p.dataKey === 'currentPct')
+    const target = payload.find((p: any) => p.dataKey === 'targetPct')
+    return (
+      <div className="bg-white border rounded px-3 py-2 text-sm">
+        <div className="font-medium mb-1">{label}</div>
+        {current && (
+          <div className="flex items-center gap-2"><span className="inline-block w-2 h-2" style={{ backgroundColor: '#10b981' }} />Current: {Number(current.value).toFixed(2)}%</div>
+        )}
+        {target && (
+          <div className="flex items-center gap-2"><span className="inline-block w-2 h-2" style={{ backgroundColor: '#3b82f6' }} />Target: {Number(target.value).toFixed(2)}%</div>
+        )}
       </div>
     )
   }
@@ -1254,20 +1309,15 @@ export default function RebalancingPage() {
 
         {lens !== 'total' && (
           <div className="flex items-center gap-2">
-            <Label className="text-sm font-medium">Mode</Label>
-            <div className="flex items-center gap-2">
-              <Button variant={aggregate ? 'default' : 'ghost'} onClick={() => setAggregate(true)}>Aggregate</Button>
-              <Button variant={!aggregate ? 'default' : 'ghost'} onClick={() => setAggregate(false)}>Granular</Button>
-            </div>
+            <Label className="text-sm font-medium">Aggregate</Label>
+            <Switch checked={aggregate} onCheckedChange={(v) => setAggregate(Boolean(v))} />
           </div>
         )}
 
         <div className="flex items-center gap-2">
-          <Label className="text-sm font-medium">Chart</Label>
-          <div className="flex items-center gap-2">
-            <Button variant={barMode === 'divergent' ? 'default' : 'ghost'} onClick={() => setBarMode('divergent')}>Divergent</Button>
-            <Button variant={barMode === 'stacked' ? 'default' : 'ghost'} onClick={() => setBarMode('stacked')}>Target vs Current</Button>
-          </div>
+          <Label className="text-sm font-medium">Divergent</Label>
+          <Switch checked={barMode === 'stacked'} onCheckedChange={(v) => setBarMode(v ? 'stacked' : 'divergent')} />
+          <Label className="text-sm font-medium">Target vs Current</Label>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
@@ -1312,31 +1362,31 @@ export default function RebalancingPage() {
             <h4 className="font-semibold mb-2">Drift Analysis (Assets)</h4>
                 <div className="flex-1 flex items-center">
                   <ResponsiveContainer width="100%" height={getChartHeight(bars.length, 320)}>
-              {barMode === 'divergent' ? (
-                <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" unit="%" />
-                  <YAxis type="category" dataKey="name" />
-                  <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
-                  <Bar dataKey="relativeDriftPct" fill="#8884d8">
-                    {bars.map((entry: any, idx: number) => (
-                      <Cell key={`cell-${idx}`} fill={getDriftColor(entry.relativeDriftPct / 100)} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              ) : (
-                <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" />
-                  <YAxis type="category" dataKey="name" />
-                  <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
-                  <Legend />
-                  <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" />
-                  <Bar dataKey="currentPct" name="Current %" fill="#10b981" />
-                </BarChart>
-              )}
-              </ResponsiveContainer>
-            </div>
+                    {barMode === 'divergent' ? (
+                      <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" unit="%" />
+                        <YAxis type="category" dataKey="name" interval={0} />
+                        <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
+                        <Bar dataKey="relativeDriftPct" fill="#8884d8">
+                          {bars.map((entry: any, idx: number) => (
+                            <Cell key={`cell-${idx}`} fill={getDriftColor(entry.relativeDriftPct / 100)} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    ) : (
+                      <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" />
+                        <YAxis type="category" dataKey="name" interval={0} />
+                        <RechartsTooltip content={StackedTooltip} />
+                        <Legend />
+                        <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" stackId="a" />
+                        <Bar dataKey="currentPct" name="Current %" fill="#10b981" stackId="a" />
+                      </BarChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
             <DriftLegend />
           </div>
 
@@ -1419,7 +1469,7 @@ export default function RebalancingPage() {
                   <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" unit="%" />
-                    <YAxis type="category" dataKey="name" />
+                    <YAxis type="category" dataKey="name" interval={0} />
                     <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
                     <Bar dataKey="relativeDriftPct" fill="#8884d8">
                       {bars.map((entry: any, idx: number) => (
@@ -1431,16 +1481,15 @@ export default function RebalancingPage() {
                   <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" />
-                    <YAxis type="category" dataKey="name" />
-                    <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
+                    <YAxis type="category" dataKey="name" interval={0} />
+                    <RechartsTooltip content={StackedTooltip} />
                     <Legend />
-                    <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" />
-                    <Bar dataKey="currentPct" name="Current %" fill="#10b981" />
+                    <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" stackId="a" />
+                    <Bar dataKey="currentPct" name="Current %" fill="#10b981" stackId="a" />
                   </BarChart>
                 )}
               </ResponsiveContainer>
             </div>
-            <DriftLegend />
             <DriftLegend />
           </div>
 
@@ -1470,7 +1519,7 @@ export default function RebalancingPage() {
                     <BarChart data={bars} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
-                      <YAxis type="category" dataKey="name" />
+                      <YAxis type="category" dataKey="name" interval={0} />
                       <RechartsTooltip formatter={(v: any) => `${Number(v).toFixed(2)}%`} />
                       <Bar dataKey="relativeDriftPct">
                         {bars.map((b: any, i: number) => <Cell key={i} fill={getDriftColor(b.relativeDriftPct/100)} />)}
@@ -1480,10 +1529,10 @@ export default function RebalancingPage() {
                     <BarChart data={bars} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
-                      <YAxis type="category" dataKey="name" />
-                      <RechartsTooltip formatter={(v: any) => `${Number(v).toFixed(2)}%`} />
-                      <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" />
-                      <Bar dataKey="currentPct" name="Current %" fill="#10b981" />
+                      <YAxis type="category" dataKey="name" interval={0} />
+                      <RechartsTooltip content={StackedTooltip} />
+                      <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" stackId="a" />
+                      <Bar dataKey="currentPct" name="Current %" fill="#10b981" stackId="a" />
                     </BarChart>
                   )}
                 </ResponsiveContainer>
