@@ -344,6 +344,11 @@ export default function RebalancingPage() {
     if (data) validateWithDrafts(data)
   }, [JSON.stringify(draftSubTargets), JSON.stringify(draftAssetTargets)])
 
+  // Fetch initial data and on refresh trigger
+  useEffect(() => {
+    fetchData()
+  }, [refreshTrigger])
+
   // On initial load collapse accordion (only run once)
   useEffect(() => {
     if (initialLoadRef.current && data) {
