@@ -1180,6 +1180,7 @@ export default function RebalancingPage() {
 
   function ChartGrid({ barMode }: { barMode: 'divergent' | 'stacked' }) {
     const { grouped } = useRebalance() || { grouped: [] }
+    const debugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debugViz') === '1'
 
     const getDriftColor = (rel: number) => {
       const abs = Math.abs(rel) * 100
@@ -1251,6 +1252,11 @@ export default function RebalancingPage() {
               </ResponsiveContainer>
             </div>
           </div>
+          {debugMode && (
+            <div className="mt-2 p-2 bg-yellow-50 text-xs text-gray-700">
+              <div>Debug: grouped={grouped.length}, pieCurrent={pieCurrent.length}, pieTarget={pieTarget.length}</div>
+            </div>
+          )}
         </div>
       )
     }
@@ -1319,6 +1325,11 @@ export default function RebalancingPage() {
             </div>
           )
         })}
+        {debugMode && (
+          <div className="mt-2 p-2 bg-yellow-50 text-xs text-gray-700">
+            <div>Debug: grouped={grouped.length}</div>
+          </div>
+        )}
       </div>
     )
   }
@@ -1459,6 +1470,13 @@ export default function RebalancingPage() {
         </div>
       )}
       
+
+      {/* Visualizations: controller + charts */}
+      <RebalanceProvider>
+        <VisualController barMode={barMode} setBarMode={setBarMode} />
+        <ChartGrid barMode={barMode} />
+      </RebalanceProvider>
+
 
       
       {/* Accordion Table */}
