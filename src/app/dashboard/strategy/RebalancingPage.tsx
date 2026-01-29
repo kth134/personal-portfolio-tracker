@@ -1100,6 +1100,14 @@ export default function RebalancingPage() {
 
   // Visualizations - RebalanceProvider + VisualController + ChartGrid
 
+  const getChartHeight = (count: number, minHeight = 160) => {
+    const perItem = 28
+    const padding = 40
+    const calculated = count * perItem + padding
+    // clamp to a reasonable max to avoid extremely tall charts
+    return Math.max(minHeight, Math.min(1200, calculated))
+  }
+
   const RebalanceContext = createContext(null as any)
 
   function RebalanceProvider({ children }: { children: React.ReactNode }) {
@@ -1169,6 +1177,28 @@ export default function RebalancingPage() {
 
   function useRebalance() {
     return useContext(RebalanceContext)
+  }
+
+  function DriftLegend() {
+    return (
+      <div className="text-xs text-muted-foreground mb-3">
+        <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-3 h-3 rounded" style={{ backgroundColor: '#10b981' }} />
+            <span>Within 5% of target — Healthy</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-3 h-3 rounded" style={{ backgroundColor: '#f59e0b' }} />
+            <span>5–20% from target — Watch</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-3 h-3 rounded" style={{ backgroundColor: '#ef4444' }} />
+            <span>&gt;20% from target — Rebalance</span>
+          </div>
+        </div>
+        <div className="mt-1">We color by absolute distance from target (closer = green).</div>
+      </div>
+    )
   }
 
   function VisualController({ barMode, setBarMode }: { barMode: 'divergent' | 'stacked', setBarMode: (v: any) => void }) {
@@ -1278,9 +1308,10 @@ export default function RebalancingPage() {
 
       return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-card p-4 rounded-lg border">
+          <div className="bg-card p-4 rounded-lg border flex flex-col">
             <h4 className="font-semibold mb-2">Drift Analysis (Assets)</h4>
-            <ResponsiveContainer width="100%" height={320}>
+                <div className="flex-1 flex items-center">
+                  <ResponsiveContainer width="100%" height={getChartHeight(bars.length, 320)}>
               {barMode === 'divergent' ? (
                 <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -1304,7 +1335,9 @@ export default function RebalancingPage() {
                   <Bar dataKey="currentPct" name="Current %" fill="#10b981" />
                 </BarChart>
               )}
-            </ResponsiveContainer>
+              </ResponsiveContainer>
+            </div>
+            <DriftLegend />
           </div>
 
           <div className="space-y-4">
@@ -1312,7 +1345,7 @@ export default function RebalancingPage() {
               <h4 className="font-semibold mb-2">Current Allocation</h4>
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
-                  <Pie data={pieCurrent} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: any) => `${name}: ${(percent||0)*100}%`}>
+                  <Pie data={pieCurrent} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
                     {pieCurrent.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
                   </Pie>
                   <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
@@ -1325,7 +1358,7 @@ export default function RebalancingPage() {
               <h4 className="font-semibold mb-2">Target Allocation</h4>
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
-                  <Pie data={pieTarget} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: any) => `${name}: ${(percent||0)*100}%`}>
+                  <Pie data={pieTarget} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
                     {pieTarget.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
                   </Pie>
                   <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
@@ -1355,7 +1388,7 @@ export default function RebalancingPage() {
               <h4 className="font-semibold mb-2">Current Allocation</h4>
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
-                  <Pie data={pieCurrent} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${(percent||0)*100}%`}>
+                  <Pie data={pieCurrent} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
                     {pieCurrent.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
                   </Pie>
                   <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
@@ -1368,7 +1401,7 @@ export default function RebalancingPage() {
               <h4 className="font-semibold mb-2">Target Allocation</h4>
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
-                  <Pie data={pieTarget} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${(percent||0)*100}%`}>
+                  <Pie data={pieTarget} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
                     {pieTarget.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
                   </Pie>
                   <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
@@ -1378,33 +1411,37 @@ export default function RebalancingPage() {
             </div>
           </div>
 
-          <div className="bg-card p-4 rounded-lg border h-full">
+          <div className="bg-card p-4 rounded-lg border h-full flex flex-col">
             <h4 className="font-semibold mb-2">Drift Analysis</h4>
-            <ResponsiveContainer width="100%" height={580}>
-              {barMode === 'divergent' ? (
-                <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" unit="%" />
-                  <YAxis type="category" dataKey="name" />
-                  <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
-                  <Bar dataKey="relativeDriftPct" fill="#8884d8">
-                    {bars.map((entry: any, idx: number) => (
-                      <Cell key={`cell-${idx}`} fill={getDriftColor(entry.relativeDriftPct / 100)} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              ) : (
-                <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" />
-                  <YAxis type="category" dataKey="name" />
-                  <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
-                  <Legend />
-                  <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" />
-                  <Bar dataKey="currentPct" name="Current %" fill="#10b981" />
-                </BarChart>
-              )}
-            </ResponsiveContainer>
+            <div className="flex-1 flex items-center">
+              <ResponsiveContainer width="100%" height={getChartHeight(bars.length, 360)}>
+                {barMode === 'divergent' ? (
+                  <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" unit="%" />
+                    <YAxis type="category" dataKey="name" />
+                    <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
+                    <Bar dataKey="relativeDriftPct" fill="#8884d8">
+                      {bars.map((entry: any, idx: number) => (
+                        <Cell key={`cell-${idx}`} fill={getDriftColor(entry.relativeDriftPct / 100)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                ) : (
+                  <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" />
+                    <YAxis type="category" dataKey="name" />
+                    <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
+                    <Legend />
+                    <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" />
+                    <Bar dataKey="currentPct" name="Current %" fill="#10b981" />
+                  </BarChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+            <DriftLegend />
+            <DriftLegend />
           </div>
 
           {debugMode && (
@@ -1427,8 +1464,8 @@ export default function RebalancingPage() {
           return (
             <div key={g.key} className="bg-card p-4 rounded-lg border min-w-0" style={{ minWidth: 260 }}>
               <h4 className="font-semibold mb-2">{g.label}</h4>
-              <div className="mb-3">
-                <ResponsiveContainer width="100%" height={160}>
+              <div className="mb-3 flex-1 flex items-center">
+                <ResponsiveContainer width="100%" height={getChartHeight(assets.length, 160)}>
                   {barMode === 'divergent' ? (
                     <BarChart data={bars} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
@@ -1451,6 +1488,7 @@ export default function RebalancingPage() {
                   )}
                 </ResponsiveContainer>
               </div>
+              <DriftLegend />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-2">
