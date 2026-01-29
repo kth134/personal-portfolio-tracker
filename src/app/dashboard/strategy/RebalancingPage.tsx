@@ -1079,6 +1079,8 @@ export default function RebalancingPage() {
           value: item.current_value,
           percentage: item.current_percentage
         }))
+  // sort pies descending by value for consistent ordering
+  pieData.sort((a, b) => (b.value || 0) - (a.value || 0))
 
   const targetPieData = lens === 'total'
     ? currentAllocations.map(item => ({
@@ -1097,6 +1099,8 @@ export default function RebalancingPage() {
           value: item.implied_overall_target * data.totalValue / 100,
           percentage: item.implied_overall_target
         }))
+  // sort target pies descending by value
+  targetPieData.sort((a, b) => (b.value || 0) - (a.value || 0))
 
   // Visualizations - RebalanceProvider + VisualController + ChartGrid
 
@@ -1257,6 +1261,26 @@ export default function RebalancingPage() {
     )
   }
 
+  const stackedLegendPayload = [
+    { value: 'Base (min of current & target)', type: 'square', color: '#0f172a' },
+    { value: 'Delta (green if current > target, red if target > current)', type: 'square', color: '#10b981' }
+  ]
+
+  function StackedLegend() {
+    return (
+      <div className="flex items-center gap-4 mb-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="inline-block w-3 h-3" style={{ backgroundColor: '#0f172a' }} />
+          <span>Base (min of current & target)</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="inline-block w-3 h-3" style={{ backgroundColor: '#10b981' }} />
+          <span>Delta (green if current &gt; target, red if target &gt; current)</span>
+        </div>
+      </div>
+    )
+  }
+
   function VisualController({ barMode, setBarMode }: { barMode: 'divergent' | 'stacked', setBarMode: (v: any) => void }) {
     return (
       <div className="flex flex-col md:flex-row md:items-end gap-4 mb-4">
@@ -1366,6 +1390,11 @@ export default function RebalancingPage() {
       })
       const pieCurrent = currentAllocations.map((c: any) => ({ name: c.ticker, value: c.current_value }))
       const pieTarget = currentAllocations.map((c: any) => ({ name: c.ticker, value: (c.implied_overall_target || 0) * (data!.totalValue || 0) / 100 }))
+      // sort bars by the largest of current/target percentage (desc)
+      bars.sort((a: any, b: any) => Math.max(b.currentPct || 0, b.targetPct || 0) - Math.max(a.currentPct || 0, a.targetPct || 0))
+      // sort pies descending by value
+      pieCurrent.sort((a: any, b: any) => (b.value || 0) - (a.value || 0))
+      pieTarget.sort((a: any, b: any) => (b.value || 0) - (a.value || 0))
 
       return (
         <div className="space-y-6">
@@ -1419,7 +1448,7 @@ export default function RebalancingPage() {
                     <XAxis type="number" />
                     <YAxis type="category" dataKey="name" interval={0} />
                     <RechartsTooltip content={StackedTooltip} />
-                    <Legend />
+                    <StackedLegend />
                     <Bar dataKey="basePct" name="Base" fill="#0f172a" stackId="a" />
                     <Bar dataKey="deltaPct" name="Delta" stackId="a">
                       {bars.map((entry: any, idx: number) => (
@@ -1437,7 +1466,8 @@ export default function RebalancingPage() {
     }
 
     if (aggregate) {
-      const bars = grouped.map((g: any) => {
+      const sortedGrouped = grouped.slice().sort((a: any, b: any) => (b.currentValue || 0) - (a.currentValue || 0))
+      const bars = sortedGrouped.map((g: any) => {
         const currentPct = g.currentPct || 0
         const targetPct = g.targetPct || 0
         const basePct = Math.min(currentPct, targetPct)
@@ -1445,8 +1475,14 @@ export default function RebalancingPage() {
         const deltaColor = currentPct > targetPct ? '#10b981' : '#ef4444'
         return { name: g.label, currentPct, targetPct, basePct, deltaPct, deltaColor, relativeDriftPct: g.relativeDrift === Infinity ? 0 : g.relativeDrift * 100 }
       })
-      const pieCurrent = grouped.map((g: any, i: number) => ({ name: g.label, value: g.currentValue }))
-      const pieTarget = grouped.map((g: any) => ({ name: g.label, value: (g.targetPct || 0) * (data!.totalValue || 0) / 100 }))
+      const pieCurrent = sortedGrouped.map((g: any, i: number) => ({ name: g.label, value: g.currentValue }))
+      const pieTarget = sortedGrouped.map((g: any) => ({ name: g.label, value: (g.targetPct || 0) * (data!.totalValue || 0) / 100 }))
+
+      // sort bars by the largest of current/target percentage (desc)
+      bars.sort((a: any, b: any) => Math.max(b.currentPct || 0, b.targetPct || 0) - Math.max(a.currentPct || 0, a.targetPct || 0))
+      // sort pie arrays by value desc (should already match sortedGrouped but ensure consistency)
+      pieCurrent.sort((a: any, b: any) => (b.value || 0) - (a.value || 0))
+      pieTarget.sort((a: any, b: any) => (b.value || 0) - (a.value || 0))
 
       return (
         <div className="space-y-6">
@@ -1500,7 +1536,7 @@ export default function RebalancingPage() {
                     <XAxis type="number" />
                     <YAxis type="category" dataKey="name" interval={0} />
                     <RechartsTooltip content={StackedTooltip} />
-                    <Legend />
+                    <StackedLegend />
                     <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" stackId="a" />
                     <Bar dataKey="currentPct" name="Current %" fill="#10b981" stackId="a" />
                   </BarChart>
@@ -1535,23 +1571,28 @@ export default function RebalancingPage() {
             return { name: a.ticker, currentPct, targetPct, basePct, deltaPct, deltaColor, relativeDriftPct }
           })
 
+          // sort asset-level charts so largest slices/bars appear first
+          const pieCurrSorted = pieCurr.slice().sort((x: any, y: any) => (y.value || 0) - (x.value || 0))
+          const pieTargSorted = pieTarg.slice().sort((x: any, y: any) => (y.value || 0) - (x.value || 0))
+          const barsSorted = bars.slice().sort((a: any, b: any) => Math.max(b.currentPct || 0, b.targetPct || 0) - Math.max(a.currentPct || 0, a.targetPct || 0))
+
           return (
             <div key={g.key} className="bg-card p-4 rounded-lg border min-w-0" style={{ minWidth: 260 }}>
               <h4 className="font-semibold mb-2">{g.label}</h4>
               <div className="mb-3 flex-1 flex items-center">
                 <ResponsiveContainer width="100%" height={getChartHeight(assets.length, 160)}>
                   {barMode === 'divergent' ? (
-                    <BarChart data={bars} layout="vertical">
+                      <BarChart data={barsSorted} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
                       <YAxis type="category" dataKey="name" interval={0} />
                       <RechartsTooltip formatter={(v: any) => `${Number(v).toFixed(2)}%`} />
                       <Bar dataKey="relativeDriftPct">
-                        {bars.map((b: any, i: number) => <Cell key={i} fill={getDriftColor(b.relativeDriftPct/100)} />)}
+                          {barsSorted.map((b: any, i: number) => <Cell key={i} fill={getDriftColor(b.relativeDriftPct/100)} />)}
                       </Bar>
                     </BarChart>
                   ) : (
-                    <BarChart data={bars} layout="vertical">
+                      <BarChart data={barsSorted} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
                       <YAxis type="category" dataKey="name" interval={0} />
@@ -1569,8 +1610,8 @@ export default function RebalancingPage() {
                   <div className="text-sm font-medium mb-1">Current</div>
                   <ResponsiveContainer width="100%" height={160}>
                     <PieChart>
-                      <Pie data={pieCurr} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={false}>
-                        {pieCurr.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      <Pie data={pieCurrSorted} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={false}>
+                        {pieCurrSorted.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       </Pie>
                       <RechartsTooltip formatter={(v:any) => formatUSD(Number(v) || 0)} />
                     </PieChart>
@@ -1581,8 +1622,8 @@ export default function RebalancingPage() {
                   <div className="text-sm font-medium mb-1">Target</div>
                   <ResponsiveContainer width="100%" height={160}>
                     <PieChart>
-                      <Pie data={pieTarg} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={false}>
-                        {pieTarg.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      <Pie data={pieTargSorted} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={false}>
+                        {pieTargSorted.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       </Pie>
                       <RechartsTooltip formatter={(v:any) => formatUSD(Number(v) || 0)} />
                     </PieChart>
