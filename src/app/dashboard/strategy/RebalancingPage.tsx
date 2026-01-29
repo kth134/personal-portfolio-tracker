@@ -183,7 +183,7 @@ export default function RebalancingPage() {
   // Calculate summary metrics dynamically
   const totalPortfolioDrift = useMemo(() => {
     if (!data) return 0
-    return data.totalValue > 0 
+    return data.totalValue > 0
       ? data.currentAllocations.reduce((sum, item) => {
           const weight = item.current_value / data.totalValue
           return sum + (Math.abs(item.drift_percentage) * weight)
@@ -193,14 +193,12 @@ export default function RebalancingPage() {
 
   const subPortfolioDrift = useMemo(() => {
     if (!data) return 0
-    // Calculate current allocation for each sub-portfolio
     const subPortfolioAllocations: { [key: string]: number } = {}
     data.currentAllocations.forEach(item => {
       const subId = item.sub_portfolio_id || 'unassigned'
       subPortfolioAllocations[subId] = (subPortfolioAllocations[subId] || 0) + item.current_value
     })
 
-    // Calculate weighted average of absolute relative sub-portfolio drift from target allocations
     let totalWeightedDrift = 0
     let totalValue = 0
 
@@ -208,10 +206,7 @@ export default function RebalancingPage() {
       const currentValue = subPortfolioAllocations[sp.id] || 0
       const currentAllocation = data.totalValue > 0 ? (currentValue / data.totalValue) * 100 : 0
       const targetAllocation = sp.target_allocation
-      
-      // Calculate relative drift: |(actual - target) / target|
       const relativeDrift = targetAllocation > 0 ? Math.abs((currentAllocation - targetAllocation) / targetAllocation) : 0
-      
       totalWeightedDrift += relativeDrift * currentValue
       totalValue += currentValue
     })
@@ -224,18 +219,7 @@ export default function RebalancingPage() {
   const magnitudeOfRebalance = useMemo(() => {
     return data?.cashNeeded || 0
   }, [data])
-
-  useEffect(() => {
-    fetchData()
-  }, [refreshTrigger])
-
-  useEffect(() => {
-    // Set open items to empty (collapsed by default) only on initial load
-    if (initialLoadRef.current && data) {
-      setOpenItems([])
-      initialLoadRef.current = false
-    }
-  }, [data])
+  
 
   // Recalculate actions/amounts whenever sub-portfolio settings change (e.g., thresholds or band mode)
   useEffect(() => {
@@ -359,6 +343,14 @@ export default function RebalancingPage() {
   useEffect(() => {
     if (data) validateWithDrafts(data)
   }, [JSON.stringify(draftSubTargets), JSON.stringify(draftAssetTargets)])
+
+  // On initial load collapse accordion (only run once)
+  useEffect(() => {
+    if (initialLoadRef.current && data) {
+      setOpenItems([])
+      initialLoadRef.current = false
+    }
+  }, [data])
 
   const handleRefreshPrices = async () => {
     setRefreshing(true)
