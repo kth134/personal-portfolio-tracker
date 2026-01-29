@@ -1238,7 +1238,7 @@ export default function RebalancingPage() {
             <span>&gt;20% from target - Rebalance Consideration</span>
           </div>
         </div>
-        <div className="mt-1">We color by absolute distance from target (closer = green).</div>
+        <div className="mt-1">Color scale indicates proximity to target allocation; green = closer, red = further</div>
       </div>
     )
   }
@@ -1276,6 +1276,21 @@ export default function RebalancingPage() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span className="inline-block w-3 h-3" style={{ backgroundColor: '#10b981' }} />
           <span>Delta (green if current &gt; target, red if target &gt; current)</span>
+        </div>
+      </div>
+    )
+  }
+
+  function TargetCurrentLegend() {
+    return (
+      <div className="flex items-center gap-4 mb-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="inline-block w-3 h-3" style={{ backgroundColor: '#3b82f6' }} />
+          <span>Target</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="inline-block w-3 h-3" style={{ backgroundColor: '#10b981' }} />
+          <span>Current</span>
         </div>
       </div>
     )
@@ -1536,7 +1551,7 @@ export default function RebalancingPage() {
                     <XAxis type="number" />
                     <YAxis type="category" dataKey="name" interval={0} />
                     <RechartsTooltip content={StackedTooltip} />
-                    <StackedLegend />
+                    <TargetCurrentLegend />
                     <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" stackId="a" />
                     <Bar dataKey="currentPct" name="Current %" fill="#10b981" stackId="a" />
                   </BarChart>
@@ -1596,9 +1611,10 @@ export default function RebalancingPage() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
                       <YAxis type="category" dataKey="name" interval={0} />
-                      <RechartsTooltip content={StackedTooltip} />
-                      <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" stackId="a" />
-                      <Bar dataKey="currentPct" name="Current %" fill="#10b981" stackId="a" />
+                        <RechartsTooltip content={StackedTooltip} />
+                        <TargetCurrentLegend />
+                        <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" stackId="a" />
+                        <Bar dataKey="currentPct" name="Current %" fill="#10b981" stackId="a" />
                     </BarChart>
                   )}
                 </ResponsiveContainer>
