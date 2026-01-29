@@ -1241,16 +1241,17 @@ export default function RebalancingPage() {
 
   function StackedTooltip({ active, payload, label }: any) {
     if (!active || !payload || payload.length === 0) return null
-    const current = payload.find((p: any) => p.dataKey === 'currentPct')
-    const target = payload.find((p: any) => p.dataKey === 'targetPct')
+    const d = payload[0]?.payload || {}
+    const current = d.currentPct ?? null
+    const target = d.targetPct ?? null
     return (
       <div className="bg-white border rounded px-3 py-2 text-sm">
         <div className="font-medium mb-1">{label}</div>
-        {current && (
-          <div className="flex items-center gap-2"><span className="inline-block w-2 h-2" style={{ backgroundColor: '#10b981' }} />Current: {Number(current.value).toFixed(2)}%</div>
+        {current !== null && (
+          <div className="flex items-center gap-2"><span className="inline-block w-2 h-2" style={{ backgroundColor: '#10b981' }} />Current: {Number(current).toFixed(2)}%</div>
         )}
-        {target && (
-          <div className="flex items-center gap-2"><span className="inline-block w-2 h-2" style={{ backgroundColor: '#3b82f6' }} />Target: {Number(target.value).toFixed(2)}%</div>
+        {target !== null && (
+          <div className="flex items-center gap-2"><span className="inline-block w-2 h-2" style={{ backgroundColor: '#3b82f6' }} />Target: {Number(target).toFixed(2)}%</div>
         )}
       </div>
     )
@@ -1347,96 +1348,31 @@ export default function RebalancingPage() {
 
     // Asset-level (Assets lens) view: show per-asset charts across entire portfolio
     if (lens === 'total') {
-      const bars = currentAllocations.map((item: any) => ({
-        name: item.ticker,
-        currentPct: item.current_percentage,
-        targetPct: item.implied_overall_target || 0,
-        relativeDriftPct: item.drift_percentage || 0
-      }))
+      const bars = currentAllocations.map((item: any) => {
+        const currentPct = item.current_percentage || 0
+        const targetPct = item.implied_overall_target || 0
+        const basePct = Math.min(currentPct, targetPct)
+        const deltaPct = Math.abs(currentPct - targetPct)
+        const deltaColor = currentPct > targetPct ? '#10b981' : '#ef4444'
+        return {
+          name: item.ticker,
+          currentPct,
+          targetPct,
+          basePct,
+          deltaPct,
+          deltaColor,
+          relativeDriftPct: item.drift_percentage || 0
+        }
+      })
       const pieCurrent = currentAllocations.map((c: any) => ({ name: c.ticker, value: c.current_value }))
       const pieTarget = currentAllocations.map((c: any) => ({ name: c.ticker, value: (c.implied_overall_target || 0) * (data!.totalValue || 0) / 100 }))
 
       return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-card p-4 rounded-lg border flex flex-col">
-            <h4 className="font-semibold mb-2">Drift Analysis (Assets)</h4>
-                <div className="flex-1 flex items-center">
-                  <ResponsiveContainer width="100%" height={getChartHeight(bars.length, 320)}>
-                    {barMode === 'divergent' ? (
-                      <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" unit="%" />
-                        <YAxis type="category" dataKey="name" interval={0} />
-                        <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
-                        <Bar dataKey="relativeDriftPct" fill="#8884d8">
-                          {bars.map((entry: any, idx: number) => (
-                            <Cell key={`cell-${idx}`} fill={getDriftColor(entry.relativeDriftPct / 100)} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    ) : (
-                      <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" />
-                        <YAxis type="category" dataKey="name" interval={0} />
-                        <RechartsTooltip content={StackedTooltip} />
-                        <Legend />
-                        <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" stackId="a" />
-                        <Bar dataKey="currentPct" name="Current %" fill="#10b981" stackId="a" />
-                      </BarChart>
-                    )}
-                  </ResponsiveContainer>
-                </div>
-            <DriftLegend />
-          </div>
-
-          <div className="space-y-4">
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-card p-4 rounded-lg border">
               <h4 className="font-semibold mb-2">Current Allocation</h4>
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie data={pieCurrent} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
-                    {pieCurrent.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
-                  </Pie>
-                  <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <h4 className="font-semibold mb-2">Target Allocation</h4>
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie data={pieTarget} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
-                    {pieTarget.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
-                  </Pie>
-                  <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          {debugMode && (
-            <div className="mt-2 p-2 bg-yellow-50 text-xs text-gray-700">
-              <div>Debug: assets={currentAllocations.length}, pieCurrent={pieCurrent.length}, pieTarget={pieTarget.length}</div>
-            </div>
-          )}
-        </div>
-      )
-    }
-
-    if (aggregate) {
-      const bars = grouped.map((g: any) => ({ name: g.label, currentPct: g.currentPct, targetPct: g.targetPct, relativeDriftPct: g.relativeDrift === Infinity ? 0 : g.relativeDrift * 100 }))
-      const pieCurrent = grouped.map((g: any, i: number) => ({ name: g.label, value: g.currentValue }))
-      const pieTarget = grouped.map((g: any) => ({ name: g.label, value: (g.targetPct || 0) * (data!.totalValue || 0) / 100 }))
-
-      return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="flex flex-col space-y-4">
-            <div className="bg-card p-4 rounded-lg border flex-1" style={{ minWidth: 260 }}>
-              <h4 className="font-semibold mb-2">Current Allocation</h4>
-              <ResponsiveContainer width="100%" height={280}>
+              <ResponsiveContainer width="100%" height={Math.max(280, Math.min(520, Math.ceil(pieCurrent.length / 6) * 140))}>
                 <PieChart>
                   <Pie data={pieCurrent} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
                     {pieCurrent.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
@@ -1447,9 +1383,9 @@ export default function RebalancingPage() {
               </ResponsiveContainer>
             </div>
 
-            <div className="bg-card p-4 rounded-lg border flex-1" style={{ minWidth: 260 }}>
+            <div className="bg-card p-4 rounded-lg border">
               <h4 className="font-semibold mb-2">Target Allocation</h4>
-              <ResponsiveContainer width="100%" height={280}>
+              <ResponsiveContainer width="100%" height={Math.max(280, Math.min(520, Math.ceil(pieTarget.length / 6) * 140))}>
                 <PieChart>
                   <Pie data={pieTarget} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
                     {pieTarget.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
@@ -1461,10 +1397,91 @@ export default function RebalancingPage() {
             </div>
           </div>
 
-          <div className="bg-card p-4 rounded-lg border h-full flex flex-col">
-            <h4 className="font-semibold mb-2">Drift Analysis</h4>
-            <div className="flex-1 flex items-center">
-              <ResponsiveContainer width="100%" height={getChartHeight(bars.length, 360)}>
+          <div className="bg-card p-4 rounded-lg border">
+            <h4 className="font-semibold mb-2">Drift Analysis (Assets)</h4>
+            <div className="flex items-center">
+              <ResponsiveContainer width="100%" height={getChartHeight(bars.length, 420)}>
+                {barMode === 'divergent' ? (
+                  <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" unit="%" />
+                    <YAxis type="category" dataKey="name" interval={0} />
+                    <RechartsTooltip formatter={(val: any) => `${Number(val).toFixed(2)}%`} />
+                    <Bar dataKey="relativeDriftPct" fill="#8884d8">
+                      {bars.map((entry: any, idx: number) => (
+                        <Cell key={`cell-${idx}`} fill={getDriftColor(entry.relativeDriftPct / 100)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                ) : (
+                  <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" />
+                    <YAxis type="category" dataKey="name" interval={0} />
+                    <RechartsTooltip content={StackedTooltip} />
+                    <Legend />
+                    <Bar dataKey="basePct" name="Base" fill="#0f172a" stackId="a" />
+                    <Bar dataKey="deltaPct" name="Delta" stackId="a">
+                      {bars.map((entry: any, idx: number) => (
+                        <Cell key={idx} fill={entry.deltaColor} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+            <DriftLegend />
+          </div>
+        </div>
+      )
+    }
+
+    if (aggregate) {
+      const bars = grouped.map((g: any) => {
+        const currentPct = g.currentPct || 0
+        const targetPct = g.targetPct || 0
+        const basePct = Math.min(currentPct, targetPct)
+        const deltaPct = Math.abs(currentPct - targetPct)
+        const deltaColor = currentPct > targetPct ? '#10b981' : '#ef4444'
+        return { name: g.label, currentPct, targetPct, basePct, deltaPct, deltaColor, relativeDriftPct: g.relativeDrift === Infinity ? 0 : g.relativeDrift * 100 }
+      })
+      const pieCurrent = grouped.map((g: any, i: number) => ({ name: g.label, value: g.currentValue }))
+      const pieTarget = grouped.map((g: any) => ({ name: g.label, value: (g.targetPct || 0) * (data!.totalValue || 0) / 100 }))
+
+      return (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-card p-4 rounded-lg border">
+              <h4 className="font-semibold mb-2">Current Allocation</h4>
+              <ResponsiveContainer width="100%" height={Math.max(280, Math.min(520, Math.ceil(pieCurrent.length / 6) * 140))}>
+                <PieChart>
+                  <Pie data={pieCurrent} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
+                    {pieCurrent.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
+                  </Pie>
+                  <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-card p-4 rounded-lg border">
+              <h4 className="font-semibold mb-2">Target Allocation</h4>
+              <ResponsiveContainer width="100%" height={Math.max(280, Math.min(520, Math.ceil(pieTarget.length / 6) * 140))}>
+                <PieChart>
+                  <Pie data={pieTarget} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
+                    {pieTarget.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
+                  </Pie>
+                  <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-card p-4 rounded-lg border">
+            <h4 className="font-semibold mb-2">Drift Analysis (Assets)</h4>
+            <div className="flex items-center">
+              <ResponsiveContainer width="100%" height={getChartHeight(bars.length, 420)}>
                 {barMode === 'divergent' ? (
                   <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -1508,7 +1525,15 @@ export default function RebalancingPage() {
           const assets = g.items
           const pieCurr = assets.map((a: any) => ({ name: a.ticker, value: a.current_value }))
           const pieTarg = assets.map((a: any) => ({ name: a.ticker, value: (a.implied_overall_target || 0) * (data!.totalValue || 0) / 100 }))
-          const bars = assets.map((a: any) => ({ name: a.ticker, currentPct: g.currentValue > 0 ? (a.current_value / g.currentValue) * 100 : 0, targetPct: g.targetPctSum > 0 ? ((a.implied_overall_target || 0) / g.targetPctSum) * 100 : 0, relativeDriftPct: g.targetPctSum > 0 ? (( (a.current_value / g.currentValue)*100 - ((a.implied_overall_target||0)/g.targetPctSum*100) ) ) : 0 }))
+          const bars = assets.map((a: any) => {
+            const currentPct = g.currentValue > 0 ? (a.current_value / g.currentValue) * 100 : 0
+            const targetPct = g.targetPctSum > 0 ? ((a.implied_overall_target || 0) / g.targetPctSum) * 100 : 0
+            const basePct = Math.min(currentPct, targetPct)
+            const deltaPct = Math.abs(currentPct - targetPct)
+            const deltaColor = currentPct > targetPct ? '#10b981' : '#ef4444'
+            const relativeDriftPct = g.targetPctSum > 0 ? (((a.current_value / g.currentValue) * 100) - (((a.implied_overall_target || 0) / g.targetPctSum) * 100)) : 0
+            return { name: a.ticker, currentPct, targetPct, basePct, deltaPct, deltaColor, relativeDriftPct }
+          })
 
           return (
             <div key={g.key} className="bg-card p-4 rounded-lg border min-w-0" style={{ minWidth: 260 }}>
