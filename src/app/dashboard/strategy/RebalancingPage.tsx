@@ -1463,7 +1463,7 @@ export default function RebalancingPage() {
                     <XAxis type="number" />
                     <YAxis type="category" dataKey="name" interval={0} />
                     <RechartsTooltip content={StackedTooltip} />
-                    <StackedLegend />
+                    <TargetCurrentLegend />
                     <Bar dataKey="basePct" name="Base" fill="#0f172a" stackId="a" />
                     <Bar dataKey="deltaPct" name="Delta" stackId="a">
                       {bars.map((entry: any, idx: number) => (
