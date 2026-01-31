@@ -1143,7 +1143,11 @@ export default function RebalancingPage() {
       if (!data) return []
 
       // Use API-provided allocations for non-asset lenses to match holdings page behavior
-      if (lens !== 'total' && apiAllocations && apiAllocations.length > 0) {
+      // BUT when `aggregate` is enabled we want a breakdown of each selected group
+      // (e.g., each sub-portfolio) rather than trusting an API response that may
+      // return a single "Aggregated Selection" bucket. Only use the API when
+      // it returned explicit per-group rows and we're not in aggregate view.
+      if (lens !== 'total' && apiAllocations && apiAllocations.length > 0 && !aggregate) {
         const totalValue = data.totalValue || apiAllocations.reduce((s: number, a: any) => s + (a.value || 0), 0)
         return apiAllocations.map((a: any) => {
           const items = (a.items && a.items.length) ? a.items : (a.data || []).map((d: any) => ({ ticker: d.subkey, current_value: d.value, current_percentage: d.percentage }))
