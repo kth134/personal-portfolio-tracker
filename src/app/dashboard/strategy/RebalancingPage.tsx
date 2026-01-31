@@ -1142,21 +1142,24 @@ export default function RebalancingPage() {
     const grouped = useMemo(() => {
       if (!data) return []
 
-      // Use API-provided allocations for non-asset lenses to match holdings page behavior
-      // BUT when `aggregate` is enabled we want a breakdown of each selected group
-      // (e.g., each sub-portfolio) rather than trusting an API response that may
-      // return a single "Aggregated Selection" bucket. Only use the API when
-      // it returned explicit per-group rows and we're not in aggregate view.
-      if (lens !== 'total' && apiAllocations && apiAllocations.length > 0 && !aggregate) {
-        const totalValue = data.totalValue || apiAllocations.reduce((s: number, a: any) => s + (a.value || 0), 0)
-        return apiAllocations.map((a: any) => {
-          const items = (a.items && a.items.length) ? a.items : (a.data || []).map((d: any) => ({ ticker: d.subkey, current_value: d.value, current_percentage: d.percentage }))
-          const currentValue = a.value || items.reduce((s: number, it: any) => s + (it.current_value || it.value || 0), 0)
-          const currentPct = totalValue > 0 ? (currentValue / totalValue) * 100 : 0
-          const targetPct = a.target_pct || a.percentage || 0
-          const relativeDrift = targetPct > 0 ? (currentPct - targetPct) / targetPct : (currentPct === 0 ? 0 : Infinity)
-          return { key: a.key, label: a.key, items, currentValue, targetPct, currentPct, relativeDrift }
-        })
+      // Use API-provided allocations for non-asset lenses to match holdings page behavior.
+      // If the API returned a single "Aggregated Selection" row while the user
+      // asked for an aggregate view, fall back to client-side grouping so charts
+      // show per-lens breakdown (e.g., Sub-Portfolio A vs B). Otherwise prefer
+      // the API response when available.
+      if (lens !== 'total' && apiAllocations && apiAllocations.length > 0) {
+        const apiSingleAggregated = apiAllocations.length === 1 && typeof apiAllocations[0].key === 'string' && /aggregat/i.test(apiAllocations[0].key)
+        if (!apiSingleAggregated) {
+          const totalValue = data.totalValue || apiAllocations.reduce((s: number, a: any) => s + (a.value || 0), 0)
+          return apiAllocations.map((a: any) => {
+            const items = (a.items && a.items.length) ? a.items : (a.data || []).map((d: any) => ({ ticker: d.subkey, current_value: d.value, current_percentage: d.percentage }))
+            const currentValue = a.value || items.reduce((s: number, it: any) => s + (it.current_value || it.value || 0), 0)
+            const currentPct = totalValue > 0 ? (currentValue / totalValue) * 100 : 0
+            const targetPct = a.target_pct || a.percentage || 0
+            const relativeDrift = targetPct > 0 ? (currentPct - targetPct) / targetPct : (currentPct === 0 ? 0 : Infinity)
+            return { key: a.key, label: a.key, items, currentValue, targetPct, currentPct, relativeDrift }
+          })
+        }
       }
 
       const items = currentAllocations
