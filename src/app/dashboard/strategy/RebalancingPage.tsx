@@ -1485,8 +1485,8 @@ export default function RebalancingPage() {
                   </BarChart>
                 )}
               </ResponsiveContainer>
-            </div>
-            <DriftLegend />
+              </div>
+              {barMode === 'divergent' ? <DriftLegend /> : null}
           </div>
         </div>
       )
@@ -1570,7 +1570,7 @@ export default function RebalancingPage() {
                 )}
               </ResponsiveContainer>
             </div>
-            <DriftLegend />
+            {barMode === 'divergent' ? <DriftLegend /> : null}
           </div>
 
           {debugMode && (
@@ -1631,7 +1631,7 @@ export default function RebalancingPage() {
                   )}
                 </ResponsiveContainer>
               </div>
-              <DriftLegend />
+              {barMode === 'divergent' ? <DriftLegend /> : null}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-2">
