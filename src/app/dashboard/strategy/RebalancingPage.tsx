@@ -1595,8 +1595,14 @@ export default function RebalancingPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
         {grouped.map((g: any, gi: number) => {
           const assets = g.items
-          const pieCurr = assets.map((a: any) => ({ name: a.ticker, value: a.current_value }))
-          const pieTarg = assets.map((a: any) => ({ name: a.ticker, value: (a.implied_overall_target || 0) * (data!.totalValue || 0) / 100 }))
+          const pieCurr = assets.map((a: any) => ({ name: a.ticker, value: Number(a.current_value) || 0 }))
+          const pieTarg = assets.map((a: any) => {
+            const sub = data!.subPortfolios.find((sp: any) => sp.id === a.sub_portfolio_id)
+            const impliedPct = Number(a.implied_overall_target) || 0
+              || (Number(a.sub_portfolio_target_percentage) && sub ? (Number(sub.target_allocation || 0) * Number(a.sub_portfolio_target_percentage) / 100) : 0)
+            const value = (impliedPct || 0) * (data!.totalValue || 0) / 100
+            return { name: a.ticker, value }
+          })
           const bars = assets.map((a: any) => {
             const currentPct = g.currentValue > 0 ? (a.current_value / g.currentValue) * 100 : 0
             const targetPct = g.targetPctSum > 0 ? ((a.implied_overall_target || 0) / g.targetPctSum) * 100 : 0
@@ -1615,6 +1621,34 @@ export default function RebalancingPage() {
           return (
             <div key={g.key} className="bg-card p-4 rounded-lg border min-w-0" style={{ minWidth: 260 }}>
               <h4 className="font-semibold mb-2">{g.label}</h4>
+
+              {/* Pies first for clarity */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div className="p-2">
+                  <div className="text-sm font-medium mb-1">Current</div>
+                  <ResponsiveContainer width="100%" height={Math.max(140, Math.min(320, Math.ceil(assets.length / 6) * 80))}>
+                    <PieChart>
+                      <Pie data={pieCurrSorted} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={Math.max(48, Math.min(80, Math.ceil(pieCurrSorted.length / 6) * 20))} label={false}>
+                        {pieCurrSorted.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie>
+                      <RechartsTooltip formatter={(v:any) => formatUSD(Number(v) || 0)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="p-2">
+                  <div className="text-sm font-medium mb-1">Target</div>
+                  <ResponsiveContainer width="100%" height={Math.max(140, Math.min(320, Math.ceil(assets.length / 6) * 80))}>
+                    <PieChart>
+                      <Pie data={pieTargSorted} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={Math.max(48, Math.min(80, Math.ceil(pieTargSorted.length / 6) * 20))} label={false}>
+                        {pieTargSorted.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie>
+                      <RechartsTooltip formatter={(v:any) => formatUSD(Number(v) || 0)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
               <div className="mb-3 flex-1 flex items-center">
                 <ResponsiveContainer width="100%" height={getChartHeight(assets.length, 160)}>
                   {barMode === 'divergent' ? (
@@ -1633,48 +1667,17 @@ export default function RebalancingPage() {
                       <XAxis type="number" />
                       <YAxis type="category" dataKey="name" interval={0} />
                         <RechartsTooltip content={StackedTooltip} />
-                        <TargetCurrentLegend />
                         <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" stackId="a" />
                         <Bar dataKey="currentPct" name="Current %" fill="#10b981" stackId="a" />
                     </BarChart>
                   )}
                 </ResponsiveContainer>
               </div>
-              {barMode === 'divergent' ? <DriftLegend /> : null}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-2">
-                  <div className="text-sm font-medium mb-1">Current</div>
-                  <ResponsiveContainer width="100%" height={160}>
-                    <PieChart>
-                      <Pie data={pieCurrSorted} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={false}>
-                        {pieCurrSorted.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                      </Pie>
-                      <RechartsTooltip formatter={(v:any) => formatUSD(Number(v) || 0)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="p-2">
-                  <div className="text-sm font-medium mb-1">Target</div>
-                  <ResponsiveContainer width="100%" height={160}>
-                    <PieChart>
-                      <Pie data={pieTargSorted} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={false}>
-                        {pieTargSorted.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                      </Pie>
-                      <RechartsTooltip formatter={(v:any) => formatUSD(Number(v) || 0)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
+              <DriftLegend />
             </div>
           )
         })}
-        {debugMode && (
-          <div className="mt-2 p-2 bg-yellow-50 text-xs text-gray-700">
-            <div>Debug: grouped={grouped.length}</div>
-          </div>
-        )}
       </div>
     )
   }
@@ -1686,7 +1689,7 @@ export default function RebalancingPage() {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground text-center">Total Portfolio Value</h3>
-          <p className="text-2xl font-bold text-center">{formatUSD(data.totalValue)}</p>
+          <p className="text-2xl font-bold text-center">{formatUSD(data!.totalValue)}</p>
         </div>
 
         <div className="bg-card p-4 rounded-lg border">
@@ -1706,7 +1709,7 @@ export default function RebalancingPage() {
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground text-center">Rebalance Alert</h3>
           <p className="text-2xl font-bold flex items-center justify-center">
-            {data.currentAllocations.some(item => item.action !== 'hold') ? (
+            {data!.currentAllocations.some(item => item.action !== 'hold') ? (
               <><AlertTriangle className="h-6 w-6 text-yellow-500 mr-2" /> Needed</>
             ) : (
               'No Action Required'
@@ -1723,7 +1726,7 @@ export default function RebalancingPage() {
 
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground text-center">Last Price Update</h3>
-          <p className="text-sm text-center">{data.lastPriceUpdate ? new Date(data.lastPriceUpdate).toLocaleString() : 'Never'}</p>
+          <p className="text-sm text-center">{data!.lastPriceUpdate ? new Date(data!.lastPriceUpdate).toLocaleString() : 'Never'}</p>
         </div>
       </div>
 
@@ -1751,11 +1754,11 @@ export default function RebalancingPage() {
           const bValue = bAllocations.reduce((sum, item) => sum + item.current_value, 0)
           return bValue - aValue // descending order
         }).map(([subPortfolioId, allocations]) => {
-          const subPortfolio = data.subPortfolios.find(sp => sp.id === subPortfolioId)
+          const subPortfolio = data!.subPortfolios.find(sp => sp.id === subPortfolioId)
           const subPortfolioName = subPortfolio?.name || 'Unassigned'
           const subPortfolioTarget = subPortfolio?.target_allocation || 0
           const currentSubValue = allocations.reduce((sum, item) => sum + item.current_value, 0)
-          const currentSubPercentage = data.totalValue > 0 ? (currentSubValue / data.totalValue) * 100 : 0
+          const currentSubPercentage = data!.totalValue > 0 ? (currentSubValue / data!.totalValue) * 100 : 0
           const hasBreached = allocations.some(a => a.action !== 'hold')
 
           const assetLevelDrift = currentSubValue > 0 ? allocations.reduce((sum, item) => sum + (Math.abs(item.drift_percentage) * item.current_value), 0) / currentSubValue : 0
