@@ -1292,13 +1292,18 @@ export default function RebalancingPage() {
     return (
       <div className="flex items-center gap-4 mb-2">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="inline-block w-3 h-3" style={{ backgroundColor: '#3b82f6' }} />
-          <span>Target</span>
+          <span className="inline-block w-3 h-3" style={{ backgroundColor: '#0f172a' }} />
+          <span>Base: min(current, target) — the base portion of the stacked bar</span>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span className="inline-block w-3 h-3" style={{ backgroundColor: '#10b981' }} />
-          <span>Current</span>
+          <span>Green: amount the asset is over its target allocation</span>
         </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="inline-block w-3 h-3" style={{ backgroundColor: '#ef4444' }} />
+          <span>Red: amount the asset is under its target allocation</span>
+        </div>
+        <div className="w-full text-xs text-muted-foreground">Full stacked bar (base + green/red) = current allocation for the asset within the overall portfolio.</div>
       </div>
     )
   }
@@ -1364,7 +1369,7 @@ export default function RebalancingPage() {
         <div className="flex items-center gap-2">
           <Label className="text-sm font-medium">Divergent</Label>
           <Switch checked={barMode === 'stacked'} onCheckedChange={(v) => setBarMode(v ? 'stacked' : 'divergent')} />
-          <Label className="text-sm font-medium">Target vs Current</Label>
+          <Label className="text-sm font-medium">Stacked</Label>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
