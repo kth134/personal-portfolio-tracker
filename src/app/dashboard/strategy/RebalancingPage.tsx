@@ -1475,7 +1475,6 @@ export default function RebalancingPage() {
                     <XAxis type="number" />
                     <YAxis type="category" dataKey="name" interval={0} />
                     <RechartsTooltip content={StackedTooltip} />
-                    <TargetCurrentLegend />
                     <Bar dataKey="basePct" name="Base" fill="#0f172a" stackId="a" />
                     <Bar dataKey="deltaPct" name="Delta" stackId="a">
                       {bars.map((entry: any, idx: number) => (
@@ -1485,8 +1484,8 @@ export default function RebalancingPage() {
                   </BarChart>
                 )}
               </ResponsiveContainer>
-              </div>
-              {barMode === 'divergent' ? <DriftLegend /> : null}
+            </div>
+            {barMode === 'divergent' ? <DriftLegend /> : <TargetCurrentLegend />}
           </div>
         </div>
       )
@@ -1557,20 +1556,19 @@ export default function RebalancingPage() {
                       ))}
                     </Bar>
                   </BarChart>
-                ) : (
+                  ) : (
                   <BarChart data={bars} layout="vertical" margin={{ left: 30 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" />
                     <YAxis type="category" dataKey="name" interval={0} />
                     <RechartsTooltip content={StackedTooltip} />
-                    <TargetCurrentLegend />
                     <Bar dataKey="targetPct" name="Target %" fill="#3b82f6" stackId="a" />
                     <Bar dataKey="currentPct" name="Current %" fill="#10b981" stackId="a" />
                   </BarChart>
                 )}
               </ResponsiveContainer>
             </div>
-            {barMode === 'divergent' ? <DriftLegend /> : null}
+            {barMode === 'divergent' ? <DriftLegend /> : <TargetCurrentLegend />}
           </div>
 
           {debugMode && (
