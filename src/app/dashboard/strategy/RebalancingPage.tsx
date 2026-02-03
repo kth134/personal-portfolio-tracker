@@ -1592,7 +1592,7 @@ export default function RebalancingPage() {
     }
 
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+      <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
         {grouped.map((g: any, gi: number) => {
           const assets = g.items
           const pieCurr = assets.map((a: any) => ({ name: a.ticker, value: Number(a.current_value) || 0 }))
@@ -1619,7 +1619,7 @@ export default function RebalancingPage() {
           const barsSorted = bars.slice().sort((a: any, b: any) => Math.max(b.currentPct || 0, b.targetPct || 0) - Math.max(a.currentPct || 0, a.targetPct || 0))
 
           return (
-            <div key={g.key} className="bg-card p-4 rounded-lg border min-w-0" style={{ minWidth: 260 }}>
+            <div key={g.key} className="bg-card p-4 rounded-lg border min-w-0">
               <h4 className="font-semibold mb-2">{g.label}</h4>
 
               {/* Pies first for clarity */}
