@@ -891,7 +891,10 @@ export default function DashboardHome() {
                                   const assetDrift = rebalancingData.totalValue > 0 
                                     ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
                                         const weight = item.current_value / rebalancingData.totalValue
-                                        return sum + (Math.abs(item.drift_percentage) * weight)
+                                        const currentPct = item.current_percentage || 0
+                                        const implied = item.implied_overall_target || 0
+                                        const rel = implied > 0 ? Math.abs((currentPct - implied) / implied) * 100 : (currentPct === 0 ? 0 : Infinity)
+                                        return sum + (rel * weight)
                                       }, 0)
                                     : 0
                                   return assetDrift.toFixed(2) + '%'
@@ -1179,7 +1182,10 @@ export default function DashboardHome() {
                                 const assetDrift = rebalancingData.totalValue > 0 
                                   ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
                                       const weight = item.current_value / rebalancingData.totalValue
-                                      return sum + (Math.abs(item.drift_percentage) * weight)
+                                      const currentPct = item.current_percentage || 0
+                                      const implied = item.implied_overall_target || 0
+                                      const rel = implied > 0 ? Math.abs((currentPct - implied) / implied) * 100 : (currentPct === 0 ? 0 : Infinity)
+                                      return sum + (rel * weight)
                                     }, 0)
                                   : 0
                                 return assetDrift.toFixed(2) + '%'

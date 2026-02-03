@@ -220,7 +220,10 @@ export default function RebalancingPage() {
     return data.totalValue > 0
       ? data.currentAllocations.reduce((sum, item) => {
           const weight = item.current_value / data.totalValue
-          return sum + (Math.abs(item.drift_percentage) * weight)
+          const currentPct = item.current_percentage || 0
+          const implied = item.implied_overall_target || 0
+          const rel = implied > 0 ? Math.abs((currentPct - implied) / implied) * 100 : (currentPct === 0 ? 0 : Infinity)
+          return sum + (rel * weight)
         }, 0)
       : 0
   }, [data])
