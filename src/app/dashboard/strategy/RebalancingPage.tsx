@@ -1461,8 +1461,9 @@ export default function RebalancingPage() {
           relativeDriftPct: item.drift_percentage || 0
         }
       })
-      const pieCurrent = currentAllocations.map((c: any) => ({ name: c.ticker, value: c.current_value }))
-      const pieTarget = currentAllocations.map((c: any) => ({ name: c.ticker, value: (c.implied_overall_target || 0) * (data!.totalValue || 0) / 100 }))
+      // pies use percentage values so slices and tooltips show % consistently
+      const pieCurrent = currentAllocations.map((c: any) => ({ name: c.ticker, value: c.current_percentage || 0 }))
+      const pieTarget = currentAllocations.map((c: any) => ({ name: c.ticker, value: c.implied_overall_target || 0 }))
       // sort bars by the largest of current/target percentage (desc)
       bars.sort((a: any, b: any) => Math.max(b.currentPct || 0, b.targetPct || 0) - Math.max(a.currentPct || 0, a.targetPct || 0))
       // sort pies descending by value
@@ -1479,7 +1480,7 @@ export default function RebalancingPage() {
                   <Pie data={pieCurrent} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
                     {pieCurrent.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
                   </Pie>
-                  <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
+                  <RechartsTooltip formatter={(value) => `${Number(value).toFixed(2)}%`} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -1492,7 +1493,7 @@ export default function RebalancingPage() {
                   <Pie data={pieTarget} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
                     {pieTarget.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
                   </Pie>
-                  <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
+                  <RechartsTooltip formatter={(value) => `${Number(value).toFixed(2)}%`} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -1547,8 +1548,8 @@ export default function RebalancingPage() {
         const deltaColor = currentPct > targetPct ? '#10b981' : '#ef4444'
         return { name: g.label, currentPct, targetPct, basePct, deltaPct, deltaColor, relativeDriftPct: g.relativeDrift === Infinity ? 0 : g.relativeDrift * 100 }
       })
-      const pieCurrent = sortedGrouped.map((g: any) => ({ name: g.label, value: g.currentValue }))
-      const pieTarget = sortedGrouped.map((g: any) => ({ name: g.label, value: (g.targetPct || 0) * (data!.totalValue || 0) / 100 }))
+      const pieCurrent = sortedGrouped.map((g: any) => ({ name: g.label, value: g.currentPct || 0 }))
+      const pieTarget = sortedGrouped.map((g: any) => ({ name: g.label, value: g.targetPct || 0 }))
 
       // sort bars by the largest of current/target percentage (desc)
       bars.sort((a: any, b: any) => Math.max(b.currentPct || 0, b.targetPct || 0) - Math.max(a.currentPct || 0, a.targetPct || 0))
@@ -1566,7 +1567,7 @@ export default function RebalancingPage() {
                   <Pie data={pieCurrent} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
                     {pieCurrent.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
                   </Pie>
-                  <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
+                  <RechartsTooltip formatter={(value) => `${Number(value).toFixed(2)}%`} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -1579,7 +1580,7 @@ export default function RebalancingPage() {
                   <Pie data={pieTarget} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name}: ${((percent||0)*100).toFixed(1)}%`}>
                     {pieTarget.map((entry: any, idx: number) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
                   </Pie>
-                  <RechartsTooltip formatter={(value) => formatUSD(Number(value) || 0)} />
+                  <RechartsTooltip formatter={(value) => `${Number(value).toFixed(2)}%`} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -1630,12 +1631,10 @@ export default function RebalancingPage() {
       <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
         {grouped.map((g: any) => {
           const assets = g.items
-          const pieCurr = assets.map((a: any) => ({ name: a.ticker, value: Number(a.current_value) || 0 }))
+          const pieCurr = assets.map((a: any) => ({ name: a.ticker, value: g.currentValue > 0 ? (a.current_value / g.currentValue) * 100 : 0 }))
           const pieTarg = assets.map((a: any) => {
-            const sub = data!.subPortfolios.find((sp: any) => sp.id === a.sub_portfolio_id)
             const impliedPct = Number(a.implied_overall_target) || 0
-              || (Number(a.sub_portfolio_target_percentage) && sub ? (Number(sub.target_allocation || 0) * Number(a.sub_portfolio_target_percentage) / 100) : 0)
-            const value = (impliedPct || 0) * (data!.totalValue || 0) / 100
+            const value = g.targetPctSum > 0 ? ((impliedPct || 0) / g.targetPctSum) * 100 : 0
             return { name: a.ticker, value }
           })
           const bars = assets.map((a: any) => {
@@ -1666,7 +1665,7 @@ export default function RebalancingPage() {
                       <Pie data={pieCurrSorted} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={Math.max(48, Math.min(80, Math.ceil(pieCurrSorted.length / 6) * 20))} label={false}>
                         {pieCurrSorted.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       </Pie>
-                      <RechartsTooltip formatter={(v:any) => formatUSD(Number(v) || 0)} />
+                      <RechartsTooltip formatter={(v:any) => `${Number(v).toFixed(2)}%`} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -1678,7 +1677,7 @@ export default function RebalancingPage() {
                       <Pie data={pieTargSorted} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={Math.max(48, Math.min(80, Math.ceil(pieTargSorted.length / 6) * 20))} label={false}>
                         {pieTargSorted.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       </Pie>
-                      <RechartsTooltip formatter={(v:any) => formatUSD(Number(v) || 0)} />
+                      <RechartsTooltip formatter={(v:any) => `${Number(v).toFixed(2)}%`} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
