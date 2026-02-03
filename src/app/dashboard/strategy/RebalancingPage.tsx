@@ -1,8 +1,8 @@
 // Allow `any` in this file while we incrementally add types — prevents noisy lint errors
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 'use client'
 
-import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react'
+import { useState, useEffect, useRef, useMemo, createContext, useContext, useCallback } from 'react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -148,6 +148,8 @@ export default function RebalancingPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   
   // Load available values for the chosen lens (used by the multi-select)
+   
+   
   useEffect(() => {
     if (lens === 'total') {
       setAvailableValues([])
@@ -199,6 +201,7 @@ export default function RebalancingPage() {
   const [errorAssetTargets, setErrorAssetTargets] = useState<Record<string, Record<string, string>>>({})
   const recalcTimerRef = useRef<NodeJS.Timeout | null>(null)
   const pendingRecalcRef = useRef<Record<string, any>>({})
+  const recalcFnRef = useRef<((allocationsToUpdate: any[]) => Promise<void>) | null>(null)
 
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string>('current_value')
@@ -251,9 +254,9 @@ export default function RebalancingPage() {
     return data?.cashNeeded || 0
   }, [data])
   
-
+  
   // Recalculate actions/amounts whenever sub-portfolio settings change (e.g., thresholds or band mode)
-   
+  const subPortfoliosJson = JSON.stringify(data?.subPortfolios)
   useEffect(() => {
     if (!data) return
 
@@ -333,7 +336,7 @@ export default function RebalancingPage() {
       }
     })()
 
-  }, [JSON.stringify(data?.subPortfolios)])
+  }, [subPortfoliosJson])
 
   const fetchData = async () => {
     setLoading(true)
@@ -375,11 +378,15 @@ export default function RebalancingPage() {
   const draftSubTargetsJson = JSON.stringify(draftSubTargets)
   const draftAssetTargetsJson = JSON.stringify(draftAssetTargets)
    
+  
+   
   useEffect(() => {
     if (data) validateWithDrafts(data)
   }, [draftSubTargetsJson, draftAssetTargetsJson])
 
   // Fetch initial data and on refresh trigger
+   
+  
    
   useEffect(() => {
     fetchData()
@@ -479,8 +486,13 @@ export default function RebalancingPage() {
     }
   }
 
+  // keep a stable ref to the latest recalculateTaxData implementation for debounced scheduler
+  recalcFnRef.current = recalculateTaxData
+
+  
+
   // Debounced scheduler: merge allocations by key and delay calls to reduce churn
-  const scheduleRecalculate = (allocationsToUpdate: any[], delay = 400) => {
+  const scheduleRecalculate = useCallback((allocationsToUpdate: any[], delay = 400) => {
     // merge incoming allocations into pending map using key asset|sub
     allocationsToUpdate.forEach(a => {
       const key = `${a.asset_id}::${a.sub_portfolio_id}`
@@ -492,9 +504,9 @@ export default function RebalancingPage() {
       const merged = Object.values(pendingRecalcRef.current)
       pendingRecalcRef.current = {}
       recalcTimerRef.current = null
-      recalculateTaxData(merged as any[])
+      if (recalcFnRef.current) recalcFnRef.current(merged as any[])
     }, delay)
-  }
+  }, [])
 
   const validateAllocations = (data: RebalancingData) => {
     const subPortfolioErrors: {[key: string]: string} = {}
@@ -529,7 +541,8 @@ export default function RebalancingPage() {
   }
 
   // Validate merging any in-progress drafts so UI reflects immediate edits
-  const validateWithDrafts = (baseData: RebalancingData) => {
+   
+  const validateWithDrafts = useCallback((baseData: RebalancingData) => {
     // shallow clone and apply drafts
     const cloned = JSON.parse(JSON.stringify(baseData)) as RebalancingData
 
@@ -546,7 +559,7 @@ export default function RebalancingPage() {
     }))
 
     validateAllocations(cloned)
-  }
+  }, [JSON.stringify(draftSubTargets), JSON.stringify(draftAssetTargets), validateAllocations])
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -1120,6 +1133,7 @@ export default function RebalancingPage() {
   function RebalanceProvider({ children }: { children: React.ReactNode }) {
     const [apiAllocations, setApiAllocations] = useState<any[]>([])
 
+    
      
     useEffect(() => {
       if (lens === 'total') {
@@ -1146,6 +1160,8 @@ export default function RebalancingPage() {
     const currentAllocationsJson = JSON.stringify(currentAllocations)
     const apiAllocationsJson = JSON.stringify(apiAllocations)
 
+    // Depend on serialized allocations to reduce noisy runtime comparisons.
+     
     const grouped = useMemo(() => {
       if (!data) return []
 
