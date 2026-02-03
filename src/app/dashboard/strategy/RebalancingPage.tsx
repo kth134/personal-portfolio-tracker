@@ -1182,12 +1182,14 @@ export default function RebalancingPage() {
               name: d.name || d.ticker || d.subkey || d.label || null,
               current_value: Number(d.current_value ?? d.value ?? d.v ?? 0) || 0,
               current_percentage: Number(d.current_percentage ?? d.percentage ?? d.pct ?? 0) || 0,
-              implied_overall_target: Number(d.implied_overall_target ?? d.target ?? d.target_pct ?? 0) || 0
+              // ensure we always normalize per-item implied overall target (percent)
+              implied_overall_target: Number(d.implied_overall_target ?? d.target ?? d.target_pct ?? d.implied_pct ?? 0) || 0
             }))
 
             const currentValue = Number(a.value) || items.reduce((s: number, it: any) => s + (Number(it.current_value) || 0), 0)
             const currentPct = totalValue > 0 ? (currentValue / totalValue) * 100 : 0
-            const targetPct = Number(a.target_pct ?? a.percentage ?? a.pct ?? 0) || 0
+            // compute group target bottoms-up by summing per-item implied overall targets (which are % of total)
+            const targetPct = items.reduce((s: number, it: any) => s + (Number(it.implied_overall_target) || 0), 0)
             const relativeDrift = targetPct > 0 ? (currentPct - targetPct) / targetPct : (currentPct === 0 ? 0 : Infinity)
             return { key: a.key ?? a.label ?? String(a.key), label: a.label ?? a.key, items, currentValue, targetPct, currentPct, relativeDrift }
           })
