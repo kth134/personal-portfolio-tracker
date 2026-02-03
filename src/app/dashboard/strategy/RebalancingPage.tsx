@@ -206,9 +206,6 @@ export default function RebalancingPage() {
 
   // Accordion state
   const [openItems, setOpenItems] = useState<string[]>([])
-
-  // Editing state
-  const [editingSubPortfolio, setEditingSubPortfolio] = useState<string | null>(null)
   const initialLoadRef = useRef(true)
   
 
@@ -256,6 +253,7 @@ export default function RebalancingPage() {
   
 
   // Recalculate actions/amounts whenever sub-portfolio settings change (e.g., thresholds or band mode)
+   
   useEffect(() => {
     if (!data) return
 
@@ -374,11 +372,15 @@ export default function RebalancingPage() {
   }
 
   // Re-validate whenever any draft target changes so UI reflects corrections immediately
+  const draftSubTargetsJson = JSON.stringify(draftSubTargets)
+  const draftAssetTargetsJson = JSON.stringify(draftAssetTargets)
+   
   useEffect(() => {
     if (data) validateWithDrafts(data)
-  }, [JSON.stringify(draftSubTargets), JSON.stringify(draftAssetTargets)])
+  }, [draftSubTargetsJson, draftAssetTargetsJson])
 
   // Fetch initial data and on refresh trigger
+   
   useEffect(() => {
     fetchData()
   }, [refreshTrigger])
@@ -931,8 +933,7 @@ export default function RebalancingPage() {
             let action: 'buy' | 'sell' | 'hold' = allocation.action || 'hold'
             let amount = allocation.amount || 0
 
-            const relativeUpsideThreshold = assetTarget > 0 ? (upside / assetTarget) * 100 : upside
-            const relativeDownsideThreshold = assetTarget > 0 ? (downside / assetTarget) * 100 : downside
+            
 
             if (thresholdsChanged) {
               // Full recalculation: thresholds changed -> action and amount may change
@@ -1119,6 +1120,7 @@ export default function RebalancingPage() {
   function RebalanceProvider({ children }: { children: React.ReactNode }) {
     const [apiAllocations, setApiAllocations] = useState<any[]>([])
 
+     
     useEffect(() => {
       if (lens === 'total') {
         setApiAllocations([])
@@ -1140,6 +1142,9 @@ export default function RebalancingPage() {
 
       loadAlloc()
     }, [lens, selectedValues, aggregate, refreshTrigger])
+
+    const currentAllocationsJson = JSON.stringify(currentAllocations)
+    const apiAllocationsJson = JSON.stringify(apiAllocations)
 
     const grouped = useMemo(() => {
       if (!data) return []
@@ -1228,7 +1233,7 @@ export default function RebalancingPage() {
           relativeDrift
         }
       })
-    }, [data, lens, aggregate, selectedValues, JSON.stringify(currentAllocations), JSON.stringify(apiAllocations)])
+    }, [data, lens, aggregate, selectedValues, currentAllocationsJson, apiAllocationsJson])
 
     return (
       <RebalanceContext.Provider value={{ grouped }}>{children}</RebalanceContext.Provider>
@@ -1279,25 +1284,7 @@ export default function RebalancingPage() {
     )
   }
 
-  const stackedLegendPayload = [
-    { value: 'Base (min of current & target)', type: 'square', color: '#0f172a' },
-    { value: 'Delta (green if current > target, red if target > current)', type: 'square', color: '#10b981' }
-  ]
-
-  function StackedLegend() {
-    return (
-      <div className="flex items-center gap-4 mb-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="inline-block w-3 h-3" style={{ backgroundColor: '#0f172a' }} />
-          <span>Base (min of current & target)</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="inline-block w-3 h-3" style={{ backgroundColor: '#10b981' }} />
-          <span>Delta (green if current &gt; target, red if target &gt; current)</span>
-        </div>
-      </div>
-    )
-  }
+  
 
   function TargetCurrentLegend() {
     return (
@@ -1512,7 +1499,7 @@ export default function RebalancingPage() {
         const deltaColor = currentPct > targetPct ? '#10b981' : '#ef4444'
         return { name: g.label, currentPct, targetPct, basePct, deltaPct, deltaColor, relativeDriftPct: g.relativeDrift === Infinity ? 0 : g.relativeDrift * 100 }
       })
-      const pieCurrent = sortedGrouped.map((g: any, i: number) => ({ name: g.label, value: g.currentValue }))
+      const pieCurrent = sortedGrouped.map((g: any) => ({ name: g.label, value: g.currentValue }))
       const pieTarget = sortedGrouped.map((g: any) => ({ name: g.label, value: (g.targetPct || 0) * (data!.totalValue || 0) / 100 }))
 
       // sort bars by the largest of current/target percentage (desc)
@@ -1593,7 +1580,7 @@ export default function RebalancingPage() {
 
     return (
       <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
-        {grouped.map((g: any, gi: number) => {
+        {grouped.map((g: any) => {
           const assets = g.items
           const pieCurr = assets.map((a: any) => ({ name: a.ticker, value: Number(a.current_value) || 0 }))
           const pieTarg = assets.map((a: any) => {
@@ -1749,7 +1736,7 @@ export default function RebalancingPage() {
       
       {/* Accordion Table */}
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
-        {Array.from(groupedAllocations.entries()).sort(([aId, aAllocations], [bId, bAllocations]) => {
+        {Array.from(groupedAllocations.entries()).sort(([, aAllocations], [, bAllocations]) => {
           const aValue = aAllocations.reduce((sum, item) => sum + item.current_value, 0)
           const bValue = bAllocations.reduce((sum, item) => sum + item.current_value, 0)
           return bValue - aValue // descending order
