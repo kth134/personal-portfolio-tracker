@@ -1447,10 +1447,14 @@ export default function RebalancingPage() {
     if (lens === 'total') {
       const bars = currentAllocations.map((item: any) => {
         const currentPct = item.current_percentage || 0
-        const targetPct = item.implied_overall_target || 0
+        const impliedOverall = item.implied_overall_target || 0
+        const targetPct = impliedOverall
         const basePct = Math.min(currentPct, targetPct)
         const deltaPct = Math.abs(currentPct - targetPct)
         const deltaColor = currentPct > targetPct ? '#10b981' : '#ef4444'
+        const relativeDriftPct = impliedOverall > 0
+          ? ((currentPct - impliedOverall) / impliedOverall) * 100
+          : (currentPct === 0 ? 0 : Infinity)
         return {
           name: item.ticker,
           currentPct,
@@ -1458,7 +1462,7 @@ export default function RebalancingPage() {
           basePct,
           deltaPct,
           deltaColor,
-          relativeDriftPct: item.drift_percentage || 0
+          relativeDriftPct
         }
       })
       // pies use percentage values so slices and tooltips show % consistently
