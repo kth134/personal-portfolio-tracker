@@ -1078,6 +1078,16 @@ export default function RebalancingPage() {
     return acc
   }, new Map<string, typeof currentAllocations>())
 
+  // For the accordion tables we always want the full sub-portfolio view
+  // (static) regardless of the active lens or selectedValues. Compute a
+  // grouping from the full dataset so tables don't change when the lens does.
+  const tableGroupedAllocations = (data.currentAllocations || []).reduce((acc, item) => {
+    const key = item.sub_portfolio_id || 'unassigned'
+    if (!acc.has(key)) acc.set(key, [])
+    acc.get(key)!.push(item)
+    return acc
+  }, new Map<string, typeof data.currentAllocations>())
+
   const pieData = lens === 'total' 
     ? currentAllocations.map(item => ({
         name: item.ticker,
@@ -1774,7 +1784,7 @@ export default function RebalancingPage() {
       
       {/* Accordion Table */}
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
-        {Array.from(groupedAllocations.entries()).sort(([, aAllocations], [, bAllocations]) => {
+        {Array.from(tableGroupedAllocations.entries()).sort(([, aAllocations], [, bAllocations]) => {
           const aValue = aAllocations.reduce((sum, item) => sum + item.current_value, 0)
           const bValue = bAllocations.reduce((sum, item) => sum + item.current_value, 0)
           return bValue - aValue // descending order
