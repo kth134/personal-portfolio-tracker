@@ -1174,17 +1174,37 @@ export default function RebalancingPage() {
         const apiSingleAggregated = apiAllocations.length === 1 && typeof apiAllocations[0].key === 'string' && /aggregat/i.test(apiAllocations[0].key)
         if (!apiSingleAggregated) {
           const totalValue = data.totalValue || apiAllocations.reduce((s: number, a: any) => s + (Number(a.value) || 0), 0)
+          const normalizeFrac = (v: any) => {
+            const n = Number(v ?? 0) || 0
+            if (n === 0) return 0
+            return n > 1 ? n / 100 : n
+          }
+
           return apiAllocations.map((a: any) => {
             // normalize items into consistent shape expected by charting code
             const rawItems = (a.items && a.items.length) ? a.items : (a.data || [])
-            const items = (rawItems || []).map((d: any) => ({
-              ticker: d.ticker || d.subkey || d.key || d.label || String(d.asset_id || ''),
-              name: d.name || d.ticker || d.subkey || d.label || null,
-              current_value: Number(d.current_value ?? d.value ?? d.v ?? 0) || 0,
-              current_percentage: Number(d.current_percentage ?? d.percentage ?? d.pct ?? 0) || 0,
-              // ensure we always normalize per-item implied overall target (percent)
-              implied_overall_target: Number(d.implied_overall_target ?? d.target ?? d.target_pct ?? d.implied_pct ?? 0) || 0
-            }))
+            const groupFrac = normalizeFrac(a.percentage ?? a.pct ?? a.p ?? a.value ? ((Number(a.value) || 0) / (totalValue || 1)) : 0)
+
+            const items = (rawItems || []).map((d: any) => {
+              const ticker = d.ticker || d.subkey || d.key || d.label || String(d.asset_id || '')
+              const name = d.name || d.ticker || d.subkey || d.label || null
+              const current_value = Number(d.current_value ?? d.value ?? d.v ?? 0) || 0
+              const current_percentage = Number(d.current_percentage ?? d.percentage ?? d.pct ?? 0) || 0
+
+              // compute implied overall target percent robustly
+              const itemFrac = normalizeFrac(d.percentage ?? d.pct ?? d.p ?? d.value)
+              // If API gave both group and item percentages separately (common), combine them
+              // Otherwise if itemFrac is present but groupFrac is zero, assume itemFrac is already overall percent
+              const implied_overall_target = (() => {
+                if (itemFrac > 0 && groupFrac > 0) return (groupFrac * itemFrac) * 100
+                if (itemFrac > 0 && groupFrac === 0) return itemFrac > 1 ? itemFrac : itemFrac * 100
+                // fallback to any explicit target-like fields
+                const explicit = Number(d.implied_overall_target ?? d.target ?? d.target_pct ?? d.implied_pct ?? 0) || 0
+                return explicit
+              })()
+
+              return { ticker, name, current_value, current_percentage, implied_overall_target }
+            })
 
             const currentValue = Number(a.value) || items.reduce((s: number, it: any) => s + (Number(it.current_value) || 0), 0)
             const currentPct = totalValue > 0 ? (currentValue / totalValue) * 100 : 0
