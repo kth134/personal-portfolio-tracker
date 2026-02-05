@@ -129,7 +129,8 @@ export async function POST(req: Request) {
            subkey: a.key,
            value: a.value,
            percentage: combinedValue > 0 ? (a.value / combinedValue) * 100 : 0,
-           targetPct: a.targetPct
+           targetPct: a.targetPct,
+           implied_overall_target: a.targetPct
          }))
        }];
     }
