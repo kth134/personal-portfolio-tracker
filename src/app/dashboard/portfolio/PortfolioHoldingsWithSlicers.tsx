@@ -193,6 +193,13 @@ export default function PortfolioHoldingsWithSlicers({
           </div>
         )}
 
+        {lens !== 'total' && selectedValues.length > 1 && (
+          <div className="flex items-center gap-2">
+            <Switch checked={aggregate} onCheckedChange={setAggregate} />
+            <Label>Aggregate selected</Label>
+          </div>
+        )}
+
         <Button onClick={handleRefresh} disabled={refreshing}>Refresh Prices</Button>
       </div>
 
