@@ -109,9 +109,11 @@ export async function POST(req: Request) {
     if (aggregate && allocations.length > 1) {
        const combinedValue = allocations.reduce((s, a) => s + a.value, 0);
        const combinedTarget = allocations.reduce((s, a) => s + a.target_pct, 0);
+       const combinedBasis = allocations.reduce((s, a) => s + (a.cost_basis || 0), 0);
        allocations = [{
          key: 'Aggregated Selection',
          value: combinedValue,
+         cost_basis: combinedBasis,
          percentage: 100,
          target_pct: combinedTarget,
          data: allocations.map(a => ({
