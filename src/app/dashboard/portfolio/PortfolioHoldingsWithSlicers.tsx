@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
 } from 'recharts'
@@ -30,26 +30,6 @@ const LENSES = [
   { value: 'factor_tag', label: 'Factor' },
 ]
 
-type AllocationSlice = {
-  key: string
-  value: number
-  data: { subkey: string; value: number; percentage: number }[]
-  items?: { ticker?: string; name?: string; quantity?: number; value?: number; net_gain?: number; cost_basis?: number; unrealized?: number; key?: string }[]
-}
-
-type HoldingRow = {
-  ticker: string
-  name: string | null
-  quantity: number
-  avgBasis: number
-  totalBasis: number
-  currPrice: number
-  currValue: number
-  unrealized: number
-  weight: number
-  groupKey?: string
-}
-
 export default function PortfolioHoldingsWithSlicers({
   cash,
   cashByAccountName,
@@ -61,21 +41,18 @@ export default function PortfolioHoldingsWithSlicers({
   const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([])
   const [selectedValues, setSelectedValues] = useState<string[]>([])
   const [aggregate, setAggregate] = useState(true)
-  const [allocations, setAllocations] = useState<AllocationSlice[]>([])
-  const [pieAllocations, setPieAllocations] = useState<AllocationSlice[]>([])
+  const [allocations, setAllocations] = useState<any[]>([])
+  const [pieAllocations, setPieAllocations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [valuesLoading, setValuesLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-  // Sorting state
-  const [sortColumn, setSortColumn] = useState<keyof HoldingRow | null>('currValue')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-
-  // Accordion state
+  // Tracking open items
   const [openItems, setOpenItems] = useState<string[]>([])
 
+  // Fetch distinct values for multi-select
   useEffect(() => {
     if (lens === 'total') {
       setAvailableValues([])
@@ -85,87 +62,68 @@ export default function PortfolioHoldingsWithSlicers({
 
     const fetchValues = async () => {
       setValuesLoading(true)
-      const res = await fetch('/api/dashboard/values', {
-        method: 'POST',
-        body: JSON.stringify({ lens }),
-      })
-      if (!res.ok) throw new Error('Failed to fetch values')
-      const data = await res.json()
-      const vals = data.values || []
-      setAvailableValues(vals)
-      setSelectedValues(vals.map((item: any) => item.value))
-      setValuesLoading(false)
+      try {
+        const res = await fetch('/api/dashboard/values', {
+          method: 'POST',
+          body: JSON.stringify({ lens }),
+        })
+        if (!res.ok) throw new Error(`Failed to fetch values: ${res.status}`)
+        const data = await res.json()
+        const vals = data.values || []
+        setAvailableValues(vals)
+        setSelectedValues(vals.map((v: any) => v.value))
+      } catch (err) {
+        console.error('Values fetch failed:', err)
+      } finally {
+        setValuesLoading(false)
+      }
     }
     fetchValues()
   }, [lens])
 
+  // Load backend data
   useEffect(() => {
-    const loadPieCharts = async () => {
-      const payload = {
-        lens,
-        selectedValues: lens === 'total' ? [] : selectedValues,
-        aggregate,
-      }
-      const res = await fetch('/api/dashboard/allocations', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-        cache: 'no-store',
-      })
-      if (!res.ok) throw new Error('Failed to fetch allocations')
-      const data = await res.json()
-      setPieAllocations(data.allocations || [])
-    }
-
-    const loadTables = async () => {
+    const loadData = async () => {
       setLoading(true)
-      const payload = {
-        lens,
-        selectedValues: lens === 'total' ? [] : selectedValues,
-        aggregate: false,
-      }
-      const res = await fetch('/api/dashboard/allocations', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-        cache: 'no-store',
-      })
-      if (!res.ok) throw new Error('Failed to fetch allocations')
-      const data = await res.json()
-      setAllocations(data.allocations || [])
-      setLoading(false)
-    }
+      try {
+        const payload = {
+          lens,
+          selectedValues: lens === 'total' ? [] : selectedValues,
+          aggregate,
+        }
+        
+        // Fetch for pies (respects aggregate)
+        const pieRes = await fetch('/api/dashboard/allocations', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          cache: 'no-store'
+        })
+        const pieData = await pieRes.json()
+        setPieAllocations(pieData.allocations || [])
 
-    loadPieCharts().then(loadTables)
+        // Fetch for tables (never aggregate)
+        const tableRes = await fetch('/api/dashboard/allocations', {
+          method: 'POST',
+          body: JSON.stringify({ ...payload, aggregate: false }),
+          cache: 'no-store'
+        })
+        const tableData = await tableRes.json()
+        setAllocations(tableData.allocations || [])
+        
+        // Expand all by default
+        setOpenItems((tableData.allocations || []).map((a: any) => a.key))
+      } catch (err) {
+        console.error('Allocations fetch failed:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
   }, [lens, selectedValues, aggregate, refreshTrigger])
 
-  useEffect(() => {
-    const rows: HoldingRow[] = []
-    allocations.forEach(slice => {
-      (slice.items || []).forEach(item => {
-        const currValue = item.value || 0
-        const totalBasis = item.cost_basis || 0
-        const quantity = item.quantity || 0
-        rows.push({
-          ticker: item.ticker || item.key || 'Unknown',
-          name: item.name || null,
-          quantity,
-          avgBasis: quantity > 0 ? totalBasis / quantity : 0,
-          totalBasis,
-          currPrice: quantity > 0 ? currValue / quantity : 0,
-          currValue,
-          unrealized: item.unrealized || (currValue - totalBasis),
-          weight: 0,
-          groupKey: slice.key,
-        })
-      })
-    })
-    const groupedRows = rows.reduce((acc, row) => {
-      const key = row.groupKey || 'Aggregated'
-      if (!acc.has(key)) acc.set(key, [])
-      acc.get(key)!.push(row)
-      return acc
-    }, new Map<string, HoldingRow[]>())
-    setOpenItems(Array.from(groupedRows.keys()))
-  }, [allocations])
+  const toggleValue = (value: string) => {
+    setSelectedValues(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value])
+  }
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -181,104 +139,128 @@ export default function PortfolioHoldingsWithSlicers({
     }
   }
 
-  const getTableRows = (): HoldingRow[] => {
-    const rows: HoldingRow[] = []
-    allocations.forEach(slice => {
-      (slice.items || []).forEach(item => {
-        const currValue = item.value || 0
-        const totalBasis = item.cost_basis || 0
-        const quantity = item.quantity || 0
-        rows.push({
-          ticker: item.ticker || item.key || 'Unknown',
-          name: item.name || null,
-          quantity,
-          avgBasis: quantity > 0 ? totalBasis / quantity : 0,
-          totalBasis,
-          currPrice: quantity > 0 ? currValue / quantity : 0,
-          currValue,
-          unrealized: item.unrealized || (currValue - totalBasis),
-          weight: 0,
-          groupKey: slice.key,
-        })
-      })
-    })
-    if (sortColumn) {
-      rows.sort((a, b) => {
-        const aVal = a[sortColumn!] ?? ''
-        const bVal = b[sortColumn!] ?? ''
-        if (typeof aVal === 'number' && typeof bVal === 'number') return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
-        if (typeof aVal === 'string' && typeof bVal === 'string') return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
-        return 0
-      })
-    }
-    return rows
+  // Calculate global totals
+  const totalValueAcrossSelection = useMemo(() => {
+    const holdingsTotal = allocations.reduce((sum, a) => sum + (Number(a.value) || 0), 0)
+    return holdingsTotal + cash
+  }, [allocations, cash])
+
+  if (loading && allocations.length === 0) {
+    return <div className="text-center py-12">Loading portfolio data...</div>
   }
-
-  const rows = getTableRows()
-  const totalBasis = rows.reduce((sum, r) => sum + r.totalBasis, 0)
-  const selectedTotalValue = rows.reduce((sum, row) => sum + row.currValue, 0) + cash
-  const holdingsTotalBasis = totalBasis
-
-  rows.forEach(row => {
-    row.weight = selectedTotalValue > 0 ? (row.currValue / selectedTotalValue) * 100 : 0
-  })
-
-  const groupedRows = rows.reduce((acc, row) => {
-    const key = row.groupKey || 'Aggregated'
-    if (!acc.has(key)) acc.set(key, [])
-    acc.get(key)!.push(row)
-    return acc
-  }, new Map<string, HoldingRow[]>())
 
   return (
     <div className="space-y-8">
+      {/* Controls */}
       <div className="flex flex-wrap gap-4 items-end mb-4">
         <div>
           <Label className="text-sm font-medium">Slice by</Label>
           <Select value={lens} onValueChange={setLens}>
             <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
-            <SelectContent>{LENSES.map(l => (<SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>))}</SelectContent>
+            <SelectContent>{LENSES.map(l => (
+              <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+            ))}</SelectContent>
           </Select>
         </div>
+
+        {lens !== 'total' && (
+          <div className="min-w-64">
+            <Label className="text-sm font-medium">Select {LENSES.find(l => l.value === lens)?.label}s</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  {selectedValues.length === availableValues.length ? 'All selected' : `${selectedValues.length} selected`}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandInput placeholder="Search..." />
+                  <CommandList>
+                   <CommandEmpty>No values found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableValues.map(item => (
+                        <CommandItem key={item.value} onSelect={() => toggleValue(item.value)}>
+                          <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />
+                          {item.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+
         <Button onClick={handleRefresh} disabled={refreshing}>Refresh Prices</Button>
       </div>
 
+      {/* Visuals */}
+      <div className="flex flex-wrap gap-8 justify-center">
+        {pieAllocations.map((slice, idx) => (
+          <div key={idx} className="space-y-4 min-w-0 flex-shrink-0">
+            <h4 className="font-medium text-center">{slice.key}</h4>
+            <ResponsiveContainer width="100%" height={400} minWidth={300}>
+              <PieChart>
+                <Pie
+                  data={slice.data}
+                  dataKey="value"
+                  nameKey="subkey"
+                  outerRadius={100}
+                  label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
+                >
+                  {slice.data.map((_: any, i: number) => (
+                    <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v: any) => formatUSD(v)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        ))}
+      </div>
+
+      {/* Tables Mapping - Bug #41 Header logic */}
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
-        {Array.from(groupedRows.entries()).map(([key, groupRows]) => {
-          const groupCurrValue = groupRows.reduce((sum, r) => sum + r.currValue, 0) + (lens === 'account' ? (cashByAccountName.get(key) || 0) : 0)
-          const groupWeight = selectedTotalValue > 0 ? (groupCurrValue / selectedTotalValue) * 100 : 0
-          const groupTotalBasis = groupRows.reduce((sum, r) => sum + r.totalBasis, 0)
+        {allocations.map((group) => {
+          const groupHoldingsValue = Number(group.value) || 0
+          const accountCash = lens === 'account' ? (cashByAccountName.get(group.key) || 0) : 0
+          const groupTotalValue = groupHoldingsValue + accountCash
+          const groupWeight = totalValueAcrossSelection > 0 ? (groupTotalValue / totalValueAcrossSelection) * 100 : 0
 
           return (
-            <AccordionItem key={key} value={key}>
-              <AccordionTrigger className="bg-black text-white font-semibold px-4 py-2 hover:bg-gray-800 [&>svg]:text-white">
+            <AccordionItem key={group.key} value={group.key}>
+              <AccordionTrigger className="bg-black text-white px-4 py-2 hover:bg-gray-800">
                 <div className="flex justify-between w-full mr-4">
-                   <span>{key}</span>
-                   <span>{formatUSD(groupCurrValue)} | {groupWeight.toFixed(2)}%</span>
+                  <span className="font-semibold">{group.key}</span>
+                  <span className="text-sm">{formatUSD(groupTotalValue)} | {groupWeight.toFixed(2)}%</span>
                 </div>
               </AccordionTrigger>
-              <AccordionContent>
+              <AccordionContent className="p-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                     <TableHead>Asset</TableHead>
-                     <TableHead className="text-right">Value</TableHead>
-                     <TableHead className="text-right">Weight</TableHead>
+                      <TableHead>Asset</TableHead>
+                      <TableHead className="text-right">Price</TableHead>
+                      <TableHead className="text-right">Value</TableHead>
+                      <TableHead className="text-right">Weight (Portfolio)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {groupRows.map(row => (
-                      <TableRow key={row.ticker}>
-                        <TableCell><div className="font-bold">{row.ticker}</div><div className="text-sm text-muted-foreground">{row.name}</div></TableCell>
-                        <TableCell className="text-right">{formatUSD(row.currValue)}</TableCell>
-                        <TableCell className="text-right">{row.weight.toFixed(2)}%</TableCell>
-                      </TableRow>
-                    ))}
-                    <TableRow className="font-semibold bg-muted">
-                      <TableCell>Total</TableCell>
-                      <TableCell className="text-right">{formatUSD(groupCurrValue)}</TableCell>
-                      <TableCell className="text-right">{groupWeight.toFixed(2)}%</TableCell>
-                    </TableRow>
+                    {(group.items || []).map((item: any) => {
+                      const itemValue = Number(item.value) || 0
+                      const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
+                      return (
+                        <TableRow key={item.ticker}>
+                          <TableCell><div className="font-bold">{item.ticker}</div><div className="text-xs text-muted-foreground">{item.name}</div></TableCell>
+                          <TableCell className="text-right">{formatUSD(itemValue / (item.quantity || 1))}</TableCell>
+                          <TableCell className="text-right">{formatUSD(itemValue)}</TableCell>
+                          <TableCell className="text-right">{itemWeight.toFixed(2)}%</TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </AccordionContent>
