@@ -30,7 +30,8 @@ async function main() {
 
   if (lotError) throw lotError;
   
-  const ticker = lots?.[0]?.asset?.ticker;
+  const tickerData = lots?.[0]?.asset;
+  const ticker = Array.isArray(tickerData) ? tickerData[0]?.ticker : (tickerData as any)?.ticker;
   const totalQuantity = lots?.reduce((sum, l) => sum + Number(l.remaining_quantity || 0), 0) || 0;
 
   // Fetch latest price
