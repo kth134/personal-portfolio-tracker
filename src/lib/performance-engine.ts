@@ -23,7 +23,7 @@ export async function computePerformanceForGroup(
   startDate: string,
   endDate: string,
   includeInternalTrades: boolean = false
-): Promise<PerformanceMetric> {
+): Promise<any> {
   const start = parseISO(startDate);
   const end = parseISO(endDate);
   const years = (differenceInDays(end, start) + 1) / 365.25;
