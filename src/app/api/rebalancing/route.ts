@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     const { data: prices } = await supabase
       .from('asset_prices')
       .select('ticker, price, timestamp')
-      .in(uniqueTickers, uniqueTickers)
+      .in('ticker', uniqueTickers)
       .order('timestamp', { ascending: false })
 
     const latestPrices = new Map<string, number>()
