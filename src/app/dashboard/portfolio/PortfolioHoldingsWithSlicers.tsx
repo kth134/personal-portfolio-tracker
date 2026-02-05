@@ -397,7 +397,16 @@ export default function PortfolioHoldingsWithSlicers({
             return (
               <AccordionItem key={key} value={key}>
                 <AccordionTrigger className="bg-black text-white font-semibold px-4 py-2 hover:bg-gray-800 [&>svg]:text-white [&>svg]:stroke-2 [&>svg]:w-5 [&>svg]:h-5">
-                  {key}
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center w-full mr-4 gap-2 sm:gap-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{key}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 sm:gap-4 text-sm items-center sm:flex-nowrap">
+                      <span className="text-white font-medium whitespace-nowrap">{formatUSD(groupCurrValue)}</span>
+                      <span className="text-white hidden sm:inline">|</span>
+                      <span className="whitespace-nowrap">Weight: {groupWeight.toFixed(2)}%</span>
+                    </div>
+                  </div>
                 </AccordionTrigger>
                 <AccordionContent>
                   <Table>

@@ -111,8 +111,8 @@ export async function POST(req: Request) {
       data: g.items.map(i => ({
         subkey: i.ticker,
         value: i.value,
-        percentage: g.value > 0 ? (i.value / g.value) * 100 : 0,
-        targetPct: i.targetPct // Overall target
+        percentage: i.targetPct, // Map Target to 'percentage' for RebalanceProvider compatibility
+        targetPct: i.targetPct
       }))
     }));
 
