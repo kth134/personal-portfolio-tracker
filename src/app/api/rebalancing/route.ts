@@ -114,6 +114,21 @@ export async function GET(req: NextRequest) {
         if (relativeDrift >= upThread) action = 'sell'
         else if (relativeDrift <= -downThresh) action = 'buy'
 
+        // Respect mode (Absolute vs Conservative/Band)
+        let amount = 0
+        if (action !== 'hold') {
+          if (sp?.band_mode) {
+             // Conservative: return to nearest threshold
+             const targetDrift = action === 'sell' ? upThread : -downThresh
+             const targetPercentage = assetTargetInSP * (1 + targetDrift / 100)
+             const targetValue = (spTotalValue * targetPercentage) / 100
+             amount = Math.abs(targetValue - asset.current_value)
+          } else {
+             // Absolute: return to exact target
+             amount = Math.abs((assetTargetInSP / 100 * spTotalValue) - asset.current_value)
+          }
+        }
+
         rebalanceResults.push({
           ...asset,
           sub_portfolio_id: spId,
@@ -126,7 +141,7 @@ export async function GET(req: NextRequest) {
           sub_portfolio_percentage: currentInSPPct,
           drift_percentage: relativeDrift,
           action,
-          amount: action === 'hold' ? 0 : Math.abs((assetTargetInSP / 100 * spTotalValue) - asset.current_value)
+          amount
         })
       })
     })
