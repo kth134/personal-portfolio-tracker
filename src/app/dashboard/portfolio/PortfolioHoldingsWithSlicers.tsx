@@ -162,6 +162,8 @@ export default function PortfolioHoldingsWithSlicers({
                   <div className="flex gap-4 text-sm font-normal text-zinc-300">
                     <span>{formatUSD(totalGroupVal)}</span>
                     <span className="opacity-60">|</span>
+                    <span>Basis: {formatUSD(Number(group.cost_basis) || 0)}</span>
+                    <span className="opacity-60">|</span>
                     <span>{groupWeight.toFixed(2)}%</span>
                   </div>
                 </div>

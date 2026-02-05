@@ -63,7 +63,7 @@ export async function POST(req: Request) {
       if (lens !== 'total' && selectedValues?.length > 0 && !selectedValues.includes(key)) return;
 
       if (!groups.has(key)) {
-        groups.set(key, { value: 0, target_pct: 0, items: [] });
+        groups.set(key, { value: 0, target_pct: 0, cost_basis: 0, items: [] });
       }
       const g = groups.get(key)!;
       g.value += lot.value;
@@ -72,19 +72,23 @@ export async function POST(req: Request) {
       const assetTargetInSP = assetTargets?.find(at => at.asset_id === lot.asset?.id && at.sub_portfolio_id === lot.asset?.sub_portfolio_id)?.target_percentage || 0;
       const impliedTarget = ((sp?.target_allocation || 0) * assetTargetInSP) / 100;
 
+      const lotBasis = (lot.remaining_quantity || 0) * (lot.cost_basis_per_unit || 0);
+      g.cost_basis += lotBasis;
+
       // Group by ticker within the group to aggregate lots into positions
       const existing = g.items.find((i: any) => i.ticker === lot.asset?.ticker);
       if (existing) {
         existing.value += lot.value;
         existing.quantity += (lot.remaining_quantity || 0);
+        existing.cost_basis += lotBasis;
       } else {
         g.items.push({
           ticker: lot.asset?.ticker,
           name: lot.asset?.name,
           value: lot.value,
           target_pct: impliedTarget,
-          quantity: lot.remaining_quantity,
-          cost_basis: (lot.remaining_quantity || 0) * (lot.cost_basis_per_unit || 0)
+          quantity: (lot.remaining_quantity || 0),
+          cost_basis: lotBasis
         });
         g.target_pct += impliedTarget;
       }
@@ -93,7 +97,7 @@ export async function POST(req: Request) {
     let allocations = Array.from(groups.entries()).map(([key, g]) => ({
       key,
       value: g.value,
-      cost_basis: g.items.reduce((s: number, i: any) => s + i.cost_basis, 0),
+      cost_basis: g.cost_basis,
       percentage: totalPortfolioValue > 0 ? (g.value / totalPortfolioValue) * 100 : 0,
       target_pct: g.target_pct,
       data: g.items.map((i: any) => ({
