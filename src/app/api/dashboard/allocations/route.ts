@@ -68,14 +68,21 @@ export async function POST(req: Request) {
       const assetTargetInSP = assetTargets?.find(at => at.asset_id === lot.asset?.id && at.sub_portfolio_id === lot.asset?.sub_portfolio_id)?.target_percentage || 0;
       const impliedTarget = ((sp?.target_allocation || 0) * assetTargetInSP) / 100;
 
-      g.items.push({
-        ticker: lot.asset?.ticker,
-        name: lot.asset?.name,
-        value: lot.value,
-        target_pct: impliedTarget,
-        quantity: lot.remaining_quantity
-      });
-      g.target_pct += impliedTarget;
+      // Group by ticker within the group to aggregate lots into positions
+      const existing = g.items.find((i: any) => i.ticker === lot.asset?.ticker);
+      if (existing) {
+        existing.value += lot.value;
+        existing.quantity += (lot.remaining_quantity || 0);
+      } else {
+        g.items.push({
+          ticker: lot.asset?.ticker,
+          name: lot.asset?.name,
+          value: lot.value,
+          target_pct: impliedTarget,
+          quantity: lot.remaining_quantity
+        });
+        g.target_pct += impliedTarget;
+      }
     });
 
     let allocations = Array.from(groups.entries()).map(([key, g]) => ({
@@ -88,7 +95,6 @@ export async function POST(req: Request) {
         value: i.value,
         percentage: g.value > 0 ? (i.value / g.value) * 100 : 0,
         target_pct: i.target_pct,
-        // Include aliases for chart provider legacy logic
         implied_overall_target: i.target_pct
       })),
       items: g.items
