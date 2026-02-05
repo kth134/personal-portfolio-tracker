@@ -342,16 +342,17 @@ export default function RebalancingPage() {
                     </div>
 
                     <div className="overflow-x-auto w-full">
-                        <Table className="min-w-[900px]">
+                        <Table className="min-w-[1000px]">
                             <TableHeader>
                                 <TableRow className="bg-muted/50 hover:bg-muted/50">
                                 <TableHead className="w-[18%]">Asset</TableHead>
-                                <TableHead className="w-[14%] text-right font-medium">Value ($)</TableHead>
-                                <TableHead className="w-[12%] text-right font-medium text-blue-600">Target Weight %</TableHead>
-                                <TableHead className="w-[12%] text-right font-medium">Current Weight %</TableHead>
-                                <TableHead className="w-[12%] text-right font-medium">Drift %</TableHead>
-                                <TableHead className="w-[12%] text-center font-medium">Action</TableHead>
-                                <TableHead className="w-[20%] text-right font-medium">Tactical Suggestion</TableHead>
+                                <TableHead className="w-[12%] text-right">Current Value ($)</TableHead>
+                                <TableHead className="w-[10%] text-right">Current Weight</TableHead>
+                                <TableHead className="w-[10%] text-right text-blue-600">Target Weight (editable)</TableHead>
+                                <TableHead className="w-[10%] text-right">Implied Overall Target %</TableHead>
+                                <TableHead className="w-[10%] text-right">Drift</TableHead>
+                                <TableHead className="w-[10%] text-center">Action</TableHead>
+                                <TableHead className="w-[20%] text-right">Tactical Execution Suggestion</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -363,8 +364,9 @@ export default function RebalancingPage() {
                                             <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">{item.name}</span>
                                         </div>
                                     </TableCell>
-                                    <TableCell className="w-[14%] text-right tabular-nums">{formatUSD(item.current_value)}</TableCell>
-                                    <TableCell className="w-[12%] text-right tabular-nums">
+                                    <TableCell className="w-[12%] text-right tabular-nums">{formatUSD(item.current_value)}</TableCell>
+                                    <TableCell className="w-[10%] text-right tabular-nums">{item.current_in_sp.toFixed(1)}%</TableCell>
+                                    <TableCell className="w-[10%] text-right tabular-nums">
                                         <Input 
                                             type="number" step="0.1" 
                                             className="h-7 text-right w-16 ml-auto"
@@ -372,13 +374,11 @@ export default function RebalancingPage() {
                                             onBlur={(e) => updateAssetTarget(item.asset_id, sp.id, parseFloat(e.target.value))}
                                         />
                                     </TableCell>
-                                    <TableCell className="w-[12%] text-right tabular-nums">
-                                        {item.current_in_sp.toFixed(1)}%
-                                    </TableCell>
-                                    <TableCell className={cn("w-[12%] text-right tabular-nums font-semibold", item.drift_percentage > 0 ? "text-green-600" : "text-red-500")}>
+                                    <TableCell className="w-[10%] text-right tabular-nums">{item.implied_overall_target.toFixed(2)}%</TableCell>
+                                    <TableCell className={cn("w-[10%] text-right tabular-nums font-semibold", item.drift_percentage > 0 ? "text-green-600" : "text-red-500")}>
                                         {item.drift_percentage.toFixed(1)}%
                                     </TableCell>
-                                    <TableCell className="w-[12%] text-center tabular-nums font-bold">
+                                    <TableCell className="w-[10%] text-center tabular-nums font-bold">
                                         {item.action === 'hold' ? <span className="text-muted-foreground">-</span> : 
                                             <div className="flex flex-col leading-tight">
                                                 <span className={item.action === 'buy' ? "text-green-600" : "text-red-600"}>
