@@ -69,22 +69,22 @@ export async function GET(req: NextRequest) {
           id: spId,
           name: sp?.name || 'Unassigned',
           targetPct: sp?.target_allocation || 0, // Overall portfolio target
-          currentValue: 0,
+          current_value: 0,
           assets: []
         })
       }
       const metrics = subPortfolioMetrics.get(spId)
-      metrics.currentValue += value
+      metrics.current_value += value
       
       const existingAsset = metrics.assets.find((a: any) => a.asset_id === lot.asset_id)
       if (existingAsset) {
-        existingAsset.currentValue += value
+        existingAsset.current_value += value
       } else {
         metrics.assets.push({
           asset_id: lot.asset_id,
           ticker: lot.asset?.ticker,
           name: lot.asset?.name,
-          currentValue: value
+          current_value: value
         })
       }
     })
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
     const rebalanceResults: any[] = []
     
     subPortfolioMetrics.forEach((spMetrics, spId) => {
-      const spTotalValue = spMetrics.currentValue
+      const spTotalValue = spMetrics.current_value
       const spCurrentPct = totalPortfolioValue > 0 ? (spTotalValue / totalPortfolioValue) * 100 : 0
       const spTargetPct = spMetrics.targetPct
       const spDrift = spCurrentPct - spTargetPct
@@ -101,8 +101,8 @@ export async function GET(req: NextRequest) {
       spMetrics.assets.forEach((asset: any) => {
         const assetTargetInSP = assetTargets?.find(at => at.asset_id === asset.asset_id && at.sub_portfolio_id === spId)?.target_percentage || 0
         const impliedOverallTarget = (spTargetPct * assetTargetInSP) / 100
-        const currentOverallPct = totalPortfolioValue > 0 ? (asset.currentValue / totalPortfolioValue) * 100 : 0
-        const currentInSPPct = spTotalValue > 0 ? (asset.currentValue / spTotalValue) * 100 : 0
+        const currentOverallPct = totalPortfolioValue > 0 ? (asset.current_value / totalPortfolioValue) * 100 : 0
+        const currentInSPPct = spTotalValue > 0 ? (asset.current_value / spTotalValue) * 100 : 0
         
         // Drift within sub-portfolio relative to target
         const relativeDrift = assetTargetInSP > 0 ? ((currentInSPPct - assetTargetInSP) / assetTargetInSP) * 100 : 0
@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
           sub_portfolio_percentage: currentInSPPct, // Compatibility fix
           drift_percentage: relativeDrift,
           action,
-          amount: Math.abs((assetTargetInSP / 100 * spTotalValue) - asset.currentValue)
+          amount: Math.abs((assetTargetInSP / 100 * spTotalValue) - asset.current_value)
         })
       })
     })
