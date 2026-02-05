@@ -183,7 +183,9 @@ export async function GET(req: NextRequest) {
       return { ...res, reinvestment_suggestions, recommended_accounts, tax_impact }
     })
 
-    const cashNeeded = finalAllocations.reduce((sum, item) => sum + (item.action !== 'hold' ? item.amount : 0), 0)
+    const totalBuys = finalAllocations.reduce((sum, item) => sum + (item.action === 'buy' ? item.amount : 0), 0)
+    const totalSells = finalAllocations.reduce((sum, item) => sum + (item.action === 'sell' ? item.amount : 0), 0)
+    const netMagnitude = Math.max(totalBuys, totalSells)
 
     return NextResponse.json({
       subPortfolios: subPortfolios || [],
@@ -191,7 +193,7 @@ export async function GET(req: NextRequest) {
       currentAllocations: finalAllocations,
       totalValue: totalPortfolioValue,
       totalCash,
-      cashNeeded,
+      cashNeeded: netMagnitude,
       lastPriceUpdate: prices?.[0]?.timestamp || null
     })
   } catch (error) {
