@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     const { data: prices } = await supabase
       .from('asset_prices')
       .select('ticker, price, timestamp')
-      .in('ticker', uniqueTickers)
+      .in(uniqueTickers, uniqueTickers)
       .order('timestamp', { ascending: false })
 
     const latestPrices = new Map<string, number>()
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
         subPortfolioMetrics.set(spId, {
           id: spId,
           name: sp?.name || 'Unassigned',
-          targetPct: sp?.target_allocation || 0, // Overall portfolio target
+          targetPct: sp?.target_allocation || 0,
           current_value: 0,
           assets: []
         })
@@ -96,7 +96,6 @@ export async function GET(req: NextRequest) {
       const spTotalValue = spMetrics.current_value
       const spCurrentPct = totalPortfolioValue > 0 ? (spTotalValue / totalPortfolioValue) * 100 : 0
       const spTargetPct = spMetrics.targetPct
-      const spDrift = spCurrentPct - spTargetPct
 
       spMetrics.assets.forEach((asset: any) => {
         const assetTargetInSP = assetTargets?.find(at => at.asset_id === asset.asset_id && at.sub_portfolio_id === spId)?.target_percentage || 0
@@ -108,7 +107,6 @@ export async function GET(req: NextRequest) {
         const relativeDrift = assetTargetInSP > 0 ? ((currentInSPPct - assetTargetInSP) / assetTargetInSP) * 100 : 0
         
         let action: 'buy' | 'sell' | 'hold' = 'hold'
-        // Using common 5% relative drift threshold if not specified on SP
         const sp = subPortfolios?.find(p => p.id === spId)
         const upThread = sp?.upside_threshold || 5
         const downThresh = sp?.downside_threshold || 5
@@ -123,9 +121,9 @@ export async function GET(req: NextRequest) {
           current_percentage: currentOverallPct,
           implied_overall_target: impliedOverallTarget,
           target_in_sp: assetTargetInSP,
-          sub_portfolio_target_percentage: assetTargetInSP, // Compatibility fix
+          sub_portfolio_target_percentage: assetTargetInSP,
           current_in_sp: currentInSPPct,
-          sub_portfolio_percentage: currentInSPPct, // Compatibility fix
+          sub_portfolio_percentage: currentInSPPct,
           drift_percentage: relativeDrift,
           action,
           amount: Math.abs((assetTargetInSP / 100 * spTotalValue) - asset.current_value)
@@ -139,34 +137,24 @@ export async function GET(req: NextRequest) {
       let recommended_accounts: any[] = []
       let tax_impact = 0
 
-      // TAX LOGIC (Bug #37): Recommendation for Sells
       if (res.action === 'sell') {
         const assetLots = holdingsWithAssets.filter(l => l.asset_id === res.asset_id) || []
         const currentPrice = latestPrices.get(res.ticker) || 0
-        
-        // Group lots by account to see where we can sell
         const accMap = new Map<string, any>()
+        
         assetLots.forEach(lot => {
           const accId = lot.account_id
           if (!accMap.has(accId)) {
             const acc = accounts?.find(a => a.id === accId)
-            accMap.set(accId, { 
-              name: acc?.name || 'Unknown', 
-              tax_status: acc?.tax_status, 
-              value: 0, 
-              costBasis: 0,
-              lots: [] 
-            })
+            accMap.set(accId, { name: acc?.name || 'Unknown', tax_status: acc?.tax_status, value: 0, costBasis: 0 })
           }
           const entry = accMap.get(accId)
           entry.value += (lot.remaining_quantity * currentPrice)
           entry.costBasis += (lot.remaining_quantity * lot.cost_basis_per_unit)
-          entry.lots.push(lot)
         })
 
-        // Optimization: Suggest selling from accounts to harvest losses or use tax-advantaged first
         const sortedAccounts = Array.from(accMap.entries()).sort(([, a], [, b]) => {
-          if (a.tax_status === 'Taxable' && b.tax_status !== 'Taxable') return 1 // Prefer taxable for potential harvest
+          if (a.tax_status === 'Taxable' && b.tax_status !== 'Taxable') return 1
           return b.value - a.value 
         })
 
@@ -174,59 +162,38 @@ export async function GET(req: NextRequest) {
         sortedAccounts.forEach(([id, acc]) => {
           if (remainingToSell <= 0) return
           const sellFromAcc = Math.min(acc.value, remainingToSell)
-          const gainLoss = sellFromAcc - (acc.costBasis * (sellFromAcc / acc.value))
-          
-          recommended_accounts.push({
-            id,
-            name: acc.name,
-            amount: sellFromAcc,
-            reason: acc.tax_status === 'Taxable' && gainLoss < 0 
-              ? `Harvesting ${Math.abs(gainLoss).toFixed(0)} loss` 
-              : `Trimming overweight in ${acc.name}`
-          })
-          tax_impact += (acc.tax_status === 'Taxable' ? gainLoss : 0)
+          recommended_accounts.push({ id, name: acc.name, amount: sellFromAcc, reason: `Trimming overweight position` })
           remainingToSell -= sellFromAcc
         })
       }
 
-      // FUNDING LOGIC (Bug #34): Matching Buys to Sells
       if (res.action === 'buy') {
         let needed = res.amount
-        const sells = [...rebalanceResults]
-          .filter(r => r.action === 'sell')
-          .sort((a, b) => b.drift_percentage - a.drift_percentage)
-
+        const sells = [...rebalanceResults].filter(r => r.action === 'sell').sort((a, b) => b.drift_percentage - a.drift_percentage)
         sells.forEach(s => {
           if (needed <= 0) return
           const take = Math.min(s.amount, needed)
           if (take > 0) {
-            reinvestment_suggestions.push({
-              from_ticker: s.ticker,
-              amount: take,
-              reason: `Reallocating ${s.drift_percentage.toFixed(1)}% overweight ${s.ticker}`
-            })
+            reinvestment_suggestions.push({ from_ticker: s.ticker, amount: take, reason: `Reallocated from overweight ${s.ticker}` })
             needed -= take
           }
         })
       }
 
-      return { 
-        ...res, 
-        reinvestment_suggestions, 
-        recommended_accounts,
-        tax_impact 
-      }
+      return { ...res, reinvestment_suggestions, recommended_accounts, tax_impact }
     })
+
+    const cashNeeded = finalAllocations.reduce((sum, item) => sum + (item.action !== 'hold' ? item.amount : 0), 0)
 
     return NextResponse.json({
       subPortfolios: subPortfolios || [],
-      assetTargets: assetTargets || [], // RESTORED
+      assetTargets: assetTargets || [],
       currentAllocations: finalAllocations,
       totalValue: totalPortfolioValue,
       totalCash,
-      lastPriceUpdate: prices?.[0]?.timestamp || null // RESTORED
+      cashNeeded,
+      lastPriceUpdate: prices?.[0]?.timestamp || null
     })
-
   } catch (error) {
     console.error('Rebalancing API Error:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
