@@ -108,7 +108,7 @@ export async function POST(req: Request) {
       const asset = Array.isArray(l.asset) ? l.asset[0] : l.asset;
       return asset?.ticker;
     }))];
-    const benchmarkTickers = benchmarks ? ['^GSPC', '^IXIC', 'BTCUSD'] : [];
+    const benchmarkTickers = benchmarks ? ['^GSPC', '^IXIC', 'BTC-USD', 'GLD', 'VXUS', '^RUT', 'TLT'] : [];
     const allTickers = [...new Set([...portfolioTickers, ...benchmarkTickers])];
 
     // Fetch historical prices (reuse logic from your existing historical-prices route)
