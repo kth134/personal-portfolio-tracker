@@ -220,10 +220,13 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       subPortfolios: subPortfolios || [],
+      assetTargets: assetTargets || [], // RESTORED
       currentAllocations: finalAllocations,
       totalValue: totalPortfolioValue,
-      totalCash
+      totalCash,
+      lastPriceUpdate: prices?.[0]?.timestamp || null // RESTORED
     })
+
   } catch (error) {
     console.error('Rebalancing API Error:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
