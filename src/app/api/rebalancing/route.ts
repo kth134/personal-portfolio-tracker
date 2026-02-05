@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
           sub_portfolio_percentage: currentInSPPct,
           drift_percentage: relativeDrift,
           action,
-          amount: Math.abs((assetTargetInSP / 100 * spTotalValue) - asset.current_value)
+          amount: action === 'hold' ? 0 : Math.abs((assetTargetInSP / 100 * spTotalValue) - asset.current_value)
         })
       })
     })
