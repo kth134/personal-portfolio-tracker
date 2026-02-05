@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Check, ChevronsUpDown, ArrowUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown } from 'lucide-react'
 import { formatUSD } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 import { refreshAssetPrices } from './actions'
@@ -24,10 +24,6 @@ const LENSES = [
   { value: 'sub_portfolio', label: 'Sub-Portfolio' },
   { value: 'account', label: 'Account' },
   { value: 'asset_type', label: 'Asset Type' },
-  { value: 'asset_subtype', label: 'Asset Sub-Type' },
-  { value: 'geography', label: 'Geography' },
-  { value: 'size_tag', label: 'Size' },
-  { value: 'factor_tag', label: 'Factor' },
 ]
 
 export default function PortfolioHoldingsWithSlicers({
@@ -44,182 +40,103 @@ export default function PortfolioHoldingsWithSlicers({
   const [allocations, setAllocations] = useState<any[]>([])
   const [pieAllocations, setPieAllocations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [valuesLoading, setValuesLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
-
-  // Tracking open items
   const [openItems, setOpenItems] = useState<string[]>([])
 
-  // Fetch distinct values for multi-select
   useEffect(() => {
     if (lens === 'total') {
       setAvailableValues([])
       setSelectedValues([])
       return
     }
-
     const fetchValues = async () => {
-      setValuesLoading(true)
       try {
-        const res = await fetch('/api/dashboard/values', {
-          method: 'POST',
-          body: JSON.stringify({ lens }),
-        })
-        if (!res.ok) throw new Error(`Failed to fetch values: ${res.status}`)
+        const res = await fetch('/api/dashboard/values', { method: 'POST', body: JSON.stringify({ lens }) })
         const data = await res.json()
-        const vals = data.values || []
-        setAvailableValues(vals)
-        setSelectedValues(vals.map((v: any) => v.value))
-      } catch (err) {
-        console.error('Values fetch failed:', err)
-      } finally {
-        setValuesLoading(false)
-      }
+        setAvailableValues(data.values || [])
+        setSelectedValues((data.values || []).map((v: any) => v.value))
+      } catch (err) { console.error(err) }
     }
     fetchValues()
   }, [lens])
 
-  // Load backend data
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
       try {
-        const payload = {
-          lens,
-          selectedValues: lens === 'total' ? [] : selectedValues,
-          aggregate,
-        }
-        
-        // Fetch for pies (respects aggregate)
-        const pieRes = await fetch('/api/dashboard/allocations', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-          cache: 'no-store'
-        })
-        const pieData = await pieRes.json()
+        const payload = { lens, selectedValues: lens === 'total' ? [] : selectedValues, aggregate }
+        const [pieRes, tableRes] = await Promise.all([
+          fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' }),
+          fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify({ ...payload, aggregate: false }), cache: 'no-store' })
+        ])
+        const [pieData, tableData] = await Promise.all([pieRes.json(), tableRes.json()])
         setPieAllocations(pieData.allocations || [])
-
-        // Fetch for tables (never aggregate)
-        const tableRes = await fetch('/api/dashboard/allocations', {
-          method: 'POST',
-          body: JSON.stringify({ ...payload, aggregate: false }),
-          cache: 'no-store'
-        })
-        const tableData = await tableRes.json()
         setAllocations(tableData.allocations || [])
-        
-        // Expand all by default
         setOpenItems((tableData.allocations || []).map((a: any) => a.key))
-      } catch (err) {
-        console.error('Allocations fetch failed:', err)
-      } finally {
-        setLoading(false)
-      }
+      } catch (err) { console.error(err) } finally { setLoading(false) }
     }
     loadData()
   }, [lens, selectedValues, aggregate, refreshTrigger])
 
-  const toggleValue = (value: string) => {
-    setSelectedValues(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value])
-  }
-
-  const handleRefresh = async () => {
-    setRefreshing(true)
-    setRefreshMessage(null)
-    try {
-      const result = await refreshAssetPrices()
-      setRefreshMessage(result.message || 'Prices refreshed!')
-      setRefreshTrigger(t => t + 1)
-    } catch (err) {
-      setRefreshMessage('Error refreshing prices')
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
-  // Calculate global totals
   const totalValueAcrossSelection = useMemo(() => {
-    const holdingsTotal = allocations.reduce((sum, a) => sum + (Number(a.value) || 0), 0)
-    return holdingsTotal + cash
+    return allocations.reduce((sum, a) => sum + (Number(a.value) || 0), 0) + cash
   }, [allocations, cash])
 
-  if (loading && allocations.length === 0) {
-    return <div className="text-center py-12">Loading portfolio data...</div>
-  }
-
   return (
-    <div className="space-y-8">
-      {/* Controls */}
-      <div className="flex flex-wrap gap-4 items-end mb-4">
-        <div>
-          <Label className="text-sm font-medium">Slice by</Label>
+    <div className="space-y-4 md:space-y-8 p-2 md:p-4 max-w-[1600px] mx-auto overflow-x-hidden">
+      {/* Controls Container - Responsive */}
+      <div className="flex flex-wrap gap-4 items-end mb-4 bg-muted/20 p-4 rounded-lg">
+        <div className="flex-1 min-w-[200px] md:min-w-0">
+          <Label className="text-xs font-bold uppercase mb-1 block">Slice by</Label>
           <Select value={lens} onValueChange={setLens}>
-            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
-            <SelectContent>{LENSES.map(l => (
-              <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
-            ))}</SelectContent>
+            <SelectTrigger className="w-full md:w-56 bg-background"><SelectValue /></SelectTrigger>
+            <SelectContent>{LENSES.map(l => (<SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>))}</SelectContent>
           </Select>
         </div>
 
         {lens !== 'total' && (
-          <div className="min-w-64">
-            <Label className="text-sm font-medium">Select {LENSES.find(l => l.value === lens)?.label}s</Label>
+          <div className="flex-1 min-w-[220px] md:min-w-0">
+            <Label className="text-xs font-bold uppercase mb-1 block">Select {LENSES.find(l => l.value === lens)?.label}s</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-between">
+                <Button variant="outline" className="w-full md:w-64 justify-between bg-background">
                   {selectedValues.length === availableValues.length ? 'All selected' : `${selectedValues.length} selected`}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-full p-0">
-                <Command>
-                  <CommandInput placeholder="Search..." />
-                  <CommandList>
-                   <CommandEmpty>No values found.</CommandEmpty>
-                    <CommandGroup>
-                      {availableValues.map(item => (
-                        <CommandItem key={item.value} onSelect={() => toggleValue(item.value)}>
-                          <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />
-                          {item.label}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
+              <PopoverContent className="w-full p-0"><Command><CommandInput placeholder="Search..." /><CommandList><CommandEmpty>None.</CommandEmpty><CommandGroup>{availableValues.map(item => (<CommandItem key={item.value} onSelect={() => setSelectedValues(prev => prev.includes(item.value) ? prev.filter(v => v !== item.value) : [...prev, item.value])}><Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />{item.label}</CommandItem>))}</CommandGroup></CommandList></Command></PopoverContent>
             </Popover>
           </div>
         )}
 
         {lens !== 'total' && selectedValues.length > 1 && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-2 p-2 border rounded bg-background">
             <Switch checked={aggregate} onCheckedChange={setAggregate} />
-            <Label>Aggregate selected</Label>
+            <Label className="text-sm cursor-pointer whitespace-nowrap">Aggregate charts</Label>
           </div>
         )}
 
-        <Button onClick={handleRefresh} disabled={refreshing}>Refresh Prices</Button>
+        <Button onClick={async () => {
+          setRefreshing(true);
+          await refreshAssetPrices();
+          setRefreshTrigger(t => t + 1);
+          setRefreshing(false);
+        }} disabled={refreshing} className="mb-0.5">
+          {refreshing ? 'Hold...' : 'Refresh Prices'}
+        </Button>
       </div>
 
-      {/* Visuals */}
+      {/* Pie Charts Grid */}
       <div className="flex flex-wrap gap-8 justify-center">
         {pieAllocations.map((slice, idx) => (
-          <div key={idx} className="space-y-4 min-w-0 flex-shrink-0">
-            <h4 className="font-medium text-center">{slice.key}</h4>
-            <ResponsiveContainer width="100%" height={400} minWidth={300}>
+          <div key={idx} className="space-y-4 min-w-[300px] flex-1 max-w-[500px]">
+            <h4 className="font-bold text-center border-b pb-2">{slice.key}</h4>
+            <ResponsiveContainer width="100%" height={350}>
               <PieChart>
-                <Pie
-                  data={slice.data}
-                  dataKey="value"
-                  nameKey="subkey"
-                  outerRadius={100}
-                  label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
-                >
-                  {slice.data.map((_: any, i: number) => (
-                    <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
-                  ))}
+                <Pie data={slice.data} dataKey="value" nameKey="subkey" outerRadius="80%" label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}>
+                  {slice.data.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                 </Pie>
                 <Tooltip formatter={(v: any) => formatUSD(v)} />
                 <Legend />
@@ -229,26 +146,30 @@ export default function PortfolioHoldingsWithSlicers({
         ))}
       </div>
 
-      {/* Tables Mapping - Bug #41 Header logic */}
-      <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
+      {/* Holdings Tables */}
+      <Accordion type="multiple" value={openItems} onValueChange={setOpenItems} className="space-y-4">
         {allocations.map((group) => {
-          const groupHoldingsValue = Number(group.value) || 0
-          const accountCash = lens === 'account' ? (cashByAccountName.get(group.key) || 0) : 0
-          const groupTotalValue = groupHoldingsValue + accountCash
-          const groupWeight = totalValueAcrossSelection > 0 ? (groupTotalValue / totalValueAcrossSelection) * 100 : 0
+          const groupVal = Number(group.value) || 0;
+          const cashVal = lens === 'account' ? (cashByAccountName.get(group.key) || 0) : 0;
+          const totalGroupVal = groupVal + cashVal;
+          const groupWeight = totalValueAcrossSelection > 0 ? (totalGroupVal / totalValueAcrossSelection) * 100 : 0;
 
           return (
-            <AccordionItem key={group.key} value={group.key}>
-              <AccordionTrigger className="bg-black text-white px-4 py-2 hover:bg-gray-800">
-                <div className="flex justify-between w-full mr-4">
-                  <span className="font-semibold">{group.key}</span>
-                  <span className="text-sm">{formatUSD(groupTotalValue)} | {groupWeight.toFixed(2)}%</span>
+            <AccordionItem key={group.key} value={group.key} className="border rounded-lg overflow-hidden shadow-sm">
+              <AccordionTrigger className="bg-black text-white px-4 py-4 hover:bg-zinc-900 transition-colors">
+                <div className="flex justify-between w-full mr-4 text-left">
+                  <span className="font-bold">{group.key}</span>
+                  <div className="flex gap-4 text-sm font-normal text-zinc-300">
+                    <span>{formatUSD(totalGroupVal)}</span>
+                    <span className="opacity-60">|</span>
+                    <span>{groupWeight.toFixed(2)}%</span>
+                  </div>
                 </div>
               </AccordionTrigger>
-              <AccordionContent className="p-0">
-                <Table>
+              <AccordionContent className="p-0 overflow-x-auto">
+                <Table className="min-w-[800px]">
                   <TableHeader>
-                    <TableRow>
+                    <TableRow className="bg-muted/50">
                       <TableHead className="w-[40%]">Asset</TableHead>
                       <TableHead className="w-[20%] text-right">Total Cost Basis</TableHead>
                       <TableHead className="w-[20%] text-right">Current Value</TableHead>
@@ -257,17 +178,16 @@ export default function PortfolioHoldingsWithSlicers({
                   </TableHeader>
                   <TableBody>
                     {(group.items || []).map((item: any) => {
-                      const itemValue = Number(item.value) || 0
-                      const itemBasis = Number(item.cost_basis) || 0
-                      const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
-                      return (
+                        const v = Number(item.value) || 0;
+                        const w = totalValueAcrossSelection > 0 ? (v / totalValueAcrossSelection) * 100 : 0;
+                        return (
                         <TableRow key={item.ticker}>
-                          <TableCell className="w-[40%]"><div className="font-bold">{item.ticker}</div><div className="text-xs text-muted-foreground">{item.name}</div></TableCell>
-                          <TableCell className="w-[20%] text-right">{formatUSD(itemBasis)}</TableCell>
-                          <TableCell className="w-[20%] text-right">{formatUSD(itemValue)}</TableCell>
-                          <TableCell className="w-[20%] text-right">{itemWeight.toFixed(2)}%</TableCell>
+                            <TableCell className="w-[40%] underline decoration-muted-foreground/30 underline-offset-4"><div className="font-bold">{item.ticker}</div><div className="text-[11px] opacity-70">{item.name}</div></TableCell>
+                            <TableCell className="w-[20%] text-right tabular-nums">{formatUSD(item.cost_basis)}</TableCell>
+                            <TableCell className="w-[20%] text-right tabular-nums font-medium">{formatUSD(v)}</TableCell>
+                            <TableCell className="w-[20%] text-right tabular-nums">{w.toFixed(2)}%</TableCell>
                         </TableRow>
-                      )
+                        )
                     })}
                   </TableBody>
                 </Table>
