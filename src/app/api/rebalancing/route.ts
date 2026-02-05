@@ -28,7 +28,16 @@ export async function GET(req: NextRequest) {
 
     // 2. Initial Setup
     const { totalCash } = calculateCashBalances(transactions || [])
-    const uniqueTickers = [...new Set(detailedTaxLots?.map(lot => lot.asset.ticker) || [])]
+    
+    // Normalize asset data (Supabase joins can return arrays or objects)
+    const normalizeAsset = (assetData: any) => Array.isArray(assetData) ? assetData[0] : assetData;
+    
+    const holdingsWithAssets = detailedTaxLots?.map(lot => ({
+      ...lot,
+      asset: normalizeAsset(lot.asset)
+    })) || [];
+
+    const uniqueTickers = [...new Set(holdingsWithAssets.map(lot => lot.asset?.ticker).filter(Boolean))]
     
     // Fetch latest prices
     const { data: prices } = await supabase
@@ -41,20 +50,18 @@ export async function GET(req: NextRequest) {
     prices?.forEach(p => { if (!latestPrices.has(p.ticker)) latestPrices.set(p.ticker, p.price) })
 
     // Calculate total value (Holdings + Cash)
-    const holdingsValue = detailedTaxLots?.reduce((sum, lot) => {
-      return sum + (lot.remaining_quantity * (latestPrices.get(lot.asset.ticker) || 0))
+    const holdingsValue = holdingsWithAssets.reduce((sum, lot) => {
+      return sum + (lot.remaining_quantity * (latestPrices.get(lot.asset?.ticker) || 0))
     }, 0) || 0
     const totalPortfolioValue = holdingsValue + totalCash
 
     // 3. Process Allocations by Lens (Supports Bug #36 - Multi-lens charts)
-    // We'll calculate rebalancing for the current "Sub-Portfolio" structure primarily
-    const allocations: any[] = []
     const subPortfolioMetrics = new Map<string, any>()
 
-    detailedTaxLots?.forEach(lot => {
-      const price = latestPrices.get(lot.asset.ticker) || 0
+    holdingsWithAssets.forEach(lot => {
+      const price = latestPrices.get(lot.asset?.ticker) || 0
       const value = lot.remaining_quantity * price
-      const spId = lot.asset.sub_portfolio_id || 'unassigned'
+      const spId = lot.asset?.sub_portfolio_id || 'unassigned'
 
       if (!subPortfolioMetrics.has(spId)) {
         const sp = subPortfolios?.find(p => p.id === spId)
@@ -75,8 +82,8 @@ export async function GET(req: NextRequest) {
       } else {
         metrics.assets.push({
           asset_id: lot.asset_id,
-          ticker: lot.asset.ticker,
-          name: lot.asset.name,
+          ticker: lot.asset?.ticker,
+          name: lot.asset?.name,
           currentValue: value
         })
       }
@@ -132,7 +139,7 @@ export async function GET(req: NextRequest) {
 
       // TAX LOGIC (Bug #37): Recommendation for Sells
       if (res.action === 'sell') {
-        const assetLots = detailedTaxLots?.filter(l => l.asset_id === res.asset_id) || []
+        const assetLots = holdingsWithAssets.filter(l => l.asset_id === res.asset_id) || []
         const currentPrice = latestPrices.get(res.ticker) || 0
         
         // Group lots by account to see where we can sell
