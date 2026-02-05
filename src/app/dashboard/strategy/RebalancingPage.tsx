@@ -75,22 +75,24 @@ export default function RebalancingPage() {
 
   // Load Chart Data (Dynamic Sliced Data)
   useEffect(() => {
+    if (!data) return; // Wait for base data first
     const loadCharts = async () => {
       try {
+        const payload = { 
+          lens, 
+          selectedValues: lens === 'total' ? [] : selectedValues,
+          aggregate 
+        };
         const res = await fetch('/api/dashboard/allocations', {
           method: 'POST',
-          body: JSON.stringify({ 
-            lens, 
-            selectedValues: lens === 'total' ? [] : selectedValues,
-            aggregate 
-          })
-        })
-        const payload = await res.json()
-        setChartData(payload.allocations || [])
+          body: JSON.stringify(payload)
+        });
+        const payloadJson = await res.json();
+        setChartData(payloadJson.allocations || []);
       } catch (err) { console.error('Chart Data error:', err) }
-    }
-    loadCharts()
-  }, [lens, selectedValues, aggregate])
+    };
+    loadCharts();
+  }, [lens, JSON.stringify(selectedValues), aggregate]);
 
   // HELPERS FOR SAVING
   const updateSubPortfolio = async (id: string, field: string, value: number) => {
