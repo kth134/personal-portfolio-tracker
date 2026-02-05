@@ -249,10 +249,10 @@ export default function PortfolioHoldingsWithSlicers({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Asset</TableHead>
-                      <TableHead className="text-right">Total Cost Basis</TableHead>
-                      <TableHead className="text-right">Current Value</TableHead>
-                      <TableHead className="text-right">Weight (Portfolio)</TableHead>
+                      <TableHead className="w-[40%]">Asset</TableHead>
+                      <TableHead className="w-[20%] text-right">Total Cost Basis</TableHead>
+                      <TableHead className="w-[20%] text-right">Current Value</TableHead>
+                      <TableHead className="w-[20%] text-right">Weight (Portfolio)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -262,10 +262,10 @@ export default function PortfolioHoldingsWithSlicers({
                       const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
                       return (
                         <TableRow key={item.ticker}>
-                          <TableCell><div className="font-bold">{item.ticker}</div><div className="text-xs text-muted-foreground">{item.name}</div></TableCell>
-                          <TableCell className="text-right">{formatUSD(itemBasis)}</TableCell>
-                          <TableCell className="text-right">{formatUSD(itemValue)}</TableCell>
-                          <TableCell className="text-right">{itemWeight.toFixed(2)}%</TableCell>
+                          <TableCell className="w-[40%]"><div className="font-bold">{item.ticker}</div><div className="text-xs text-muted-foreground">{item.name}</div></TableCell>
+                          <TableCell className="w-[20%] text-right">{formatUSD(itemBasis)}</TableCell>
+                          <TableCell className="w-[20%] text-right">{formatUSD(itemValue)}</TableCell>
+                          <TableCell className="w-[20%] text-right">{itemWeight.toFixed(2)}%</TableCell>
                         </TableRow>
                       )
                     })}
