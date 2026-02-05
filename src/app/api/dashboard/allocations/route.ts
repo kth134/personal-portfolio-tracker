@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { fetchAllUserTransactionsServer } from '@/lib/finance';
 
 export async function POST(req: Request) {
   try {
@@ -9,7 +8,6 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // 1. Fetch data in parallel
     const [
       { data: lots },
       { data: assetTargets },
@@ -30,33 +28,22 @@ export async function POST(req: Request) {
 
     if (!lots || lots.length === 0) return NextResponse.json({ allocations: [] });
 
-    // 2. Setup lookup maps
     const priceMap = new Map<string, number>();
     pricesList?.forEach((p: any) => { if (!priceMap.has(p.ticker)) priceMap.set(p.ticker, p.price) });
 
-    // 3. Normalize and Group
     const normalize = (val: any) => Array.isArray(val) ? val[0] : val;
-    
-    const groups = new Map<string, {
-      value: number;
-      targetPct: number;
-      items: any[];
-    }>();
+    const groups = new Map<string, any>();
+    let totalPortfolioValue = 0;
 
-    let totalValueAcrossAll = 0;
-
-    // First pass: Calculate current values and total portfolio value
     const processedLots = lots.map((l: any) => {
       const asset = normalize(l.asset);
       const account = normalize(l.account);
       const price = priceMap.get(asset?.ticker) || 0;
       const value = (l.remaining_quantity || 0) * price;
-      totalValueAcrossAll += value;
-      
+      totalPortfolioValue += value;
       return { ...l, asset, account, value };
     });
 
-    // Second pass: Group by lens
     processedLots.forEach((lot: any) => {
       let key = 'Other';
       switch (lens) {
@@ -66,78 +53,69 @@ export async function POST(req: Request) {
           break;
         case 'account': key = lot.account?.name || 'Unknown'; break;
         case 'asset_type': key = lot.asset?.asset_type || 'Unknown'; break;
-        case 'asset_subtype': key = lot.asset?.asset_subtype || 'Unknown'; break;
-        case 'geography': key = lot.asset?.geography || 'Unknown'; break;
-        case 'size_tag': key = lot.asset?.size_tag || 'Unknown'; break;
-        case 'factor_tag': key = lot.asset?.factor_tag || 'Unknown'; break;
         default: key = lot.asset?.ticker || 'Unknown';
       }
 
       if (lens !== 'total' && selectedValues?.length > 0 && !selectedValues.includes(key)) return;
 
       if (!groups.has(key)) {
-        groups.set(key, { value: 0, targetPct: 0, items: [] });
+        groups.set(key, { value: 0, target_pct: 0, items: [] });
       }
       const g = groups.get(key)!;
       g.value += lot.value;
 
-      // Calculate Target for this item (Implied Overall Target %)
       const sp = subPortfolios?.find(p => p.id === lot.asset?.sub_portfolio_id);
       const assetTargetInSP = assetTargets?.find(at => at.asset_id === lot.asset?.id && at.sub_portfolio_id === lot.asset?.sub_portfolio_id)?.target_percentage || 0;
-      const spTargetPct = sp?.target_allocation || 0;
-      const impliedOverallTarget = (spTargetPct * assetTargetInSP) / 100;
+      const impliedTarget = ((sp?.target_allocation || 0) * assetTargetInSP) / 100;
 
-      // Avoid duplicate targets for same asset in a group
-      const existing = g.items.find(i => i.ticker === lot.asset?.ticker);
-      if (existing) {
-        existing.value += lot.value;
-      } else {
-        g.items.push({
-          ticker: lot.asset?.ticker,
-          name: lot.asset?.name,
-          value: lot.value,
-          targetPct: impliedOverallTarget
-        });
-        g.targetPct += impliedOverallTarget;
-      }
+      g.items.push({
+        ticker: lot.asset?.ticker,
+        name: lot.asset?.name,
+        value: lot.value,
+        target_pct: impliedTarget,
+        quantity: lot.remaining_quantity
+      });
+      g.target_pct += impliedTarget;
     });
 
-    // 4. Format for response
     let allocations = Array.from(groups.entries()).map(([key, g]) => ({
       key,
       value: g.value,
-      percentage: totalValueAcrossAll > 0 ? (g.value / totalValueAcrossAll) * 100 : 0,
-      targetPct: g.targetPct,
-      data: g.items.map(i => ({
+      percentage: totalPortfolioValue > 0 ? (g.value / totalPortfolioValue) * 100 : 0,
+      target_pct: g.target_pct,
+      data: g.items.map((i: any) => ({
         subkey: i.ticker,
         value: i.value,
-        percentage: i.targetPct,
-        targetPct: i.targetPct,
-        implied_overall_target: i.targetPct // Explicitly set this to prevent frontend defaults
-      }))
+        percentage: g.value > 0 ? (i.value / g.value) * 100 : 0,
+        target_pct: i.target_pct,
+        // Include aliases for chart provider legacy logic
+        implied_overall_target: i.target_pct
+      })),
+      items: g.items
     }));
 
     if (aggregate && allocations.length > 1) {
        const combinedValue = allocations.reduce((s, a) => s + a.value, 0);
-       const combinedTarget = allocations.reduce((s, a) => s + a.targetPct, 0);
+       const combinedTarget = allocations.reduce((s, a) => s + a.target_pct, 0);
        allocations = [{
          key: 'Aggregated Selection',
          value: combinedValue,
          percentage: 100,
-         targetPct: combinedTarget,
+         target_pct: combinedTarget,
          data: allocations.map(a => ({
            subkey: a.key,
            value: a.value,
            percentage: combinedValue > 0 ? (a.value / combinedValue) * 100 : 0,
-           targetPct: a.targetPct,
-           implied_overall_target: a.targetPct
-         }))
+           target_pct: a.target_pct,
+           implied_overall_target: a.target_pct
+         })),
+         items: []
        }];
     }
 
     return NextResponse.json({ allocations });
   } catch (err: any) {
-    console.error('Allocations API error:', err);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error(err);
+    return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
   }
 }

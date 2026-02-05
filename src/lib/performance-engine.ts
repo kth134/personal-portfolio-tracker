@@ -1,13 +1,15 @@
 import { parseISO, differenceInDays } from 'date-fns';
 import { calculateIRR, transactionFlowForIRR, netCashFlowsByDate } from './finance';
 
-export interface PerformanceMetric {
-  totalReturn: number;
-  annualized: number;
-  netGain: number;
-  unrealized?: number;
-  realized?: number;
-  income?: number;
+export interface GroupedAllocation {
+  key: string;
+  name: string;
+  current_value: number;
+  current_percentage: number;
+  target_percentage: number;
+  relative_drift: number;
+  net_gain: number;
+  items: any[];
 }
 
 /**
