@@ -129,8 +129,7 @@ export async function POST(req: Request) {
            value: a.value,
            percentage: combinedValue > 0 ? (a.value / combinedValue) * 100 : 0,
            targetPct: a.targetPct
-         })),
-         items: []
+         }))
        }];
     }
 
