@@ -123,7 +123,9 @@ export async function GET(req: NextRequest) {
           current_percentage: currentOverallPct,
           implied_overall_target: impliedOverallTarget,
           target_in_sp: assetTargetInSP,
+          sub_portfolio_target_percentage: assetTargetInSP, // Compatibility fix
           current_in_sp: currentInSPPct,
+          sub_portfolio_percentage: currentInSPPct, // Compatibility fix
           drift_percentage: relativeDrift,
           action,
           amount: Math.abs((assetTargetInSP / 100 * spTotalValue) - asset.currentValue)
