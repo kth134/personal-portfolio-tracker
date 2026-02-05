@@ -185,7 +185,7 @@ export default function RebalancingPage() {
                 <div className="grid grid-cols-2 gap-4 h-[300px]">
                    <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                         <Pie data={slice.data} dataKey="value" nameKey="subkey" outerRadius={80} label={({ percent }) => `${(percent * 100).toFixed(0)}%`}>
+                         <Pie data={slice.data} dataKey="value" nameKey="subkey" outerRadius={80} label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}>
                             {slice.data.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                          </Pie>
                          <RechartsTooltip formatter={(v: any) => formatUSD(v)} />
