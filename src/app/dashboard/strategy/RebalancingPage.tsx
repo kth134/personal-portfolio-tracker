@@ -91,7 +91,37 @@ export default function RebalancingPage() {
 
   // SUMMARY CALCULATIONS
   const rebalanceNeeded = data.currentAllocations.some((a: any) => a.action !== 'hold')
-  const netImpact = -data.cashNeeded // Inverse sign: + means cash generated (sells > buys)
+  const netImpact = -data.cashNeeded 
+
+  const totalWeightedAssetDrift = useMemo(() => {
+    if (!data?.currentAllocations || data.totalValue === 0) return 0
+    return data.currentAllocations.reduce((sum: number, item: any) => {
+      const weight = item.current_value / data.totalValue
+      const currentPct = item.current_percentage || 0
+      const targetPct = item.implied_overall_target || 0
+      // Relative Drift = (Current - Target) / Target
+      const relChange = targetPct > 0 ? (currentPct - targetPct) / targetPct : 0
+      return sum + (Math.abs(relChange) * weight)
+    }, 0) * 100
+  }, [data])
+
+  const totalWeightedSubPortfolioDrift = useMemo(() => {
+    if (!data?.subPortfolios || data.totalValue === 0) return 0
+    
+    const subIdValues = data.currentAllocations.reduce((acc: any, item: any) => {
+      acc[item.sub_portfolio_id] = (acc[item.sub_portfolio_id] || 0) + item.current_value
+      return acc
+    }, {})
+
+    return data.subPortfolios.reduce((sum: number, sp: any) => {
+      const currentVal = subIdValues[sp.id] || 0
+      const weight = currentVal / data.totalValue
+      const currentPct = (currentVal / data.totalValue) * 100
+      const targetPct = sp.target_allocation || 0
+      const relChange = targetPct > 0 ? (currentPct - targetPct) / targetPct : 0
+      return sum + (Math.abs(relChange) * weight)
+    }, 0) * 100
+  }, [data])
 
   const getDriftColor = (drift: number) => {
     const abs = Math.abs(drift)
@@ -103,20 +133,33 @@ export default function RebalancingPage() {
   return (
     <div className="space-y-8 p-4">
       {/* Summary Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-card p-4 rounded-lg border text-center">
           <h3 className="text-xs uppercase font-semibold text-muted-foreground mb-1">Portfolio Value</h3>
           <div className="text-2xl font-bold">{formatUSD(data.totalValue)}</div>
         </div>
         <div className="bg-card p-4 rounded-lg border text-center">
+          <h3 className="text-xs uppercase font-semibold text-muted-foreground mb-1">Portfolio Drift</h3>
+          <div className="grid grid-cols-2 gap-2 mt-1">
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase">Sub-Portfolio</p>
+              <p className="text-lg font-bold">{totalWeightedSubPortfolioDrift.toFixed(2)}%</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase">Asset-Level</p>
+              <p className="text-lg font-bold">{totalWeightedAssetDrift.toFixed(2)}%</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-card p-4 rounded-lg border text-center">
           <h3 className="text-xs uppercase font-semibold text-muted-foreground mb-1">Rebalance Status</h3>
           <div className={cn("text-2xl font-bold flex items-center justify-center", rebalanceNeeded ? "text-yellow-600" : "text-green-600")}>
-            {rebalanceNeeded ? <><AlertTriangle className="w-5 h-5 mr-2" /> Action Needed</> : "All Good"}
+            {rebalanceNeeded ? "Action Needed" : "All Good"}
           </div>
         </div>
         <div className="bg-card p-4 rounded-lg border text-center col-span-2">
           <h3 className="text-xs uppercase font-semibold text-muted-foreground mb-1">Net Cash Impact of Suggested Trades</h3>
-          <div className={cn("text-2xl font-bold", netImpact > 0 ? "text-green-600" : (netImpact < 0 ? "text-red-600" : ""))}>
+          <div className={cn("text-2xl font-bold", netImpact > 0 ? "text-green-600" : (netImpact < 0 ? "text-red-600" : ""))} title="Positive indicates cash generated from net sales">
             {netImpact > 0 ? "+" : ""}{formatUSD(netImpact)}
           </div>
         </div>
