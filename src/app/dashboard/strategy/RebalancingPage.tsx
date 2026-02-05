@@ -1760,8 +1760,13 @@ export default function RebalancingPage() {
 
         <div className="bg-card p-4 rounded-lg border">
           <h3 className="font-semibold text-sm text-muted-foreground text-center">Magnitude of Rebalance Actions (Net)</h3>
-          <p className={cn("text-2xl font-bold text-center", magnitudeOfRebalance > 0 ? "text-red-600" : "text-green-600")}>
-            {formatUSD(Math.abs(magnitudeOfRebalance))}
+          <p className={cn(
+            "text-2xl font-bold text-center",
+            (data?.cashNeeded || 0) > 0.01 ? "text-green-600" : 
+            (data?.cashNeeded || 0) < -0.01 ? "text-red-600" : 
+            "text-black"
+          )}>
+            {formatUSD(data?.cashNeeded || 0)}
           </p>
         </div>
 
