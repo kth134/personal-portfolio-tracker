@@ -250,19 +250,20 @@ export default function PortfolioHoldingsWithSlicers({
                   <TableHeader>
                     <TableRow>
                       <TableHead>Asset</TableHead>
-                      <TableHead className="text-right">Price</TableHead>
-                      <TableHead className="text-right">Value</TableHead>
+                      <TableHead className="text-right">Total Cost Basis</TableHead>
+                      <TableHead className="text-right">Current Value</TableHead>
                       <TableHead className="text-right">Weight (Portfolio)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(group.items || []).map((item: any) => {
                       const itemValue = Number(item.value) || 0
+                      const itemBasis = Number(item.cost_basis) || 0
                       const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
                       return (
                         <TableRow key={item.ticker}>
                           <TableCell><div className="font-bold">{item.ticker}</div><div className="text-xs text-muted-foreground">{item.name}</div></TableCell>
-                          <TableCell className="text-right">{formatUSD(itemValue / (item.quantity || 1))}</TableCell>
+                          <TableCell className="text-right">{formatUSD(itemBasis)}</TableCell>
                           <TableCell className="text-right">{formatUSD(itemValue)}</TableCell>
                           <TableCell className="text-right">{itemWeight.toFixed(2)}%</TableCell>
                         </TableRow>

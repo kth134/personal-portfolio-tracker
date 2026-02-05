@@ -46,14 +46,18 @@ export async function POST(req: Request) {
 
     processedLots.forEach((lot: any) => {
       let key = 'Other';
-      switch (lens) {
-        case 'sub_portfolio':
-          const sp = subPortfolios?.find(p => p.id === lot.asset?.sub_portfolio_id);
-          key = sp?.name || 'Unassigned';
-          break;
-        case 'account': key = lot.account?.name || 'Unknown'; break;
-        case 'asset_type': key = lot.asset?.asset_type || 'Unknown'; break;
-        default: key = lot.asset?.ticker || 'Unknown';
+      if (lens === 'total') {
+        key = 'Total Portfolio';
+      } else {
+        switch (lens) {
+          case 'sub_portfolio':
+            const sp = subPortfolios?.find(p => p.id === lot.asset?.sub_portfolio_id);
+            key = sp?.name || 'Unassigned';
+            break;
+          case 'account': key = lot.account?.name || 'Unknown'; break;
+          case 'asset_type': key = lot.asset?.asset_type || 'Unknown'; break;
+          default: key = lot.asset?.ticker || 'Unknown';
+        }
       }
 
       if (lens !== 'total' && selectedValues?.length > 0 && !selectedValues.includes(key)) return;
@@ -79,7 +83,8 @@ export async function POST(req: Request) {
           name: lot.asset?.name,
           value: lot.value,
           target_pct: impliedTarget,
-          quantity: lot.remaining_quantity
+          quantity: lot.remaining_quantity,
+          cost_basis: (lot.remaining_quantity || 0) * (lot.cost_basis_per_unit || 0)
         });
         g.target_pct += impliedTarget;
       }
@@ -88,6 +93,7 @@ export async function POST(req: Request) {
     let allocations = Array.from(groups.entries()).map(([key, g]) => ({
       key,
       value: g.value,
+      cost_basis: g.items.reduce((s: number, i: any) => s + i.cost_basis, 0),
       percentage: totalPortfolioValue > 0 ? (g.value / totalPortfolioValue) * 100 : 0,
       target_pct: g.target_pct,
       data: g.items.map((i: any) => ({
