@@ -172,6 +172,7 @@ export default function PortfolioHoldingsWithSlicers({
             const totalGroupVal = group.totalGroupVal;
             const groupWeight = totalValueAcrossSelection > 0 ? (totalGroupVal / totalValueAcrossSelection) * 100 : 0;
 
+            return (
               <AccordionItem key={group.key} value={group.key} className="border rounded-lg overflow-hidden shadow-sm">
                 <AccordionTrigger className="bg-black text-white px-0 py-4 hover:bg-zinc-900 transition-colors">
                   <div className="flex items-center w-full text-left gap-0">
