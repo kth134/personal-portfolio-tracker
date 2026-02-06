@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Check, ChevronsUpDown, ArrowUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, ArrowUpDown, RefreshCw } from 'lucide-react'
 import { formatUSD } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 import { refreshAssetPrices } from './actions'
@@ -46,27 +46,7 @@ export default function PortfolioHoldingsWithSlicers({
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true)
-      try {
-        const payload = { lens, selectedValues: lens === 'total' ? [] : selectedValues, aggregate }
-        const [pieRes, tableRes] = await Promise.all([
-          fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' }),
-          fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify({ ...payload, aggregate: false }), cache: 'no-store' })
-        ])
-        const [pieData, tableData] = await Promise.all([pieRes.json(), tableRes.json()])
-        setPieAllocations(pieData.allocations || [])
-        setAllocations(tableData.allocations || [])
-        // Default to collapsed (do NOT set openItems here)
-      } catch (err) { console.error(err) } finally { setLoading(false) }
-    }
-    loadData()
-  }, [lens, selectedValues, aggregate, refreshTrigger])
-
-  // Sorting state for sub-tables
-  const [sortCol, setSortCol] = useState('value')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [openItems, setOpenItems] = useState<string[]>([])
 
   useEffect(() => {
     if (lens === 'total') {
@@ -97,7 +77,7 @@ export default function PortfolioHoldingsWithSlicers({
         const [pieData, tableData] = await Promise.all([pieRes.json(), tableRes.json()])
         setPieAllocations(pieData.allocations || [])
         setAllocations(tableData.allocations || [])
-        setOpenItems((tableData.allocations || []).map((a: any) => a.key))
+        // Initial state: Empty openItems (Collapsed by default)
       } catch (err) { console.error(err) } finally { setLoading(false) }
     }
     loadData()
@@ -107,46 +87,27 @@ export default function PortfolioHoldingsWithSlicers({
     return allocations.reduce((sum, a) => sum + (Number(a.value) || 0), 0) + cash
   }, [allocations, cash])
 
-  const handleSort = (col: string) => {
-    if (sortCol === col) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-    else { setSortCol(col); setSortDir('desc'); }
+  if (loading && allocations.length === 0) {
+    return <div className="p-8 text-center text-lg animate-pulse">Loading holdings...</div>
   }
 
-  const SortIcon = ({ col }: { col: string }) => (
-    <ArrowUpDown className={cn("ml-1 h-3 w-3 inline cursor-pointer", sortCol === col ? "text-blue-600" : "text-zinc-500")} />
-  )
-
   return (
-    <div className="space-y-4 md:space-y-8 p-2 md:p-4 max-w-[1600px] mx-auto overflow-x-hidden">
-      {/* Controls Container */}
+    <div className="space-y-6">
       <div className="flex flex-wrap gap-4 items-end mb-4 bg-muted/20 p-4 rounded-lg">
-        <div className="flex-1 min-w-[200px] md:min-w-0">
-          <Label className="text-xs font-bold uppercase mb-1 block">Slice by</Label>
+        <div className="flex-1 min-w-[200px]">
+          <Label className="text-xs uppercase font-bold mb-1 block">Slice by</Label>
           <Select value={lens} onValueChange={setLens}>
             <SelectTrigger className="w-full md:w-56 bg-background"><SelectValue /></SelectTrigger>
-            <SelectContent>{LENSES.map(l => (<SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>))}</SelectContent>
+            <SelectContent>{LENSES.map(l => (
+              <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+            ))}</SelectContent>
           </Select>
         </div>
-
-        {lens !== 'total' && (
-          <div className="flex-1 min-w-[220px] md:min-w-0">
-            <Label className="text-xs font-bold uppercase mb-1 block">Filter Selection</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full md:w-64 justify-between bg-background">
-                  {selectedValues.length === availableValues.length ? 'All selected' : `${selectedValues.length} selected`}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0"><Command><CommandInput placeholder="Search..." /><CommandList><CommandEmpty>None.</CommandEmpty><CommandGroup>{availableValues.map(item => (<CommandItem key={item.value} onSelect={() => setSelectedValues(prev => prev.includes(item.value) ? prev.filter(v => v !== item.value) : [...prev, item.value])}><Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />{item.label}</CommandItem>))}</CommandGroup></CommandList></Command></PopoverContent>
-            </Popover>
-          </div>
-        )}
 
         {lens !== 'total' && selectedValues.length > 1 && (
           <div className="flex items-center gap-2 mb-2 p-2 border rounded bg-background">
             <Switch checked={aggregate} onCheckedChange={setAggregate} />
-            <Label className="text-sm cursor-pointer whitespace-nowrap">Aggregate charts</Label>
+            <Label className="text-sm cursor-pointer whitespace-nowrap">Aggregate</Label>
           </div>
         )}
 
@@ -155,113 +116,83 @@ export default function PortfolioHoldingsWithSlicers({
           await refreshAssetPrices();
           setRefreshTrigger(t => t + 1);
           setRefreshing(false);
-        }} disabled={refreshing} className="mb-0.5">
-          {refreshing ? 'Hold...' : 'Refresh Prices'}
+        }} disabled={refreshing}>
+          {refreshing ? 'Refreshing...' : 'Refresh Prices'}
         </Button>
       </div>
 
-      {/* Pie Charts Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="flex flex-wrap gap-8 justify-center">
         {pieAllocations.map((slice, idx) => (
-          <div key={idx} className="bg-card p-4 rounded-xl border shadow-sm space-y-4">
-            <h4 className="font-bold text-center border-b pb-2 text-sm uppercase truncate">{slice.key}</h4>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                  <Pie 
-                    data={slice.data} 
-                    dataKey="value" 
-                    nameKey="subkey" 
-                    outerRadius="70%" 
-                    labelLine={true}
-                    label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}
-                  >
-                    {slice.data.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
-                  </Pie>
-                  <Tooltip formatter={(v: any) => formatUSD(v)} />
-                  <Legend wrapperStyle={{ fontSize: '10px' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+          <div key={idx} className="bg-card p-4 rounded-xl border shadow-sm space-y-4 min-w-[300px] flex-1 max-w-[500px]">
+            <h4 className="font-bold text-center border-b pb-2 text-sm uppercase">{slice.key}</h4>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie data={slice.data} dataKey="value" nameKey="subkey" outerRadius={100} label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}>
+                  {slice.data.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
+                </Pie>
+                <Tooltip formatter={(v: any) => formatUSD(v)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         ))}
       </div>
 
-      {/* Holdings Tables */}
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems} className="space-y-4">
         {[...allocations]
-          .map(group => {
-            const groupVal = Number(group.value) || 0;
-            const cashVal = lens === 'account' ? (cashByAccountName.get(group.key) || 0) : 0;
-            return { 
-              ...group, 
-              totalGroupVal: groupVal + cashVal,
-              cost_basis: Number(group.cost_basis) || 0 
-            };
-          })
-          .sort((a, b) => b.totalGroupVal - a.totalGroupVal)
-          .map((group) => {
-            const groupWeight = totalValueAcrossSelection > 0 ? (group.totalGroupVal / totalValueAcrossSelection) * 100 : 0;
+           .map(g => {
+             const cashVal = lens === 'account' ? (cashByAccountName.get(g.key) || 0) : 0;
+             return { ...g, totalGroupVal: Number(g.value) + cashVal };
+           })
+           .sort((a,b) => b.totalGroupVal - a.totalGroupVal)
+           .map((group) => {
+          const groupWeight = totalValueAcrossSelection > 0 ? (group.totalGroupVal / totalValueAcrossSelection) * 100 : 0
 
-            return (
-              <AccordionItem key={group.key} value={group.key} className="border rounded-lg overflow-hidden shadow-sm">
-                <AccordionTrigger className="bg-black text-white px-0 py-4 hover:bg-zinc-900 transition-colors">
-                  <div className="flex items-center w-full text-left gap-0">
-                    <span className="w-[30%] sm:w-[25%] px-4 font-bold text-white truncate">{group.key}</span>
-                    <div className="flex-1 flex items-center text-xs sm:text-sm font-bold text-white">
-                      <span className="w-[33.3%] text-right pr-4 sm:pr-8">Basis: {formatUSD(group.cost_basis)}</span>
-                      <span className="w-[33.3%] text-right pr-4 sm:pr-8">Value: {formatUSD(group.totalGroupVal)}</span>
-                      <span className="w-[33.4%] text-right pr-4 sm:px-4">{groupWeight.toFixed(2)}%</span>
-                    </div>
+          return (
+            <AccordionItem key={group.key} value={group.key} className="border rounded-lg overflow-hidden shadow-sm">
+              <AccordionTrigger className="bg-black text-white px-4 py-4 hover:bg-zinc-900 transition-colors">
+                <div className="flex justify-between w-full mr-4 text-left">
+                  <span className="font-bold text-white uppercase">{group.key}</span>
+                  <div className="flex gap-4 text-xs sm:text-sm font-bold text-white">
+                    <span>Basis: {formatUSD(group.cost_basis)}</span>
+                    <span className="opacity-60">|</span>
+                    <span>Value: {formatUSD(group.totalGroupVal)}</span>
+                    <span className="opacity-60">|</span>
+                    <span>{groupWeight.toFixed(2)}%</span>
                   </div>
-                </AccordionTrigger>
-                <AccordionContent className="p-0 overflow-x-auto">
-                  <Table className="min-w-[700px] sm:min-w-full table-fixed">
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead className="w-[30%] sm:w-[25%] px-4 cursor-pointer" onClick={() => handleSort('ticker')}>
-                          Asset <SortIcon col="ticker" />
-                        </TableHead>
-                        <TableHead className="w-[23.3%] sm:w-[25%] text-right font-semibold cursor-pointer" onClick={() => handleSort('cost_basis')}>
-                          Total Cost Basis <SortIcon col="cost_basis" />
-                        </TableHead>
-                        <TableHead className="w-[23.3%] sm:w-[25%] text-right font-semibold cursor-pointer" onClick={() => handleSort('value')}>
-                          Current Value <SortIcon col="value" />
-                        </TableHead>
-                        <TableHead className="w-[23.4%] sm:w-[25%] text-right font-semibold px-4 cursor-pointer" onClick={() => handleSort('weight')}>
-                          Weight <SortIcon col="weight" />
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {[...(group.items || [])]
-                        .sort((a, b) => {
-                          const aVal = sortCol === 'ticker' ? a.ticker : (sortCol === 'weight' ? a.value : a[sortCol]);
-                          const bVal = sortCol === 'ticker' ? b.ticker : (sortCol === 'weight' ? b.value : b[sortCol]);
-                          const res = (aVal < bVal) ? -1 : (aVal > bVal) ? 1 : 0;
-                          return sortDir === 'asc' ? res : -res;
-                        })
-                        .map((item: any) => {
-                          const v = Number(item.value) || 0;
-                          const w = totalValueAcrossSelection > 0 ? (v / totalValueAcrossSelection) * 100 : 0;
-                          return (
-                            <TableRow key={item.ticker}>
-                              <TableCell className="w-[30%] sm:w-[25%] px-4">
-                                <div className="font-bold leading-tight">{item.ticker}</div>
-                                <div className="text-[10px] sm:text-[11px] opacity-70 truncate max-w-[150px] sm:max-w-none" title={item.name}>{item.name}</div>
-                              </TableCell>
-                              <TableCell className="w-[23.3%] sm:w-[25%] text-right tabular-nums text-xs sm:text-sm">{formatUSD(item.cost_basis)}</TableCell>
-                              <TableCell className="w-[23.3%] sm:w-[25%] text-right tabular-nums font-medium text-xs sm:text-sm">{formatUSD(v)}</TableCell>
-                              <TableCell className="w-[23.4%] sm:w-[25%] text-right tabular-nums px-4 text-xs sm:text-sm">{w.toFixed(2)}%</TableCell>
-                            </TableRow>
-                          )
-                        })}
-                    </TableBody>
-                  </Table>
-                </AccordionContent>
-              </AccordionItem>
-            )
-          })}
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="p-0 overflow-x-auto">
+                <Table className="min-w-[800px] table-fixed">
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="w-[40%]">Asset</TableHead>
+                      <TableHead className="w-[20%] text-right">Total Cost Basis</TableHead>
+                      <TableHead className="w-[20%] text-right">Current Value</TableHead>
+                      <TableHead className="w-[20%] text-right">Weight (Portfolio)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[...(group.items || [])]
+                      .sort((a,b) => b.value - a.value)
+                      .map((item: any) => {
+                      const itemValue = Number(item.value) || 0
+                      const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
+                      return (
+                        <TableRow key={item.ticker}>
+                          <TableCell className="w-[40%]"><div className="font-bold">{item.ticker}</div><div className="text-[10px] opacity-70">{item.name}</div></TableCell>
+                          <TableCell className="w-[20%] text-right tabular-nums">{formatUSD(item.cost_basis)}</TableCell>
+                          <TableCell className="w-[20%] text-right tabular-nums font-bold">{formatUSD(itemValue)}</TableCell>
+                          <TableCell className="w-[20%] text-right tabular-nums">{itemWeight.toFixed(2)}%</TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </AccordionContent>
+            </AccordionItem>
+          )
+        })}
       </Accordion>
     </div>
   )
