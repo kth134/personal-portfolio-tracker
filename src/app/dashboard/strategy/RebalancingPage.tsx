@@ -302,7 +302,13 @@ export default function RebalancingPage() {
           {data.subPortfolios.map((sp: any) => {
             const items = calculatedData.allocations.filter((a: any) => a.sub_portfolio_id === sp.id)
             if (items.length === 0) return null
-            const totalVal = items.reduce((s:number, i:any) => s+i.current_value, 0); const totalWeight = items.reduce((s:number, i:any) => s+(Number(i.current_in_sp)||0), 0); const totalTarget = items.reduce((s:number, i:any) => s+(Number(i.sub_portfolio_target_percentage)||0), 0); const totalImplied = items.reduce((s:number, i:any) => s+(Number(i.implied_overall_target)||0), 0); const wtdDrift = totalVal > 0 ? items.reduce((s:number, i:any) => s + (i.drift_percentage * i.current_value), 0) / totalVal : 0;
+            const totalVal = items.reduce((s:number, i:any) => s+i.current_value, 0); 
+            const totalWeight = items.reduce((s:number, i:any) => s+(Number(i.current_in_sp)||0), 0); 
+            const totalTarget = items.reduce((s:number, i:any) => s+(Number(i.sub_portfolio_target_percentage)||0), 0); 
+            const totalImplied = items.reduce((s:number, i:any) => s+(Number(i.implied_overall_target)||0), 0); 
+            
+            // Rule #7: Absolute Relative Drift weighted by current asset values
+            const wtdDrift = totalVal > 0 ? items.reduce((s:number, i:any) => s + (Math.abs(i.drift_percentage) * i.current_value), 0) / totalVal : 0;
             const sortedItems = [...items].sort((a,b) => { const aV = a[sortCol]; const bV = b[sortCol]; const r = (aV || 0) < (bV || 0) ? -1 : (aV || 0) > (bV || 0) ? 1 : 0; return sortDir === 'asc' ? r : -r; });
             return (
               <AccordionItem key={sp.id} value={sp.id} className="border rounded-xl mb-6 overflow-hidden shadow-sm bg-background">
