@@ -5,15 +5,11 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, Cell,
 } from 'recharts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Check, ChevronsUpDown, ArrowUpDown, RefreshCw, AlertTriangle } from 'lucide-react'
+import { ArrowUpDown, RefreshCw } from 'lucide-react'
 import { formatUSD } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 import { calculateRebalanceActions } from '@/lib/rebalancing-logic'
@@ -23,31 +19,19 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 const LENSES = [
   { value: 'total', label: 'Assets' },
-  { value: 'sub_portfolio', label: 'Sub-Portfolio' },
-  { value: 'account', label: 'Account' },
-  { value: 'asset_type', label: 'Asset Type' },
-  { value: 'asset_subtype', label: 'Asset Sub-Type' },
-  { value: 'size_tag', label: 'Size' },
-  { value: 'geography', label: 'Geography' },
-  { value: 'factor_tag', label: 'Factor' },
+  { value: 'sub_portfolio', label: 'Sub-Portfolio' }
 ]
 
 export default function RebalancingPage() {
   const [lens, setLens] = useState('total')
-  const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([])
-  const [selectedValues, setSelectedValues] = useState<string[]>([])
-  const [aggregate, setAggregate] = useState(false)
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [openItems, setOpenItems] = useState<string[]>([])
   
-  // Sorting state for sub-tables
   const [sortCol, setSortCol] = useState('drift_percentage')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
-  // Local overrides for instant updates
-  const [overrideSubTargets, setOverrideSubTargets] = useState<Record<string, number>>({})
   const [overrideAssetTargets, setOverrideAssetTargets] = useState<Record<string, number>>({})
 
   const fetchData = async () => {
@@ -59,40 +43,16 @@ export default function RebalancingPage() {
       if (payload.subPortfolios) {
         setOpenItems(payload.subPortfolios.map((p: any) => p.id))
       }
-    } catch (err) { console.error('Fetch error:', err) } finally { setLoading(false) }
+    } catch (err) { console.error(err) } finally { setLoading(false) }
   }
 
   useEffect(() => { fetchData() }, [])
 
-  // Fetch drill-down filters
-  useEffect(() => {
-    if (lens === 'total') { setAvailableValues([]); setSelectedValues([]); return; }
-    const fetchVals = async () => {
-      try {
-        const res = await fetch('/api/dashboard/values', { method: 'POST', body: JSON.stringify({ lens }) })
-        const payload = await res.json()
-        setAvailableValues(payload.values || [])
-        setSelectedValues((payload.values || []).map((v: any) => v.value))
-      } catch (err) { console.error(err) }
-    }
-    fetchVals()
-  }, [lens])
-
-  // REBALANCING ENGINE (Client-side for instant updates)
   const calculatedData = useMemo(() => {
     if (!data) return null;
-    
-    // 1. Process Groups / Sub-Portfolios
-    const subPortfolios = data.subPortfolios.map((sp: any) => ({
-      ...sp,
-      target_allocation: overrideSubTargets[sp.id] ?? sp.target_allocation
-    }));
-
-    // 2. Process Assets with dynamic math
     const allocations = data.currentAllocations.map((a: any) => {
-      const sp = subPortfolios.find((p: any) => p.id === a.sub_portfolio_id);
+      const sp = data.subPortfolios.find((p: any) => p.id === a.sub_portfolio_id);
       const targetInGroup = overrideAssetTargets[a.asset_id] ?? a.sub_portfolio_target_percentage;
-      
       const res = calculateRebalanceActions({
         currentValue: a.current_value,
         totalPortfolioValue: data.totalValue,
@@ -102,19 +62,9 @@ export default function RebalancingPage() {
         downsideThreshold: sp?.downside_threshold,
         bandMode: sp?.band_mode
       });
-
-      return {
-        ...a,
-        sub_portfolio_target_percentage: targetInGroup,
-        implied_overall_target: res.impliedOverallTarget,
-        current_in_sp: res.currentInGroupPct,
-        drift_percentage: res.driftPercentage,
-        action: res.action,
-        amount: res.amount
-      };
+      return { ...a, sub_portfolio_target_percentage: targetInGroup, implied_overall_target: res.impliedOverallTarget, current_in_sp: res.currentInGroupPct, drift_percentage: res.driftPercentage, action: res.action, amount: res.amount };
     });
 
-    // 3. Global Stats
     const totalWeightedAssetDrift = allocations.reduce((sum: number, item: any) => {
       const weight = item.current_value / data.totalValue;
       return sum + (Math.abs(item.drift_percentage) * weight);
@@ -125,7 +75,7 @@ export default function RebalancingPage() {
       return acc;
     }, {});
 
-    const totalWeightedSubDrift = subPortfolios.reduce((sum: number, sp: any) => {
+    const totalWeightedSubDrift = data.subPortfolios.reduce((sum: number, sp: any) => {
       const val = subIdValues[sp.id] || 0;
       const weight = val / data.totalValue;
       const currentPct = (val / data.totalValue) * 100;
@@ -139,128 +89,56 @@ export default function RebalancingPage() {
         return sum;
     }, 0);
 
-    return { allocations, subPortfolios, totalWeightedAssetDrift, totalWeightedSubDrift, netImpact };
-  }, [data, overrideSubTargets, overrideAssetTargets]);
+    return { allocations, totalWeightedAssetDrift, totalWeightedSubDrift, netImpact };
+  }, [data, overrideAssetTargets]);
 
-  // Visualizations grouping
   const chartSlices = useMemo(() => {
     if (!calculatedData) return [];
-    if (lens === 'total') return [{ key: 'Portfolio Assets', data: calculatedData.allocations }];
-    
-    const groups = new Map();
-    calculatedData.allocations.forEach((a: any) => {
-      const key = a.sub_portfolio_name || 'Unassigned';
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(a);
-    });
+    const base = lens === 'total' ? [{ key: 'Portfolio', data: calculatedData.allocations }] : data.subPortfolios.map((sp:any) => ({ key: sp.name, data: calculatedData.allocations.filter((a:any) => a.sub_portfolio_id === sp.id) })).filter((s:any) => s.data.length > 0);
+    return base.map(s => ({ ...s, data: [...s.data].sort((a,b) => b.drift_percentage - a.drift_percentage) }));
+  }, [calculatedData, lens]);
 
-    let results = Array.from(groups.entries())
-      .map(([key, items]) => ({ key, data: items }));
-
-    if (aggregate && results.length > 1) {
-      const combined = results.flatMap(r => r.data);
-      return [{ key: 'Aggregated Selection', data: combined }];
-    }
-    return results;
-  }, [calculatedData, lens, aggregate]);
-
-  // HELPER FOR BAR COLORING (Rule #5 - Gradient)
-  const getGradientColor = (drift: number, sliceData: any[]) => {
-    if (drift === 0) return '#000000';
-    
-    // Find max absolute drift in this specific chart to scale relatively
-    const drifts = sliceData.map(d => Math.abs(d.drift_percentage));
-    const maxAbsDrift = Math.max(...drifts, 1); // Avoid div by zero
-    
-    const intensity = Math.abs(drift) / maxAbsDrift;
-    
-    if (drift > 0) {
-      // Scale from light green to dark green
-      // rgba(6, 95, 70) is dark, rgba(167, 243, 208) is light
-      const r = Math.round(167 - (161 * intensity));
-      const g = Math.round(243 - (148 * intensity));
-      const b = Math.round(208 - (138 * intensity));
-      return `rgb(${r}, ${g}, ${b})`;
+  const getDriftColor = (drift: number, sliceData: any[]) => {
+    const maxAbs = Math.max(...sliceData.map(d => Math.abs(d.drift_percentage)), 1);
+    const ratio = Math.abs(drift) / maxAbs;
+    if (drift >= 0) {
+      if (ratio > 0.8) return '#064e3b'; if (ratio > 0.5) return '#059669'; if (ratio > 0.2) return '#34d399'; return '#bbf7d0';
     } else {
-      // Scale from light red to dark red
-      // rgba(153, 27, 27) is dark, rgba(254, 202, 202) is light
-      const r = Math.round(254 - (101 * intensity));
-      const g = Math.round(202 - (175 * intensity));
-      const b = Math.round(202 - (175 * intensity));
-      return `rgb(${r}, ${g}, ${b})`;
+      if (ratio > 0.8) return '#7f1d1d'; if (ratio > 0.5) return '#dc2626'; if (ratio > 0.2) return '#f87171'; return '#fecaca';
     }
   };
 
-  const handleSort = (col: string) => {
-    if (sortCol === col) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-    else { setSortCol(col); setSortDir('desc'); }
-  }
-
-  const SortIcon = ({ col }: { col: string }) => (
-    <ArrowUpDown className={cn("ml-1 h-3 w-3 inline cursor-pointer", sortCol === col ? "text-blue-600" : "text-zinc-400")} />
-  )
-
-  if (loading || !calculatedData) return <div className="p-8 text-center text-lg animate-pulse">Calculating rebalancing paths...</div>
-
-  const rebalanceNeeded = calculatedData.allocations.some((a: any) => a.action !== 'hold')
+  if (loading || !calculatedData) return <div className="p-8 text-center text-lg animate-pulse">Loading...</div>
 
   return (
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto">
-      {/* Summary Row */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
-            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Portfolio Value</Label>
-            <div className="text-2xl font-bold">{formatUSD(data.totalValue)}</div>
-        </div>
-        <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
-            <Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Sub-Portfolio Drift (Wtd)</Label>
-            <div className="text-2xl font-bold mt-1">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div>
-        </div>
-        <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
-            <Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Asset-Level Drift (Wtd)</Label>
-            <div className="text-2xl font-bold mt-1">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div>
-        </div>
-        <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
-            <Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Rebalance Needed</Label>
-            <div className={cn("text-2xl font-bold flex items-center justify-center mt-1", rebalanceNeeded ? "text-yellow-600" : "text-green-600")}>
-                {rebalanceNeeded ? "Yes" : "No"}
-            </div>
-        </div>
-        <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
-            <Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Net Cash Impact</Label>
-            <div className={cn("text-2xl font-bold mt-1", calculatedData.netImpact > 0 ? "text-green-600" : (calculatedData.netImpact < 0 ? "text-red-500" : "text-black"))}>
-                {calculatedData.netImpact > 0 ? "+" : ""}{formatUSD(calculatedData.netImpact)}
-            </div>
-        </div>
+        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Value</Label><div className="text-xl font-bold">{formatUSD(data.totalValue)}</div></div>
+        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Sub-Portfolio Drift</Label><div className="text-xl font-bold mt-1">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div></div>
+        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Asset Drift</Label><div className="text-xl font-bold mt-1">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div></div>
+        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Status</Label><div className={cn("text-xl font-bold flex items-center justify-center mt-1", calculatedData.allocations.some((a:any)=>a.action!=='hold') ? "text-yellow-600" : "text-green-600")}>{calculatedData.allocations.some((a:any)=>a.action!=='hold') ? "Needed" : "Good"}</div></div>
+        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground text-blue-600 leading-none">Net Cash Impact</Label><div className={cn("text-xl font-bold mt-1", calculatedData.netImpact > 0 ? "text-green-600" : (calculatedData.netImpact < 0 ? "text-red-500" : "text-black"))}>{calculatedData.netImpact > 0 ? "+" : ""}{formatUSD(calculatedData.netImpact)}</div></div>
       </div>
 
-      <div className="flex flex-wrap gap-4 items-end border-b pb-4 bg-muted/10 p-4 rounded-xl">
-        <div className="w-56">
-          <Label className="text-[10px] font-bold uppercase mb-1 block">View Lens</Label>
-          <Select value={lens} onValueChange={setLens}>
-            <SelectTrigger className="bg-background"><SelectValue/></SelectTrigger>
-            <SelectContent>{LENSES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} variant="default" className="bg-black text-white hover:bg-zinc-800 ml-auto">
-          <RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-        </Button>
+      <div className="flex border-b pb-4 items-center">
+        <div className="w-56"><Label className="text-[10px] font-bold uppercase">Lens</Label><Select value={lens} onValueChange={setLens}><SelectTrigger className="h-9"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="total">Portfolio</SelectItem><SelectItem value="sub_portfolio">Sub-Portfolio</SelectItem></SelectContent></Select></div>
+        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="outline" className="ml-auto flex items-center h-9"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> Prices</Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {chartSlices.map((slice: any, idx: number) => (
+        {chartSlices.map((slice, idx) => (
           <div key={idx} className="bg-card p-6 rounded-xl border shadow-sm space-y-4">
             <h3 className="font-bold text-center border-b pb-2 uppercase tracking-wide text-xs">{slice.key} Drift Analysis</h3>
-            <div className="h-[350px]">
+            <div className="h-[380px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={[...slice.data].sort((a,b)=>b.drift_percentage - a.drift_percentage)} layout="vertical" margin={{ left: 40, right: 40 }}>
+                <BarChart data={slice.data} layout="vertical" margin={{ left: 10, right: 30 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" unit="%" fontSize={10} axisLine={false} tickLine={false} />
-                  <YAxis dataKey="ticker" type="category" interval={0} fontSize={10} width={40} />
+                  <YAxis dataKey="ticker" type="category" interval={0} fontSize={9} width={40} />
                   <RechartsTooltip formatter={(v:any) => [`${Number(v).toFixed(1)}%`, 'Drift']} />
                   <Bar dataKey="drift_percentage">
                     {slice.data.map((entry: any, i: number) => (
-                      <Cell key={i} fill={getGradientColor(entry.drift_percentage, slice.data)} />
+                      <Cell key={i} fill={getDriftColor(entry.drift_percentage, slice.data)} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -271,90 +149,17 @@ export default function RebalancingPage() {
       </div>
 
       <div className="pt-8 border-t">
-        <h2 className="text-xl font-bold mb-6">Tactical Execution Dashboard</h2>
         <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
-          {calculatedData.subPortfolios.map((sp: any) => {
+          {data.subPortfolios.map((sp: any) => {
             const items = calculatedData.allocations.filter((a: any) => a.sub_portfolio_id === sp.id)
             if (items.length === 0) return null
-            
-            const totalVal = items.reduce((s:number, i:any) => s+i.current_value, 0);
-            const totalWeight = items.reduce((s:number, i:any) => s+(Number(i.current_in_sp)||0), 0);
-            const totalTarget = items.reduce((s:number, i:any) => s+(Number(i.sub_portfolio_target_percentage)||0), 0);
-            const totalImplied = items.reduce((s:number, i:any) => s+(Number(i.implied_overall_target)||0), 0);
-            const wtdDrift = totalVal > 0 ? items.reduce((s:number, i:any) => s + (i.drift_percentage * i.current_value), 0) / totalVal : 0;
-
-            const sortedItems = [...items].sort((a,b) => {
-                const aV = a[sortCol]; const bV = b[sortCol];
-                const r = aV < bV ? -1 : aV > bV ? 1 : 0;
-                return sortDir === 'asc' ? r : -r;
-            });
-
+            const totalVal = items.reduce((s:number, i:any) => s+i.current_value, 0); const totalWeight = items.reduce((s:number, i:any) => s+(Number(i.current_in_sp)||0), 0); const totalTarget = items.reduce((s:number, i:any) => s+(Number(i.sub_portfolio_target_percentage)||0), 0); const totalImplied = items.reduce((s:number, i:any) => s+(Number(i.implied_overall_target)||0), 0); const wtdDrift = totalVal > 0 ? items.reduce((s:number, i:any) => s + (i.drift_percentage * i.current_value), 0) / totalVal : 0;
+            const sortedItems = [...items].sort((a,b) => { const aV = a[sortCol]; const bV = b[sortCol]; const r = aV < bV ? -1 : aV > bV ? 1 : 0; return sortDir === 'asc' ? r : -r; });
             return (
               <AccordionItem key={sp.id} value={sp.id} className="border rounded-xl mb-6 overflow-hidden shadow-sm bg-background">
-                <AccordionTrigger className="bg-black text-white px-6 hover:bg-zinc-900 transition-all">
-                  <div className="flex justify-between w-full mr-6 items-center">
-                    <span className="font-bold text-lg">{sp.name}</span>
-                    <div className="flex gap-8 text-sm font-mono text-zinc-300">
-                      <span>Value: {formatUSD(totalVal)}</span>
-                      <span>Weight: {sp.target_allocation.toFixed(1)}%</span>
-                    </div>
-                  </div>
-                </AccordionTrigger>
+                <AccordionTrigger className="bg-black text-white px-6 hover:bg-zinc-900 transition-all"><div className="flex justify-between w-full mr-6 font-bold uppercase tracking-tight"><span>{sp.name}</span><div className="flex gap-8 text-sm font-mono opacity-80"><span>{formatUSD(totalVal)}</span><span>{sp.target_allocation.toFixed(1)}%</span></div></div></AccordionTrigger>
                 <AccordionContent className="p-0">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 bg-muted/10 border-b">
-                        <div className="space-y-1">
-                            <Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label>
-                            <Input defaultValue={sp.target_allocation} type="number" step="0.1" onBlur={(e) => setOverrideSubTargets(p => ({...p, [sp.id]: parseFloat(e.target.value)}))} className="h-8 w-24" />
-                        </div>
-                    </div>
-                    <div className="overflow-x-auto w-full">
-                        <Table className="min-w-[1000px] table-fixed w-full">
-                            <TableHeader className="bg-muted/30">
-                                <TableRow>
-                                    <TableHead className="w-[15%] cursor-pointer" onClick={()=>handleSort('ticker')}>Asset <SortIcon col="ticker"/></TableHead>
-                                    <TableHead className="w-[12%] text-right cursor-pointer" onClick={()=>handleSort('current_value')}>Current Value ($) <SortIcon col="current_value"/></TableHead>
-                                    <TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>handleSort('current_in_sp')}>Current Weight <SortIcon col="current_in_sp"/></TableHead>
-                                    <TableHead className="w-[10%] text-right text-blue-600 font-bold">Target Weight (Edit)</TableHead>
-                                    <TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>handleSort('implied_overall_target')}>Implied Overall % <SortIcon col="implied_overall_target"/></TableHead>
-                                    <TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>handleSort('drift_percentage')}>Drift % <SortIcon col="drift_percentage"/></TableHead>
-                                    <TableHead className="w-[10%] text-center">Action</TableHead>
-                                    <TableHead className="w-[23%] text-right pr-6">Tactical Suggestion</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {sortedItems.map((i: any) => (
-                                    <TableRow key={i.asset_id} className="hover:bg-muted/5">
-                                        <TableCell className="font-bold pl-4">{i.ticker}</TableCell>
-                                        <TableCell className="text-right tabular-nums">{formatUSD(i.current_value)}</TableCell>
-                                        <TableCell className="text-right tabular-nums">{i.current_in_sp.toFixed(1)}%</TableCell>
-                                        <TableCell className="text-right">
-                                            <Input defaultValue={i.sub_portfolio_target_percentage} type="number" step="0.1" onBlur={(e) => setOverrideAssetTargets(p => ({...p, [i.asset_id]: parseFloat(e.target.value)}))} className="h-7 text-right w-20 ml-auto border-zinc-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 bg-zinc-50/50"/>
-                                        </TableCell>
-                                        <TableCell className="text-right tabular-nums">{i.implied_overall_target.toFixed(1)}%</TableCell>
-                                        <TableCell className={cn("text-right tabular-nums font-bold", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>
-                                            {i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%
-                                        </TableCell>
-                                        <TableCell className="text-center font-bold">
-                                            {i.action === 'hold' ? "-" : <div className="flex flex-col"><span className={cn(i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span><span className="text-[10px] font-normal text-zinc-500">{formatUSD(i.amount)}</span></div>}
-                                        </TableCell>
-                                        <TableCell className="text-right text-[10px] pr-6 italic text-zinc-500">
-                                            {i.reinvestment_suggestions?.map((s:any, idx:number) => <div key={idx} className="text-blue-700">Reallocate from {s.from_ticker}: {formatUSD(s.amount)}</div>) || "-"}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                                <TableRow className="bg-zinc-900 text-white font-bold h-12">
-                                    <TableCell className="pl-4">Total</TableCell>
-                                    <TableCell className="text-right">{formatUSD(totalVal)}</TableCell>
-                                    <TableCell className="text-right">{totalWeight.toFixed(1)}%</TableCell>
-                                    <TableCell className="text-right">{totalTarget.toFixed(1)}%</TableCell>
-                                    <TableCell className="text-right">{totalImplied.toFixed(1)}%</TableCell>
-                                    <TableCell className={cn("text-right", wtdDrift > 0 ? "text-green-300" : "text-red-400")}>{wtdDrift.toFixed(1)}%</TableCell>
-                                    <TableCell className="text-center">N/A</TableCell>
-                                    <TableCell className="text-right pr-6 opacity-60">N/A</TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-                    </div>
+                    <div className="overflow-x-auto w-full"><Table className="min-w-[1200px] table-fixed w-full border-collapse"><TableHeader className="bg-muted/30"><TableRow><TableHead className="w-[15%] cursor-pointer" onClick={()=>{if(sortCol=='ticker')setSortDir(s=>s=='asc'?'desc':'asc');else{setSortCol('ticker');setSortDir('desc');}}}>Asset <ArrowUpDown className="w-3 h-3 inline"/></TableHead><TableHead className="w-[12%] text-right cursor-pointer" onClick={()=>{if(sortCol=='current_value')setSortDir(s=>s=='asc'?'desc':'asc');else{setSortCol('current_value');setSortDir('desc');}}}>Value ($) <ArrowUpDown className="w-3 h-3 inline"/></TableHead><TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>{if(sortCol=='current_in_sp')setSortDir(s=>s=='asc'?'desc':'asc');else{setSortCol('current_in_sp');setSortDir('desc');}}}>Weight <ArrowUpDown className="w-3 h-3 inline"/></TableHead><TableHead className="w-[10%] text-right text-blue-600 font-bold">Target Weight</TableHead><TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>{if(sortCol=='implied_overall_target')setSortDir(s=>s=='asc'?'desc':'asc');else{setSortCol('implied_overall_target');setSortDir('desc');}}}>Implied % <ArrowUpDown className="w-3 h-3 inline"/></TableHead><TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>{if(sortCol=='drift_percentage')setSortDir(s=>s=='asc'?'desc':'asc');else{setSortCol('drift_percentage');setSortDir('desc');}}}>Drift % <ArrowUpDown className="w-3 h-3 inline"/></TableHead><TableHead className="w-[10%] text-center">Action</TableHead><TableHead className="w-[23%] text-right pr-6">Tactical Suggestion</TableHead></TableRow></TableHeader><TableBody>{sortedItems.map((i: any) => (<TableRow key={i.asset_id} className="hover:bg-muted/5 h-16 group"><TableCell className="font-bold border-l-2 border-transparent group-hover:border-zinc-300 pl-4">{i.ticker}</TableCell><TableCell className="text-right tabular-nums">{formatUSD(i.current_value)}</TableCell><TableCell className="text-right tabular-nums">{i.current_in_sp.toFixed(1)}%</TableCell><TableCell className="text-right"><Input defaultValue={i.sub_portfolio_target_percentage} type="number" step="0.1" onBlur={(e) => setOverrideAssetTargets(p => ({...p, [i.asset_id]: parseFloat(e.target.value)}))} className="h-8 text-right w-20 ml-auto"/></TableCell><TableCell className="text-right tabular-nums">{i.implied_overall_target.toFixed(1)}%</TableCell><TableCell className={cn("text-right tabular-nums font-bold", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell><TableCell className="text-center font-bold">{i.action === 'hold' ? <span className="text-zinc-300">-</span> : <div className="flex flex-col"><span className={cn(i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span><span className="text-[10px] font-normal opacity-50">{formatUSD(i.amount)}</span></div>}</TableCell><TableCell className="text-right text-[10px] pr-6 italic text-zinc-500">{i.reinvestment_suggestions?.map((s:any, idx:number) => <div key={idx} className="text-blue-700">Reallocate from {s.from_ticker}: {formatUSD(s.amount)}</div>) || "-"}</TableCell></TableRow>))}<TableRow className="bg-zinc-900 text-white font-bold h-12 shadow-inner"><TableCell className="pl-4 uppercase tracking-tighter">Total</TableCell><TableCell className="text-right tabular-nums pr-4">{formatUSD(totalVal)}</TableCell><TableCell className="text-right tabular-nums pr-4">{totalWeight.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4">{totalTarget.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4">{totalImplied.toFixed(1)}%</TableCell><TableCell className={cn("text-right tabular-nums pr-4", wtdDrift > 0 ? "text-green-400" : "text-red-400")}>{wtdDrift.toFixed(1)}%</TableCell><TableCell className="text-center">N/A</TableCell><TableCell className="text-right pr-6 opacity-60">N/A</TableCell></TableRow></TableBody></Table></div>
                 </AccordionContent>
               </AccordionItem>
             )
