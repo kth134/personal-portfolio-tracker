@@ -45,6 +45,8 @@ export default function RebalancingPage() {
   const [sortCol, setSortCol] = useState('current_value')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
+  // Local overrides for instant updates (Rule #8)
+  const [overrideSubSettings, setOverrideSubSettings] = useState<Record<string, { target?: number, upside?: number, downside?: number, bandMode?: boolean }>>({})
   const [overrideAssetTargets, setOverrideAssetTargets] = useState<Record<string, number>>({})
 
   const fetchData = async () => {
@@ -86,9 +88,14 @@ export default function RebalancingPage() {
   }
 
   const updateAssetTarget = async (assetId: string, spId: string, value: number) => {
+    setOverrideAssetTargets(p => ({...p, [assetId]: value}));
     try {
       const res = await fetch('/api/rebalancing/asset-target', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_id: assetId, sub_portfolio_id: spId, target_percentage: value }) });
-      if (res.ok) fetchData();
+      if (res.ok) {
+        const softRes = await fetch('/api/rebalancing', { cache: 'no-store' });
+        const softPayload = await softRes.json();
+        setData(softPayload);
+      }
     } catch (err) { console.error(err) }
   }
 
@@ -100,20 +107,35 @@ export default function RebalancingPage() {
         const payload = await res.json()
         setAvailableValues(payload.values || [])
         setSelectedValues((payload.values || []).map((v: any) => v.value))
-      } catch (err) { console.error(err) }
+      } catch (err) { console.error('Values error:', err) }
     }
     fetchVals()
   }, [lens])
 
   const calculatedData = useMemo(() => {
     if (!data) return null;
+
+    // 1. Process Groups / Sub-Portfolios with local overrides for instant reactivity
+    const subPortfolios = data.subPortfolios.map((sp: any) => {
+      const overrides = overrideSubSettings[sp.id] || {};
+      return {
+        ...sp,
+        target_allocation: overrides.target ?? sp.target_allocation,
+        upside_threshold: overrides.upside ?? sp.upside_threshold,
+        downside_threshold: overrides.downside ?? sp.downside_threshold,
+        band_mode: overrides.bandMode ?? sp.band_mode
+      };
+    });
+
+    // Compute current totals per sub-portfolio
     const subIdValues: Record<string, number> = data.currentAllocations.reduce((acc: any, item: any) => {
       acc[item.sub_portfolio_id] = (acc[item.sub_portfolio_id] || 0) + item.current_value;
       return acc;
     }, {});
 
+    // 2. Process Assets with dynamic math
     const allocations = data.currentAllocations.map((a: any) => {
-      const sp = data.subPortfolios.find((p: any) => p.id === a.sub_portfolio_id);
+      const sp = subPortfolios.find((p: any) => p.id === a.sub_portfolio_id);
       const targetInGroup = overrideAssetTargets[a.asset_id] ?? a.sub_portfolio_target_percentage;
       const groupVal = subIdValues[a.sub_portfolio_id] || 0;
       const res = calculateRebalanceActions({
@@ -137,12 +159,11 @@ export default function RebalancingPage() {
       return sum + (Math.abs(relativeDriftOverall) * weight);
     }, 0);
 
-    const totalWeightedSubDrift = data.subPortfolios.reduce((sum: number, sp: any) => {
+    const totalWeightedSubDrift = subPortfolios.reduce((sum: number, sp: any) => {
       const val = subIdValues[sp.id] || 0;
       const weight = val / data.totalValue;
       const currentPct = (val / data.totalValue) * 100;
-      const targetPct = sp.target_allocation || 0;
-      const relDrift = targetPct > 0 ? ((currentPct - targetPct) / targetPct) * 100 : 0;
+      const relDrift = sp.target_allocation > 0 ? ((currentPct - sp.target_allocation) / sp.target_allocation) * 100 : 0;
       return sum + (Math.abs(relDrift) * weight);
     }, 0);
 
@@ -152,8 +173,8 @@ export default function RebalancingPage() {
         return sum;
     }, 0);
 
-    return { allocations, totalWeightedAssetDrift, totalWeightedSubDrift, netImpact };
-  }, [data, overrideAssetTargets]);
+    return { allocations, subPortfolios, totalWeightedAssetDrift, totalWeightedSubDrift, netImpact };
+  }, [data, overrideSubSettings, overrideAssetTargets]);
 
   const chartSlices = useMemo(() => {
     if (!calculatedData) return [];
@@ -213,21 +234,23 @@ export default function RebalancingPage() {
 
   if (loading || !calculatedData) return <div className="p-8 text-center text-lg animate-pulse">Calculating rebalancing paths...</div>
 
+  const rebalanceNeeded = calculatedData.allocations.some((a: any) => a.action !== 'hold')
+
   return (
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Value</Label><div className="text-xl font-bold font-mono">{formatUSD(data.totalValue)}</div></div>
         <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Sub-Portfolio Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div></div>
         <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Asset Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div></div>
-        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Rebalance Needed</Label><div className={cn("text-xl font-bold flex items-center justify-center mt-1", calculatedData.allocations.some((a:any)=>a.action!=='hold') ? "text-yellow-600" : "text-green-600")}>{calculatedData.allocations.some((a:any)=>a.action!=='hold') ? "Yes" : "No"}</div></div>
-        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground text-blue-600 leading-none">Net Impact ($)</Label><div className={cn("text-xl font-bold mt-1 font-mono", calculatedData.netImpact > 0 ? "text-green-600" : (calculatedData.netImpact < 0 ? "text-red-500" : "text-black"))}>{calculatedData.netImpact > 0 ? "+" : ""}{formatUSD(calculatedData.netImpact)}</div></div>
+        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Rebalance Needed</Label><div className={cn("text-xl font-bold flex items-center justify-center mt-1", rebalanceNeeded ? "text-yellow-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div></div>
+        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground text-blue-600 leading-none">Net Impact</Label><div className={cn("text-xl font-bold mt-1 font-mono", calculatedData.netImpact > 0 ? "text-green-600" : (calculatedData.netImpact < 0 ? "text-red-500" : "text-black"))}>{calculatedData.netImpact > 0 ? "+" : ""}{formatUSD(calculatedData.netImpact)}</div></div>
       </div>
 
       <div className="flex flex-wrap gap-4 items-end border-b pb-4 bg-muted/10 p-4 rounded-xl">
         <div className="w-56"><Label className="text-[10px] font-bold uppercase mb-1 block">View Lens</Label><Select value={lens} onValueChange={setLens}><SelectTrigger className="bg-background focus:ring-0"><SelectValue/></SelectTrigger><SelectContent>{LENSES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent></Select></div>
         {lens !== 'total' && (<div className="w-64"><Label className="text-[10px] font-bold uppercase mb-1 block">Filter Selection</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-between bg-background">{selectedValues.length} selected <ChevronsUpDown className="w-4 h-4 ml-2 opacity-50" /></Button></PopoverTrigger><PopoverContent className="w-64 p-0"><Command><CommandInput placeholder="Search..." /><CommandList><CommandGroup className="max-h-64 overflow-y-auto">{availableValues.map(v => (<CommandItem key={v.value} onSelect={() => toggleValue(v.value)}><Check className={cn("w-4 h-4 mr-2", selectedValues.includes(v.value) ? "opacity-100" : "opacity-0")} />{v.label}</CommandItem>))}</CommandGroup></CommandList></Command></PopoverContent></Popover></div>)}
         {lens !== 'total' && selectedValues.length > 1 && (<div className="flex items-center gap-2 mb-2 p-2 border rounded-md bg-background"><Switch checked={aggregate} onCheckedChange={setAggregate} id="agg-switch" /><Label htmlFor="agg-switch" className="text-xs cursor-pointer">Aggregate</Label></div>)}
-        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 ml-auto flex items-center h-9 px-4 shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold' : 'Refresh Prices'}</Button>
+        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 ml-auto flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -242,16 +265,10 @@ export default function RebalancingPage() {
       <div className="pt-8 border-t">
         <h2 className="text-xl font-bold mb-6">Tactical Execution Dashboard</h2>
         <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
-          {[...data.subPortfolios]
-            .map(sp => {
-                const spItems = calculatedData.allocations.filter((a: any) => a.sub_portfolio_id === sp.id);
-                const spValue = spItems.reduce((s: number, i: any) => s + i.current_value, 0);
-                return { ...sp, items: spItems, current_value: spValue };
-            })
-            .sort((a,b) => (b.current_value || 0) - (a.current_value || 0))
-            .map((sp: any) => {
-            const items = sp.items; if (items.length === 0) return null
-            const totalVal = sp.current_value; const totalWeight = items.reduce((s:number, i:any) => s+(Number(i.current_in_sp)||0), 0); const totalTarget = items.reduce((s:number, i:any) => s+(Number(i.sub_portfolio_target_percentage)||0), 0); const totalImplied = items.reduce((s:number, i:any) => s+(Number(i.implied_overall_target)||0), 0); 
+          {calculatedData.subPortfolios.map((sp: any) => {
+            const items = calculatedData.allocations.filter((a: any) => a.sub_portfolio_id === sp.id)
+            if (items.length === 0) return null
+            const totalVal = items.reduce((s:number, i:any) => s+i.current_value, 0); const totalWeight = items.reduce((s:number, i:any) => s+(Number(i.current_in_sp)||0), 0); const totalTarget = items.reduce((s:number, i:any) => s+(Number(i.sub_portfolio_target_percentage)||0), 0); const totalImplied = items.reduce((s:number, i:any) => s+(Number(i.implied_overall_target)||0), 0); 
             const absDriftWtd = totalVal > 0 ? items.reduce((s:number, i:any) => s + (Math.abs(i.drift_percentage) * i.current_value), 0) / totalVal : 0;
             const sortedItems = [...items].sort((a,b) => { const aV = sortCol === 'ticker' ? a.ticker : a[sortCol]; const bV = sortCol === 'ticker' ? b.ticker : b[sortCol]; const res = (aV || 0) < (bV || 0) ? -1 : (aV || 0) > (bV || 0) ? 1 : 0; return sortDir === 'asc' ? res : -res; });
             return (
@@ -264,7 +281,7 @@ export default function RebalancingPage() {
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 max-w-[150px] bg-white border-zinc-300"/></div>
                         <div className="flex items-center gap-3 pt-4 sm:pt-0"><Switch id={`band-mode-${sp.id}`} checked={sp.band_mode} onCheckedChange={(checked) => updateSubPortfolio(sp.id, 'band_mode', checked ? 1 : 0)} /><Label htmlFor={`band-mode-${sp.id}`} className="text-xs font-medium cursor-pointer">{sp.band_mode ? 'Conservative' : 'Absolute'} Mode</Label></div>
                     </div>
-                    <div className="overflow-x-auto w-full"><Table className="min-w-[1200px] table-fixed w-full border-collapse"><TableHeader className="bg-muted/30"><TableRow><TableHead className="w-[15%] cursor-pointer" onClick={()=>handleSort('ticker')}>Asset <SortIcon col="ticker"/></TableHead><TableHead className="w-[12%] text-right cursor-pointer" onClick={()=>handleSort('current_value')}>Value ($) <SortIcon col="current_value"/></TableHead><TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>handleSort('current_in_sp')}>Weight <SortIcon col="current_in_sp"/></TableHead><TableHead className="w-[10%] text-right text-blue-600 font-bold">Target Weight</TableHead><TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>handleSort('implied_overall_target')}>Implied % <SortIcon col="implied_overall_target"/></TableHead><TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>handleSort('drift_percentage')}>Drift % <SortIcon col="drift_percentage"/></TableHead><TableHead className="w-[10%] text-center">Action</TableHead><TableHead className="w-[23%] text-right pr-6">Tactical Suggestion</TableHead></TableRow></TableHeader><TableBody>{sortedItems.map((i: any) => (<TableRow key={i.asset_id} className="hover:bg-muted/5 h-16 group"><TableCell className="font-bold border-l-2 border-transparent group-hover:border-zinc-300 pl-4">{i.ticker}</TableCell><TableCell className="text-right tabular-nums">{formatUSD(i.current_value)}</TableCell><TableCell className="text-right tabular-nums">{i.current_in_sp.toFixed(1)}%</TableCell><TableCell className="text-right"><Input defaultValue={i.sub_portfolio_target_percentage} type="number" step="0.1" onBlur={(e) => updateAssetTarget(i.asset_id, sp.id, parseFloat(e.target.value))} className="h-8 text-right w-20 ml-auto border-zinc-200 bg-zinc-50/50 focus:ring-0"/></TableCell><TableCell className="text-right tabular-nums">{i.implied_overall_target.toFixed(1)}%</TableCell><TableCell className={cn("text-right tabular-nums font-bold", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell><TableCell className="text-center font-bold">{i.action === 'hold' ? <span className="text-zinc-300">-</span> : <div className="flex flex-col"><span className={cn(i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span><span className="text-[10px] font-normal opacity-50">{formatUSD(i.amount)}</span></div>}</TableCell><TableCell className="text-right text-[10px] pr-6 italic text-zinc-600 whitespace-pre-wrap">{i.reinvestment_suggestions?.map((s:any, idx:number) => <div key={idx} className="text-blue-700 font-medium">Reallocate from {s.from_ticker}: {formatUSD(s.amount)}</div>) || <span className="opacity-40">-</span>}</TableCell></TableRow>))}<TableRow className="bg-zinc-900 text-white font-bold h-12 shadow-inner"><TableCell className="pl-4 uppercase tracking-tighter text-white">Total</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{formatUSD(totalVal)}</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{totalWeight.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{totalTarget.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{totalImplied.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{absDriftWtd.toFixed(1)}%</TableCell><TableCell className="text-center text-white">N/A</TableCell><TableCell className="text-right pr-6 opacity-60 text-white">N/A</TableCell></TableRow></TableBody></Table></div>
+                    <div className="overflow-x-auto w-full"><Table className="min-w-[1200px] table-fixed w-full border-collapse"><TableHeader className="bg-muted/30"><TableRow><TableHead className="w-[15%] cursor-pointer" onClick={()=>handleSort('ticker')}>Asset <SortIcon col="ticker"/></TableHead><TableHead className="w-[12%] text-right cursor-pointer" onClick={()=>handleSort('current_value')}>Value ($) <SortIcon col="current_value"/></TableHead><TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>handleSort('current_in_sp')}>Weight <SortIcon col="current_in_sp"/></TableHead><TableHead className="w-[10%] text-right text-blue-600 font-bold">Target Weight</TableHead><TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>handleSort('implied_overall_target')}>Implied % <SortIcon col="implied_overall_target"/></TableHead><TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>handleSort('drift_percentage')}>Drift % <SortIcon col="drift_percentage"/></TableHead><TableHead className="w-[10%] text-center">Action</TableHead><TableHead className="w-[23%] text-right pr-6">Tactical Suggestion</TableHead></TableRow></TableHeader><TableBody>{sortedItems.map((i: any) => (<TableRow key={i.asset_id} className="hover:bg-muted/5 h-16 group"><TableCell className="font-bold border-l-2 border-transparent group-hover:border-zinc-300 pl-4">{i.ticker}</TableCell><TableCell className="text-right tabular-nums">{formatUSD(i.current_value)}</TableCell><TableCell className="text-right tabular-nums">{i.current_in_sp.toFixed(1)}%</TableCell><TableCell className="text-right"><Input defaultValue={i.sub_portfolio_target_percentage} type="number" step="0.1" onBlur={(e) => updateAssetTarget(i.asset_id, sp.id, parseFloat(e.target.value))} className="h-8 text-right w-20 ml-auto border-zinc-200 bg-zinc-50/50 focus:ring-0"/></TableCell><TableCell className="text-right tabular-nums">{i.implied_overall_target.toFixed(1)}%</TableCell><TableCell className={cn("text-right tabular-nums font-bold", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell><TableCell className="text-center font-bold">{i.action === 'hold' ? <span className="text-zinc-300">-</span> : <div className="flex flex-col"><span className={cn(i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span><span className="text-[10px] font-normal opacity-50">{formatUSD(i.amount)}</span></div>}</TableCell><TableCell className="text-right text-[10px] pr-6 italic text-zinc-600 whitespace-pre-wrap">{i.reinvestment_suggestions?.map((s:any, idx:number) => <div key={idx} className="text-blue-700">From {s.from_ticker}: {formatUSD(s.amount)}</div>) || <span className="opacity-40">-</span>}</TableCell></TableRow>))}<TableRow className="bg-zinc-900 text-white font-bold h-12 shadow-inner"><TableCell className="pl-4 uppercase tracking-tighter text-white">Total</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{formatUSD(totalVal)}</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{totalWeight.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{totalTarget.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{totalImplied.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{absDriftWtd.toFixed(1)}%</TableCell><TableCell className="text-center text-white">N/A</TableCell><TableCell className="text-right pr-6 opacity-60 text-white">N/A</TableCell></TableRow></TableBody></Table></div>
                 </AccordionContent>
               </AccordionItem>
             )
