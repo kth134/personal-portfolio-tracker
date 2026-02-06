@@ -176,6 +176,13 @@ export default function RebalancingPage() {
 
   const chartSlices = useMemo(() => {
     if (!calculatedData) return [];
+
+    const overallDrift = (a: any) => {
+      const currentOverallPct = data.totalValue > 0 ? (a.current_value / data.totalValue) * 100 : 0;
+      const targetOverallPct = a.implied_overall_target || 0;
+      return targetOverallPct > 0 ? ((currentOverallPct - targetOverallPct) / targetOverallPct) * 100 : 0;
+    };
+
     let base: any[] = [];
     if (lens === 'total') {
       base = [{ key: 'Portfolio', data: [...calculatedData.allocations] }];
@@ -196,6 +203,9 @@ export default function RebalancingPage() {
       });
       base = Array.from(groupMap.entries()).filter(([k]) => selectedValues.length === 0 || selectedValues.includes(k)).map(([k, items]) => ({ key: k, data: items }));
     }
+
+    const useGroupDrift = lens === 'sub_portfolio' && !aggregate;
+
     if (aggregate && base.length > 1) {
         const points = base.map(g => {
           const val = g.data.reduce((s: number, i: any) => s + i.current_value, 0);
@@ -205,7 +215,16 @@ export default function RebalancingPage() {
           return { ticker: g.key, drift_percentage: drift, current_pct: currentPct, target_pct: targetPct };
         });
         base = [{ key: 'Aggregated Selection', data: points }];
+    } else {
+        base = base.map(s => ({
+          ...s,
+          data: s.data.map((a: any) => ({
+            ...a,
+            drift_percentage: useGroupDrift ? a.drift_percentage : overallDrift(a)
+          }))
+        }));
     }
+
     return base.map((s: any) => ({ ...s, data: [...s.data].sort((a,b) => b.drift_percentage - a.drift_percentage) }));
   }, [calculatedData, lens, selectedValues, aggregate, data?.totalValue]);
 
