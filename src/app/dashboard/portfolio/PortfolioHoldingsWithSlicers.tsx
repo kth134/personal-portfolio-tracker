@@ -129,19 +129,28 @@ export default function PortfolioHoldingsWithSlicers({
       </div>
 
       {/* Pie Charts Grid */}
-      <div className="flex flex-wrap gap-8 justify-center">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {pieAllocations.map((slice, idx) => (
-          <div key={idx} className="space-y-4 min-w-[300px] flex-1 max-w-[500px]">
-            <h4 className="font-bold text-center border-b pb-2">{slice.key}</h4>
-            <ResponsiveContainer width="100%" height={350}>
-              <PieChart>
-                <Pie data={slice.data} dataKey="value" nameKey="subkey" outerRadius="80%" label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}>
-                  {slice.data.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
-                </Pie>
-                <Tooltip formatter={(v: any) => formatUSD(v)} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+          <div key={idx} className="bg-card p-4 rounded-xl border shadow-sm space-y-4">
+            <h4 className="font-bold text-center border-b pb-2 text-sm uppercase tracking-tight truncate px-2" title={slice.key}>{slice.key}</h4>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                  <Pie 
+                    data={slice.data} 
+                    dataKey="value" 
+                    nameKey="subkey" 
+                    outerRadius="70%" 
+                    labelLine={true}
+                    label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}
+                  >
+                    {slice.data.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} strokeWidth={1} />))}
+                  </Pie>
+                  <Tooltip formatter={(v: any) => formatUSD(v)} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         ))}
       </div>
