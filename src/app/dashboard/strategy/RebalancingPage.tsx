@@ -174,10 +174,10 @@ export default function RebalancingPage() {
       if (res.action === 'sell') {
         let remainingToDeploy = res.amount;
         const deficits = allocations
-          .filter(r => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
-          .map(r => ({ ...r, need: remainingNeedByAsset[r.asset_id] || 0 }))
-          .filter(r => r.need > 0)
-          .sort((a, b) => a.drift_percentage - b.drift_percentage);
+          .filter((r: any) => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
+          .map((r: any) => ({ ...r, need: remainingNeedByAsset[r.asset_id] || 0 }))
+          .filter((r: any) => r.need > 0)
+          .sort((a: any, b: any) => a.drift_percentage - b.drift_percentage);
 
         deficits.forEach(d => {
           if (remainingToDeploy <= 0) return;
@@ -193,16 +193,16 @@ export default function RebalancingPage() {
       if (res.action === 'buy') {
         let needed = res.amount;
         const sources = allocations
-          .filter(r => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
-          .map(r => {
+          .filter((r: any) => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
+          .map((r: any) => {
             const available = remainingAvailByAsset[r.asset_id] || 0;
             const holdings = accountHoldings[r.asset_id] || [];
             const hasNonTaxable = holdings.some((h: any) => h.tax_status && h.tax_status !== 'Taxable' && h.value > 0);
             const taxPriority = hasNonTaxable ? 0 : 1;
             return { ...r, available, taxPriority, holdings };
           })
-          .filter(r => r.available > 0)
-          .sort((a, b) => (a.taxPriority - b.taxPriority) || (b.drift_percentage - a.drift_percentage));
+          .filter((r: any) => r.available > 0)
+          .sort((a: any, b: any) => (a.taxPriority - b.taxPriority) || (b.drift_percentage - a.drift_percentage));
 
         sources.forEach(s => {
           if (needed <= 0) return;
