@@ -75,11 +75,19 @@ export default function RebalancingPage() {
 
   const calculatedData = useMemo(() => {
     if (!data) return null;
-    const allocations = data.currentAllocations.map((a: any) => {
+    const subIdValues: Record<string, number> = allocations.reduce((acc: any, item: any) => {
+      acc[item.sub_portfolio_id] = (acc[item.sub_portfolio_id] || 0) + item.current_value;
+      return acc;
+    }, {});
+
+    const allocationsFinal = data.currentAllocations.map((a: any) => {
       const sp = data.subPortfolios.find((p: any) => p.id === a.sub_portfolio_id);
       const targetInGroup = overrideAssetTargets[a.asset_id] ?? a.sub_portfolio_target_percentage;
+      const groupVal = subIdValues[a.sub_portfolio_id] || 0;
+      
       const res = calculateRebalanceActions({
         currentValue: a.current_value,
+        actualGroupValue: groupVal,
         totalPortfolioValue: data.totalValue,
         targetInGroup,
         groupTargetRatio: sp?.target_allocation || 0,
@@ -90,15 +98,10 @@ export default function RebalancingPage() {
       return { ...a, sub_portfolio_target_percentage: targetInGroup, implied_overall_target: res.impliedOverallTarget, current_in_sp: res.currentInGroupPct, drift_percentage: res.driftPercentage, action: res.action, amount: res.amount };
     });
 
-    const totalWeightedAssetDrift = allocations.reduce((sum: number, item: any) => {
+    const totalWeightedAssetDrift = allocationsFinal.reduce((sum: number, item: any) => {
       const weight = item.current_value / data.totalValue;
       return sum + (Math.abs(item.drift_percentage) * weight);
     }, 0);
-
-    const subIdValues: Record<string, number> = allocations.reduce((acc: any, item: any) => {
-      acc[item.sub_portfolio_id] = (acc[item.sub_portfolio_id] || 0) + item.current_value;
-      return acc;
-    }, {});
 
     const totalWeightedSubDrift = data.subPortfolios.reduce((sum: number, sp: any) => {
       const val = subIdValues[sp.id] || 0;
@@ -108,13 +111,13 @@ export default function RebalancingPage() {
       return sum + (Math.abs(relDrift) * weight);
     }, 0);
 
-    const netImpact = allocations.reduce((sum: number, item: any) => {
+    const netImpact = allocationsFinal.reduce((sum: number, item: any) => {
         if (item.action === 'sell') return sum + item.amount;
         if (item.action === 'buy') return sum - item.amount;
         return sum;
     }, 0);
 
-    return { allocations, totalWeightedAssetDrift, totalWeightedSubDrift, netImpact };
+    return { allocations: allocationsFinal, totalWeightedAssetDrift, totalWeightedSubDrift, netImpact };
   }, [data, overrideAssetTargets]);
 
   const chartSlices = useMemo(() => {
