@@ -55,9 +55,7 @@ export default function RebalancingPage() {
       const res = await fetch('/api/rebalancing', { cache: 'no-store' })
       const payload = await res.json()
       setData(payload)
-      if (payload.subPortfolios) {
-        setOpenItems(payload.subPortfolios.map((p: any) => p.id))
-      }
+      // Default to collapsed (do NOT auto-populate openItems)
     } catch (err) { console.error('Fetch error:', err) } finally { setLoading(false) }
   }
 
@@ -271,9 +269,26 @@ export default function RebalancingPage() {
             const totalVal = items.reduce((s:number, i:any) => s+i.current_value, 0); const totalWeight = items.reduce((s:number, i:any) => s+(Number(i.current_in_sp)||0), 0); const totalTarget = items.reduce((s:number, i:any) => s+(Number(i.sub_portfolio_target_percentage)||0), 0); const totalImplied = items.reduce((s:number, i:any) => s+(Number(i.implied_overall_target)||0), 0); 
             const absDriftWtd = totalVal > 0 ? items.reduce((s:number, i:any) => s + (Math.abs(i.drift_percentage) * i.current_value), 0) / totalVal : 0;
             const sortedItems = [...items].sort((a,b) => { const aV = sortCol === 'ticker' ? a.ticker : a[sortCol]; const bV = sortCol === 'ticker' ? b.ticker : b[sortCol]; const res = (aV || 0) < (bV || 0) ? -1 : (aV || 0) > (bV || 0) ? 1 : 0; return sortDir === 'asc' ? res : -res; });
+            const hasBreach = items.some((item: any) => item.action !== 'hold');
+            const subDrift = sp.target_allocation > 0 ? ((totalWeight - sp.target_allocation) / sp.target_allocation) * 100 : 0;
+
             return (
               <AccordionItem key={sp.id} value={sp.id} className="border rounded-xl mb-6 overflow-hidden shadow-sm bg-background">
-                <AccordionTrigger className="bg-black text-white px-6 hover:bg-zinc-900 transition-all font-bold uppercase hover:no-underline"><div className="flex justify-between w-full mr-6 items-center"><span>{sp.name}</span><div className="flex gap-8 text-sm font-mono opacity-80 font-bold"><span>{formatUSD(totalVal)}</span><span>{sp.target_allocation.toFixed(1)}%</span></div></div></AccordionTrigger>
+                <AccordionTrigger className="bg-black text-white px-6 hover:bg-zinc-900 transition-all font-bold uppercase hover:no-underline">
+                  <div className="flex justify-between w-full mr-6 items-center">
+                    <div className="flex items-center gap-2">
+                        <span>{sp.name}</span>
+                        {hasBreach && <AlertTriangle className="w-4 h-4 text-yellow-400" />}
+                    </div>
+                    <div className="flex gap-6 text-[10px] md:text-sm font-mono opacity-90 font-bold">
+                      <span>Value: {formatUSD(totalVal)}</span>
+                      <span>Alloc: {totalWeight.toFixed(1)}%</span>
+                      <span className={cn(subDrift > 0 ? "text-green-400" : (subDrift < 0 ? "text-red-400" : ""))}>
+                        Drift: {subDrift.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                </AccordionTrigger>
                 <AccordionContent className="p-0 bg-background">
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 p-4 bg-zinc-50 border-b">
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input defaultValue={sp.target_allocation} type="number" step="0.1" onBlur={(e) => updateSubPortfolio(sp.id, 'target_allocation', parseFloat(e.target.value))} className="h-8 max-w-[150px] bg-white border-zinc-300"/></div>

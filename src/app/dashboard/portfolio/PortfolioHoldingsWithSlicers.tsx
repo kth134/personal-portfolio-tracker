@@ -46,7 +46,23 @@ export default function PortfolioHoldingsWithSlicers({
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
-  const [openItems, setOpenItems] = useState<string[]>([])
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true)
+      try {
+        const payload = { lens, selectedValues: lens === 'total' ? [] : selectedValues, aggregate }
+        const [pieRes, tableRes] = await Promise.all([
+          fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify(payload), cache: 'no-store' }),
+          fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify({ ...payload, aggregate: false }), cache: 'no-store' })
+        ])
+        const [pieData, tableData] = await Promise.all([pieRes.json(), tableRes.json()])
+        setPieAllocations(pieData.allocations || [])
+        setAllocations(tableData.allocations || [])
+        // Default to collapsed (do NOT set openItems here)
+      } catch (err) { console.error(err) } finally { setLoading(false) }
+    }
+    loadData()
+  }, [lens, selectedValues, aggregate, refreshTrigger])
 
   // Sorting state for sub-tables
   const [sortCol, setSortCol] = useState('value')
