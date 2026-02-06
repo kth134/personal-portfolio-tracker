@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, ArrowUpDown } from 'lucide-react'
 import { formatUSD } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 import { refreshAssetPrices } from './actions'
@@ -45,9 +45,12 @@ export default function PortfolioHoldingsWithSlicers({
   const [pieAllocations, setPieAllocations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [openItems, setOpenItems] = useState<string[]>([])
+
+  // Sorting state for sub-tables
+  const [sortCol, setSortCol] = useState('value')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
     if (lens === 'total') {
@@ -88,8 +91,18 @@ export default function PortfolioHoldingsWithSlicers({
     return allocations.reduce((sum, a) => sum + (Number(a.value) || 0), 0) + cash
   }, [allocations, cash])
 
+  const handleSort = (col: string) => {
+    if (sortCol === col) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('desc'); }
+  }
+
+  const SortIcon = ({ col }: { col: string }) => (
+    <ArrowUpDown className={cn("ml-1 h-3 w-3 inline cursor-pointer", sortCol === col ? "text-blue-600" : "text-zinc-500")} />
+  )
+
   return (
     <div className="space-y-4 md:space-y-8 p-2 md:p-4 max-w-[1600px] mx-auto overflow-x-hidden">
+      {/* Controls Container */}
       <div className="flex flex-wrap gap-4 items-end mb-4 bg-muted/20 p-4 rounded-lg">
         <div className="flex-1 min-w-[200px] md:min-w-0">
           <Label className="text-xs font-bold uppercase mb-1 block">Slice by</Label>
@@ -101,7 +114,7 @@ export default function PortfolioHoldingsWithSlicers({
 
         {lens !== 'total' && (
           <div className="flex-1 min-w-[220px] md:min-w-0">
-            <Label className="text-xs font-bold uppercase mb-1 block">Select {LENSES.find(l => l.value === lens)?.label}s</Label>
+            <Label className="text-xs font-bold uppercase mb-1 block">Filter Selection</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-full md:w-64 justify-between bg-background">
@@ -131,10 +144,11 @@ export default function PortfolioHoldingsWithSlicers({
         </Button>
       </div>
 
+      {/* Pie Charts Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {pieAllocations.map((slice, idx) => (
           <div key={idx} className="bg-card p-4 rounded-xl border shadow-sm space-y-4">
-            <h4 className="font-bold text-center border-b pb-2 text-sm uppercase tracking-tight truncate px-2" title={slice.key}>{slice.key}</h4>
+            <h4 className="font-bold text-center border-b pb-2 text-sm uppercase truncate">{slice.key}</h4>
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
@@ -149,7 +163,7 @@ export default function PortfolioHoldingsWithSlicers({
                     {slice.data.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                   </Pie>
                   <Tooltip formatter={(v: any) => formatUSD(v)} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+                  <Legend wrapperStyle={{ fontSize: '10px' }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -157,17 +171,21 @@ export default function PortfolioHoldingsWithSlicers({
         ))}
       </div>
 
+      {/* Holdings Tables */}
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems} className="space-y-4">
         {[...allocations]
           .map(group => {
             const groupVal = Number(group.value) || 0;
             const cashVal = lens === 'account' ? (cashByAccountName.get(group.key) || 0) : 0;
-            return { ...group, totalGroupVal: groupVal + cashVal };
+            return { 
+              ...group, 
+              totalGroupVal: groupVal + cashVal,
+              cost_basis: Number(group.cost_basis) || 0 
+            };
           })
           .sort((a, b) => b.totalGroupVal - a.totalGroupVal)
           .map((group) => {
-            const totalGroupVal = group.totalGroupVal;
-            const groupWeight = totalValueAcrossSelection > 0 ? (totalGroupVal / totalValueAcrossSelection) * 100 : 0;
+            const groupWeight = totalValueAcrossSelection > 0 ? (group.totalGroupVal / totalValueAcrossSelection) * 100 : 0;
 
             return (
               <AccordionItem key={group.key} value={group.key} className="border rounded-lg overflow-hidden shadow-sm">
@@ -175,8 +193,8 @@ export default function PortfolioHoldingsWithSlicers({
                   <div className="flex items-center w-full text-left gap-0">
                     <span className="w-[30%] sm:w-[25%] px-4 font-bold text-white truncate">{group.key}</span>
                     <div className="flex-1 flex items-center text-xs sm:text-sm font-bold text-white">
-                      <span className="w-[33.3%] text-right pr-4 sm:pr-8">Basis: {formatUSD(Number(group.cost_basis) || 0)}</span>
-                      <span className="w-[33.3%] text-right pr-4 sm:pr-8">Value: {formatUSD(totalGroupVal)}</span>
+                      <span className="w-[33.3%] text-right pr-4 sm:pr-8">Basis: {formatUSD(group.cost_basis)}</span>
+                      <span className="w-[33.3%] text-right pr-4 sm:pr-8">Value: {formatUSD(group.totalGroupVal)}</span>
                       <span className="w-[33.4%] text-right pr-4 sm:px-4">{groupWeight.toFixed(2)}%</span>
                     </div>
                   </div>
@@ -185,15 +203,28 @@ export default function PortfolioHoldingsWithSlicers({
                   <Table className="min-w-[700px] sm:min-w-full table-fixed">
                     <TableHeader>
                       <TableRow className="bg-muted/50">
-                        <TableHead className="w-[30%] sm:w-[25%] px-4">Asset</TableHead>
-                        <TableHead className="w-[23%] sm:w-[25%] text-right font-semibold">Total Cost Basis</TableHead>
-                        <TableHead className="w-[23%] sm:w-[25%] text-right font-semibold">Current Value</TableHead>
-                        <TableHead className="w-[23%] sm:w-[25%] text-right font-semibold px-4">Weight</TableHead>
+                        <TableHead className="w-[30%] sm:w-[25%] px-4 cursor-pointer" onClick={() => handleSort('ticker')}>
+                          Asset <SortIcon col="ticker" />
+                        </TableHead>
+                        <TableHead className="w-[23.3%] sm:w-[25%] text-right font-semibold cursor-pointer" onClick={() => handleSort('cost_basis')}>
+                          Total Cost Basis <SortIcon col="cost_basis" />
+                        </TableHead>
+                        <TableHead className="w-[23.3%] sm:w-[25%] text-right font-semibold cursor-pointer" onClick={() => handleSort('value')}>
+                          Current Value <SortIcon col="value" />
+                        </TableHead>
+                        <TableHead className="w-[23.4%] sm:w-[25%] text-right font-semibold px-4 cursor-pointer" onClick={() => handleSort('weight')}>
+                          Weight <SortIcon col="weight" />
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {[...(group.items || [])]
-                        .sort((a,b) => (Number(b.value) || 0) - (Number(a.value) || 0))
+                        .sort((a, b) => {
+                          const aVal = sortCol === 'ticker' ? a.ticker : (sortCol === 'weight' ? a.value : a[sortCol]);
+                          const bVal = sortCol === 'ticker' ? b.ticker : (sortCol === 'weight' ? b.value : b[sortCol]);
+                          const res = (aVal < bVal) ? -1 : (aVal > bVal) ? 1 : 0;
+                          return sortDir === 'asc' ? res : -res;
+                        })
                         .map((item: any) => {
                           const v = Number(item.value) || 0;
                           const w = totalValueAcrossSelection > 0 ? (v / totalValueAcrossSelection) * 100 : 0;
@@ -203,9 +234,9 @@ export default function PortfolioHoldingsWithSlicers({
                                 <div className="font-bold leading-tight">{item.ticker}</div>
                                 <div className="text-[10px] sm:text-[11px] opacity-70 truncate max-w-[150px] sm:max-w-none" title={item.name}>{item.name}</div>
                               </TableCell>
-                              <TableCell className="w-[23%] sm:w-[25%] text-right tabular-nums text-xs sm:text-sm">{formatUSD(item.cost_basis)}</TableCell>
-                              <TableCell className="w-[23%] sm:w-[25%] text-right tabular-nums font-medium text-xs sm:text-sm">{formatUSD(v)}</TableCell>
-                              <TableCell className="w-[23%] sm:w-[25%] text-right tabular-nums px-4 text-xs sm:text-sm">{w.toFixed(2)}%</TableCell>
+                              <TableCell className="w-[23.3%] sm:w-[25%] text-right tabular-nums text-xs sm:text-sm">{formatUSD(item.cost_basis)}</TableCell>
+                              <TableCell className="w-[23.3%] sm:w-[25%] text-right tabular-nums font-medium text-xs sm:text-sm">{formatUSD(v)}</TableCell>
+                              <TableCell className="w-[23.4%] sm:w-[25%] text-right tabular-nums px-4 text-xs sm:text-sm">{w.toFixed(2)}%</TableCell>
                             </TableRow>
                           )
                         })}
