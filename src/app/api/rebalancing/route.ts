@@ -157,7 +157,7 @@ export async function GET(req: NextRequest) {
       return acc
     }, {})
 
-    const assetAccountHoldings: Record<string, { account_id: string, tax_status?: string, value: number }[]> = {}
+    const assetAccountHoldings: Record<string, { account_id: string, name?: string, tax_status?: string, value: number }[]> = {}
     holdingsWithAssets.forEach(lot => {
       const price = latestPrices.get(lot.asset?.ticker) || 0
       const value = lot.remaining_quantity * price
