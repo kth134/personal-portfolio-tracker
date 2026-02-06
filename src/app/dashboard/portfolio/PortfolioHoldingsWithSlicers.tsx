@@ -90,7 +90,6 @@ export default function PortfolioHoldingsWithSlicers({
 
   return (
     <div className="space-y-4 md:space-y-8 p-2 md:p-4 max-w-[1600px] mx-auto overflow-x-hidden">
-      {/* Controls Container - Responsive */}
       <div className="flex flex-wrap gap-4 items-end mb-4 bg-muted/20 p-4 rounded-lg">
         <div className="flex-1 min-w-[200px] md:min-w-0">
           <Label className="text-xs font-bold uppercase mb-1 block">Slice by</Label>
@@ -132,7 +131,6 @@ export default function PortfolioHoldingsWithSlicers({
         </Button>
       </div>
 
-      {/* Pie Charts Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {pieAllocations.map((slice, idx) => (
           <div key={idx} className="bg-card p-4 rounded-xl border shadow-sm space-y-4">
@@ -148,7 +146,7 @@ export default function PortfolioHoldingsWithSlicers({
                     labelLine={true}
                     label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}
                   >
-                    {slice.data.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} strokeWidth={1} />))}
+                    {slice.data.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                   </Pie>
                   <Tooltip formatter={(v: any) => formatUSD(v)} />
                   <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
@@ -159,7 +157,6 @@ export default function PortfolioHoldingsWithSlicers({
         ))}
       </div>
 
-      {/* Holdings Tables */}
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems} className="space-y-4">
         {[...allocations]
           .map(group => {
@@ -196,7 +193,7 @@ export default function PortfolioHoldingsWithSlicers({
                     </TableHeader>
                     <TableBody>
                       {[...(group.items || [])]
-                        .sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
+                        .sort((a,b) => (Number(b.value) || 0) - (Number(a.value) || 0))
                         .map((item: any) => {
                           const v = Number(item.value) || 0;
                           const w = totalValueAcrossSelection > 0 ? (v / totalValueAcrossSelection) * 100 : 0;
