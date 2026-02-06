@@ -272,7 +272,8 @@ export default function RebalancingPage() {
             const hasBreach = items.some((item: any) => item.action !== 'hold');
             const portfolioTotal = data?.totalValue || 0;
             const allocPct = portfolioTotal > 0 ? (totalVal / portfolioTotal) * 100 : 0;
-            const subDrift = sp.target_allocation > 0 ? ((allocPct - sp.target_allocation) / sp.target_allocation) * 100 : 0;
+            const targetAllocPct = totalImplied;
+            const subDrift = targetAllocPct > 0 ? ((allocPct - targetAllocPct) / targetAllocPct) * 100 : 0;
 
             return (
               <AccordionItem key={sp.id} value={sp.id} className="border rounded-xl mb-6 overflow-hidden shadow-sm bg-background">
@@ -285,7 +286,7 @@ export default function RebalancingPage() {
                     <div className="flex gap-6 text-[10px] md:text-sm font-mono opacity-90 font-bold">
                       <span>Value: {formatUSD(totalVal)}</span>
                       <span>Alloc: {allocPct.toFixed(1)}%</span>
-                      <span className="text-blue-200">Target: {sp.target_allocation.toFixed(1)}%</span>
+                      <span className="text-blue-200">Target: {targetAllocPct.toFixed(1)}%</span>
                       <span className={cn(subDrift > 0 ? "text-green-400" : (subDrift < 0 ? "text-red-400" : ""))}>
                         Drift: {subDrift.toFixed(1)}%
                       </span>
