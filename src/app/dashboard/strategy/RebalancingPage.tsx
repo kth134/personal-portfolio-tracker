@@ -172,6 +172,28 @@ export default function RebalancingPage() {
       let reinvestment_suggestions: any[] = [];
 
       if (res.action === 'sell') {
+        // Recompute account-level sell recommendations locally so they update with band mode changes
+        const holdings = accountHoldings[res.asset_id] || [];
+        const sortedHoldings = [...holdings].sort((a: any, b: any) => {
+          const aTax = a.tax_status === 'Taxable' ? 1 : 0;
+          const bTax = b.tax_status === 'Taxable' ? 1 : 0;
+          if (aTax !== bTax) return aTax - bTax;
+          return b.value - a.value;
+        });
+
+        let remainingToSell = res.amount;
+        const recommended_accounts: any[] = [];
+        sortedHoldings.forEach((h: any) => {
+          if (remainingToSell <= 0) return;
+          const take = Math.min(h.value, remainingToSell);
+          if (take > 0) {
+            recommended_accounts.push({ id: h.account_id, name: h.name || 'Unknown', amount: take, reason: 'Trimming overweight position' });
+            remainingToSell -= take;
+          }
+        });
+
+        res.recommended_accounts = recommended_accounts;
+
         let remainingToDeploy = res.amount;
         const deficits = allocations
           .filter((r: any) => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
