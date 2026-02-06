@@ -33,6 +33,30 @@ export async function gotoAuthed(page: Page, path: string) {
   await ensureAuth(page);
 }
 
+export function parseCurrency(value: string) {
+  const cleaned = value.replace(/[^0-9.-]/g, '');
+  const parsed = Number(cleaned);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+export function parsePercent(value: string) {
+  const cleaned = value.replace(/[^0-9.-]/g, '');
+  const parsed = Number(cleaned);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+export function expectClose(actual: number, expected: number, tolerance = 1) {
+  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance);
+}
+
+export async function getMetricValue(page: Page, label: RegExp | string) {
+  const labelLocator = page.getByText(label).first();
+  await expect(labelLocator).toBeVisible();
+  const valueLocator = labelLocator.locator('..').locator('p').first();
+  const text = await valueLocator.innerText();
+  return text.trim();
+}
+
 export async function expectPercentSumClose(values: number[], target = 100, tolerance = 1.0) {
   const sum = values.reduce((a, b) => a + b, 0);
   expect(Math.abs(sum - target)).toBeLessThanOrEqual(tolerance);

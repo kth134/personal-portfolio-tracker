@@ -1,11 +1,25 @@
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
+import { login, getMetricValue, parseCurrency, expectClose } from './helpers';
 
-test('Performance: data page loads; reporting 404 expected', async ({ page }) => {
+test('Performance: metrics are internally consistent', async ({ page }) => {
   await login(page);
-  await page.goto('/dashboard/performance', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard/performance?tab=data', { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: /performance/i })).toBeVisible();
 
-  await page.goto('/dashboard/performance/reporting', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText(/this page could not be found/i)).toBeVisible();
+  await expect.poll(async () => {
+    const netText = await getMetricValue(page, /net gain\/loss/i);
+    return netText.includes('Loading');
+  }, { timeout: 30000 }).toBe(false);
+
+  const netText = await getMetricValue(page, /net gain\/loss/i);
+  const unrealizedText = await getMetricValue(page, /unrealized g\/l/i);
+  const realizedText = await getMetricValue(page, /realized g\/l/i);
+  const incomeText = await getMetricValue(page, /income/i);
+
+  const net = parseCurrency(netText);
+  const unrealized = parseCurrency(unrealizedText);
+  const realized = parseCurrency(realizedText);
+  const income = parseCurrency(incomeText);
+
+  expectClose(net, unrealized + realized + income, 5);
 });
