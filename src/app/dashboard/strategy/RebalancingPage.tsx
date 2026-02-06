@@ -270,7 +270,9 @@ export default function RebalancingPage() {
             const absDriftWtd = totalVal > 0 ? items.reduce((s:number, i:any) => s + (Math.abs(i.drift_percentage) * i.current_value), 0) / totalVal : 0;
             const sortedItems = [...items].sort((a,b) => { const aV = sortCol === 'ticker' ? a.ticker : a[sortCol]; const bV = sortCol === 'ticker' ? b.ticker : b[sortCol]; const res = (aV || 0) < (bV || 0) ? -1 : (aV || 0) > (bV || 0) ? 1 : 0; return sortDir === 'asc' ? res : -res; });
             const hasBreach = items.some((item: any) => item.action !== 'hold');
-            const subDrift = sp.target_allocation > 0 ? ((totalWeight - sp.target_allocation) / sp.target_allocation) * 100 : 0;
+            const portfolioTotal = data?.totalValue || 0;
+            const allocPct = portfolioTotal > 0 ? (totalVal / portfolioTotal) * 100 : 0;
+            const subDrift = sp.target_allocation > 0 ? ((allocPct - sp.target_allocation) / sp.target_allocation) * 100 : 0;
 
             return (
               <AccordionItem key={sp.id} value={sp.id} className="border rounded-xl mb-6 overflow-hidden shadow-sm bg-background">
@@ -282,7 +284,8 @@ export default function RebalancingPage() {
                     </div>
                     <div className="flex gap-6 text-[10px] md:text-sm font-mono opacity-90 font-bold">
                       <span>Value: {formatUSD(totalVal)}</span>
-                      <span>Alloc: {totalWeight.toFixed(1)}%</span>
+                      <span>Alloc: {allocPct.toFixed(1)}%</span>
+                      <span className="text-blue-200">Target: {sp.target_allocation.toFixed(1)}%</span>
                       <span className={cn(subDrift > 0 ? "text-green-400" : (subDrift < 0 ? "text-red-400" : ""))}>
                         Drift: {subDrift.toFixed(1)}%
                       </span>
