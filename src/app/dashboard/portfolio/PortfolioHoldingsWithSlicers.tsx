@@ -123,7 +123,7 @@ export default function PortfolioHoldingsWithSlicers({
 
       <div className="flex flex-wrap gap-8 justify-center">
         {pieAllocations.map((slice, idx) => (
-          <div key={idx} className="bg-card p-4 rounded-xl border shadow-sm space-y-4 min-w-[300px] flex-1 max-w-[500px]">
+          <div key={idx} className={cn("bg-card p-4 rounded-xl border shadow-sm space-y-4 min-w-[300px] flex-1", pieAllocations.length === 1 ? "w-full max-w-none" : "max-w-[500px]")}>
             <h4 className="font-bold text-center border-b pb-2 text-sm uppercase">{slice.key}</h4>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
