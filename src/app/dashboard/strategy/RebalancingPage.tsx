@@ -25,7 +25,6 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 const LENSES = [
   { value: 'total', label: 'Assets' },
   { value: 'sub_portfolio', label: 'Sub-Portfolio' },
-  { value: 'account', label: 'Account' },
   { value: 'asset_type', label: 'Asset Type' },
   { value: 'asset_subtype', label: 'Asset Sub-Type' },
   { value: 'size_tag', label: 'Size' },
@@ -125,15 +124,14 @@ export default function RebalancingPage() {
 
     let base: any[] = [];
     if (lens === 'total') {
-      base = [{ key: 'Portfolio', data: calculatedData.allocations }];
+      // Asset level: showing individual assets in one chart
+      base = [{ key: 'Full Portfolio', data: [...calculatedData.allocations] }];
     } else {
-      // Group by lens value
       const groupMap = new Map();
       calculatedData.allocations.forEach((a: any) => {
         let key = 'Unknown';
         switch (lens) {
           case 'sub_portfolio': key = a.sub_portfolio_name || 'Unassigned'; break;
-          case 'account': key = a.account?.name || 'Unknown'; break;
           case 'asset_type': key = a.asset_type || 'Unknown'; break;
           case 'asset_subtype': key = a.asset_subtype || 'Unknown'; break;
           case 'geography': key = a.geography || 'Unknown'; break;
@@ -143,21 +141,43 @@ export default function RebalancingPage() {
         if (!groupMap.has(key)) groupMap.set(key, []);
         groupMap.get(key).push(a);
       });
-      base = Array.from(groupMap.entries())
+
+      const allGroups = Array.from(groupMap.entries())
         .filter(([key]) => selectedValues.length === 0 || selectedValues.includes(key))
         .map(([key, items]) => ({ key, data: items }));
-    }
 
-    if (aggregate && base.length > 1) {
-      const combined = base.flatMap(b => b.data);
-      base = [{ key: 'Aggregated Selection', data: combined }];
+      if (aggregate) {
+        // Rule #6 Aggregate Mode: Single chart, data is grouping-level summaries
+        const aggregatedPoints = allGroups.map(g => {
+          const groupCurrentValue = g.data.reduce((s: number, i: any) => s + i.current_value, 0);
+          const groupCurrentPct = data.totalValue > 0 ? (groupCurrentValue / data.totalValue) * 100 : 0;
+          
+          // Target handling: sum of constituent asset overall implied targets
+          const groupTargetPct = g.data.reduce((s: number, i: any) => s + (i.implied_overall_target || 0), 0);
+          
+          // Relative Drift against whole portfolio baseline
+          const drift = groupTargetPct > 0 ? ((groupCurrentPct - groupTargetPct) / groupTargetPct) * 100 : 0;
+
+          return {
+            ticker: g.key, // Using group name as label
+            drift_percentage: drift,
+            current_pct: groupCurrentPct,
+            target_pct: groupTargetPct
+          };
+        });
+
+        base = [{ key: `Aggregate by ${LENSES.find(l => l.value === lens)?.label}`, data: aggregatedPoints }];
+      } else {
+        // Non-aggregate: One chart per group, data is asset-level
+        base = allGroups;
+      }
     }
 
     return base.map((s: any) => ({ 
       ...s, 
       data: [...s.data].sort((a,b) => b.drift_percentage - a.drift_percentage) 
     }));
-  }, [calculatedData, lens, selectedValues, aggregate]);
+  }, [calculatedData, lens, selectedValues, aggregate, data?.totalValue]);
 
   const getDriftColor = (drift: number, sliceData: any[]) => {
     const maxAbs = Math.max(...sliceData.map(d => Math.abs(d.drift_percentage)), 1);
