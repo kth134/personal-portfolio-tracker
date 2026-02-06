@@ -179,7 +179,7 @@ export default function RebalancingPage() {
           .filter((r: any) => r.need > 0)
           .sort((a: any, b: any) => a.drift_percentage - b.drift_percentage);
 
-        deficits.forEach(d => {
+        deficits.forEach((d: any) => {
           if (remainingToDeploy <= 0) return;
           const take = Math.min(d.need, remainingToDeploy);
           if (take > 0) {
@@ -204,7 +204,7 @@ export default function RebalancingPage() {
           .filter((r: any) => r.available > 0)
           .sort((a: any, b: any) => (a.taxPriority - b.taxPriority) || (b.drift_percentage - a.drift_percentage));
 
-        sources.forEach(s => {
+        sources.forEach((s: any) => {
           if (needed <= 0) return;
           let remainingFromAsset = Math.min(s.available, needed);
           const sortedHoldings = [...(s.holdings || [])].sort((a: any, b: any) => {
