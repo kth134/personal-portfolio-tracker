@@ -148,55 +148,65 @@ export default function PortfolioHoldingsWithSlicers({
 
       {/* Holdings Tables */}
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems} className="space-y-4">
-        {allocations.map((group) => {
-          const groupVal = Number(group.value) || 0;
-          const cashVal = lens === 'account' ? (cashByAccountName.get(group.key) || 0) : 0;
-          const totalGroupVal = groupVal + cashVal;
-          const groupWeight = totalValueAcrossSelection > 0 ? (totalGroupVal / totalValueAcrossSelection) * 100 : 0;
+        {[...allocations]
+          .map(group => {
+            const groupVal = Number(group.value) || 0;
+            const cashVal = lens === 'account' ? (cashByAccountName.get(group.key) || 0) : 0;
+            return { ...group, totalGroupVal: groupVal + cashVal };
+          })
+          .sort((a, b) => b.totalGroupVal - a.totalGroupVal)
+          .map((group) => {
+            const totalGroupVal = group.totalGroupVal;
+            const groupWeight = totalValueAcrossSelection > 0 ? (totalGroupVal / totalValueAcrossSelection) * 100 : 0;
 
-          return (
-            <AccordionItem key={group.key} value={group.key} className="border rounded-lg overflow-hidden shadow-sm">
-              <AccordionTrigger className="bg-black text-white px-4 py-4 hover:bg-zinc-900 transition-colors">
-                <div className="flex justify-between w-full mr-4 text-left">
-                  <span className="font-bold text-white">{group.key}</span>
-                  <div className="flex gap-4 text-sm font-bold text-white">
-                    <span>Basis: {formatUSD(Number(group.cost_basis) || 0)}</span>
-                    <span className="opacity-60">|</span>
-                    <span>Value: {formatUSD(totalGroupVal)}</span>
-                    <span className="opacity-60">|</span>
-                    <span>{groupWeight.toFixed(2)}%</span>
+            return (
+              <AccordionItem key={group.key} value={group.key} className="border rounded-lg overflow-hidden shadow-sm">
+                <AccordionTrigger className="bg-black text-white px-4 py-4 hover:bg-zinc-900 transition-colors">
+                  <div className="flex flex-col sm:flex-row sm:justify-between w-full mr-4 text-left gap-2 sm:gap-0">
+                    <span className="font-bold text-white">{group.key}</span>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm font-bold text-white">
+                      <span className="whitespace-nowrap">Basis: {formatUSD(Number(group.cost_basis) || 0)}</span>
+                      <span className="opacity-60 hidden sm:inline">|</span>
+                      <span className="whitespace-nowrap">Value: {formatUSD(totalGroupVal)}</span>
+                      <span className="opacity-60 hidden sm:inline">|</span>
+                      <span className="whitespace-nowrap">{groupWeight.toFixed(2)}%</span>
+                    </div>
                   </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="p-0 overflow-x-auto">
-                <Table className="min-w-[800px]">
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="w-[40%]">Asset</TableHead>
-                      <TableHead className="w-[20%] text-right">Total Cost Basis</TableHead>
-                      <TableHead className="w-[20%] text-right">Current Value</TableHead>
-                      <TableHead className="w-[20%] text-right">Weight (Portfolio)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(group.items || []).map((item: any) => {
-                        const v = Number(item.value) || 0;
-                        const w = totalValueAcrossSelection > 0 ? (v / totalValueAcrossSelection) * 100 : 0;
-                        return (
-                        <TableRow key={item.ticker}>
-                            <TableCell className="w-[40%] underline decoration-muted-foreground/30 underline-offset-4"><div className="font-bold">{item.ticker}</div><div className="text-[11px] opacity-70">{item.name}</div></TableCell>
-                            <TableCell className="w-[20%] text-right tabular-nums">{formatUSD(item.cost_basis)}</TableCell>
-                            <TableCell className="w-[20%] text-right tabular-nums font-medium">{formatUSD(v)}</TableCell>
-                            <TableCell className="w-[20%] text-right tabular-nums">{w.toFixed(2)}%</TableCell>
-                        </TableRow>
-                        )
-                    })}
-                  </TableBody>
-                </Table>
-              </AccordionContent>
-            </AccordionItem>
-          )
-        })}
+                </AccordionTrigger>
+                <AccordionContent className="p-0 overflow-x-auto">
+                  <Table className="min-w-[700px] sm:min-w-full table-fixed">
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="w-[30%] sm:w-[25%] px-4">Asset</TableHead>
+                        <TableHead className="w-[23%] sm:w-[25%] text-right font-semibold">Total Cost Basis</TableHead>
+                        <TableHead className="w-[23%] sm:w-[25%] text-right font-semibold">Current Value</TableHead>
+                        <TableHead className="w-[23%] sm:w-[25%] text-right font-semibold px-4">Weight</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[...(group.items || [])]
+                        .sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
+                        .map((item: any) => {
+                          const v = Number(item.value) || 0;
+                          const w = totalValueAcrossSelection > 0 ? (v / totalValueAcrossSelection) * 100 : 0;
+                          return (
+                            <TableRow key={item.ticker}>
+                              <TableCell className="w-[30%] sm:w-[25%] px-4">
+                                <div className="font-bold leading-tight">{item.ticker}</div>
+                                <div className="text-[10px] sm:text-[11px] opacity-70 truncate max-w-[150px] sm:max-w-none" title={item.name}>{item.name}</div>
+                              </TableCell>
+                              <TableCell className="w-[23%] sm:w-[25%] text-right tabular-nums text-xs sm:text-sm">{formatUSD(item.cost_basis)}</TableCell>
+                              <TableCell className="w-[23%] sm:w-[25%] text-right tabular-nums font-medium text-xs sm:text-sm">{formatUSD(v)}</TableCell>
+                              <TableCell className="w-[23%] sm:w-[25%] text-right tabular-nums px-4 text-xs sm:text-sm">{w.toFixed(2)}%</TableCell>
+                            </TableRow>
+                          )
+                        })}
+                    </TableBody>
+                  </Table>
+                </AccordionContent>
+              </AccordionItem>
+            )
+          })}
       </Accordion>
     </div>
   )
