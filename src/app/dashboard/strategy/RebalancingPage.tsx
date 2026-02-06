@@ -62,12 +62,27 @@ export default function RebalancingPage() {
   useEffect(() => { fetchData() }, [])
 
   const updateSubPortfolio = async (id: string, field: string, value: any) => {
+    // Rule #8: Update local state immediately for instant math refresh
+    const key = field === 'target_allocation' ? 'target' : 
+                field === 'upside_threshold' ? 'upside' :
+                field === 'downside_threshold' ? 'downside' : 'bandMode';
+    
+    setOverrideSubSettings(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), [key]: value }
+    }));
+
     try {
       const endpoint = field === 'target_allocation' ? '/api/rebalancing/sub-portfolio-target' : '/api/rebalancing/thresholds';
       const payload = { id, [field]: field === 'band_mode' ? !!value : value };
       const res = await fetch(endpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (res.ok) fetchData();
-    } catch (err) { console.error(err) }
+      if (res.ok) {
+        // Soft refresh of data to sync with DB without resetting local overrides manually
+        const softRes = await fetch('/api/rebalancing', { cache: 'no-store' });
+        const softPayload = await softRes.json();
+        setData(softPayload);
+      }
+    } catch (err) { console.error('Save failed:', err) }
   }
 
   const updateAssetTarget = async (assetId: string, spId: string, value: number) => {
