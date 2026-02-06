@@ -149,11 +149,87 @@ export default function RebalancingPage() {
       return { ...a, sub_portfolio_target_percentage: targetInGroup, implied_overall_target: res.impliedOverallTarget, current_in_sp: res.currentInGroupPct, drift_percentage: res.driftPercentage, action: res.action, amount: res.amount };
     });
 
-    const totalWeightedAssetDrift = allocations.reduce((sum: number, item: any) => {
+    // 3. Client-side tactical suggestions (tax-aware + no overshoot)
+    const accountHoldings = data.accountHoldings || {};
+    const spTotals = allocations.reduce((acc: Record<string, number>, r: any) => {
+      acc[r.sub_portfolio_id] = (acc[r.sub_portfolio_id] || 0) + r.current_value;
+      return acc;
+    }, {});
+
+    const updatedAllocations = allocations.map((res: any) => {
+      let reinvestment_suggestions: any[] = [];
+      const spTotal = spTotals[res.sub_portfolio_id] || 0;
+      const targetValue = spTotal * (res.sub_portfolio_target_percentage / 100);
+
+      if (res.action === 'sell') {
+        let remainingToDeploy = res.amount;
+        const deficits = allocations
+          .filter(r => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
+          .map(r => {
+            const spT = spTotals[r.sub_portfolio_id] || 0;
+            const tVal = spT * (r.sub_portfolio_target_percentage / 100);
+            const need = Math.max(0, tVal - r.current_value);
+            return { ...r, need };
+          })
+          .filter(r => r.need > 0)
+          .sort((a, b) => a.drift_percentage - b.drift_percentage);
+
+        deficits.forEach(d => {
+          if (remainingToDeploy <= 0) return;
+          const take = Math.min(d.need, remainingToDeploy);
+          if (take > 0) {
+            reinvestment_suggestions.push({ to_ticker: d.ticker, amount: take, reason: `Redeploy into underweight ${d.ticker}` });
+            remainingToDeploy -= take;
+          }
+        });
+      }
+
+      if (res.action === 'buy') {
+        let needed = res.amount;
+        const sources = allocations
+          .filter(r => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
+          .map(r => {
+            const spT = spTotals[r.sub_portfolio_id] || 0;
+            const tVal = spT * (r.sub_portfolio_target_percentage / 100);
+            const available = Math.max(0, r.current_value - tVal);
+            const holdings = accountHoldings[r.asset_id] || [];
+            const hasNonTaxable = holdings.some((h: any) => h.tax_status && h.tax_status !== 'Taxable' && h.value > 0);
+            const taxPriority = hasNonTaxable ? 0 : 1;
+            return { ...r, available, taxPriority, holdings };
+          })
+          .filter(r => r.available > 0)
+          .sort((a, b) => (a.taxPriority - b.taxPriority) || (b.drift_percentage - a.drift_percentage));
+
+        sources.forEach(s => {
+          if (needed <= 0) return;
+          let remainingFromAsset = Math.min(s.available, needed);
+          const sortedHoldings = [...(s.holdings || [])].sort((a: any, b: any) => {
+            const aTax = a.tax_status === 'Taxable' ? 1 : 0;
+            const bTax = b.tax_status === 'Taxable' ? 1 : 0;
+            if (aTax !== bTax) return aTax - bTax;
+            return b.value - a.value;
+          });
+
+          sortedHoldings.forEach((h: any) => {
+            if (remainingFromAsset <= 0) return;
+            const take = Math.min(h.value, remainingFromAsset);
+            if (take > 0) {
+              reinvestment_suggestions.push({ from_ticker: s.ticker, amount: take, account_id: h.account_id, tax_status: h.tax_status, reason: `Reallocated from overweight ${s.ticker}` });
+              remainingFromAsset -= take;
+              needed -= take;
+            }
+          });
+        });
+      }
+
+      return { ...res, reinvestment_suggestions };
+    });
+
+    const totalWeightedAssetDrift = updatedAllocations.reduce((sum: number, item: any) => {
       const weight = item.current_value / data.totalValue;
-        const currentOverallPct = (item.current_value / data.totalValue) * 100;
-        const targetOverallPct = item.implied_overall_target;
-        const relativeDriftOverall = targetOverallPct > 0 ? ((currentOverallPct - targetOverallPct) / targetOverallPct) * 100 : 0;
+      const currentOverallPct = (item.current_value / data.totalValue) * 100;
+      const targetOverallPct = item.implied_overall_target;
+      const relativeDriftOverall = targetOverallPct > 0 ? ((currentOverallPct - targetOverallPct) / targetOverallPct) * 100 : 0;
       return sum + (Math.abs(relativeDriftOverall) * weight);
     }, 0);
 
@@ -165,13 +241,13 @@ export default function RebalancingPage() {
       return sum + (Math.abs(relDrift) * weight);
     }, 0);
 
-    const netImpact = allocations.reduce((sum: number, item: any) => {
-        if (item.action === 'sell') return sum + item.amount;
-        if (item.action === 'buy') return sum - item.amount;
-        return sum;
+    const netImpact = updatedAllocations.reduce((sum: number, item: any) => {
+      if (item.action === 'sell') return sum + item.amount;
+      if (item.action === 'buy') return sum - item.amount;
+      return sum;
     }, 0);
 
-    return { allocations, subPortfolios, totalWeightedAssetDrift, totalWeightedSubDrift, netImpact };
+    return { allocations: updatedAllocations, subPortfolios, totalWeightedAssetDrift, totalWeightedSubDrift, netImpact };
   }, [data, overrideSubSettings, overrideAssetTargets]);
 
   const chartSlices = useMemo(() => {
