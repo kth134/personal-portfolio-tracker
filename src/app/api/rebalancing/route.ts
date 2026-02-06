@@ -167,7 +167,7 @@ export async function GET(req: NextRequest) {
       if (existing) {
         existing.value += value
       } else {
-        assetAccountHoldings[lot.asset_id].push({ account_id: lot.account_id, tax_status: acc?.tax_status, value })
+        assetAccountHoldings[lot.asset_id].push({ account_id: lot.account_id, name: acc?.name || 'Unknown', tax_status: acc?.tax_status, value })
       }
     })
 
@@ -287,7 +287,8 @@ export async function GET(req: NextRequest) {
       totalValue: totalPortfolioValue,
       totalCash,
       cashNeeded: netAmount,
-      lastPriceUpdate: prices?.[0]?.timestamp || null
+      lastPriceUpdate: prices?.[0]?.timestamp || null,
+      accountHoldings: assetAccountHoldings
     })
   } catch (error) {
     console.error('Rebalancing API Error:', error)
