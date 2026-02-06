@@ -72,7 +72,7 @@ async function run() {
     { id: ASSET.avdv, user_id: userId, ticker: 'AVDV', name: 'Avantis Intl Small Cap Value', sub_portfolio_id: SP.equities, asset_type: 'Equity', asset_subtype: 'International', geography: 'International', size_tag: 'Small', factor_tag: 'Value' },
 
     { id: ASSET.gld, user_id: userId, ticker: 'GLD', name: 'SPDR Gold Shares', sub_portfolio_id: SP.hard, asset_type: 'Commodity', asset_subtype: 'Gold', geography: 'Global', size_tag: 'Large', factor_tag: 'Real' },
-    { id: ASSET.btc, user_id: userId, ticker: 'BTC', name: 'Bitcoin', sub_portfolio_id: SP.hard, asset_type: 'Crypto', asset_subtype: 'Bitcoin', geography: 'Global', size_tag: 'Large', factor_tag: 'Growth' },
+    { id: ASSET.btc, user_id: userId, ticker: 'BTC', name: 'Bitcoin', sub_portfolio_id: SP.hard, asset_type: 'Commodity', asset_subtype: 'Crypto', geography: 'Global', size_tag: 'Large', factor_tag: 'Growth' },
 
     { id: ASSET.iren, user_id: userId, ticker: 'IREN', name: 'Iris Energy', sub_portfolio_id: SP.growth, asset_type: 'Equity', asset_subtype: 'Growth', geography: 'US', size_tag: 'Small', factor_tag: 'Growth' },
     { id: ASSET.tsla, user_id: userId, ticker: 'TSLA', name: 'Tesla', sub_portfolio_id: SP.growth, asset_type: 'Equity', asset_subtype: 'Growth', geography: 'US', size_tag: 'Large', factor_tag: 'Growth' },
@@ -135,6 +135,11 @@ async function run() {
   ]);
 
   await upsert('transactions', [
+    { id: randomUUID(), user_id: userId, date: '2020-01-15', type: 'Deposit', quantity: 0, price_per_unit: 0, amount: 15000, fees: 0, realized_gain: 0, asset_id: null, account_id: ACC.taxable, funding_source: 'Bank' },
+    { id: randomUUID(), user_id: userId, date: '2021-03-10', type: 'Deposit', quantity: 0, price_per_unit: 0, amount: 20000, fees: 0, realized_gain: 0, asset_id: null, account_id: ACC.taxable, funding_source: 'Bank' },
+    { id: randomUUID(), user_id: userId, date: '2022-05-20', type: 'Deposit', quantity: 0, price_per_unit: 0, amount: 12000, fees: 0, realized_gain: 0, asset_id: null, account_id: ACC.taxable, funding_source: 'Bank' },
+    { id: randomUUID(), user_id: userId, date: '2025-06-15', type: 'Withdrawal', quantity: 0, price_per_unit: 0, amount: -5000, fees: 0, realized_gain: 0, asset_id: null, account_id: ACC.taxable, funding_source: 'Cash' },
+
     { id: randomUUID(), user_id: userId, date: '2023-06-01', type: 'Buy', quantity: 400, price_per_unit: 80, amount: 32000, fees: 0, realized_gain: 0, asset_id: ASSET.avuv, account_id: ACC.taxable },
     { id: randomUUID(), user_id: userId, date: '2022-11-15', type: 'Buy', quantity: 200, price_per_unit: 380, amount: 76000, fees: 0, realized_gain: 0, asset_id: ASSET.vfiax, account_id: ACC.taxable },
     { id: randomUUID(), user_id: userId, date: '2023-02-01', type: 'Buy', quantity: 600, price_per_unit: 65, amount: 39000, fees: 0, realized_gain: 0, asset_id: ASSET.iefa, account_id: ACC.trad },
@@ -149,10 +154,15 @@ async function run() {
     { id: randomUUID(), user_id: userId, date: '2022-09-01', type: 'Buy', quantity: 120, price_per_unit: 500, amount: 60000, fees: 0, realized_gain: 0, asset_id: ASSET.nvda, account_id: ACC.taxable },
     { id: randomUUID(), user_id: userId, date: '2023-01-01', type: 'Buy', quantity: 200, price_per_unit: 150, amount: 30000, fees: 0, realized_gain: 0, asset_id: ASSET.smh, account_id: ACC.trad },
 
-    { id: randomUUID(), user_id: userId, date: '2024-01-05', type: 'Deposit', quantity: 0, price_per_unit: 0, amount: 10000, fees: 0, realized_gain: 0, asset_id: null, account_id: ACC.taxable, funding_source: 'Bank' },
+    { id: randomUUID(), user_id: userId, date: '2023-09-15', type: 'Dividend', quantity: 0, price_per_unit: 0, amount: 250, fees: 0, realized_gain: 0, asset_id: ASSET.avuv, account_id: ACC.taxable },
     { id: randomUUID(), user_id: userId, date: '2024-02-12', type: 'Dividend', quantity: 0, price_per_unit: 0, amount: 500, fees: 0, realized_gain: 0, asset_id: ASSET.vfiax, account_id: ACC.taxable },
+    { id: randomUUID(), user_id: userId, date: '2025-02-12', type: 'Dividend', quantity: 0, price_per_unit: 0, amount: 650, fees: 0, realized_gain: 0, asset_id: ASSET.vfiax, account_id: ACC.taxable },
+
+    { id: randomUUID(), user_id: userId, date: '2024-01-05', type: 'Deposit', quantity: 0, price_per_unit: 0, amount: 10000, fees: 0, realized_gain: 0, asset_id: null, account_id: ACC.taxable, funding_source: 'Bank' },
     { id: randomUUID(), user_id: userId, date: '2024-03-10', type: 'Withdrawal', quantity: 0, price_per_unit: 0, amount: -2000, fees: 0, realized_gain: 0, asset_id: null, account_id: ACC.taxable, funding_source: 'Cash' },
     { id: randomUUID(), user_id: userId, date: '2024-04-01', type: 'Sell', quantity: 50, price_per_unit: 500, amount: 25000, fees: 0, realized_gain: 2000, asset_id: ASSET.nvda, account_id: ACC.taxable },
+    { id: randomUUID(), user_id: userId, date: '2025-04-01', type: 'Sell', quantity: 20, price_per_unit: 220, amount: 4400, fees: 0, realized_gain: 400, asset_id: ASSET.tsla, account_id: ACC.taxable },
+    { id: randomUUID(), user_id: userId, date: '2025-09-01', type: 'Sell', quantity: 30, price_per_unit: 520, amount: 15600, fees: 0, realized_gain: 1200, asset_id: ASSET.ivv, account_id: ACC.roth },
   ]);
 
   console.log('Seed complete:', { userId, subPortfolios: 3, accounts: 3, assets: 13 });
