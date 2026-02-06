@@ -157,14 +157,18 @@ export async function GET(req: NextRequest) {
       return acc
     }, {})
 
-    const assetTaxPriority = new Map<string, number>()
-    rebalanceResults.forEach(r => {
-      const assetLots = holdingsWithAssets.filter(l => l.asset_id === r.asset_id) || []
-      const isTaxable = assetLots.some(l => {
-        const acc = accounts?.find(a => a.id === l.account_id)
-        return acc?.tax_status === 'Taxable'
-      })
-      assetTaxPriority.set(r.asset_id, isTaxable ? 1 : 0)
+    const assetAccountHoldings: Record<string, { account_id: string, tax_status?: string, value: number }[]> = {}
+    holdingsWithAssets.forEach(lot => {
+      const price = latestPrices.get(lot.asset?.ticker) || 0
+      const value = lot.remaining_quantity * price
+      const acc = accounts?.find(a => a.id === lot.account_id)
+      if (!assetAccountHoldings[lot.asset_id]) assetAccountHoldings[lot.asset_id] = []
+      const existing = assetAccountHoldings[lot.asset_id].find(e => e.account_id === lot.account_id)
+      if (existing) {
+        existing.value += value
+      } else {
+        assetAccountHoldings[lot.asset_id].push({ account_id: lot.account_id, tax_status: acc?.tax_status, value })
+      }
     })
 
     const finalAllocations = rebalanceResults.map(res => {
@@ -237,18 +241,33 @@ export async function GET(req: NextRequest) {
             const spT = spTotals[r.sub_portfolio_id] || 0
             const tVal = spT * (r.sub_portfolio_target_percentage / 100)
             const available = Math.max(0, r.current_value - tVal)
-            return { ...r, available, taxPriority: assetTaxPriority.get(r.asset_id) || 0 }
+            const holdings = assetAccountHoldings[r.asset_id] || []
+            const hasNonTaxable = holdings.some(h => h.tax_status && h.tax_status !== 'Taxable' && h.value > 0)
+            const taxPriority = hasNonTaxable ? 0 : 1
+            return { ...r, available, taxPriority, holdings }
           })
           .filter(r => r.available > 0)
           .sort((a, b) => (a.taxPriority - b.taxPriority) || (b.drift_percentage - a.drift_percentage))
 
         sources.forEach(s => {
           if (needed <= 0) return
-          const take = Math.min(s.available, needed)
-          if (take > 0) {
-            reinvestment_suggestions.push({ from_ticker: s.ticker, amount: take, reason: `Reallocated from overweight ${s.ticker}` })
-            needed -= take
-          }
+          let remainingFromAsset = Math.min(s.available, needed)
+          const sortedHoldings = [...(s.holdings || [])].sort((a, b) => {
+            const aTax = a.tax_status === 'Taxable' ? 1 : 0
+            const bTax = b.tax_status === 'Taxable' ? 1 : 0
+            if (aTax !== bTax) return aTax - bTax
+            return b.value - a.value
+          })
+
+          sortedHoldings.forEach(h => {
+            if (remainingFromAsset <= 0) return
+            const take = Math.min(h.value, remainingFromAsset)
+            if (take > 0) {
+              reinvestment_suggestions.push({ from_ticker: s.ticker, amount: take, account_id: h.account_id, tax_status: h.tax_status, reason: `Reallocated from overweight ${s.ticker}` })
+              remainingFromAsset -= take
+              needed -= take
+            }
+          })
         })
       }
 
