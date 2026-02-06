@@ -156,21 +156,26 @@ export default function RebalancingPage() {
       return acc;
     }, {});
 
+    const remainingNeedByAsset: Record<string, number> = {};
+    const remainingAvailByAsset: Record<string, number> = {};
+
+    allocations.forEach((r: any) => {
+      const spT = spTotals[r.sub_portfolio_id] || 0;
+      const tVal = spT * (r.sub_portfolio_target_percentage / 100);
+      const need = Math.max(0, tVal - r.current_value);
+      const available = Math.max(0, r.current_value - tVal);
+      remainingNeedByAsset[r.asset_id] = need;
+      remainingAvailByAsset[r.asset_id] = available;
+    });
+
     const updatedAllocations = allocations.map((res: any) => {
       let reinvestment_suggestions: any[] = [];
-      const spTotal = spTotals[res.sub_portfolio_id] || 0;
-      const targetValue = spTotal * (res.sub_portfolio_target_percentage / 100);
 
       if (res.action === 'sell') {
         let remainingToDeploy = res.amount;
         const deficits = allocations
           .filter(r => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
-          .map(r => {
-            const spT = spTotals[r.sub_portfolio_id] || 0;
-            const tVal = spT * (r.sub_portfolio_target_percentage / 100);
-            const need = Math.max(0, tVal - r.current_value);
-            return { ...r, need };
-          })
+          .map(r => ({ ...r, need: remainingNeedByAsset[r.asset_id] || 0 }))
           .filter(r => r.need > 0)
           .sort((a, b) => a.drift_percentage - b.drift_percentage);
 
@@ -180,6 +185,7 @@ export default function RebalancingPage() {
           if (take > 0) {
             reinvestment_suggestions.push({ to_ticker: d.ticker, amount: take, reason: `Redeploy into underweight ${d.ticker}` });
             remainingToDeploy -= take;
+            remainingNeedByAsset[d.asset_id] = Math.max(0, (remainingNeedByAsset[d.asset_id] || 0) - take);
           }
         });
       }
@@ -189,9 +195,7 @@ export default function RebalancingPage() {
         const sources = allocations
           .filter(r => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
           .map(r => {
-            const spT = spTotals[r.sub_portfolio_id] || 0;
-            const tVal = spT * (r.sub_portfolio_target_percentage / 100);
-            const available = Math.max(0, r.current_value - tVal);
+            const available = remainingAvailByAsset[r.asset_id] || 0;
             const holdings = accountHoldings[r.asset_id] || [];
             const hasNonTaxable = holdings.some((h: any) => h.tax_status && h.tax_status !== 'Taxable' && h.value > 0);
             const taxPriority = hasNonTaxable ? 0 : 1;
@@ -214,9 +218,10 @@ export default function RebalancingPage() {
             if (remainingFromAsset <= 0) return;
             const take = Math.min(h.value, remainingFromAsset);
             if (take > 0) {
-              reinvestment_suggestions.push({ from_ticker: s.ticker, amount: take, account_id: h.account_id, tax_status: h.tax_status, reason: `Reallocated from overweight ${s.ticker}` });
+              reinvestment_suggestions.push({ from_ticker: s.ticker, amount: take, account_id: h.account_id, account_name: h.name, tax_status: h.tax_status, reason: `Reallocated from overweight ${s.ticker}` });
               remainingFromAsset -= take;
               needed -= take;
+              remainingAvailByAsset[s.asset_id] = Math.max(0, (remainingAvailByAsset[s.asset_id] || 0) - take);
             }
           });
         });
@@ -396,7 +401,8 @@ export default function RebalancingPage() {
                         <div className="flex items-center gap-3 pt-4 sm:pt-0"><Switch id={`band-mode-${sp.id}`} checked={sp.band_mode} onCheckedChange={(checked) => updateSubPortfolio(sp.id, 'band_mode', checked ? 1 : 0)} /><Label htmlFor={`band-mode-${sp.id}`} className="text-xs font-medium cursor-pointer">{sp.band_mode ? 'Conservative' : 'Absolute'} Mode</Label></div>
                     </div>
                     <div className="overflow-x-auto w-full"><Table className="min-w-[1200px] table-fixed w-full border-collapse"><TableHeader className="bg-muted/30"><TableRow><TableHead className="w-[15%] cursor-pointer" onClick={()=>handleSort('ticker')}>Asset <SortIcon col="ticker"/></TableHead><TableHead className="w-[12%] text-right cursor-pointer" onClick={()=>handleSort('current_value')}>Value ($) <SortIcon col="current_value"/></TableHead><TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>handleSort('current_in_sp')}>Weight <SortIcon col="current_in_sp"/></TableHead><TableHead className="w-[10%] text-right text-blue-600 font-bold">Target Weight</TableHead><TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>handleSort('implied_overall_target')}>Implied % <SortIcon col="implied_overall_target"/></TableHead><TableHead className="w-[10%] text-right cursor-pointer" onClick={()=>handleSort('drift_percentage')}>Drift % <SortIcon col="drift_percentage"/></TableHead><TableHead className="w-[10%] text-center">Action</TableHead><TableHead className="w-[23%] text-right pr-6">Tactical Suggestion</TableHead></TableRow></TableHeader><TableBody>{sortedItems.map((i: any) => (<TableRow key={i.asset_id} className="hover:bg-muted/5 h-16 group"><TableCell className="font-bold border-l-2 border-transparent group-hover:border-zinc-300 pl-4">{i.ticker}</TableCell><TableCell className="text-right tabular-nums">{formatUSD(i.current_value)}</TableCell><TableCell className="text-right tabular-nums">{i.current_in_sp.toFixed(1)}%</TableCell><TableCell className="text-right"><Input defaultValue={i.sub_portfolio_target_percentage} type="number" step="0.1" onBlur={(e) => updateAssetTarget(i.asset_id, sp.id, parseFloat(e.target.value))} className="h-8 text-right w-20 ml-auto border-zinc-200 bg-zinc-50/50 focus:ring-0"/></TableCell><TableCell className="text-right tabular-nums">{i.implied_overall_target.toFixed(1)}%</TableCell><TableCell className={cn("text-right tabular-nums font-bold", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell><TableCell className="text-center font-bold">{i.action === 'hold' ? <span className="text-zinc-300">-</span> : <div className="flex flex-col"><span className={cn(i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span><span className="text-[10px] font-normal opacity-50">{formatUSD(i.amount)}</span></div>}</TableCell><TableCell className="text-right text-[10px] pr-6 italic text-zinc-600 whitespace-pre-wrap">{(i.reinvestment_suggestions?.length ? i.reinvestment_suggestions.map((s:any, idx:number) => {
-  const label = s.from_ticker ? `From ${s.from_ticker}` : s.to_ticker ? `To ${s.to_ticker}` : 'Suggested'
+  const accountLabel = s.account_name ? ` (${s.account_name}${s.tax_status ? `, ${s.tax_status}` : ''})` : '';
+  const label = s.from_ticker ? `From ${s.from_ticker}${accountLabel}` : s.to_ticker ? `To ${s.to_ticker}` : 'Suggested'
   return <div key={idx} className="text-blue-700">{label}: {formatUSD(s.amount)}</div>
 }) : <span className="opacity-40">-</span>)}</TableCell></TableRow>))}<TableRow className="bg-zinc-900 text-white font-bold h-12 shadow-inner"><TableCell className="pl-4 uppercase tracking-tighter text-white">Total</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{formatUSD(totalVal)}</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{totalWeight.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{totalTarget.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{totalImplied.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{absDriftWtd.toFixed(1)}%</TableCell><TableCell className="text-center text-white">N/A</TableCell><TableCell className="text-right pr-6 opacity-60 text-white">N/A</TableCell></TableRow></TableBody></Table></div>
                 </AccordionContent>
