@@ -432,7 +432,7 @@ export default function RebalancingPage() {
   if (i.reinvestment_suggestions?.length) {
     i.reinvestment_suggestions.forEach((s:any, idx:number) => {
       const accountLabel = s.account_name ? ` (${s.account_name}${s.tax_status ? `, ${s.tax_status}` : ''})` : '';
-      const label = s.from_ticker ? `From ${s.from_ticker}${accountLabel}` : s.to_ticker ? `To ${s.to_ticker}` : 'Suggested';
+      const label = s.from_ticker ? `Fund via ${s.from_ticker} sale${accountLabel}` : s.to_ticker ? `Use Funds to Buy ${s.to_ticker}` : 'Suggested';
       lines.push(<div key={`re-${idx}`} className="text-blue-700">{label}: {formatUSD(s.amount)}</div>);
     });
   }
