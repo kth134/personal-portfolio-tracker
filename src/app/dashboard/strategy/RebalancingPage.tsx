@@ -147,7 +147,7 @@ export default function RebalancingPage() {
         .map(([key, items]) => ({ key, data: items }));
 
       if (aggregate) {
-        // Rule #6 Aggregate Mode: Single chart, data is grouping-level summaries
+        // Rule: Aggregate Mode measures relative drift from the grouping's target weight in the WHOLE portfolio
         const aggregatedPoints = allGroups.map(g => {
           const groupCurrentValue = g.data.reduce((s: number, i: any) => s + i.current_value, 0);
           const groupCurrentPct = data.totalValue > 0 ? (groupCurrentValue / data.totalValue) * 100 : 0;
@@ -155,11 +155,11 @@ export default function RebalancingPage() {
           // Target handling: sum of constituent asset overall implied targets
           const groupTargetPct = g.data.reduce((s: number, i: any) => s + (i.implied_overall_target || 0), 0);
           
-          // Relative Drift against whole portfolio baseline
+          // Relative Drift Calculation: ((Actual - Target) / Target)
           const drift = groupTargetPct > 0 ? ((groupCurrentPct - groupTargetPct) / groupTargetPct) * 100 : 0;
 
           return {
-            ticker: g.key, // Using group name as label
+            ticker: g.key,
             drift_percentage: drift,
             current_pct: groupCurrentPct,
             target_pct: groupTargetPct
@@ -168,8 +168,26 @@ export default function RebalancingPage() {
 
         base = [{ key: `Aggregate by ${LENSES.find(l => l.value === lens)?.label}`, data: aggregatedPoints }];
       } else {
-        // Non-aggregate: One chart per group, data is asset-level
-        base = allGroups;
+        // Rule: Non-aggregate measures relative drift from the assets' target within its specific grouping
+        base = allGroups.map(g => {
+          const groupTotalValue = g.data.reduce((s:number, i:any) => s + i.current_value, 0);
+          
+          return {
+            key: g.key,
+            data: g.data.map((a: any) => {
+              const currentInGroup = groupTotalValue > 0 ? (a.current_value / groupTotalValue) * 100 : 0;
+              const targetInGroup = a.sub_portfolio_target_percentage || 0;
+              
+              // Relative Drift Calculation: ((Actual - Target) / Target)
+              const drift = targetInGroup > 0 ? ((currentInGroup - targetInGroup) / targetInGroup) * 100 : 0;
+              
+              return {
+                ...a,
+                drift_percentage: drift
+              };
+            })
+          };
+        });
       }
     }
 
