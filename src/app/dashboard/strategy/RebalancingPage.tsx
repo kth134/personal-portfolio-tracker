@@ -164,17 +164,30 @@ export default function RebalancingPage() {
     return results;
   }, [calculatedData, lens, aggregate]);
 
-  // Helper for gradient coloring
-  const getGradientColor = (drift: number) => {
-    const abs = Math.abs(drift);
+  // HELPER FOR BAR COLORING (Rule #5 - Gradient)
+  const getGradientColor = (drift: number, sliceData: any[]) => {
+    if (drift === 0) return '#000000';
+    
+    // Find max absolute drift in this specific chart to scale relatively
+    const drifts = sliceData.map(d => Math.abs(d.drift_percentage));
+    const maxAbsDrift = Math.max(...drifts, 1); // Avoid div by zero
+    
+    const intensity = Math.abs(drift) / maxAbsDrift;
+    
     if (drift > 0) {
-      if (abs > 10) return '#065f46'; // dark green
-      if (abs > 5) return '#10b981'; // green
-      return '#6ee7b7'; // light green
+      // Scale from light green to dark green
+      // rgba(6, 95, 70) is dark, rgba(167, 243, 208) is light
+      const r = Math.round(167 - (161 * intensity));
+      const g = Math.round(243 - (148 * intensity));
+      const b = Math.round(208 - (138 * intensity));
+      return `rgb(${r}, ${g}, ${b})`;
     } else {
-      if (abs > 10) return '#991b1b'; // dark red
-      if (abs > 5) return '#ef4444'; // red
-      return '#fca5a5'; // light red
+      // Scale from light red to dark red
+      // rgba(153, 27, 27) is dark, rgba(254, 202, 202) is light
+      const r = Math.round(254 - (101 * intensity));
+      const g = Math.round(202 - (175 * intensity));
+      const b = Math.round(202 - (175 * intensity));
+      return `rgb(${r}, ${g}, ${b})`;
     }
   };
 
@@ -247,7 +260,7 @@ export default function RebalancingPage() {
                   <RechartsTooltip formatter={(v:any) => [`${Number(v).toFixed(1)}%`, 'Drift']} />
                   <Bar dataKey="drift_percentage">
                     {slice.data.map((entry: any, i: number) => (
-                      <Cell key={i} fill={getGradientColor(entry.drift_percentage)} />
+                      <Cell key={i} fill={getGradientColor(entry.drift_percentage, slice.data)} />
                     ))}
                   </Bar>
                 </BarChart>
