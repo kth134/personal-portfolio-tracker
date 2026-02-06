@@ -56,6 +56,10 @@ export async function POST(req: Request) {
             break;
           case 'account': key = lot.account?.name || 'Unknown'; break;
           case 'asset_type': key = lot.asset?.asset_type || 'Unknown'; break;
+          case 'asset_subtype': key = lot.asset?.asset_subtype || 'Unknown'; break;
+          case 'geography': key = lot.asset?.geography || 'Unknown'; break;
+          case 'size_tag': key = lot.asset?.size_tag || 'Unknown'; break;
+          case 'factor_tag': key = lot.asset?.factor_tag || 'Unknown'; break;
           default: key = lot.asset?.ticker || 'Unknown';
         }
       }

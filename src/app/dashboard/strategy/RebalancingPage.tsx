@@ -15,7 +15,13 @@ import { cn } from '@/lib/utils'
 
 const LENSES = [
   { value: 'total', label: 'Assets' },
-  { value: 'sub_portfolio', label: 'Sub-Portfolio' }
+  { value: 'sub_portfolio', label: 'Sub-Portfolio' },
+  { value: 'account', label: 'Account' },
+  { value: 'asset_type', label: 'Asset Type' },
+  { value: 'asset_subtype', label: 'Asset Sub-Type' },
+  { value: 'size_tag', label: 'Size' },
+  { value: 'geography', label: 'Geography' },
+  { value: 'factor_tag', label: 'Factor' },
 ]
 
 export default function RebalancingPage() {
