@@ -188,7 +188,8 @@ export default function RebalancingPage() {
 
   if (loading || !calculatedData) return <div className="p-8 text-center text-lg">Calculating rebalancing paths...</div>
 
-  return (
+  // SUMMARY CALCULATIONS (Same logic as bar charts)
+  const rebalanceNeeded = calculatedData.allocations.some((a: any) => a.action !== 'hold');
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto">
       {/* Rule #9 Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
