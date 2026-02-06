@@ -152,10 +152,30 @@ export async function GET(req: NextRequest) {
     })
 
     // 5. Tactical Suggestions & Tax Optimization (Bug #34 & #37)
+    const spTotals = rebalanceResults.reduce((acc: Record<string, number>, r: any) => {
+      acc[r.sub_portfolio_id] = (acc[r.sub_portfolio_id] || 0) + r.current_value
+      return acc
+    }, {})
+
+    const assetTaxPriority = new Map<string, number>()
+    rebalanceResults.forEach(r => {
+      const assetLots = holdingsWithAssets.filter(l => l.asset_id === r.asset_id) || []
+      const isTaxable = assetLots.some(l => {
+        const acc = accounts?.find(a => a.id === l.account_id)
+        return acc?.tax_status === 'Taxable'
+      })
+      assetTaxPriority.set(r.asset_id, isTaxable ? 1 : 0)
+    })
+
     const finalAllocations = rebalanceResults.map(res => {
       let reinvestment_suggestions: any[] = []
       let recommended_accounts: any[] = []
       let tax_impact = 0
+
+      const spTotal = spTotals[res.sub_portfolio_id] || 0
+      const targetValue = spTotal * (res.sub_portfolio_target_percentage / 100)
+      const excess = Math.max(0, res.current_value - targetValue)
+      const deficit = Math.max(0, targetValue - res.current_value)
 
       if (res.action === 'sell') {
         const assetLots = holdingsWithAssets.filter(l => l.asset_id === res.asset_id) || []
@@ -185,14 +205,46 @@ export async function GET(req: NextRequest) {
           recommended_accounts.push({ id, name: acc.name, amount: sellFromAcc, reason: `Trimming overweight position` })
           remainingToSell -= sellFromAcc
         })
+
+        // Redeploy within the same sub-portfolio to assets furthest below target
+        let remainingToDeploy = res.amount
+        const deficits = rebalanceResults
+          .filter(r => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
+          .map(r => {
+            const spT = spTotals[r.sub_portfolio_id] || 0
+            const tVal = spT * (r.sub_portfolio_target_percentage / 100)
+            const need = Math.max(0, tVal - r.current_value)
+            return { ...r, need }
+          })
+          .filter(r => r.need > 0)
+          .sort((a, b) => a.drift_percentage - b.drift_percentage)
+
+        deficits.forEach(d => {
+          if (remainingToDeploy <= 0) return
+          const take = Math.min(d.need, remainingToDeploy)
+          if (take > 0) {
+            reinvestment_suggestions.push({ to_ticker: d.ticker, amount: take, reason: `Redeploy into underweight ${d.ticker}` })
+            remainingToDeploy -= take
+          }
+        })
       }
 
       if (res.action === 'buy') {
         let needed = res.amount
-        const sells = [...rebalanceResults].filter(r => r.action === 'sell').sort((a, b) => b.drift_percentage - a.drift_percentage)
-        sells.forEach(s => {
+        const sources = rebalanceResults
+          .filter(r => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
+          .map(r => {
+            const spT = spTotals[r.sub_portfolio_id] || 0
+            const tVal = spT * (r.sub_portfolio_target_percentage / 100)
+            const available = Math.max(0, r.current_value - tVal)
+            return { ...r, available, taxPriority: assetTaxPriority.get(r.asset_id) || 0 }
+          })
+          .filter(r => r.available > 0)
+          .sort((a, b) => (a.taxPriority - b.taxPriority) || (b.drift_percentage - a.drift_percentage))
+
+        sources.forEach(s => {
           if (needed <= 0) return
-          const take = Math.min(s.amount, needed)
+          const take = Math.min(s.available, needed)
           if (take > 0) {
             reinvestment_suggestions.push({ from_ticker: s.ticker, amount: take, reason: `Reallocated from overweight ${s.ticker}` })
             needed -= take
