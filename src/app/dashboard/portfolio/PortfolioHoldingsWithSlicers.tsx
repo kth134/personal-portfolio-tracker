@@ -168,17 +168,14 @@ export default function PortfolioHoldingsWithSlicers({
             const totalGroupVal = group.totalGroupVal;
             const groupWeight = totalValueAcrossSelection > 0 ? (totalGroupVal / totalValueAcrossSelection) * 100 : 0;
 
-            return (
               <AccordionItem key={group.key} value={group.key} className="border rounded-lg overflow-hidden shadow-sm">
-                <AccordionTrigger className="bg-black text-white px-4 py-4 hover:bg-zinc-900 transition-colors">
-                  <div className="flex flex-col sm:flex-row sm:justify-between w-full mr-4 text-left gap-2 sm:gap-0">
-                    <span className="font-bold text-white">{group.key}</span>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm font-bold text-white">
-                      <span className="whitespace-nowrap">Basis: {formatUSD(Number(group.cost_basis) || 0)}</span>
-                      <span className="opacity-60 hidden sm:inline">|</span>
-                      <span className="whitespace-nowrap">Value: {formatUSD(totalGroupVal)}</span>
-                      <span className="opacity-60 hidden sm:inline">|</span>
-                      <span className="whitespace-nowrap">{groupWeight.toFixed(2)}%</span>
+                <AccordionTrigger className="bg-black text-white px-0 py-4 hover:bg-zinc-900 transition-colors">
+                  <div className="flex items-center w-full text-left gap-0">
+                    <span className="w-[30%] sm:w-[25%] px-4 font-bold text-white truncate">{group.key}</span>
+                    <div className="flex-1 flex items-center text-xs sm:text-sm font-bold text-white">
+                      <span className="w-[33.3%] text-right pr-4 sm:pr-8">Basis: {formatUSD(Number(group.cost_basis) || 0)}</span>
+                      <span className="w-[33.3%] text-right pr-4 sm:pr-8">Value: {formatUSD(totalGroupVal)}</span>
+                      <span className="w-[33.4%] text-right pr-4 sm:px-4">{groupWeight.toFixed(2)}%</span>
                     </div>
                   </div>
                 </AccordionTrigger>
