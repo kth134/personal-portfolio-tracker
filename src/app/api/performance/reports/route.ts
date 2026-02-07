@@ -279,7 +279,7 @@ async function getHistoricalPrices(supabase: any, tickers: string[], start: stri
     .in('date', neededDates)
     .order('date')
 
-  dbPrices?.forEach(p => {
+  dbPrices?.forEach((p: any) => {
     if (!prices[p.ticker]) prices[p.ticker] = []
     prices[p.ticker].push({ date: p.date, close: Number(p.close) })
   })
