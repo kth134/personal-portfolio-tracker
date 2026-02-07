@@ -252,7 +252,7 @@ export async function POST(req: Request) {
 
           const calc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d)
           assetBreakdown[ticker].push({ date: d, ...calc })
-        }
+        })
       }
     }
 
