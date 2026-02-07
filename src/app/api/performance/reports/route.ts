@@ -302,27 +302,61 @@ function calculateGroupMetrics(
   const { totalCash: groupCash } = calculateCashBalances(groupTxs)
   const groupOriginalInvestment = groupLots.reduce((sum, lot) => sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity)), 0)
 
-  // Use actual tax lots with remaining_quantity > 0 (filtered by caller)
-  // Calculate total basis and market value using the SAME logic as Performance Data page
-  let totalBasis = 0
-  let marketValue = 0
+  // Build open lots by simulating FIFO from transactions up to date d
+  // This gives us the portfolio state AS OF date d, not today
+  const simulatedOpenLots: any[] = []
+  const assetLots = new Map<string, { qty: number, basis: number }[]>()
   
-  groupLots.forEach(lot => {
-    const remainingQty = Number(lot.remaining_quantity || 0)
-    if (remainingQty <= 0) return
-    
-    const costBasis = Number(lot.cost_basis_per_unit || 0)
-    totalBasis += remainingQty * costBasis
-    
-    const ticker = assetToTicker.get(lot.asset_id) || ''
-    const price = (d === lastDateStr ? (currentPrices[ticker] || 0) : (historicalPrices[ticker] || []).find(p => p.date === d)?.close || 0)
-    
-    if (price > 0) {
-      marketValue += remainingQty * price
+  groupTxs.forEach(tx => {
+    const assetId = tx.asset_id
+    if (!assetId) return
+    if (tx.type === 'Buy') {
+      const qty = Number(tx.quantity || 0)
+      const prc = Number(tx.price_per_unit || 0)
+      if (!assetLots.has(assetId)) assetLots.set(assetId, [])
+      assetLots.get(assetId)!.push({ qty, basis: prc })
+    } else if (tx.type === 'Sell') {
+      const qty = Number(tx.quantity || 0)
+      if (assetLots.has(assetId)) {
+        let remain = qty
+        const lots = assetLots.get(assetId)!
+        for (let i = 0; i < lots.length && remain > 0; i++) {
+          if (lots[i].qty > remain) {
+            lots[i].qty -= remain
+            remain = 0
+          } else {
+            remain -= lots[i].qty
+            lots[i].qty = 0
+          }
+        }
+        assetLots.set(assetId, lots.filter(l => l.qty > 0))
+      }
     }
   })
   
-  // Unrealized gains = current market value - total cost basis (same as Performance Data page)
+  Array.from(assetLots.entries()).forEach(([assetId, lots]) => {
+    lots.forEach(lot => {
+      if (lot.qty > 0) {
+        simulatedOpenLots.push({ asset_id: assetId, remaining_quantity: lot.qty, cost_basis_per_unit: lot.basis })
+      }
+    })
+  })
+
+  // Calculate total cost basis and market value
+  let totalBasis = 0
+  let marketValue = 0
+  
+  simulatedOpenLots.forEach(lot => {
+    const ticker = assetToTicker.get(lot.asset_id) || ''
+    const price = (d === lastDateStr ? (currentPrices[ticker] || 0) : (historicalPrices[ticker] || []).find(p => p.date === d)?.close || 0)
+    
+    totalBasis += lot.remaining_quantity * lot.cost_basis_per_unit
+    if (price > 0) {
+      marketValue += lot.remaining_quantity * price
+    }
+  })
+  
+  // Unrealized gains = current market value - total cost basis
   const unrealized = marketValue - totalBasis
 
   const realized = groupTxs.reduce((sum, tx) => sum + (Number(tx.realized_gain) || 0), 0)
