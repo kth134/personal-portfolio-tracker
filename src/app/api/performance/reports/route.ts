@@ -455,12 +455,23 @@ function calculateMWRForLens(transactions: any[], portfolioValue: number, asOfDa
   flows.push(-portfolioValue)
   dates.push(new Date(asOfDate))
   
-  if (flows.length < 2) return 0
+  if (flows.length < 2) {
+    console.log('[MWR] Not enough flows:', flows.length)
+    return 0
+  }
   
   const { netFlows, netDates } = netCashFlowsByDate(flows, dates)
-  if (netFlows.length < 2) return 0
+  if (netFlows.length < 2) {
+    console.log('[MWR] Not enough net flows:', netFlows.length)
+    return 0
+  }
+  
+  console.log('[MWR] Calculating IRR with', netFlows.length, 'flows, portfolio value:', portfolioValue, 'lens:', lens)
+  console.log('[MWR] Sample flows:', netFlows.slice(0, 5), 'last flow:', netFlows[netFlows.length - 1])
   
   const irr = calculateIRR(netFlows, netDates)
+  console.log('[MWR] IRR result:', irr, 'finite?', Number.isFinite(irr))
+  
   if (!Number.isFinite(irr)) return 0
   
   return irr * 100
