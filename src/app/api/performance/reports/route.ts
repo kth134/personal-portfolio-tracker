@@ -108,7 +108,7 @@ export async function POST(req: Request) {
 
       // Build asset info map
       const assetInfoMap = new Map<string, { ticker: string, name: string, groupId: string | null }>()
-      allTx.forEach(tx => {
+      allTx.forEach((tx: any) => {
         const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
         if (asset?.id && !assetInfoMap.has(asset.id)) {
           assetInfoMap.set(asset.id, {
@@ -127,18 +127,18 @@ export async function POST(req: Request) {
       } else if (aggregate) {
         // Aggregate mode: one series per selected group (group-level aggregation)
         const groupIds = new Set<string>()
-        filteredLots.forEach(lot => {
+        filteredLots.forEach((lot: any) => {
           const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
           const groupId = getAssetGroupId(asset)
           if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
         })
-        filteredTx.forEach(tx => {
+        filteredTx.forEach((tx: any) => {
           const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
           const groupId = getAssetGroupId(asset)
           if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
         })
 
-        for (const groupId of groupIds) {
+        Array.from(groupIds).forEach(groupId => {
           const groupLabel = getGroupLabel(groupId, filteredTx)
           if (!series[groupLabel]) series[groupLabel] = []
 
@@ -153,7 +153,7 @@ export async function POST(req: Request) {
 
           const calc = calculateGroupMetrics(groupTx, groupLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d)
           series[groupLabel].push({ date: d, ...calc })
-        }
+        })
       } else {
         // Non-aggregate mode: group -> asset level data
         const groupIds = new Set<string>()
@@ -163,7 +163,7 @@ export async function POST(req: Request) {
           if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
         })
 
-        for (const groupId of groupIds) {
+        Array.from(groupIds).forEach(groupId => {
           const groupLabel = getGroupLabel(groupId, filteredTx)
           if (!assetSeries[groupLabel]) assetSeries[groupLabel] = {}
 
@@ -176,9 +176,9 @@ export async function POST(req: Request) {
             }
           })
 
-          for (const assetId of groupAssetIds) {
+          Array.from(groupAssetIds).forEach(assetId => {
             const assetInfo = assetInfoMap.get(assetId)
-            if (!assetInfo) continue
+            if (!assetInfo) return
             const assetLabel = assetInfo.name || assetInfo.ticker || assetId
             if (!assetSeries[groupLabel][assetLabel]) assetSeries[groupLabel][assetLabel] = []
 
@@ -190,8 +190,8 @@ export async function POST(req: Request) {
 
             const calc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d)
             assetSeries[groupLabel][assetLabel].push({ date: d, ...calc })
-          }
-        }
+          })
+        })
       }
     }
 
@@ -235,12 +235,12 @@ export async function POST(req: Request) {
         const filteredLots = (allLots || []).filter(lot => lot.purchase_date <= d)
 
         const assetIds = new Set<string>()
-        filteredLots.forEach(lot => {
+        filteredLots.forEach((lot: any) => {
           const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
           if (asset?.id) assetIds.add(asset.id)
         })
 
-        for (const assetId of assetIds) {
+        Array.from(assetIds).forEach(assetId => {
           const assetTx = filteredTx.filter(tx => tx.asset_id === assetId)
           const assetLots = filteredLots.filter(lot => {
             const lotAsset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
@@ -311,13 +311,13 @@ function calculateGroupMetrics(
       }
     }
   })
-  for (const [assetId, lots] of assetLots) {
+  Array.from(assetLots.entries()).forEach(([assetId, lots]) => {
     lots.forEach(lot => {
       if (lot.qty > 0) {
         simulatedOpenLots.push({ asset_id: assetId, remaining_quantity: lot.qty, cost_basis_per_unit: lot.basis })
       }
     })
-  }
+  })
 
   // Calculate market value and unrealized gains
   let marketValue = 0
