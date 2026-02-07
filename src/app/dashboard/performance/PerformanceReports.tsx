@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatUSD } from '@/lib/formatters'
 
@@ -18,7 +18,6 @@ const LENSES = [
   { value: 'total', label: 'Total Portfolio' },
   { value: 'sub_portfolio', label: 'Sub-Portfolio' },
   { value: 'account', label: 'Account' },
-  { value: 'asset', label: 'Asset' },
   { value: 'asset_type', label: 'Asset Type' },
   { value: 'asset_subtype', label: 'Asset Sub-Type' },
   { value: 'geography', label: 'Geography' },
@@ -133,6 +132,18 @@ export default function PerformanceReports() {
     }
   }
 
+  const refreshPrices = async () => {
+    setLoading(true)
+    try {
+      // Trigger price refresh for portfolio assets and benchmarks
+      await fetch('/api/fetch-prices', { method: 'POST', credentials: 'include' })
+      // Re-fetch reports with fresh prices
+      await fetchReports()
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const toggleValue = (value: string) => {
     setSelectedValues(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value])
   }
@@ -157,8 +168,9 @@ export default function PerformanceReports() {
 
   const chartSeries = useMemo(() => {
     if (!data?.series) return []
-    const baseKey = aggregate || lens === 'total' ? 'aggregated' : undefined
-    const seriesKeys = baseKey ? [baseKey] : Object.keys(data.series)
+    // Show individual series when not aggregating (for total lens, this means per-asset view)
+    const showAggregate = aggregate || lens === 'total'
+    const seriesKeys = Object.keys(data.series)
 
     const mapped: any[] = []
     seriesKeys.forEach(key => {
@@ -167,7 +179,8 @@ export default function PerformanceReports() {
         if (!mapped[idx]) mapped[idx] = { date: p.date }
         mapped[idx][`${key}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
         mapped[idx][`${key}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
-        if (valueMode === 'percent' && key === 'aggregated' && data.benchmarks) {
+        // Show benchmarks only in aggregate/total view
+        if (showAggregate && valueMode === 'percent' && data.benchmarks) {
           Object.entries(data.benchmarks).forEach(([bmKey, bmSeries]) => {
             const match = bmSeries.find(b => b.date === p.date)
             mapped[idx][bmKey] = match?.value ?? 0
@@ -239,7 +252,12 @@ export default function PerformanceReports() {
           </div>
         )}
 
-        {lens !== 'total' && selectedValues.length > 1 && (
+        {lens === 'total' ? (
+          <div className="flex items-center gap-2">
+            <Switch checked={aggregate} onCheckedChange={setAggregate} />
+            <Label>Aggregate</Label>
+          </div>
+        ) : selectedValues.length > 1 && (
           <div className="flex items-center gap-2">
             <Switch checked={aggregate} onCheckedChange={setAggregate} />
             <Label>Aggregate selected</Label>
@@ -327,6 +345,14 @@ export default function PerformanceReports() {
             </PopoverContent>
           </Popover>
         </div>
+
+        <div>
+          <Label className="invisible">Refresh</Label>
+          <Button variant="outline" onClick={refreshPrices} disabled={loading} className="gap-2">
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            Refresh Prices
+          </Button>
+        </div>
       </div>
 
       {loading && <div className="text-center py-12">Loading performance reports...</div>}
@@ -356,37 +382,49 @@ export default function PerformanceReports() {
                 Benchmarks are hidden in $ mode (benchmark series are % returns).
               </div>
             )}
-            <ResponsiveContainer width="100%" height={380}>
-              <LineChart data={chartSeries} margin={{ top: 20, right: 30, left: 20, bottom: 10 }}>
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={chartSeries} margin={{ top: 20, right: 50, left: 20, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
-                <YAxis tickFormatter={(v) => chartFormatter(v ?? 0, valueMode)} />
+                <YAxis 
+                  tickFormatter={(v) => chartFormatter(v ?? 0, valueMode)} 
+                  domain={['auto', 'auto']}
+                  padding={{ top: 20, bottom: 20 }}
+                />
                 <Tooltip formatter={(v) => chartFormatter((v as number) ?? 0, valueMode)} />
                 <Legend />
-                {(aggregate || lens === 'total') ? (
-                  <>
-                    {(returnMode === 'both' || returnMode === 'twr') && (
-                      <Line type="monotone" dataKey="aggregated-twr" name="Portfolio TWR" stroke={COLORS[0]} />
-                    )}
-                    {(returnMode === 'both' || returnMode === 'mwr') && (
-                      <Line type="monotone" dataKey="aggregated-mwr" name="Portfolio MWR" stroke={COLORS[1]} />
-                    )}
-                    {Object.keys(data?.benchmarks || {}).map((bm, i) => (
-                      <Line key={bm} type="monotone" dataKey={bm} name={BENCHMARKS.find(b => b.value === bm)?.label || bm} stroke={COLORS[i + 2]} />
-                    ))}
-                  </>
-                ) : (
-                  Object.keys(data?.series || {}).map((key, i) => (
-                    <Fragment key={key}>
-                      {(returnMode === 'both' || returnMode === 'twr') && (
-                        <Line type="monotone" dataKey={`${key}-twr`} name={`${key} TWR`} stroke={COLORS[i % COLORS.length]} />
+                {(() => {
+                  const showAggregate = aggregate || lens === 'total'
+                  const seriesKeys = Object.keys(data?.series || {})
+                  return (
+                    <>
+                      {showAggregate ? (
+                        <>
+                          {(returnMode === 'both' || returnMode === 'twr') && (
+                            <Line type="monotone" dataKey={`${seriesKeys[0]}-twr`} name="Portfolio TWR" stroke={COLORS[0]} />
+                          )}
+                          {(returnMode === 'both' || returnMode === 'mwr') && (
+                            <Line type="monotone" dataKey={`${seriesKeys[0]}-mwr`} name="Portfolio MWR" stroke={COLORS[1]} />
+                          )}
+                          {Object.keys(data?.benchmarks || {}).map((bm, i) => (
+                            <Line key={bm} type="monotone" dataKey={bm} name={BENCHMARKS.find(b => b.value === bm)?.label || bm} stroke={COLORS[i + 2]} />
+                          ))}
+                        </>
+                      ) : (
+                        seriesKeys.map((key, i) => (
+                          <Fragment key={key}>
+                            {(returnMode === 'both' || returnMode === 'twr') && (
+                              <Line type="monotone" dataKey={`${key}-twr`} name={`${key} TWR`} stroke={COLORS[i % COLORS.length]} />
+                            )}
+                            {(returnMode === 'both' || returnMode === 'mwr') && (
+                              <Line type="monotone" dataKey={`${key}-mwr`} name={`${key} MWR`} stroke={COLORS[(i + 1) % COLORS.length]} />
+                            )}
+                          </Fragment>
+                        ))
                       )}
-                      {(returnMode === 'both' || returnMode === 'mwr') && (
-                        <Line type="monotone" dataKey={`${key}-mwr`} name={`${key} MWR`} stroke={COLORS[(i + 1) % COLORS.length]} />
-                      )}
-                    </Fragment>
-                  ))
-                )}
+                    </>
+                  )
+                })()}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -395,20 +433,28 @@ export default function PerformanceReports() {
             {SERIES_METRICS.map(metric => (
               <div key={metric.key} className="space-y-2">
                 <h4 className="font-semibold">{metric.label}</h4>
-                <ResponsiveContainer width="100%" height={260}>
-                  <LineChart data={metricSeries(metric.key)} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={metricSeries(metric.key)} margin={{ top: 10, right: 50, left: 10, bottom: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" />
-                    <YAxis tickFormatter={(v) => formatUSD(v ?? 0)} />
+                    <YAxis 
+                      tickFormatter={(v) => formatUSD(v ?? 0)} 
+                      domain={['auto', 'auto']}
+                      padding={{ top: 20, bottom: 20 }}
+                    />
                     <Tooltip formatter={(v) => formatUSD((v as number) ?? 0)} />
                     <Legend />
-                    {(aggregate || lens === 'total') ? (
-                      <Line type="monotone" dataKey="aggregated" name="Portfolio" stroke={COLORS[0]} />
-                    ) : (
-                      Object.keys(data?.series || {}).map((key, i) => (
-                        <Line key={key} type="monotone" dataKey={key} name={key} stroke={COLORS[i % COLORS.length]} />
-                      ))
-                    )}
+                    {(() => {
+                      const showAggregate = aggregate || lens === 'total'
+                      const seriesKeys = Object.keys(data?.series || {})
+                      return showAggregate ? (
+                        <Line type="monotone" dataKey={seriesKeys[0]} name="Portfolio" stroke={COLORS[0]} />
+                      ) : (
+                        seriesKeys.map((key, i) => (
+                          <Line key={key} type="monotone" dataKey={key} name={key} stroke={COLORS[i % COLORS.length]} />
+                        ))
+                      )
+                    })()}
                   </LineChart>
                 </ResponsiveContainer>
               </div>

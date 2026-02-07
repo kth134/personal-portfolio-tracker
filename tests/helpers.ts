@@ -52,7 +52,8 @@ export function expectClose(actual: number, expected: number, tolerance = 1) {
 export async function getMetricValue(page: Page, label: RegExp | string) {
   const labelLocator = page.getByText(label).first();
   await expect(labelLocator).toBeVisible();
-  const valueLocator = labelLocator.locator('..').locator('p').first();
+  const container = labelLocator.locator('..');
+  const valueLocator = container.locator('p').filter({ hasText: /\d|\$/ }).first();
   const text = await valueLocator.innerText();
   return text.trim();
 }

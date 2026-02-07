@@ -80,16 +80,49 @@ export async function POST(req: Request) {
       const filteredTx = allTx.filter(tx => tx.date <= d)
       const filteredLots = (allLots || []).filter(lot => lot.purchase_date <= d)
 
-      const groups = new Map<string, { tx: any[], lots: any[] }>()
-      if (aggregate || lens === 'total') {
-        groups.set('aggregated', { tx: filteredTx, lots: filteredLots })
+      const groups = new Map<string, { tx: any[], lots: any[], label: string }>()
+      
+      // When lens is 'total' and not aggregating, group by individual assets
+      const showAggregate = aggregate || lens === 'total'
+      
+      if (showAggregate) {
+        groups.set('aggregated', { tx: filteredTx, lots: filteredLots, label: 'Portfolio' })
+      } else if (lens === 'total' && !aggregate) {
+        // Non-aggregate mode for Total Portfolio: group by individual assets
+        const assetMap = new Map<string, { ticker: string, name: string }>()
+        allTx.forEach(tx => {
+          const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+          if (asset?.id) {
+            assetMap.set(asset.id, { ticker: asset.ticker || '', name: asset.name || asset.ticker || '' })
+          }
+        })
+        
+        filteredTx.forEach(tx => {
+          const assetId = tx.asset_id
+          if (!assetId) return
+          const assetInfo = assetMap.get(assetId)
+          if (!assetInfo) return
+          const label = assetInfo.name || assetInfo.ticker || assetId
+          if (!groups.has(label)) groups.set(label, { tx: [], lots: [], label })
+          groups.get(label)!.tx.push(tx)
+        })
+        
+        filteredLots.forEach(lot => {
+          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+          const assetId = asset?.id
+          if (!assetId) return
+          const assetInfo = assetMap.get(assetId)
+          if (!assetInfo) return
+          const label = assetInfo.name || assetInfo.ticker || assetId
+          if (!groups.has(label)) groups.set(label, { tx: [], lots: [], label })
+          groups.get(label)!.lots.push(lot)
+        })
       } else {
         const getGroupId = (item: any, isLot: boolean) => {
           const asset = isLot ? (Array.isArray(item.asset) ? item.asset[0] : item.asset) : item.asset
           switch (lens) {
             case 'account': return item.account_id
             case 'sub_portfolio': return asset?.sub_portfolio_id
-            case 'asset': return asset?.id
             case 'asset_type': return asset?.asset_type
             case 'asset_subtype': return asset?.asset_subtype
             case 'geography': return asset?.geography
@@ -99,29 +132,41 @@ export async function POST(req: Request) {
           }
         }
 
+        const getGroupLabel = (groupId: string) => {
+          if (lens === 'account') {
+            const tx = filteredTx.find((t: any) => t.account_id === groupId)
+            const account = tx?.account
+            return Array.isArray(account) ? account[0]?.name : account?.name || groupId
+          }
+          return groupId
+        }
+
         filteredTx.forEach(tx => {
           const groupId = getGroupId(tx, false)
           if (groupId && selectedValues.includes(groupId)) {
-            if (!groups.has(groupId)) groups.set(groupId, { tx: [], lots: [] })
-            groups.get(groupId)!.tx.push(tx)
+            const label = getGroupLabel(groupId)
+            if (!groups.has(label)) groups.set(label, { tx: [], lots: [], label })
+            groups.get(label)!.tx.push(tx)
           }
         })
 
         filteredLots.forEach(lot => {
           const groupId = getGroupId(lot, true)
           if (groupId && selectedValues.includes(groupId)) {
-            if (!groups.has(groupId)) groups.set(groupId, { tx: [], lots: [] })
-            groups.get(groupId)!.lots.push(lot)
+            const label = getGroupLabel(groupId)
+            if (!groups.has(label)) groups.set(label, { tx: [], lots: [], label })
+            groups.get(label)!.lots.push(lot)
           }
         })
       }
 
-      for (const [groupKey, { tx: groupTxs, lots: groupLots }] of groups) {
+      for (const [groupKey, { tx: groupTxs, lots: groupLots, label }] of groups) {
         if (!series[groupKey]) series[groupKey] = []
 
         const { totalCash: groupCash } = calculateCashBalances(groupTxs)
         const groupOriginalInvestment = groupLots.reduce((sum, lot) => sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity)), 0)
 
+        // Build open lots by simulating FIFO from transactions
         const simulatedOpenLots: any[] = []
         const assetLots = new Map<string, { qty: number, basis: number }[]>()
         groupTxs.forEach(tx => {
@@ -158,13 +203,16 @@ export async function POST(req: Request) {
           })
         }
 
+        // Calculate market value and unrealized gains
         let marketValue = 0
         let unrealized = 0
         simulatedOpenLots.forEach(lot => {
           const ticker = assetToTicker.get(lot.asset_id) || ''
           const price = (d === lastDateStr ? (currentPrices[ticker] || 0) : (historicalPrices[ticker] || []).find(p => p.date === d)?.close || 0)
-          marketValue += lot.remaining_quantity * price
-          unrealized += lot.remaining_quantity * (price - lot.cost_basis_per_unit)
+          if (price > 0) {
+            marketValue += lot.remaining_quantity * price
+            unrealized += lot.remaining_quantity * (price - lot.cost_basis_per_unit)
+          }
         })
 
         const realized = groupTxs.reduce((sum, tx) => sum + (Number(tx.realized_gain) || 0), 0)
@@ -175,7 +223,10 @@ export async function POST(req: Request) {
         const portfolioValue = marketValue + groupCash
         const totalReturnPct = groupOriginalInvestment > 0 ? (netGain / groupOriginalInvestment) * 100 : 0
 
+        // Calculate IRR (MWR) using the centralized function
         const irr = calculateMWR(groupTxs, portfolioValue, d)
+        
+        // Calculate TWR - time-weighted return based on portfolio value change
         const twr = groupOriginalInvestment > 0 ? ((portfolioValue / groupOriginalInvestment) - 1) * 100 : 0
 
         series[groupKey].push({
@@ -189,6 +240,7 @@ export async function POST(req: Request) {
           originalInvestment: groupOriginalInvestment,
           irr,
           twr,
+          label,
         })
       }
     }
