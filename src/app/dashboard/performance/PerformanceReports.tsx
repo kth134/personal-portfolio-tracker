@@ -245,6 +245,18 @@ export default function PerformanceReports() {
 
   // Metric series for non-aggregate mode (per group)
   const assetMetricSeries = (groupKey: string, metricKey: string) => {
+    // For Total Portfolio lens, use assetBreakdown
+    if (groupKey === 'Total Portfolio' && data?.assetBreakdown) {
+      const mapped: any[] = []
+      Object.entries(data.assetBreakdown).forEach(([assetKey, points]) => {
+        points.forEach((p: any, idx: number) => {
+          if (!mapped[idx]) mapped[idx] = { date: p.date }
+          mapped[idx][assetKey] = p[metricKey]
+        })
+      })
+      return mapped
+    }
+    // For other lenses, use assetSeries
     const assets = data?.assetSeries?.[groupKey] || {}
     const mapped: any[] = []
     Object.entries(assets).forEach(([assetKey, points]) => {
@@ -449,7 +461,7 @@ export default function PerformanceReports() {
           </div>
 
           {/* Aggregate Mode: Single chart with group-level lines */}
-          {(aggregate || lens === 'total') && (
+          {aggregate && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">MWR / TWR Performance</h3>
@@ -552,14 +564,14 @@ export default function PerformanceReports() {
           )}
 
           {/* Total Portfolio Non-Aggregate: Single chart with asset lines */}
-          {!aggregate && lens === 'total' && data?.assetBreakdown && (
+          {!aggregate && lens === 'total' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">MWR / TWR Performance by Asset</h3>
                 <div className="text-sm text-muted-foreground">Individual asset performance</div>
               </div>
               <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={totalPortfolioAssetSeries['Total Portfolio']} margin={{ top: 20, right: 50, left: 20, bottom: 10 }}>
+                <LineChart data={totalPortfolioAssetSeries['Total Portfolio'] || []} margin={{ top: 20, right: 50, left: 20, bottom: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis 
@@ -585,7 +597,7 @@ export default function PerformanceReports() {
           )}
 
           {/* Metric charts for aggregate mode */}
-          {(aggregate || lens === 'total') && (
+          {aggregate && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {SERIES_METRICS.map(metric => (
                 <div key={metric.key} className="space-y-2">
@@ -615,7 +627,7 @@ export default function PerformanceReports() {
             </div>
           )}
 
-          {/* Metric charts for non-aggregate mode */}
+          {/* Metric charts for non-aggregate mode - Non-total lens */}
           {!aggregate && lens !== 'total' && (
             <div className="space-y-8">
               <h3 className="text-lg font-semibold">Metrics by Asset</h3>
@@ -655,6 +667,33 @@ export default function PerformanceReports() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Metric charts for non-aggregate mode - Total Portfolio lens */}
+          {!aggregate && lens === 'total' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {SERIES_METRICS.map(metric => (
+                <div key={metric.key} className="space-y-2">
+                  <h4 className="font-semibold">{metric.label} by Asset</h4>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <LineChart data={assetMetricSeries('Total Portfolio', metric.key)} margin={{ top: 10, right: 50, left: 10, bottom: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis 
+                        tickFormatter={(v) => formatUSD(v ?? 0)} 
+                        domain={['auto', 'auto']}
+                        padding={{ top: 20, bottom: 20 }}
+                      />
+                      <Tooltip formatter={(v) => formatUSD((v as number) ?? 0)} />
+                      <Legend />
+                      {Object.keys(data?.assetBreakdown || {}).map((assetKey, i) => (
+                        <Line key={assetKey} type="monotone" dataKey={assetKey} name={assetKey} stroke={COLORS[i % COLORS.length]} />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ))}
             </div>
           )}
         </>
