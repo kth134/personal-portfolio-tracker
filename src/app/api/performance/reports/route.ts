@@ -32,6 +32,20 @@ export async function POST(req: Request) {
 
     const { start, end } = resolveDateRange(period, startDate, endDate)
     const allTx = await fetchAllUserTransactionsServer(supabase, user.id)
+    
+    // Fetch sub-portfolios and accounts for name lookup
+    const { data: subPortfolios } = await supabase
+      .from('sub_portfolios')
+      .select('id, name')
+      .eq('user_id', user.id)
+    const { data: accounts } = await supabase
+      .from('accounts')
+      .select('id, name')
+      .eq('user_id', user.id)
+    
+    const subPortfolioNames = new Map(subPortfolios?.map(sp => [sp.id, sp.name]) || [])
+    const accountNames = new Map(accounts?.map(acc => [acc.id, acc.name]) || [])
+    
     const { data: allLots } = await supabase
       .from('tax_lots')
       .select(`
@@ -83,10 +97,10 @@ export async function POST(req: Request) {
       const filteredLots = (allLots || []).filter(lot => lot.purchase_date <= d)
 
       // Get group mapping for all assets (needed for both modes)
-      const getAssetGroupId = (asset: any) => {
+      const getAssetGroupId = (asset: any, lotAccountId?: string) => {
         if (!asset) return null
         switch (lens) {
-          case 'account': return asset.account_id
+          case 'account': return lotAccountId || asset.account_id
           case 'sub_portfolio': return asset.sub_portfolio_id
           case 'asset_type': return asset.asset_type
           case 'asset_subtype': return asset.asset_subtype
@@ -99,9 +113,10 @@ export async function POST(req: Request) {
 
       const getGroupLabel = (groupId: string, txList: any[]) => {
         if (lens === 'account') {
-          const tx = txList.find((t: any) => t.account_id === groupId)
-          const account = tx?.account
-          return Array.isArray(account) ? account[0]?.name : account?.name || groupId
+          return accountNames.get(groupId) || groupId
+        }
+        if (lens === 'sub_portfolio') {
+          return subPortfolioNames.get(groupId) || groupId
         }
         return groupId
       }
@@ -114,7 +129,7 @@ export async function POST(req: Request) {
           assetInfoMap.set(asset.id, {
             ticker: asset.ticker || '',
             name: asset.name || asset.ticker || '',
-            groupId: getAssetGroupId(asset)
+            groupId: getAssetGroupId(asset, tx.account_id)
           })
         }
       })
@@ -129,12 +144,12 @@ export async function POST(req: Request) {
         const groupIds = new Set<string>()
         filteredLots.forEach((lot: any) => {
           const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
-          const groupId = getAssetGroupId(asset)
+          const groupId = getAssetGroupId(asset, lot.account_id)
           if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
         })
         filteredTx.forEach((tx: any) => {
           const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
-          const groupId = getAssetGroupId(asset)
+          const groupId = getAssetGroupId(asset, tx.account_id)
           if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
         })
 
@@ -144,11 +159,11 @@ export async function POST(req: Request) {
 
           const groupTx = filteredTx.filter(tx => {
             const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
-            return getAssetGroupId(asset) === groupId
+            return getAssetGroupId(asset, tx.account_id) === groupId
           })
           const groupLots = filteredLots.filter(lot => {
             const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
-            return getAssetGroupId(asset) === groupId
+            return getAssetGroupId(asset, lot.account_id) === groupId
           })
 
           const calc = calculateGroupMetrics(groupTx, groupLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d)
@@ -157,9 +172,9 @@ export async function POST(req: Request) {
       } else {
         // Non-aggregate mode: group -> asset level data
         const groupIds = new Set<string>()
-        filteredLots.forEach(lot => {
+        filteredLots.forEach((lot: any) => {
           const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
-          const groupId = getAssetGroupId(asset)
+          const groupId = getAssetGroupId(asset, lot.account_id)
           if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
         })
 
@@ -169,9 +184,9 @@ export async function POST(req: Request) {
 
           // Get assets in this group
           const groupAssetIds = new Set<string>()
-          filteredLots.forEach(lot => {
+          filteredLots.forEach((lot: any) => {
             const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
-            if (getAssetGroupId(asset) === groupId && asset?.id) {
+            if (getAssetGroupId(asset, lot.account_id) === groupId && asset?.id) {
               groupAssetIds.add(asset.id)
             }
           })
