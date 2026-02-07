@@ -2,9 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
-  turbopack: {
-    root: process.cwd(),
-  },
 
   async headers() {
     // Supabase from your env.local
