@@ -7,7 +7,7 @@ export default defineConfig({
   retries: 0,
   globalSetup: './tests/global.setup.ts',
   use: {
-    baseURL: 'https://rainvest.xyz',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'https://rainvest.xyz',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     storageState: 'playwright/.auth/state.json',

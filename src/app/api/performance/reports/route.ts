@@ -1,0 +1,366 @@
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { addDays, addMonths, endOfMonth, format, formatISO, isAfter, parseISO, startOfMonth, subMonths, subYears } from 'date-fns'
+import { calculateCashBalances, fetchAllUserTransactionsServer, transactionFlowForIRR, calculateIRR, netCashFlowsByDate } from '@/lib/finance'
+
+const BENCHMARK_MAP: Record<string, string> = {
+  sp500: 'SPY',
+  nasdaq: 'QQQ',
+  tlt: 'TLT',
+  vxus: 'VXUS',
+}
+
+const SIXTY_FORTY = '6040'
+
+export async function POST(req: Request) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const body = await req.json()
+    const {
+      lens = 'total',
+      selectedValues = [],
+      aggregate = true,
+      period = '1Y',
+      startDate,
+      endDate,
+      granularity = 'monthly',
+      benchmarks = [],
+    } = body
+
+    const { start, end } = resolveDateRange(period, startDate, endDate)
+    const allTx = await fetchAllUserTransactionsServer(supabase, user.id)
+    const { data: allLots } = await supabase
+      .from('tax_lots')
+      .select(`
+        asset_id,
+        account_id,
+        purchase_date,
+        remaining_quantity,
+        cost_basis_per_unit,
+        quantity,
+        asset:assets (id, ticker, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolio_id)
+      `)
+      .eq('user_id', user.id)
+
+    if (!allTx || allTx.length === 0) {
+      return NextResponse.json({ series: {}, totals: {}, benchmarks: {} })
+    }
+
+    const dates = buildDates(start, end, granularity)
+    const lastDateStr = formatISO(new Date(), { representation: 'date' })
+
+    const assetToTicker = new Map(allTx.filter(tx => tx.asset).map(tx => {
+      const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+      return [asset.id, asset.ticker]
+    }))
+
+    const portfolioTickers = [...new Set(allTx.filter(tx => tx.asset_id).map(tx => {
+      const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+      return asset?.ticker || ''
+    }).filter(Boolean))]
+
+    const benchmarkTickers = benchmarks
+      .filter((b: string) => b !== SIXTY_FORTY)
+      .map((b: string) => BENCHMARK_MAP[b])
+      .filter(Boolean)
+
+    const allTickers = [...new Set([...portfolioTickers, ...benchmarkTickers])]
+
+    const historicalPrices = await getHistoricalPrices(supabase, allTickers, start, end, granularity)
+    const currentPrices = await getCurrentPrices(supabase, allTickers)
+    const benchmarkSeries = await getBenchmarkSeries(supabase, benchmarks, start, end, granularity)
+
+    const series: Record<string, any[]> = {}
+    const totals: Record<string, any> = {}
+
+    for (const d of dates) {
+      const filteredTx = allTx.filter(tx => tx.date <= d)
+      const filteredLots = (allLots || []).filter(lot => lot.purchase_date <= d)
+
+      const groups = new Map<string, { tx: any[], lots: any[] }>()
+      if (aggregate || lens === 'total') {
+        groups.set('aggregated', { tx: filteredTx, lots: filteredLots })
+      } else {
+        const getGroupId = (item: any, isLot: boolean) => {
+          const asset = isLot ? (Array.isArray(item.asset) ? item.asset[0] : item.asset) : item.asset
+          switch (lens) {
+            case 'account': return item.account_id
+            case 'sub_portfolio': return asset?.sub_portfolio_id
+            case 'asset': return asset?.id
+            case 'asset_type': return asset?.asset_type
+            case 'asset_subtype': return asset?.asset_subtype
+            case 'geography': return asset?.geography
+            case 'size_tag': return asset?.size_tag
+            case 'factor_tag': return asset?.factor_tag
+            default: return null
+          }
+        }
+
+        filteredTx.forEach(tx => {
+          const groupId = getGroupId(tx, false)
+          if (groupId && selectedValues.includes(groupId)) {
+            if (!groups.has(groupId)) groups.set(groupId, { tx: [], lots: [] })
+            groups.get(groupId)!.tx.push(tx)
+          }
+        })
+
+        filteredLots.forEach(lot => {
+          const groupId = getGroupId(lot, true)
+          if (groupId && selectedValues.includes(groupId)) {
+            if (!groups.has(groupId)) groups.set(groupId, { tx: [], lots: [] })
+            groups.get(groupId)!.lots.push(lot)
+          }
+        })
+      }
+
+      for (const [groupKey, { tx: groupTxs, lots: groupLots }] of groups) {
+        if (!series[groupKey]) series[groupKey] = []
+
+        const { totalCash: groupCash } = calculateCashBalances(groupTxs)
+        const groupOriginalInvestment = groupLots.reduce((sum, lot) => sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity)), 0)
+
+        const simulatedOpenLots: any[] = []
+        const assetLots = new Map<string, { qty: number, basis: number }[]>()
+        groupTxs.forEach(tx => {
+          const assetId = tx.asset_id
+          if (!assetId) return
+          if (tx.type === 'Buy') {
+            const qty = Number(tx.quantity || 0)
+            const prc = Number(tx.price_per_unit || 0)
+            if (!assetLots.has(assetId)) assetLots.set(assetId, [])
+            assetLots.get(assetId)!.push({ qty, basis: prc })
+          } else if (tx.type === 'Sell') {
+            const qty = Number(tx.quantity || 0)
+            if (assetLots.has(assetId)) {
+              let remain = qty
+              const lots = assetLots.get(assetId)!
+              for (let i = 0; i < lots.length && remain > 0; i++) {
+                if (lots[i].qty > remain) {
+                  lots[i].qty -= remain
+                  remain = 0
+                } else {
+                  remain -= lots[i].qty
+                  lots[i].qty = 0
+                }
+              }
+              assetLots.set(assetId, lots.filter(l => l.qty > 0))
+            }
+          }
+        })
+        for (const [assetId, lots] of assetLots) {
+          lots.forEach(lot => {
+            if (lot.qty > 0) {
+              simulatedOpenLots.push({ asset_id: assetId, remaining_quantity: lot.qty, cost_basis_per_unit: lot.basis })
+            }
+          })
+        }
+
+        let marketValue = 0
+        let unrealized = 0
+        simulatedOpenLots.forEach(lot => {
+          const ticker = assetToTicker.get(lot.asset_id) || ''
+          const price = (d === lastDateStr ? (currentPrices[ticker] || 0) : (historicalPrices[ticker] || []).find(p => p.date === d)?.close || 0)
+          marketValue += lot.remaining_quantity * price
+          unrealized += lot.remaining_quantity * (price - lot.cost_basis_per_unit)
+        })
+
+        const realized = groupTxs.reduce((sum, tx) => sum + (Number(tx.realized_gain) || 0), 0)
+        const dividends = groupTxs.reduce((sum, tx) => sum + (tx.type === 'Dividend' ? Number(tx.amount || 0) : 0), 0)
+        const interest = groupTxs.reduce((sum, tx) => sum + (tx.type === 'Interest' ? Number(tx.amount || 0) : 0), 0)
+        const income = dividends + interest
+        const netGain = unrealized + realized + income
+        const portfolioValue = marketValue + groupCash
+        const totalReturnPct = groupOriginalInvestment > 0 ? (netGain / groupOriginalInvestment) * 100 : 0
+
+        const irr = calculateMWR(groupTxs, portfolioValue, d)
+        const twr = groupOriginalInvestment > 0 ? ((portfolioValue / groupOriginalInvestment) - 1) * 100 : 0
+
+        series[groupKey].push({
+          date: d,
+          portfolioValue,
+          netGain,
+          unrealized,
+          realized,
+          income,
+          totalReturnPct,
+          originalInvestment: groupOriginalInvestment,
+          irr,
+          twr,
+        })
+      }
+    }
+
+    for (const key of Object.keys(series)) {
+      const s = series[key]
+      const last = s[s.length - 1]
+      totals[key] = {
+        netGain: last?.netGain || 0,
+        income: last?.income || 0,
+        realized: last?.realized || 0,
+        unrealized: last?.unrealized || 0,
+        totalReturnPct: last?.totalReturnPct || 0,
+        irr: last?.irr || 0,
+      }
+    }
+
+    return NextResponse.json({ series, totals, benchmarks: benchmarkSeries })
+  } catch (error) {
+    console.error(error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}
+
+function resolveDateRange(period: string, startDate?: string, endDate?: string) {
+  if (startDate && endDate) return { start: startDate, end: endDate }
+  const today = new Date()
+  let start: Date
+  switch (period) {
+    case '1M': start = subMonths(today, 1); break
+    case '3M': start = subMonths(today, 3); break
+    case '1Y': start = subYears(today, 1); break
+    case '3Y': start = subYears(today, 3); break
+    case '5Y': start = subYears(today, 5); break
+    case 'All': start = subYears(today, 10); break
+    default: start = subYears(today, 1)
+  }
+  return { start: format(start, 'yyyy-MM-dd'), end: format(today, 'yyyy-MM-dd') }
+}
+
+function buildDates(start: string, end: string, granularity: 'daily' | 'monthly') {
+  const dates: string[] = []
+  if (granularity === 'daily') {
+    let current = parseISO(start)
+    const endDate = parseISO(end)
+    while (!isAfter(current, endDate)) {
+      dates.push(format(current, 'yyyy-MM-dd'))
+      current = addDays(current, 1)
+    }
+    return dates
+  }
+  let current = endOfMonth(startOfMonth(parseISO(start)))
+  const endDate = parseISO(end)
+  while (!isAfter(current, endDate)) {
+    dates.push(format(current, 'yyyy-MM-dd'))
+    current = endOfMonth(addMonths(current, 1))
+  }
+  if (dates[dates.length - 1] !== end) dates.push(end)
+  return dates
+}
+
+function calculateMWR(transactions: any[], portfolioValue: number, asOfDate: string) {
+  const flows: number[] = []
+  const dates: Date[] = []
+  transactions.forEach(tx => {
+    flows.push(transactionFlowForIRR(tx))
+    dates.push(new Date(tx.date))
+  })
+  flows.push(-portfolioValue)
+  dates.push(new Date(asOfDate))
+  const { netFlows, netDates } = netCashFlowsByDate(flows, dates)
+  if (netFlows.length < 2) return 0
+  const irr = calculateIRR(netFlows, netDates)
+  if (!Number.isFinite(irr)) return 0
+  return irr * 100
+}
+
+async function getHistoricalPrices(supabase: any, tickers: string[], start: string, end: string, granularity: 'daily' | 'monthly') {
+  const prices: Record<string, { date: string, close: number }[]> = {}
+  if (!tickers.length) return prices
+
+  const neededDates = buildDates(start, end, granularity)
+
+  const { data: dbPrices } = await supabase
+    .from('historical_prices')
+    .select('ticker, date, close')
+    .in('ticker', tickers)
+    .in('date', neededDates)
+    .order('date')
+
+  dbPrices?.forEach(p => {
+    if (!prices[p.ticker]) prices[p.ticker] = []
+    prices[p.ticker].push({ date: p.date, close: Number(p.close) })
+  })
+
+  const alphaKey = process.env.ALPHA_VANTAGE_API_KEY
+  if (!alphaKey) throw new Error('Missing ALPHA_VANTAGE_API_KEY')
+
+  const inserts: { ticker: string, date: string, close: number, source: string }[] = []
+
+  for (const t of tickers) {
+    if (!prices[t]) prices[t] = []
+    const existingDates = new Set(prices[t].map(p => p.date))
+    if (existingDates.size === neededDates.length) continue
+
+    const func = granularity === 'daily' ? 'TIME_SERIES_DAILY_ADJUSTED' : 'TIME_SERIES_MONTHLY'
+    const alphaUrl = `https://www.alphavantage.co/query?function=${func}&symbol=${t}&apikey=${alphaKey}`
+    const alphaRes = await fetch(alphaUrl)
+    if (!alphaRes.ok) continue
+    const alphaData = await alphaRes.json()
+    const series = alphaData['Time Series (Daily)'] || alphaData['Monthly Time Series']
+    if (!series) continue
+
+    Object.keys(series).forEach(dateStr => {
+      if (neededDates.includes(dateStr) && !existingDates.has(dateStr)) {
+        const close = parseFloat(series[dateStr]['4. close'])
+        prices[t].push({ date: dateStr, close })
+        inserts.push({ ticker: t, date: dateStr, close, source: 'alphavantage' })
+      }
+    })
+    prices[t].sort((a, b) => a.date.localeCompare(b.date))
+  }
+
+  if (inserts.length) {
+    await supabase.from('historical_prices').insert(inserts)
+  }
+
+  return prices
+}
+
+async function getCurrentPrices(supabase: any, tickers: string[]) {
+  const prices: Record<string, number> = {}
+  if (!tickers.length) return prices
+
+  const alphaKey = process.env.ALPHA_VANTAGE_API_KEY
+  if (!alphaKey) throw new Error('Missing ALPHA_VANTAGE_API_KEY')
+
+  for (const ticker of tickers) {
+    const alphaUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${alphaKey}`
+    const alphaRes = await fetch(alphaUrl)
+    if (alphaRes.ok) {
+      const data = await alphaRes.json()
+      const quote = data['Global Quote']
+      if (quote && quote['05. price']) {
+        prices[ticker] = parseFloat(quote['05. price'])
+        continue
+      }
+    }
+    prices[ticker] = 0
+  }
+  return prices
+}
+
+async function getBenchmarkSeries(supabase: any, benchmarks: string[], start: string, end: string, granularity: 'daily' | 'monthly') {
+  const series: Record<string, { date: string, value: number }[]> = {}
+  const benchIds = benchmarks.filter((b: string) => b !== SIXTY_FORTY)
+  const tickers = benchIds.map((b: string) => BENCHMARK_MAP[b]).filter(Boolean)
+
+  const prices = await getHistoricalPrices(supabase, tickers, start, end, granularity)
+  benchIds.forEach((benchId: string) => {
+    const ticker = BENCHMARK_MAP[benchId]
+    const pts = prices[ticker] || []
+    const first = pts[0]?.close || 1
+    series[benchId] = pts.map(p => ({ date: p.date, value: first > 0 ? ((p.close / first) - 1) * 100 : 0 }))
+  })
+
+  if (benchmarks.includes(SIXTY_FORTY)) {
+    const spy = series['sp500'] || []
+    const tlt = series['tlt'] || []
+    const mapTLT = new Map(tlt.map(p => [p.date, p.value]))
+    series['6040'] = spy.map(p => ({ date: p.date, value: (p.value * 0.6) + ((mapTLT.get(p.date) || 0) * 0.4) }))
+  }
+
+  return series
+}

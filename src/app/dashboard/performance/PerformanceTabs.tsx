@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PerformanceContent from './PerformanceContent';
-import PerformanceVisualizations from './PerformanceVisualizations';
+import PerformanceReports from './PerformanceReports';
 
 export default function PerformanceTabs() {
   const searchParams = useSearchParams();
@@ -25,7 +25,7 @@ export default function PerformanceTabs() {
         <PerformanceContent />
       </TabsContent>
       <TabsContent value="reports">
-        <PerformanceVisualizations />
+        <PerformanceReports />
       </TabsContent>
     </Tabs>
   );

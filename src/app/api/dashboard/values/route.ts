@@ -22,14 +22,15 @@ export async function POST(req: Request) {
     switch (lens) {
       case 'asset':
         // For asset, return {value: id, label: display}
+        query = query.select('asset:assets(id, ticker, name)');
         break;
       case 'sub_portfolio':
         column = 'asset.sub_portfolios.name';
-        query = query.select('asset:assets(sub_portfolios!sub_portfolio_id(name))');
+        query = query.select('asset:assets(sub_portfolios!sub_portfolio_id(id, name))');
         break;
       case 'account':
         column = 'account.name';
-        query = query.select('account:accounts(name)');
+        query = query.select('account:accounts(id, name)');
         break;
       case 'asset_type':
         column = 'asset.asset_type';
@@ -75,9 +76,25 @@ export async function POST(req: Request) {
       data?.forEach((row: any) => {
         let value: string | null = null;
         if (lens === 'sub_portfolio') {
-          value = (row.asset?.sub_portfolios?.name || '').trim();
+          const sp = row.asset?.sub_portfolios;
+          const id = sp?.id || '';
+          value = id;
+          const label = (sp?.name || '').trim();
+          if (value && label && !valuesSet.has(value)) {
+            valuesSet.add(value);
+            valuesArray.push({ value, label });
+          }
+          return;
         } else if (lens === 'account') {
-          value = (row.account?.name || '').trim();
+          const acc = row.account;
+          const id = acc?.id || '';
+          value = id;
+          const label = (acc?.name || '').trim();
+          if (value && label && !valuesSet.has(value)) {
+            valuesSet.add(value);
+            valuesArray.push({ value, label });
+          }
+          return;
         } else {
           value = (row.asset?.[lens] || '').trim();
         }
