@@ -74,91 +74,126 @@ export async function POST(req: Request) {
     const benchmarkSeries = await getBenchmarkSeries(supabase, benchmarks, start, end, granularity)
 
     const series: Record<string, any[]> = {}
+    const assetSeries: Record<string, Record<string, any[]>> = {} // For non-aggregate mode: group -> asset -> data
     const totals: Record<string, any> = {}
+    const assetTotals: Record<string, Record<string, any>> = {} // For non-aggregate mode
 
     for (const d of dates) {
       const filteredTx = allTx.filter(tx => tx.date <= d)
       const filteredLots = (allLots || []).filter(lot => lot.purchase_date <= d)
 
-      const groups = new Map<string, { tx: any[], lots: any[], label: string }>()
-      
-      // When lens is 'total' and not aggregating, group by individual assets
-      const showAggregate = aggregate || lens === 'total'
-      
-      if (showAggregate) {
-        groups.set('aggregated', { tx: filteredTx, lots: filteredLots, label: 'Portfolio' })
-      } else if (lens === 'total' && !aggregate) {
-        // Non-aggregate mode for Total Portfolio: group by individual assets
-        const assetMap = new Map<string, { ticker: string, name: string }>()
-        allTx.forEach(tx => {
-          const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
-          if (asset?.id) {
-            assetMap.set(asset.id, { ticker: asset.ticker || '', name: asset.name || asset.ticker || '' })
-          }
-        })
-        
-        filteredTx.forEach(tx => {
-          const assetId = tx.asset_id
-          if (!assetId) return
-          const assetInfo = assetMap.get(assetId)
-          if (!assetInfo) return
-          const label = assetInfo.name || assetInfo.ticker || assetId
-          if (!groups.has(label)) groups.set(label, { tx: [], lots: [], label })
-          groups.get(label)!.tx.push(tx)
-        })
-        
+      // Get group mapping for all assets (needed for both modes)
+      const getAssetGroupId = (asset: any) => {
+        if (!asset) return null
+        switch (lens) {
+          case 'account': return asset.account_id
+          case 'sub_portfolio': return asset.sub_portfolio_id
+          case 'asset_type': return asset.asset_type
+          case 'asset_subtype': return asset.asset_subtype
+          case 'geography': return asset.geography
+          case 'size_tag': return asset.size_tag
+          case 'factor_tag': return asset.factor_tag
+          default: return null
+        }
+      }
+
+      const getGroupLabel = (groupId: string, txList: any[]) => {
+        if (lens === 'account') {
+          const tx = txList.find((t: any) => t.account_id === groupId)
+          const account = tx?.account
+          return Array.isArray(account) ? account[0]?.name : account?.name || groupId
+        }
+        return groupId
+      }
+
+      // Build asset info map
+      const assetInfoMap = new Map<string, { ticker: string, name: string, groupId: string | null }>()
+      allTx.forEach(tx => {
+        const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+        if (asset?.id && !assetInfoMap.has(asset.id)) {
+          assetInfoMap.set(asset.id, {
+            ticker: asset.ticker || '',
+            name: asset.name || asset.ticker || '',
+            groupId: getAssetGroupId(asset)
+          })
+        }
+      })
+
+      if (lens === 'total') {
+        // Total portfolio lens: always aggregate everything
+        if (!series['aggregated']) series['aggregated'] = []
+        const calc = calculateGroupMetrics(filteredTx, filteredLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d)
+        series['aggregated'].push({ date: d, ...calc })
+      } else if (aggregate) {
+        // Aggregate mode: one series per selected group (group-level aggregation)
+        const groupIds = new Set<string>()
         filteredLots.forEach(lot => {
           const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
-          const assetId = asset?.id
-          if (!assetId) return
-          const assetInfo = assetMap.get(assetId)
-          if (!assetInfo) return
-          const label = assetInfo.name || assetInfo.ticker || assetId
-          if (!groups.has(label)) groups.set(label, { tx: [], lots: [], label })
-          groups.get(label)!.lots.push(lot)
+          const groupId = getAssetGroupId(asset)
+          if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
         })
-      } else {
-        const getGroupId = (item: any, isLot: boolean) => {
-          const asset = isLot ? (Array.isArray(item.asset) ? item.asset[0] : item.asset) : item.asset
-          switch (lens) {
-            case 'account': return item.account_id
-            case 'sub_portfolio': return asset?.sub_portfolio_id
-            case 'asset_type': return asset?.asset_type
-            case 'asset_subtype': return asset?.asset_subtype
-            case 'geography': return asset?.geography
-            case 'size_tag': return asset?.size_tag
-            case 'factor_tag': return asset?.factor_tag
-            default: return null
-          }
-        }
-
-        const getGroupLabel = (groupId: string) => {
-          if (lens === 'account') {
-            const tx = filteredTx.find((t: any) => t.account_id === groupId)
-            const account = tx?.account
-            return Array.isArray(account) ? account[0]?.name : account?.name || groupId
-          }
-          return groupId
-        }
-
         filteredTx.forEach(tx => {
-          const groupId = getGroupId(tx, false)
-          if (groupId && selectedValues.includes(groupId)) {
-            const label = getGroupLabel(groupId)
-            if (!groups.has(label)) groups.set(label, { tx: [], lots: [], label })
-            groups.get(label)!.tx.push(tx)
-          }
+          const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+          const groupId = getAssetGroupId(asset)
+          if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
         })
 
+        for (const groupId of groupIds) {
+          const groupLabel = getGroupLabel(groupId, filteredTx)
+          if (!series[groupLabel]) series[groupLabel] = []
+
+          const groupTx = filteredTx.filter(tx => {
+            const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+            return getAssetGroupId(asset) === groupId
+          })
+          const groupLots = filteredLots.filter(lot => {
+            const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+            return getAssetGroupId(asset) === groupId
+          })
+
+          const calc = calculateGroupMetrics(groupTx, groupLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d)
+          series[groupLabel].push({ date: d, ...calc })
+        }
+      } else {
+        // Non-aggregate mode: group -> asset level data
+        const groupIds = new Set<string>()
         filteredLots.forEach(lot => {
-          const groupId = getGroupId(lot, true)
-          if (groupId && selectedValues.includes(groupId)) {
-            const label = getGroupLabel(groupId)
-            if (!groups.has(label)) groups.set(label, { tx: [], lots: [], label })
-            groups.get(label)!.lots.push(lot)
-          }
+          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+          const groupId = getAssetGroupId(asset)
+          if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
         })
+
+        for (const groupId of groupIds) {
+          const groupLabel = getGroupLabel(groupId, filteredTx)
+          if (!assetSeries[groupLabel]) assetSeries[groupLabel] = {}
+
+          // Get assets in this group
+          const groupAssetIds = new Set<string>()
+          filteredLots.forEach(lot => {
+            const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+            if (getAssetGroupId(asset) === groupId && asset?.id) {
+              groupAssetIds.add(asset.id)
+            }
+          })
+
+          for (const assetId of groupAssetIds) {
+            const assetInfo = assetInfoMap.get(assetId)
+            if (!assetInfo) continue
+            const assetLabel = assetInfo.name || assetInfo.ticker || assetId
+            if (!assetSeries[groupLabel][assetLabel]) assetSeries[groupLabel][assetLabel] = []
+
+            const assetTx = filteredTx.filter(tx => tx.asset_id === assetId)
+            const assetLots = filteredLots.filter(lot => {
+              const lotAsset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+              return lotAsset?.id === assetId
+            })
+
+            const calc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d)
+            assetSeries[groupLabel][assetLabel].push({ date: d, ...calc })
+          }
+        }
       }
+    }
 
       for (const [groupKey, { tx: groupTxs, lots: groupLots, label }] of groups) {
         if (!series[groupKey]) series[groupKey] = []
@@ -245,6 +280,7 @@ export async function POST(req: Request) {
       }
     }
 
+    // Calculate totals for aggregate mode
     for (const key of Object.keys(series)) {
       const s = series[key]
       const last = s[s.length - 1]
@@ -258,10 +294,152 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ series, totals, benchmarks: benchmarkSeries })
+    // Calculate totals for non-aggregate mode (asset level)
+    for (const groupKey of Object.keys(assetSeries)) {
+      assetTotals[groupKey] = {}
+      for (const assetKey of Object.keys(assetSeries[groupKey])) {
+        const s = assetSeries[groupKey][assetKey]
+        const last = s[s.length - 1]
+        assetTotals[groupKey][assetKey] = {
+          netGain: last?.netGain || 0,
+          income: last?.income || 0,
+          realized: last?.realized || 0,
+          unrealized: last?.unrealized || 0,
+          totalReturnPct: last?.totalReturnPct || 0,
+          irr: last?.irr || 0,
+        }
+      }
+    }
+
+    // For total portfolio, include asset-level breakdown for non-aggregate view
+    let assetBreakdown: Record<string, any[]> = {}
+    if (lens === 'total' && !aggregate) {
+      // Build asset-level series for total portfolio non-aggregate mode
+      for (const d of dates) {
+        const filteredTx = allTx.filter(tx => tx.date <= d)
+        const filteredLots = (allLots || []).filter(lot => lot.purchase_date <= d)
+
+        const assetIds = new Set<string>()
+        filteredLots.forEach(lot => {
+          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+          if (asset?.id) assetIds.add(asset.id)
+        })
+
+        for (const assetId of assetIds) {
+          const assetTx = filteredTx.filter(tx => tx.asset_id === assetId)
+          const assetLots = filteredLots.filter(lot => {
+            const lotAsset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+            return lotAsset?.id === assetId
+          })
+
+          const ticker = assetToTicker.get(assetId) || ''
+          if (!assetBreakdown[ticker]) assetBreakdown[ticker] = []
+
+          const calc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d)
+          assetBreakdown[ticker].push({ date: d, ...calc })
+        }
+      }
+    }
+
+    return NextResponse.json({ 
+      series, 
+      totals, 
+      benchmarks: benchmarkSeries,
+      assetSeries: lens !== 'total' && !aggregate ? assetSeries : undefined,
+      assetTotals: lens !== 'total' && !aggregate ? assetTotals : undefined,
+      assetBreakdown: lens === 'total' && !aggregate ? assetBreakdown : undefined,
+    })
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}
+
+function calculateGroupMetrics(
+  groupTxs: any[],
+  groupLots: any[],
+  assetToTicker: Map<string, string>,
+  historicalPrices: Record<string, { date: string, close: number }[]>,
+  currentPrices: Record<string, number>,
+  lastDateStr: string,
+  d: string
+) {
+  const { totalCash: groupCash } = calculateCashBalances(groupTxs)
+  const groupOriginalInvestment = groupLots.reduce((sum, lot) => sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity)), 0)
+
+  // Build open lots by simulating FIFO from transactions
+  const simulatedOpenLots: any[] = []
+  const assetLots = new Map<string, { qty: number, basis: number }[]>()
+  groupTxs.forEach(tx => {
+    const assetId = tx.asset_id
+    if (!assetId) return
+    if (tx.type === 'Buy') {
+      const qty = Number(tx.quantity || 0)
+      const prc = Number(tx.price_per_unit || 0)
+      if (!assetLots.has(assetId)) assetLots.set(assetId, [])
+      assetLots.get(assetId)!.push({ qty, basis: prc })
+    } else if (tx.type === 'Sell') {
+      const qty = Number(tx.quantity || 0)
+      if (assetLots.has(assetId)) {
+        let remain = qty
+        const lots = assetLots.get(assetId)!
+        for (let i = 0; i < lots.length && remain > 0; i++) {
+          if (lots[i].qty > remain) {
+            lots[i].qty -= remain
+            remain = 0
+          } else {
+            remain -= lots[i].qty
+            lots[i].qty = 0
+          }
+        }
+        assetLots.set(assetId, lots.filter(l => l.qty > 0))
+      }
+    }
+  })
+  for (const [assetId, lots] of assetLots) {
+    lots.forEach(lot => {
+      if (lot.qty > 0) {
+        simulatedOpenLots.push({ asset_id: assetId, remaining_quantity: lot.qty, cost_basis_per_unit: lot.basis })
+      }
+    })
+  }
+
+  // Calculate market value and unrealized gains
+  let marketValue = 0
+  let unrealized = 0
+  simulatedOpenLots.forEach(lot => {
+    const ticker = assetToTicker.get(lot.asset_id) || ''
+    const price = (d === lastDateStr ? (currentPrices[ticker] || 0) : (historicalPrices[ticker] || []).find(p => p.date === d)?.close || 0)
+    if (price > 0) {
+      marketValue += lot.remaining_quantity * price
+      unrealized += lot.remaining_quantity * (price - lot.cost_basis_per_unit)
+    }
+  })
+
+  const realized = groupTxs.reduce((sum, tx) => sum + (Number(tx.realized_gain) || 0), 0)
+  const dividends = groupTxs.reduce((sum, tx) => sum + (tx.type === 'Dividend' ? Number(tx.amount || 0) : 0), 0)
+  const interest = groupTxs.reduce((sum, tx) => sum + (tx.type === 'Interest' ? Number(tx.amount || 0) : 0), 0)
+  const income = dividends + interest
+  const netGain = unrealized + realized + income
+  const portfolioValue = marketValue + groupCash
+  const totalReturnPct = groupOriginalInvestment > 0 ? (netGain / groupOriginalInvestment) * 100 : 0
+
+  // Calculate IRR (MWR) using the centralized function
+  const irr = calculateMWR(groupTxs, portfolioValue, d)
+
+  // Calculate TWR - time-weighted return based on portfolio value change
+  const twr = groupOriginalInvestment > 0 ? ((portfolioValue / groupOriginalInvestment) - 1) * 100 : 0
+
+  return {
+    portfolioValue,
+    netGain,
+    unrealized,
+    realized,
+    income,
+    totalReturnPct,
+    originalInvestment: groupOriginalInvestment,
+    irr,
+    twr,
   }
 }
 

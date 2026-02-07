@@ -70,6 +70,9 @@ type ReportsResponse = {
   series: Record<string, any[]>
   totals: Record<string, any>
   benchmarks: Record<string, { date: string, value: number }[]>
+  assetSeries?: Record<string, Record<string, any[]>> // group -> asset -> data (for non-aggregate mode)
+  assetTotals?: Record<string, Record<string, any>> // group -> asset -> totals
+  assetBreakdown?: Record<string, any[]> // asset -> data (for total portfolio non-aggregate)
 }
 
 export default function PerformanceReports() {
@@ -166,10 +169,9 @@ export default function PerformanceReports() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lens, selectedValues, aggregate, period, customStart, customEnd, granularity, selectedBenchmarks])
 
+  // Main chart series (aggregate mode or total portfolio)
   const chartSeries = useMemo(() => {
     if (!data?.series) return []
-    // Show individual series when not aggregating (for total lens, this means per-asset view)
-    const showAggregate = aggregate || lens === 'total'
     const seriesKeys = Object.keys(data.series)
 
     const mapped: any[] = []
@@ -180,7 +182,7 @@ export default function PerformanceReports() {
         mapped[idx][`${key}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
         mapped[idx][`${key}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
         // Show benchmarks only in aggregate/total view
-        if (showAggregate && valueMode === 'percent' && data.benchmarks) {
+        if (valueMode === 'percent' && data.benchmarks) {
           Object.entries(data.benchmarks).forEach(([bmKey, bmSeries]) => {
             const match = bmSeries.find(b => b.date === p.date)
             mapped[idx][bmKey] = match?.value ?? 0
@@ -189,11 +191,47 @@ export default function PerformanceReports() {
       })
     })
     return mapped
-  }, [data, aggregate, lens, valueMode])
+  }, [data, valueMode])
 
+  // Non-aggregate mode: build series for each group (lens != total)
+  const assetChartSeries = useMemo(() => {
+    if (!data?.assetSeries) return {}
+    const result: Record<string, any[]> = {}
+    
+    Object.entries(data.assetSeries).forEach(([groupKey, assets]) => {
+      const mapped: any[] = []
+      Object.entries(assets).forEach(([assetKey, points]) => {
+        points.forEach((p, idx) => {
+          if (!mapped[idx]) mapped[idx] = { date: p.date }
+          mapped[idx][`${assetKey}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
+          mapped[idx][`${assetKey}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
+        })
+      })
+      result[groupKey] = mapped
+    })
+    return result
+  }, [data?.assetSeries, valueMode])
+
+  // Total portfolio non-aggregate: asset breakdown
+  const totalPortfolioAssetSeries = useMemo(() => {
+    if (!data?.assetBreakdown) return {}
+    const mapped: any[] = []
+    const assetKeys = Object.keys(data.assetBreakdown)
+    
+    assetKeys.forEach(key => {
+      const points = data.assetBreakdown![key] || []
+      points.forEach((p, idx) => {
+        if (!mapped[idx]) mapped[idx] = { date: p.date }
+        mapped[idx][`${key}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
+        mapped[idx][`${key}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
+      })
+    })
+    return { 'Total Portfolio': mapped }
+  }, [data?.assetBreakdown, valueMode])
+
+  // Metric series for aggregate mode
   const metricSeries = (metricKey: string) => {
-    const baseKey = aggregate || lens === 'total' ? 'aggregated' : undefined
-    const seriesKeys = baseKey ? [baseKey] : Object.keys(data?.series || {})
+    const seriesKeys = Object.keys(data?.series || {})
     const mapped: any[] = []
     seriesKeys.forEach(key => {
       const points = data?.series?.[key] || []
@@ -205,7 +243,45 @@ export default function PerformanceReports() {
     return mapped
   }
 
-  const totals = data?.totals?.[aggregate || lens === 'total' ? 'aggregated' : Object.keys(data?.totals || {})[0]] || {}
+  // Metric series for non-aggregate mode (per group)
+  const assetMetricSeries = (groupKey: string, metricKey: string) => {
+    const assets = data?.assetSeries?.[groupKey] || {}
+    const mapped: any[] = []
+    Object.entries(assets).forEach(([assetKey, points]) => {
+      points.forEach((p: any, idx: number) => {
+        if (!mapped[idx]) mapped[idx] = { date: p.date }
+        mapped[idx][assetKey] = p[metricKey]
+      })
+    })
+    return mapped
+  }
+
+  // Get totals based on mode
+  const totals = useMemo(() => {
+    if (!data) return {}
+    if (lens === 'total' || aggregate) {
+      // For total lens or aggregate mode, use the first (or only) series totals
+      const firstKey = Object.keys(data.totals || {})[0]
+      return data.totals?.[firstKey] || {}
+    }
+    // Non-aggregate mode: sum across all groups
+    const result = { netGain: 0, income: 0, realized: 0, unrealized: 0, totalReturnPct: 0, irr: 0 }
+    let count = 0
+    Object.values(data.totals || {}).forEach((t: any) => {
+      result.netGain += t?.netGain || 0
+      result.income += t?.income || 0
+      result.realized += t?.realized || 0
+      result.unrealized += t?.unrealized || 0
+      result.totalReturnPct += t?.totalReturnPct || 0
+      result.irr += t?.irr || 0
+      count++
+    })
+    if (count > 0) {
+      result.totalReturnPct /= count
+      result.irr /= count
+    }
+    return result
+  }, [data, lens, aggregate])
 
   return (
     <div className="space-y-10">
@@ -372,94 +448,215 @@ export default function PerformanceReports() {
             ))}
           </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">MWR / TWR Performance</h3>
-              <div className="text-sm text-muted-foreground">(MWR = IRR, TWR = time‑weighted)</div>
-            </div>
-            {valueMode === 'dollar' && (
-              <div className="text-sm text-muted-foreground">
-                Benchmarks are hidden in $ mode (benchmark series are % returns).
+          {/* Aggregate Mode: Single chart with group-level lines */}
+          {(aggregate || lens === 'total') && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">MWR / TWR Performance</h3>
+                <div className="text-sm text-muted-foreground">(MWR = IRR, TWR = time‑weighted)</div>
               </div>
-            )}
-            <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={chartSeries} margin={{ top: 20, right: 50, left: 20, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis 
-                  tickFormatter={(v) => chartFormatter(v ?? 0, valueMode)} 
-                  domain={['auto', 'auto']}
-                  padding={{ top: 20, bottom: 20 }}
-                />
-                <Tooltip formatter={(v) => chartFormatter((v as number) ?? 0, valueMode)} />
-                <Legend />
-                {(() => {
-                  const showAggregate = aggregate || lens === 'total'
-                  const seriesKeys = Object.keys(data?.series || {})
-                  return (
+              {valueMode === 'dollar' && (
+                <div className="text-sm text-muted-foreground">
+                  Benchmarks are hidden in $ mode (benchmark series are % returns).
+                </div>
+              )}
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={chartSeries} margin={{ top: 20, right: 50, left: 20, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis 
+                    tickFormatter={(v) => chartFormatter(v ?? 0, valueMode)} 
+                    domain={['auto', 'auto']}
+                    padding={{ top: 20, bottom: 20 }}
+                  />
+                  <Tooltip formatter={(v) => chartFormatter((v as number) ?? 0, valueMode)} />
+                  <Legend />
+                  {lens === 'total' ? (
+                    // Total portfolio: single portfolio line + benchmarks
                     <>
-                      {showAggregate ? (
-                        <>
-                          {(returnMode === 'both' || returnMode === 'twr') && (
-                            <Line type="monotone" dataKey={`${seriesKeys[0]}-twr`} name="Portfolio TWR" stroke={COLORS[0]} />
-                          )}
-                          {(returnMode === 'both' || returnMode === 'mwr') && (
-                            <Line type="monotone" dataKey={`${seriesKeys[0]}-mwr`} name="Portfolio MWR" stroke={COLORS[1]} />
-                          )}
-                          {Object.keys(data?.benchmarks || {}).map((bm, i) => (
-                            <Line key={bm} type="monotone" dataKey={bm} name={BENCHMARKS.find(b => b.value === bm)?.label || bm} stroke={COLORS[i + 2]} />
-                          ))}
-                        </>
-                      ) : (
-                        seriesKeys.map((key, i) => (
-                          <Fragment key={key}>
-                            {(returnMode === 'both' || returnMode === 'twr') && (
-                              <Line type="monotone" dataKey={`${key}-twr`} name={`${key} TWR`} stroke={COLORS[i % COLORS.length]} />
-                            )}
-                            {(returnMode === 'both' || returnMode === 'mwr') && (
-                              <Line type="monotone" dataKey={`${key}-mwr`} name={`${key} MWR`} stroke={COLORS[(i + 1) % COLORS.length]} />
-                            )}
-                          </Fragment>
-                        ))
+                      {(returnMode === 'both' || returnMode === 'twr') && (
+                        <Line type="monotone" dataKey="aggregated-twr" name="Portfolio TWR" stroke={COLORS[0]} />
                       )}
+                      {(returnMode === 'both' || returnMode === 'mwr') && (
+                        <Line type="monotone" dataKey="aggregated-mwr" name="Portfolio MWR" stroke={COLORS[1]} />
+                      )}
+                      {Object.keys(data?.benchmarks || {}).map((bm, i) => (
+                        <Line key={bm} type="monotone" dataKey={bm} name={BENCHMARKS.find(b => b.value === bm)?.label || bm} stroke={COLORS[i + 2]} />
+                      ))}
                     </>
-                  )
-                })()}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+                  ) : (
+                    // Non-total lens with aggregate=true: show each group as a line
+                    Object.keys(data?.series || {}).map((key, i) => (
+                      <Fragment key={key}>
+                        {(returnMode === 'both' || returnMode === 'twr') && (
+                          <Line type="monotone" dataKey={`${key}-twr`} name={`${key} TWR`} stroke={COLORS[i % COLORS.length]} />
+                        )}
+                        {(returnMode === 'both' || returnMode === 'mwr') && (
+                          <Line type="monotone" dataKey={`${key}-mwr`} name={`${key} MWR`} stroke={COLORS[(i + 1) % COLORS.length]} />
+                        )}
+                      </Fragment>
+                    ))
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {SERIES_METRICS.map(metric => (
-              <div key={metric.key} className="space-y-2">
-                <h4 className="font-semibold">{metric.label}</h4>
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={metricSeries(metric.key)} margin={{ top: 10, right: 50, left: 10, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis 
-                      tickFormatter={(v) => formatUSD(v ?? 0)} 
-                      domain={['auto', 'auto']}
-                      padding={{ top: 20, bottom: 20 }}
-                    />
-                    <Tooltip formatter={(v) => formatUSD((v as number) ?? 0)} />
-                    <Legend />
-                    {(() => {
-                      const showAggregate = aggregate || lens === 'total'
-                      const seriesKeys = Object.keys(data?.series || {})
-                      return showAggregate ? (
-                        <Line type="monotone" dataKey={seriesKeys[0]} name="Portfolio" stroke={COLORS[0]} />
+          {/* Non-Aggregate Mode: Multiple charts, one per group with asset lines */}
+          {!aggregate && lens !== 'total' && (
+            <div className="space-y-8">
+              <h3 className="text-lg font-semibold">MWR / TWR Performance by Asset</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {Object.entries(assetChartSeries).map(([groupKey, seriesData]) => {
+                  const assetKeys = Object.keys(data?.assetSeries?.[groupKey] || {})
+                  return (
+                    <div key={groupKey} className="space-y-2">
+                      <h4 className="font-semibold text-center border-b pb-2">{groupKey}</h4>
+                      <ResponsiveContainer width="100%" height={320}>
+                        <LineChart data={seriesData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" />
+                          <YAxis 
+                            tickFormatter={(v) => chartFormatter(v ?? 0, valueMode)} 
+                            domain={['auto', 'auto']}
+                            padding={{ top: 10, bottom: 10 }}
+                          />
+                          <Tooltip formatter={(v) => chartFormatter((v as number) ?? 0, valueMode)} />
+                          <Legend />
+                          {(returnMode === 'both' || returnMode === 'twr') && assetKeys.map((assetKey, i) => (
+                            <Line 
+                              key={`${assetKey}-twr`} 
+                              type="monotone" 
+                              dataKey={`${assetKey}-twr`} 
+                              name={`${assetKey} TWR`} 
+                              stroke={COLORS[i % COLORS.length]} 
+                            />
+                          ))}
+                          {(returnMode === 'both' || returnMode === 'mwr') && assetKeys.map((assetKey, i) => (
+                            <Line 
+                              key={`${assetKey}-mwr`} 
+                              type="monotone" 
+                              dataKey={`${assetKey}-mwr`} 
+                              name={`${assetKey} MWR`} 
+                              stroke={COLORS[(i + 5) % COLORS.length]} 
+                              strokeDasharray="5 5"
+                            />
+                          ))}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Total Portfolio Non-Aggregate: Single chart with asset lines */}
+          {!aggregate && lens === 'total' && data?.assetBreakdown && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">MWR / TWR Performance by Asset</h3>
+                <div className="text-sm text-muted-foreground">Individual asset performance</div>
+              </div>
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={totalPortfolioAssetSeries['Total Portfolio']} margin={{ top: 20, right: 50, left: 20, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis 
+                    tickFormatter={(v) => chartFormatter(v ?? 0, valueMode)} 
+                    domain={['auto', 'auto']}
+                    padding={{ top: 20, bottom: 20 }}
+                  />
+                  <Tooltip formatter={(v) => chartFormatter((v as number) ?? 0, valueMode)} />
+                  <Legend />
+                  {Object.keys(data?.assetBreakdown || {}).map((assetKey, i) => (
+                    <Fragment key={assetKey}>
+                      {(returnMode === 'both' || returnMode === 'twr') && (
+                        <Line type="monotone" dataKey={`${assetKey}-twr`} name={`${assetKey} TWR`} stroke={COLORS[i % COLORS.length]} />
+                      )}
+                      {(returnMode === 'both' || returnMode === 'mwr') && (
+                        <Line type="monotone" dataKey={`${assetKey}-mwr`} name={`${assetKey} MWR`} stroke={COLORS[(i + 5) % COLORS.length]} strokeDasharray="5 5" />
+                      )}
+                    </Fragment>
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Metric charts for aggregate mode */}
+          {(aggregate || lens === 'total') && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {SERIES_METRICS.map(metric => (
+                <div key={metric.key} className="space-y-2">
+                  <h4 className="font-semibold">{metric.label}</h4>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <LineChart data={metricSeries(metric.key)} margin={{ top: 10, right: 50, left: 10, bottom: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis 
+                        tickFormatter={(v) => formatUSD(v ?? 0)} 
+                        domain={['auto', 'auto']}
+                        padding={{ top: 20, bottom: 20 }}
+                      />
+                      <Tooltip formatter={(v) => formatUSD((v as number) ?? 0)} />
+                      <Legend />
+                      {lens === 'total' ? (
+                        <Line type="monotone" dataKey="aggregated" name="Portfolio" stroke={COLORS[0]} />
                       ) : (
-                        seriesKeys.map((key, i) => (
+                        Object.keys(data?.series || {}).map((key, i) => (
                           <Line key={key} type="monotone" dataKey={key} name={key} stroke={COLORS[i % COLORS.length]} />
                         ))
-                      )
-                    })()}
-                  </LineChart>
-                </ResponsiveContainer>
+                      )}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Metric charts for non-aggregate mode */}
+          {!aggregate && lens !== 'total' && (
+            <div className="space-y-8">
+              <h3 className="text-lg font-semibold">Metrics by Asset</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {Object.keys(data?.assetSeries || {}).map(groupKey => (
+                  <div key={groupKey} className="space-y-4 border rounded-lg p-4">
+                    <h4 className="font-semibold text-center border-b pb-2">{groupKey}</h4>
+                    <div className="grid grid-cols-1 gap-4">
+                      {SERIES_METRICS.map(metric => (
+                        <div key={`${groupKey}-${metric.key}`} className="space-y-1">
+                          <h5 className="text-sm text-muted-foreground">{metric.label}</h5>
+                          <ResponsiveContainer width="100%" height={180}>
+                            <LineChart data={assetMetricSeries(groupKey, metric.key)} margin={{ top: 5, right: 30, left: 5, bottom: 5 }}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="date" fontSize={10} />
+                              <YAxis 
+                                tickFormatter={(v) => formatUSD(v ?? 0)} 
+                                fontSize={10}
+                                domain={['auto', 'auto']}
+                              />
+                              <Tooltip formatter={(v) => formatUSD((v as number) ?? 0)} />
+                              <Legend fontSize={10} />
+                              {Object.keys(data?.assetSeries?.[groupKey] || {}).map((assetKey, i) => (
+                                <Line 
+                                  key={assetKey} 
+                                  type="monotone" 
+                                  dataKey={assetKey} 
+                                  name={assetKey} 
+                                  stroke={COLORS[i % COLORS.length]} 
+                                />
+                              ))}
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </>
       )}
     </div>
