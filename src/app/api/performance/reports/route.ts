@@ -137,7 +137,7 @@ export async function POST(req: Request) {
       if (lens === 'total') {
         // Total portfolio lens: always aggregate everything
         if (!series['aggregated']) series['aggregated'] = []
-        const calc = calculateGroupMetrics(filteredTx, filteredLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d)
+        const calc = calculateGroupMetrics(filteredTx, filteredLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
         series['aggregated'].push({ date: d, ...calc })
       } else if (aggregate) {
         // Aggregate mode: one series per selected group (group-level aggregation)
@@ -166,7 +166,7 @@ export async function POST(req: Request) {
             return getAssetGroupId(asset, lot.account_id) === groupId
           })
 
-          const calc = calculateGroupMetrics(groupTx, groupLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d)
+          const calc = calculateGroupMetrics(groupTx, groupLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
           series[groupLabel].push({ date: d, ...calc })
         })
       } else {
@@ -203,7 +203,7 @@ export async function POST(req: Request) {
               return lotAsset?.id === assetId
             })
 
-            const calc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d)
+            const calc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
             assetSeries[groupLabel][assetLabel].push({ date: d, ...calc })
           })
         })
@@ -265,7 +265,7 @@ export async function POST(req: Request) {
           const ticker = assetToTicker.get(assetId) || ''
           if (!assetBreakdown[ticker]) assetBreakdown[ticker] = []
 
-          const calc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d)
+          const calc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
           assetBreakdown[ticker].push({ date: d, ...calc })
         })
       }
@@ -355,7 +355,9 @@ function calculateGroupMetrics(
   const totalReturnPct = groupOriginalInvestment > 0 ? (netGain / groupOriginalInvestment) * 100 : 0
 
   // Calculate IRR (MWR) using the centralized function
-  const irr = calculateMWR(groupTxs, portfolioValue, d)
+  // For account/total lens: include all cash flows (deposits/withdrawals)
+  // For other lenses: calculate asset-only IRR (exclude deposits/withdrawals)
+  const irr = calculateMWRForLens(groupTxs, portfolioValue, d, lens)
 
   // Calculate TWR - time-weighted return based on portfolio value change
   const twr = groupOriginalInvestment > 0 ? ((portfolioValue / groupOriginalInvestment) - 1) * 100 : 0
@@ -411,18 +413,43 @@ function buildDates(start: string, end: string, granularity: 'daily' | 'monthly'
 }
 
 function calculateMWR(transactions: any[], portfolioValue: number, asOfDate: string) {
+  return calculateMWRForLens(transactions, portfolioValue, asOfDate, 'total')
+}
+
+function calculateMWRForLens(transactions: any[], portfolioValue: number, asOfDate: string, lens: string) {
   const flows: number[] = []
   const dates: Date[] = []
+  
+  // For account/total lens: include all transactions (deposits/withdrawals matter)
+  // For other lenses: only include asset transactions (Buy/Sell/Dividend/Interest)
+  const includeAllFlows = lens === 'total' || lens === 'account'
+  
   transactions.forEach(tx => {
+    const type = tx?.type || ''
+    // Skip non-asset flows for non-account lenses
+    if (!includeAllFlows && (type === 'Deposit' || type === 'Withdrawal')) {
+      return
+    }
+    // Skip fee-only transactions
+    if (type === 'Fee') {
+      return
+    }
     flows.push(transactionFlowForIRR(tx))
     dates.push(new Date(tx.date))
   })
+  
+  // Terminal value (current portfolio value)
   flows.push(-portfolioValue)
   dates.push(new Date(asOfDate))
+  
+  if (flows.length < 2) return 0
+  
   const { netFlows, netDates } = netCashFlowsByDate(flows, dates)
   if (netFlows.length < 2) return 0
+  
   const irr = calculateIRR(netFlows, netDates)
   if (!Number.isFinite(irr)) return 0
+  
   return irr * 100
 }
 
