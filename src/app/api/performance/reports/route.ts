@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { addDays, addMonths, endOfMonth, format, formatISO, isAfter, parseISO, startOfMonth, subMonths, subYears } from 'date-fns'
 import { calculateCashBalances, fetchAllUserTransactionsServer, transactionFlowForIRR, calculateIRR, netCashFlowsByDate } from '@/lib/finance'
 
+export const dynamic = 'force-dynamic'
+
 const BENCHMARK_MAP: Record<string, string> = {
   sp500: 'SPY',
   nasdaq: 'QQQ',
