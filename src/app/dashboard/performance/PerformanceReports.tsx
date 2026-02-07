@@ -436,9 +436,15 @@ export default function PerformanceReports() {
 
         <div>
           <Label className="invisible">Refresh</Label>
-          <Button variant="outline" onClick={refreshPrices} disabled={loading} className="gap-2">
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-            Refresh Prices
+          <Button 
+            onClick={refreshPrices} 
+            disabled={loading} 
+            size="sm" 
+            variant="default" 
+            className="bg-black text-white hover:bg-zinc-800 ml-auto flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"
+          >
+            <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
+            {loading ? 'Hold...' : 'Refresh Prices'}
           </Button>
         </div>
       </div>
