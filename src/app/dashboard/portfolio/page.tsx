@@ -1,10 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { calculateCashBalances, fetchAllUserTransactionsServer } from '@/lib/finance'
 import { redirect } from 'next/navigation'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import AccountsList from '@/components/AccountsList'
-import AssetsList from '@/components/AssetsList'
-import PortfolioHoldingsWithSlicers from './PortfolioHoldingsWithSlicers'
+import { Suspense } from 'react'
+import PortfolioTabs from './PortfolioTabs'
 
 // Types (simplified for this page)
 type TaxLot = {
@@ -83,36 +81,10 @@ export default async function PortfolioPage() {
 
   return (
     <main className="p-8">
-      <h1 className="text-3xl font-bold mb-8">Portfolio</h1>
-      <Tabs defaultValue="holdings">
-        <TabsList>
-          <TabsTrigger value="holdings">Holdings</TabsTrigger>
-          <TabsTrigger value="accounts">Accounts</TabsTrigger>
-          <TabsTrigger value="assets">Assets</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="holdings">
-          {lots?.length ? (
-            <PortfolioHoldingsWithSlicers
-              cash={totalCash}
-              cashByAccountName={cashByAccountName}
-            />
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <p className="text-lg mb-2">No holdings yet</p>
-              <p>Add a Buy transaction to see positions here.</p>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="accounts">
-          <AccountsList initialAccounts={initialAccounts} />
-        </TabsContent>
-
-        <TabsContent value="assets">
-          <AssetsList initialAssets={initialAssets} />
-        </TabsContent>
-      </Tabs>
+      <h1 className="text-3xl font-bold mb-8">Portfolio Management</h1>
+      <Suspense fallback={<div className="p-8">Loading...</div>}>
+        <PortfolioTabs lots={lots} totalCash={totalCash} cashByAccountName={cashByAccountName} />
+      </Suspense>
     </main>
   )
 }
