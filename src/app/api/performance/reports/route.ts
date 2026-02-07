@@ -292,7 +292,8 @@ function calculateGroupMetrics(
   historicalPrices: Record<string, { date: string, close: number }[]>,
   currentPrices: Record<string, number>,
   lastDateStr: string,
-  d: string
+  d: string,
+  lens: string = 'total'
 ) {
   const { totalCash: groupCash } = calculateCashBalances(groupTxs)
   const groupOriginalInvestment = groupLots.reduce((sum, lot) => sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity)), 0)
