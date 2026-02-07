@@ -11,8 +11,8 @@
 
 ---
 
-## 2) Pre-deploy Test
-- Run full Playwright suite:
+## 2) Pre-deploy Test (Local/Staging)
+- Run full Playwright suite against the **current build** (local or staging):
   - `npx playwright test`
 - Expect **6/6 green**
 
@@ -34,8 +34,8 @@
 
 ---
 
-## 5) Post-deploy Automated Regression + UI Sanity
-- Run Playwright against prod URL
+## 5) Post-deploy Automated Regression + UI Sanity (Prod)
+- Run Playwright against **prod URL**
 - Expect **6/6 green**
 - UI sanity checks (quick visual confirmation):
   - Dashboard loads
