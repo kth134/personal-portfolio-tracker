@@ -840,7 +840,7 @@ export default function DashboardHome() {
                   </div>
                 </CardHeader>
               </Card>
-              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/strategy?tab=rebalancing')}>
+              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio?tab=rebalancing')}>
                 <CardHeader>
                   <CardTitle className="text-center text-4xl">Strategy</CardTitle>
                 </CardHeader>
@@ -1131,7 +1131,7 @@ export default function DashboardHome() {
                 </div>
               </CardHeader>
             </Card>
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/strategy?tab=rebalancing')}>
+            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio?tab=rebalancing')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">Strategy</CardTitle>
               </CardHeader>
