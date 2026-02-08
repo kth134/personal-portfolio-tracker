@@ -47,6 +47,8 @@ export default function PortfolioHoldingsWithSlicers({
   const [refreshing, setRefreshing] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [openItems, setOpenItems] = useState<string[]>([])
+  const [sortCol, setSortCol] = useState<'asset' | 'cost_basis' | 'value' | 'weight'>('value')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
     if (lens === 'total') {
@@ -166,27 +168,59 @@ export default function PortfolioHoldingsWithSlicers({
                 <Table className="min-w-[800px] table-fixed">
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="w-[40%]">Asset</TableHead>
-                      <TableHead className="w-[20%] text-right">Total Cost Basis</TableHead>
-                      <TableHead className="w-[20%] text-right">Current Value</TableHead>
-                      <TableHead className="w-[20%] text-right">Weight (Portfolio)</TableHead>
+                      <TableHead className="w-[40%] cursor-pointer" onClick={() => { setSortDir(s => sortCol === 'asset' ? (s === 'asc' ? 'desc' : 'asc') : 'desc'); setSortCol('asset'); }}>
+                        <div className="flex items-center justify-start">Asset<ArrowUpDown className={cn('ml-2 h-4 w-4', sortCol === 'asset' ? 'text-blue-600' : 'text-zinc-400')} /></div>
+                      </TableHead>
+                      <TableHead className="w-[20%] text-right cursor-pointer" onClick={() => { setSortDir(s => sortCol === 'cost_basis' ? (s === 'asc' ? 'desc' : 'asc') : 'desc'); setSortCol('cost_basis'); }}>
+                        <div className="flex items-center justify-end">Total Cost Basis<ArrowUpDown className={cn('ml-2 h-4 w-4', sortCol === 'cost_basis' ? 'text-blue-600' : 'text-zinc-400')} /></div>
+                      </TableHead>
+                      <TableHead className="w-[20%] text-right cursor-pointer" onClick={() => { setSortDir(s => sortCol === 'value' ? (s === 'asc' ? 'desc' : 'asc') : 'desc'); setSortCol('value'); }}>
+                        <div className="flex items-center justify-end">Current Value<ArrowUpDown className={cn('ml-2 h-4 w-4', sortCol === 'value' ? 'text-blue-600' : 'text-zinc-400')} /></div>
+                      </TableHead>
+                      <TableHead className="w-[20%] text-right cursor-pointer" onClick={() => { setSortDir(s => sortCol === 'weight' ? (s === 'asc' ? 'desc' : 'asc') : 'desc'); setSortCol('weight'); }}>
+                        <div className="flex items-center justify-end">Weight (Portfolio)<ArrowUpDown className={cn('ml-2 h-4 w-4', sortCol === 'weight' ? 'text-blue-600' : 'text-zinc-400')} /></div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {[...(group.items || [])]
-                      .sort((a,b) => b.value - a.value)
-                      .map((item: any) => {
-                      const itemValue = Number(item.value) || 0
-                      const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
-                      return (
-                        <TableRow key={item.ticker}>
-                          <TableCell className="w-[40%]"><div className="font-bold">{item.ticker}</div><div className="text-[10px] opacity-70">{item.name}</div></TableCell>
-                          <TableCell className="w-[20%] text-right tabular-nums">{formatUSD(item.cost_basis)}</TableCell>
-                          <TableCell className="w-[20%] text-right tabular-nums font-bold">{formatUSD(itemValue)}</TableCell>
-                          <TableCell className="w-[20%] text-right tabular-nums">{itemWeight.toFixed(2)}%</TableCell>
-                        </TableRow>
-                      )
-                    })}
+                    {(() => {
+                      const items = [...(group.items || [])]
+                      const sorted = items.sort((a: any, b: any) => {
+                        const aVal = (() => {
+                          if (sortCol === 'asset') return (a.ticker || '').toString().toLowerCase()
+                          if (sortCol === 'cost_basis') return Number(a.cost_basis) || 0
+                          if (sortCol === 'value') return Number(a.value) || 0
+                          if (sortCol === 'weight') return (Number(a.value) || 0) / (totalValueAcrossSelection || 1)
+                          return 0
+                        })()
+                        const bVal = (() => {
+                          if (sortCol === 'asset') return (b.ticker || '').toString().toLowerCase()
+                          if (sortCol === 'cost_basis') return Number(b.cost_basis) || 0
+                          if (sortCol === 'value') return Number(b.value) || 0
+                          if (sortCol === 'weight') return (Number(b.value) || 0) / (totalValueAcrossSelection || 1)
+                          return 0
+                        })()
+
+                        let res = 0
+                        if (typeof aVal === 'string' && typeof bVal === 'string') res = aVal < bVal ? -1 : (aVal > bVal ? 1 : 0)
+                        else res = (aVal as number) < (bVal as number) ? -1 : ((aVal as number) > (bVal as number) ? 1 : 0)
+
+                        return sortDir === 'asc' ? res : -res
+                      })
+
+                      return sorted.map((item: any) => {
+                        const itemValue = Number(item.value) || 0
+                        const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
+                        return (
+                          <TableRow key={item.ticker}>
+                            <TableCell className="w-[40%]"><div className="font-bold">{item.ticker}</div><div className="text-[10px] opacity-70">{item.name}</div></TableCell>
+                            <TableCell className="w-[20%] text-right tabular-nums">{formatUSD(item.cost_basis)}</TableCell>
+                            <TableCell className="w-[20%] text-right tabular-nums font-bold">{formatUSD(itemValue)}</TableCell>
+                            <TableCell className="w-[20%] text-right tabular-nums">{itemWeight.toFixed(2)}%</TableCell>
+                          </TableRow>
+                        )
+                      })
+                    })()}
                   </TableBody>
                 </Table>
               </AccordionContent>
