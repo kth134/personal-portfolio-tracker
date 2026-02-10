@@ -1,4 +1,4 @@
-// Centralized finance utilities (IRR and cash-flow normalization)
+// Centralized finance utilities (IRR and cash-flow normalization)\n\nimport yfinance from 'yfinance';
 /**
  * Canonical cash-flow & grouping conventions
  *
