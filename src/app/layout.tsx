@@ -76,7 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <PopoverContent className="w-48 p-2" onMouseEnter={() => setPerformanceOpen(true)} onMouseLeave={() => setPerformanceOpen(false)}>
                     <div className="flex flex-col gap-2">
                       <Link href="/dashboard/performance" className="hover:bg-gray-100 p-2 rounded">Data</Link>
-                      <Link href="/dashboard/performance?tab=reports" className="hover:bg-gray-100 p-2 rounded">Reports</Link>
+                      <Link href="/reports/performance" className="hover:bg-gray-100 p-2 rounded">Reports</Link>
                     </div>
                   </PopoverContent>
                 </Popover>
