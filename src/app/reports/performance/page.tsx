@@ -1,3 +1,5 @@
+'use client';
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   LineChart,
@@ -44,7 +46,7 @@ export default function PerformanceReportPage() {
           <TabsContent value="charts" className="w-full">
             <p className="mb-4">Portfolio growth and returns over time.</p>
             <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={chartData.slice(0,4)}> // partial for line? wait adjust
+              <LineChart data={chartData.slice(0,4)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
