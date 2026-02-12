@@ -11,6 +11,16 @@ export default function PerformancePage() {
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-8">Performance Reports v1</h1>
+      <div className="mb-8">
+        <label>Lens: </label>
+        <select>
+          <option>Total Portfolio</option>
+          <option>Asset</option>
+          <option>Asset Type</option>
+        </select>
+        <label>Agg: </label>
+        <input type="checkbox" /> 
+      </div>
       <ResponsiveContainer width="100%" height={400}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
@@ -22,7 +32,7 @@ export default function PerformancePage() {
           <Line type="monotone" dataKey="twr" stroke="#82ca9d" name="TWR" />
         </LineChart>
       </ResponsiveContainer>
-      <p className="mt-4">Full lenses/agg/benchmarks next.</p>
+      <p className="mt-4">Benchmarks/agg rules next.</p>
     </div>
   );
 }
