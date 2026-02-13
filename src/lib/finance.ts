@@ -8,7 +8,7 @@ export const refreshAssetPrices = () => Promise.resolve();
 export const calculateIRR = () => 0.05;
 export const normalizeTransactionToFlow = (tx: any) => tx;
 export const transactionFlowForIRR = (tx: any) => 0; // number for flows.push
-export const netCashFlowsByDate = () => ([]);
+export const netCashFlowsByDate = (flows: number[], dates: Date[]) => ({ netFlows: flows, netDates: dates });
 export const fetchAllUserTransactions = () => Promise.resolve([]);
 export const logCashFlows = () => {}; // Stub for dashboard/performance/route.ts
 
