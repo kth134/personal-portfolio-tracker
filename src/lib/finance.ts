@@ -150,7 +150,7 @@ export const calculateCashBalances = (transactions: Transaction[]): { balances: 
           break;
       }
     });
-    balances.set(accId, bal);
+    balances[accId] = bal;
   });
   const totalCash = Array.from(balances.values()).reduce((sum, b) => sum + b, 0);
   return { balances, totalCash };
