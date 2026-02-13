@@ -5,7 +5,7 @@ export const lenses = ['Total', 'Asset', 'Type'];
 export const calculateCashBalances = () => ([]);
 export const fetchAllUserTransactionsServer = () => Promise.resolve([]);
 export const refreshAssetPrices = () => Promise.resolve();
-export const calculateIRR = () => 0.05;
+export const calculateIRR = (netFlows: number[], netDates: Date[]) => 0.05;
 export const normalizeTransactionToFlow = (tx: any) => tx;
 export const transactionFlowForIRR = (tx: any) => 0; // number for flows.push
 export const netCashFlowsByDate = (flows: number[], dates: Date[]) => ({ netFlows: flows, netDates: dates });
