@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
     });
 
     // TWR/MWR per group (copy dashboard/performance pattern)
-    const series = [];
+    const series: any[] = [];
     // ... (implement TWR MWR agg/non-agg like dashboard)
 
     return NextResponse.json({ series, metrics: [], benchmarks: historicalData });
