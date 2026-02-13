@@ -3,7 +3,7 @@ export const getPerformanceData = () => [{ date: 'Jan', mwr: 2.5, twr: 2.0, benc
 export const lenses = ['Total', 'Asset', 'Type'];
 
 export const calculateCashBalances = () => ([]);
-export const fetchAllUserTransactionsServer = () => Promise.resolve([]);
+export const fetchAllUserTransactionsServer = (supabase: any, userId: string) => Promise.resolve([]);
 export const refreshAssetPrices = () => Promise.resolve();
 export const calculateIRR = (netFlows: number[], netDates: Date[]) => 0.05;
 export const normalizeTransactionToFlow = (tx: any) => tx;
