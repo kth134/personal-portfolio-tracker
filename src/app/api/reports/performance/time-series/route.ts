@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
-import { format, parseISO, addDays } from 'date-fns';
-import { calculateIRR, normalizeTransactionToFlow, logCashFlows, netCashFlowsByDate, transactionFlowForIRR, calculateCashBalances } from '@/lib/finance';
+import { NextResponse } from 'next/server';
+import { format, differenceInDays, parseISO } from 'date-fns';
+import { calculateIRR, normalizeTransactionToFlow, logCashFlows, netCashFlowsByDate, transactionFlowForIRR } from '@/lib/finance';
 
 // Full copy + adapt from dashboard/performance/route.ts for standalone reports
 // Uses Polygon/CG for prices (real), Finnhub/Alpha pattern similar.

@@ -82,11 +82,93 @@ export function normalizeTransactionToFlow(tx: any): number {
   return transactionFlowForIRR(tx);
 }
 
-// Keep other stubs for compatibility
-export const getPerformanceData = () => [{ date: 'Jan', mwr: 2.5, twr: 2.0 }];
-export const lenses = ['Total'];
-export const calculateCashBalances = (transactions: any[]) => ({ balances: new Map(), totalCash: 0 });
-export const fetchAllUserTransactionsServer = async (supabase: any, userId: string) => [];
-export const refreshAssetPrices = async () => {};
-export const fetchAllUserTransactions = async () => [];
-export const formatCashFlowsDebug = () => '';
+export const lenses = ['total', 'account', 'sub_portfolio', 'asset_type', 'asset_subtype', 'geography', 'size_tag', 'factor_tag'] as const;
+
+export interface Transaction {
+  id: string;
+  user_id: string;
+  account_id: string;
+  asset_id?: string;
+  type: string;
+  date: string;
+  amount: number;
+  fees: number;
+  account?: { id: string; name: string; type: string };
+  asset?: { id: string; ticker: string; name: string };
+}
+
+export const fetchAllUserTransactionsServer = async (supabase: any, userId: string): Promise<Transaction[]> => {
+  const { data: transactions, error } = await supabase
+    .from('transactions')
+    .select(`
+      *,
+      accounts (id, name, type),
+      assets (id, ticker, name)
+    `)
+    .eq('user_id', userId)
+    .order('date', { ascending: false });
+  if (error) {
+    console.error('Error fetching transactions:', error);
+    throw error;
+  }
+  return transactions ?? [];
+};
+
+export const calculateCashBalances = (transactions: Transaction[]): { balances: Map<string, number>; totalCash: number } => {
+  const balances = new Map<string, number>();
+  const byAccount: Record<string, Transaction[]> = {};
+  transactions.forEach((tx) => {
+    const accId = tx.account_id ?? tx.account?.id;
+    if (accId) {
+      if (!byAccount[accId]) byAccount[accId] = [];
+      byAccount[accId].push(tx);
+    }
+  });
+  Object.entries(byAccount).forEach(([accId, txs]) => {
+    txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    let bal = 0;
+    txs.forEach((tx) => {
+      const amt = Number(tx.amount || 0);
+      const fee = Math.abs(Number(tx.fees || 0));
+      const type = tx.type;
+      switch (type) {
+        case 'Deposit':
+          bal += amt;
+          break;
+        case 'Withdrawal':
+          bal -= amt;
+          break;
+        case 'Dividend':
+        case 'Interest':
+          bal += amt;
+          break;
+        case 'Buy':
+          bal -= amt + fee;
+          break;
+        case 'Sell':
+          bal += amt - fee;
+          break;
+      }
+    });
+    balances.set(accId, bal);
+  });
+  const totalCash = Array.from(balances.values()).reduce((sum, b) => sum + b, 0);
+  return { balances, totalCash };
+};
+
+export const refreshAssetPrices = async () => {
+  // Server action: trigger price fetch
+  // await fetch('/api/fetch-prices', { method: 'POST' });
+};
+
+export const fetchAllUserTransactions = async () => {
+  // Client-side: use useQuery
+  return [];
+};
+
+export const formatCashFlowsDebug = (flows: number[], dates: Date[]) => {
+  if (!flows || !dates) return '';
+  return flows.map((f, i) => `${dates[i].toLocaleDateString()}: $${f.toFixed(2)}`).join('\n');
+};
+
+export const getPerformanceData = async () => []; // Use API endpoints
