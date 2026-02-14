@@ -47,6 +47,23 @@ export default function PortfolioHoldingsWithSlicers({
   const [refreshing, setRefreshing] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [openItems, setOpenItems] = useState<string[]>([])
+  const [itemSorts, setItemSorts] = useState<Record<string, { key: string; dir: 'asc' | 'desc' }>>({})
+
+  const toggleItemSort = (groupKey: string, sortKey: string) => {
+    setItemSorts((prev) => {
+      const cur = prev[groupKey]
+      if (cur && cur.key === sortKey) {
+        const nextDir = cur.dir === 'desc' ? 'asc' : 'desc'
+        return { ...prev, [groupKey]: { key: sortKey, dir: nextDir } }
+      }
+      return { ...prev, [groupKey]: { key: sortKey, dir: 'desc' } }
+    })
+  }
+
+  const renderSortIndicator = (sortSpec: { key: string; dir: 'asc' | 'desc' } | undefined, col: string) => {
+    if (!sortSpec || sortSpec.key !== col) return null
+    return <span className="ml-1 text-xs">{sortSpec.dir === 'desc' ? '▼' : '▲'}</span>
+  }
 
   useEffect(() => {
     if (lens === 'total') {
@@ -166,27 +183,65 @@ export default function PortfolioHoldingsWithSlicers({
                 <Table className="min-w-[800px] table-fixed">
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="w-[40%]">Asset</TableHead>
-                      <TableHead className="w-[20%] text-right">Total Cost Basis</TableHead>
-                      <TableHead className="w-[20%] text-right">Current Value</TableHead>
-                      <TableHead className="w-[20%] text-right">Weight (Portfolio)</TableHead>
+                      <TableHead className="w-[40%]">
+                        <button type="button" className="flex items-center gap-2" onClick={() => toggleItemSort(group.key, 'ticker')}>
+                          Asset
+                          {renderSortIndicator(itemSorts[group.key], 'ticker')}
+                        </button>
+                      </TableHead>
+
+                      <TableHead className="w-[20%] text-right">
+                        <button type="button" className="flex items-center gap-2 ml-auto" onClick={() => toggleItemSort(group.key, 'cost_basis')}>
+                          Total Cost Basis
+                          {renderSortIndicator(itemSorts[group.key], 'cost_basis')}
+                        </button>
+                      </TableHead>
+
+                      <TableHead className="w-[20%] text-right">
+                        <button type="button" className="flex items-center gap-2 ml-auto" onClick={() => toggleItemSort(group.key, 'value')}>
+                          Current Value
+                          {renderSortIndicator(itemSorts[group.key], 'value')}
+                        </button>
+                      </TableHead>
+
+                      <TableHead className="w-[20%] text-right">
+                        <button type="button" className="flex items-center gap-2 ml-auto" onClick={() => toggleItemSort(group.key, 'weight')}>
+                          Weight (Portfolio)
+                          {renderSortIndicator(itemSorts[group.key], 'weight')}
+                        </button>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {[...(group.items || [])]
-                      .sort((a,b) => b.value - a.value)
-                      .map((item: any) => {
-                      const itemValue = Number(item.value) || 0
-                      const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
-                      return (
-                        <TableRow key={item.ticker}>
-                          <TableCell className="w-[40%]"><div className="font-bold">{item.ticker}</div><div className="text-[10px] opacity-70">{item.name}</div></TableCell>
-                          <TableCell className="w-[20%] text-right tabular-nums">{formatUSD(item.cost_basis)}</TableCell>
-                          <TableCell className="w-[20%] text-right tabular-nums font-bold">{formatUSD(itemValue)}</TableCell>
-                          <TableCell className="w-[20%] text-right tabular-nums">{itemWeight.toFixed(2)}%</TableCell>
-                        </TableRow>
-                      )
-                    })}
+                    {(() => {
+                      const sortSpec = itemSorts[group.key] || { key: 'value', dir: 'desc' }
+                      const dirMul = sortSpec.dir === 'desc' ? -1 : 1
+                      return [...(group.items || [])]
+                        .slice()
+                        .sort((a: any, b: any) => {
+                          const k = sortSpec.key
+                          if (k === 'ticker') {
+                            const aa = (a.ticker || '').toLowerCase()
+                            const bb = (b.ticker || '').toLowerCase()
+                            return aa.localeCompare(bb) * dirMul
+                          }
+                          const va = Number(k === 'cost_basis' ? (a.cost_basis ?? 0) : (a.value ?? 0)) || 0
+                          const vb = Number(k === 'cost_basis' ? (b.cost_basis ?? 0) : (b.value ?? 0)) || 0
+                          return (vb - va) * dirMul
+                        })
+                        .map((item: any) => {
+                          const itemValue = Number(item.value) || 0
+                          const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
+                          return (
+                            <TableRow key={item.ticker}>
+                              <TableCell className="w-[40%]"><div className="font-bold">{item.ticker}</div><div className="text-[10px] opacity-70">{item.name}</div></TableCell>
+                              <TableCell className="w-[20%] text-right tabular-nums">{formatUSD(item.cost_basis)}</TableCell>
+                              <TableCell className="w-[20%] text-right tabular-nums font-bold">{formatUSD(itemValue)}</TableCell>
+                              <TableCell className="w-[20%] text-right tabular-nums">{itemWeight.toFixed(2)}%</TableCell>
+                            </TableRow>
+                          )
+                        })
+                    })()}
                   </TableBody>
                 </Table>
               </AccordionContent>
