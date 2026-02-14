@@ -61,8 +61,9 @@ export default function PortfolioHoldingsWithSlicers({
   }
 
   const renderSortIndicator = (sortSpec: { key: string; dir: 'asc' | 'desc' } | undefined, col: string) => {
-    if (!sortSpec || sortSpec.key !== col) return null
-    return <span className="ml-1 text-xs">{sortSpec.dir === 'desc' ? '▼' : '▲'}</span>
+    return (
+      <ArrowUpDown className={cn("ml-1 h-3 w-3 inline cursor-pointer", (sortSpec && sortSpec.key === col) ? "text-blue-600" : "text-zinc-400")} />
+    )
   }
 
   useEffect(() => {
@@ -139,20 +140,28 @@ export default function PortfolioHoldingsWithSlicers({
       </div>
 
       <div className="flex flex-wrap gap-8 justify-center">
-        {pieAllocations.map((slice, idx) => (
-          <div key={idx} className={cn("bg-card p-4 rounded-xl border shadow-sm space-y-4 min-w-[300px] flex-1", pieAllocations.length === 1 ? "w-full max-w-none" : "max-w-[500px]")}>
-            <h4 className="font-bold text-center border-b pb-2 text-sm uppercase">{slice.key}</h4>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie data={slice.data} dataKey="value" nameKey="subkey" outerRadius={100} label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}>
-                  {slice.data.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
-                </Pie>
-                <Tooltip formatter={(v: any) => formatUSD(v)} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        ))}
+        {pieAllocations.map((slice, idx) => {
+          const sliceData = Array.isArray(slice.data)
+            ? slice.data.map((d: any) => ({ subkey: d.subkey ?? d.name ?? 'Unknown', value: Number(d.value) || 0 }))
+            : (Array.isArray(slice.items) ? slice.items.map((i: any) => ({ subkey: i.ticker ?? i.name ?? 'Unknown', value: Number(i.value) || 0 })) : []);
+
+          if (!sliceData || sliceData.length === 0) return null;
+
+          return (
+            <div key={idx} className={cn("bg-card p-4 rounded-xl border shadow-sm space-y-4 min-w-[300px] flex-1", pieAllocations.length === 1 ? "w-full max-w-none" : "max-w-[500px]")}> 
+              <h4 className="font-bold text-center border-b pb-2 text-sm uppercase">{slice.key}</h4>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie data={sliceData} dataKey="value" nameKey="subkey" outerRadius={100} label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}>
+                    {sliceData.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
+                  </Pie>
+                  <Tooltip formatter={(v: any) => formatUSD(v)} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )
+        })}
       </div>
 
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems} className="space-y-4">
