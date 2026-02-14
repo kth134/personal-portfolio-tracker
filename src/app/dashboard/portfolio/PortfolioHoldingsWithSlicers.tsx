@@ -105,6 +105,22 @@ export default function PortfolioHoldingsWithSlicers({
     return allocations.reduce((sum, a) => sum + (Number(a.value) || 0), 0) + cash
   }, [allocations, cash])
 
+  const normalizedPieSlices = useMemo(() => {
+    const source = (Array.isArray(pieAllocations) && pieAllocations.length > 0) ? pieAllocations : allocations;
+    return (source || []).map((slice: any) => {
+      let dataArr: any[] = [];
+      if (Array.isArray(slice.data) && slice.data.length > 0) {
+        dataArr = slice.data.map((d: any) => ({ subkey: d.subkey ?? d.name ?? d.ticker ?? 'Unknown', value: Number(d.value) || 0 }))
+      } else if (Array.isArray(slice.items) && slice.items.length > 0) {
+        dataArr = slice.items.map((i: any) => ({ subkey: i.ticker ?? i.name ?? 'Unknown', value: Number(i.value) || 0 }))
+      } else if (typeof slice.value === 'number' || slice.value) {
+        // Single-group aggregate: show the group's own value as one slice
+        dataArr = [{ subkey: slice.key ?? 'Value', value: Number(slice.value) || 0 }]
+      }
+      return { ...slice, data: dataArr };
+    });
+  }, [pieAllocations, allocations]);
+
   if (loading && allocations.length === 0) {
     return <div className="p-8 text-center text-lg animate-pulse">Loading holdings...</div>
   }
@@ -140,15 +156,11 @@ export default function PortfolioHoldingsWithSlicers({
       </div>
 
       <div className="flex flex-wrap gap-8 justify-center">
-        {pieAllocations.map((slice, idx) => {
-          const sliceData = Array.isArray(slice.data)
-            ? slice.data.map((d: any) => ({ subkey: d.subkey ?? d.name ?? 'Unknown', value: Number(d.value) || 0 }))
-            : (Array.isArray(slice.items) ? slice.items.map((i: any) => ({ subkey: i.ticker ?? i.name ?? 'Unknown', value: Number(i.value) || 0 })) : []);
-
+        {normalizedPieSlices.map((slice, idx) => {
+          const sliceData = Array.isArray(slice.data) ? slice.data : [];
           if (!sliceData || sliceData.length === 0) return null;
-
           return (
-            <div key={idx} className={cn("bg-card p-4 rounded-xl border shadow-sm space-y-4 min-w-[300px] flex-1", pieAllocations.length === 1 ? "w-full max-w-none" : "max-w-[500px]")}> 
+            <div key={idx} className={cn("bg-card p-4 rounded-xl border shadow-sm space-y-4 min-w-[300px] flex-1", normalizedPieSlices.length === 1 ? "w-full max-w-none" : "max-w-[500px]")}> 
               <h4 className="font-bold text-center border-b pb-2 text-sm uppercase">{slice.key}</h4>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -224,7 +236,7 @@ export default function PortfolioHoldingsWithSlicers({
                   <TableBody>
                     {(() => {
                       const sortSpec = itemSorts[group.key] || { key: 'value', dir: 'desc' }
-                      const dirMul = sortSpec.dir === 'desc' ? -1 : 1
+                      const dirMul = sortSpec.dir === 'asc' ? 1 : -1
                       return [...(group.items || [])]
                         .slice()
                         .sort((a: any, b: any) => {
@@ -236,7 +248,7 @@ export default function PortfolioHoldingsWithSlicers({
                           }
                           const va = Number(k === 'cost_basis' ? (a.cost_basis ?? 0) : (a.value ?? 0)) || 0
                           const vb = Number(k === 'cost_basis' ? (b.cost_basis ?? 0) : (b.value ?? 0)) || 0
-                          return (vb - va) * dirMul
+                          return (va - vb) * dirMul
                         })
                         .map((item: any) => {
                           const itemValue = Number(item.value) || 0
