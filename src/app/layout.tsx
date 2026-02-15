@@ -42,27 +42,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Popover open={portfolioOpen} onOpenChange={setPortfolioOpen}>
                   <PopoverTrigger asChild>
                     <Link href="/dashboard/portfolio" className="flex items-center gap-1" onMouseEnter={() => setPortfolioOpen(true)} onMouseLeave={() => setPortfolioOpen(false)}>
-                      Portfolio Details <ChevronDown className="h-4 w-4" />
+                      Portfolio Management <ChevronDown className="h-4 w-4" />
                     </Link>
                   </PopoverTrigger>
                   <PopoverContent className="w-48 p-2" onMouseEnter={() => setPortfolioOpen(true)} onMouseLeave={() => setPortfolioOpen(false)}>
                     <div className="flex flex-col gap-2">
                       <Link href="/dashboard/portfolio" className="hover:bg-gray-100 p-2 rounded">Holdings</Link>
-                      <Link href="/dashboard/accounts" className="hover:bg-gray-100 p-2 rounded">Accounts</Link>
-                      <Link href="/dashboard/assets" className="hover:bg-gray-100 p-2 rounded">Assets</Link>
+                      <Link href="/dashboard/portfolio?tab=rebalancing" className="hover:bg-gray-100 p-2 rounded">Rebalancing</Link>
                     </div>
                   </PopoverContent>
                 </Popover>
                 <Popover open={strategyOpen} onOpenChange={setStrategyOpen}>
                   <PopoverTrigger asChild>
-                    <Link href="/dashboard/strategy?tab=rebalancing" className="flex items-center gap-1" onMouseEnter={() => setStrategyOpen(true)} onMouseLeave={() => setStrategyOpen(false)}>
-                      Strategy <ChevronDown className="h-4 w-4" />
+                    <Link href="/dashboard/strategy?tab=sub-portfolios" className="flex items-center gap-1" onMouseEnter={() => setStrategyOpen(true)} onMouseLeave={() => setStrategyOpen(false)}>
+                      Portfolio Construction <ChevronDown className="h-4 w-4" />
                     </Link>
                   </PopoverTrigger>
                   <PopoverContent className="w-48 p-2" onMouseEnter={() => setStrategyOpen(true)} onMouseLeave={() => setStrategyOpen(false)}>
                     <div className="flex flex-col gap-2">
+                      <Link href="/dashboard/accounts" className="hover:bg-gray-100 p-2 rounded">Accounts</Link>
+                      <Link href="/dashboard/assets" className="hover:bg-gray-100 p-2 rounded">Assets</Link>
                       <Link href="/dashboard/strategy?tab=sub-portfolios" className="hover:bg-gray-100 p-2 rounded">Sub-Portfolios</Link>
-                      <Link href="/dashboard/strategy?tab=rebalancing" className="hover:bg-gray-100 p-2 rounded">Rebalancing</Link>
                       <Link href="/dashboard/strategy?tab=glide-path" className="hover:bg-gray-100 p-2 rounded">Glide Path</Link>
                     </div>
                   </PopoverContent>
@@ -131,10 +131,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <div className="space-y-2">
                   <div className="font-semibold text-sm text-muted-foreground mb-2">Navigation</div>
                   <Link href="/dashboard/portfolio" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
-                    Portfolio Details
+                    Portfolio Management
                   </Link>
-                  <Link href="/dashboard/strategy?tab=rebalancing" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
-                    Strategy
+                  <Link href="/dashboard/strategy?tab=sub-portfolios" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
+                    Portfolio Construction
                   </Link>
                   <Link href="/dashboard/performance" className="block py-2 px-3 rounded hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
                     Performance

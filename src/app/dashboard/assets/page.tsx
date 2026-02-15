@@ -13,7 +13,7 @@ export default async function AssetsPage() {
 
   return (
     <main className="p-8">
-      <h1 className="text-3xl font-bold mb-8">Portfolio</h1>
+      <h1 className="text-3xl font-bold mb-8">Portfolio Construction</h1>
       <Tabs value="assets">
         <PortfolioTabNavigation />
         <div className="mt-6">

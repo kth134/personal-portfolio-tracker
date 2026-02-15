@@ -3,7 +3,7 @@ import { login, ensureAuth } from './helpers';
 
 test('Rebalancing: page structure loads', async ({ page }) => {
   await login(page);
-  await page.goto('/dashboard/strategy?tab=rebalancing', { waitUntil: 'networkidle' });
+  await page.goto('/dashboard/portfolio?tab=rebalancing', { waitUntil: 'networkidle' });
   await ensureAuth(page);
   await page.waitForLoadState('networkidle');
 
