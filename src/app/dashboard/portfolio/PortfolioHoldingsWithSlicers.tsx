@@ -76,8 +76,13 @@ export default function PortfolioHoldingsWithSlicers({
       try {
         const res = await fetch('/api/dashboard/values', { method: 'POST', body: JSON.stringify({ lens }) })
         const data = await res.json()
-        setAvailableValues(data.values || [])
-        setSelectedValues((data.values || []).map((v: any) => v.value))
+        const vals = data.values || []
+        setAvailableValues(vals)
+        // `allocations` groups `account` and `sub_portfolio` by display name,
+        // while `values` returns ids for those lenses. Use labels to match.
+        setSelectedValues(
+          vals.map((v: any) => (lens === 'account' || lens === 'sub_portfolio') ? (v.label ?? v.value) : v.value)
+        )
       } catch (err) { console.error(err) }
     }
     fetchValues()
@@ -93,11 +98,6 @@ export default function PortfolioHoldingsWithSlicers({
           fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify({ ...payload, aggregate: false }), cache: 'no-store' })
         ])
         const [pieData, tableData] = await Promise.all([pieRes.json(), tableRes.json()])
-        if (lens === 'account' || lens === 'sub_portfolio') {
-          // Debugging: log API responses for problematic lenses
-          console.debug('PortfolioHoldings: pieData', pieData)
-          console.debug('PortfolioHoldings: tableData', tableData)
-        }
         setPieAllocations(pieData.allocations || [])
         setAllocations(tableData.allocations || [])
         // Initial state: Empty openItems (Collapsed by default)
