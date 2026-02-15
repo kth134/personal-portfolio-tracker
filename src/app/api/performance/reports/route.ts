@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { addDays, addMonths, endOfMonth, format, formatISO, isAfter, parseISO, startOfMonth, subMonths, subYears } from 'date-fns'
 import { calculateCashBalances, fetchAllUserTransactionsServer, transactionFlowForIRR, calculateIRR, netCashFlowsByDate } from '@/lib/finance'
+import { buildTotalsFromSeries } from '@/lib/performance-reports'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,6 +98,7 @@ export async function POST(req: Request) {
 
     for (const d of dates) {
       const filteredTx = allTx.filter(tx => tx.date <= d)
+      const periodTx = allTx.filter(tx => tx.date >= start && tx.date <= d)
       const filteredLots = (allLots || []).filter(lot => lot.purchase_date <= d)
 
       // Get group mapping for all assets (needed for both modes)
@@ -140,7 +142,7 @@ export async function POST(req: Request) {
       if (lens === 'total') {
         // Total portfolio lens: always keep aggregated series for summary cards
         if (!series['aggregated']) series['aggregated'] = []
-        const calc = calculateGroupMetrics(filteredTx, filteredLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
+        const calc = calculateGroupMetrics(filteredTx, periodTx, filteredLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
         series['aggregated'].push({ date: d, ...calc })
 
         // In non-aggregate mode, also return per-asset breakdown
@@ -165,7 +167,8 @@ export async function POST(req: Request) {
               return lotAsset?.id === assetId
             })
 
-            const assetCalc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
+            const assetPeriodTx = periodTx.filter(tx => tx.asset_id === assetId)
+            const assetCalc = calculateGroupMetrics(assetTx, assetPeriodTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
             assetBreakdown[assetLabel].push({ date: d, ...assetCalc })
           })
         }
@@ -191,12 +194,16 @@ export async function POST(req: Request) {
             const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
             return getAssetGroupId(asset, tx.account_id) === groupId
           })
+          const groupPeriodTx = periodTx.filter(tx => {
+            const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+            return getAssetGroupId(asset, tx.account_id) === groupId
+          })
           const groupLots = filteredLots.filter(lot => {
             const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
             return getAssetGroupId(asset, lot.account_id) === groupId
           })
 
-          const calc = calculateGroupMetrics(groupTx, groupLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
+          const calc = calculateGroupMetrics(groupTx, groupPeriodTx, groupLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
           series[groupLabel].push({ date: d, ...calc })
         })
       } else {
@@ -223,12 +230,16 @@ export async function POST(req: Request) {
             const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
             return getAssetGroupId(asset, tx.account_id) === groupId
           })
+          const groupPeriodTx = periodTx.filter(tx => {
+            const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+            return getAssetGroupId(asset, tx.account_id) === groupId
+          })
           const groupLots = filteredLots.filter(lot => {
             const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
             return getAssetGroupId(asset, lot.account_id) === groupId
           })
 
-          const groupCalc = calculateGroupMetrics(groupTx, groupLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
+          const groupCalc = calculateGroupMetrics(groupTx, groupPeriodTx, groupLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
           series[groupLabel].push({ date: d, ...groupCalc })
 
           // Get assets in this group
@@ -247,38 +258,27 @@ export async function POST(req: Request) {
             if (!assetSeries[groupLabel][assetLabel]) assetSeries[groupLabel][assetLabel] = []
 
             const assetTx = groupTx.filter(tx => tx.asset_id === assetId)
+            const assetPeriodTx = groupPeriodTx.filter(tx => tx.asset_id === assetId)
             const assetLots = filteredLots.filter(lot => {
               const lotAsset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
               return lotAsset?.id === assetId && getAssetGroupId(lotAsset, lot.account_id) === groupId
             })
 
-            const calc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
+            const calc = calculateGroupMetrics(assetTx, assetPeriodTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
             assetSeries[groupLabel][assetLabel].push({ date: d, ...calc })
           })
         })
       }
     }
 
-    // Rebase metrics to the selected date range so summaries/charts are range-accurate.
-    Object.values(series).forEach(rebaseSeriesToRange)
+    // TWR should be based on first in-range portfolio value (matching chart expectation)
+    Object.values(series).forEach(applyTWRFromFirstValue)
     Object.values(assetSeries).forEach(groupMap => {
-      Object.values(groupMap).forEach(rebaseSeriesToRange)
+      Object.values(groupMap).forEach(applyTWRFromFirstValue)
     })
-    Object.values(assetBreakdown).forEach(rebaseSeriesToRange)
+    Object.values(assetBreakdown).forEach(applyTWRFromFirstValue)
 
-    // Calculate totals for aggregate mode
-    for (const key of Object.keys(series)) {
-      const s = series[key]
-      const last = s[s.length - 1]
-      totals[key] = {
-        netGain: last?.netGain || 0,
-        income: last?.income || 0,
-        realized: last?.realized || 0,
-        unrealized: last?.unrealized || 0,
-        totalReturnPct: last?.totalReturnPct || 0,
-        irr: last?.irr || 0,
-      }
-    }
+    Object.assign(totals, buildTotalsFromSeries(series))
 
     // Calculate totals for non-aggregate mode (asset level)
     for (const groupKey of Object.keys(assetSeries)) {
@@ -312,7 +312,8 @@ export async function POST(req: Request) {
 }
 
 function calculateGroupMetrics(
-  groupTxs: any[],
+  groupStateTxs: any[],
+  groupPeriodTxs: any[],
   groupLots: any[],
   assetToTicker: Map<string, string>,
   historicalPrices: Record<string, { date: string, close: number }[]>,
@@ -321,7 +322,7 @@ function calculateGroupMetrics(
   d: string,
   lens: string = 'total'
 ) {
-  const { totalCash: groupCash } = calculateCashBalances(groupTxs)
+  const { totalCash: groupCash } = calculateCashBalances(groupStateTxs)
   const groupOriginalInvestment = groupLots.reduce((sum, lot) => sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity)), 0)
 
   // Build open lots by simulating FIFO from transactions up to date d
@@ -329,7 +330,7 @@ function calculateGroupMetrics(
   const simulatedOpenLots: any[] = []
   const assetLots = new Map<string, { qty: number, basis: number }[]>()
   
-  groupTxs.forEach(tx => {
+  groupStateTxs.forEach(tx => {
     const assetId = tx.asset_id
     if (!assetId) return
     if (tx.type === 'Buy') {
@@ -370,7 +371,9 @@ function calculateGroupMetrics(
   
   simulatedOpenLots.forEach(lot => {
     const ticker = assetToTicker.get(lot.asset_id) || ''
-    const price = (d === lastDateStr ? (currentPrices[ticker] || 0) : (historicalPrices[ticker] || []).find(p => p.date === d)?.close || 0)
+    const price = d === lastDateStr
+      ? (currentPrices[ticker] || getPriceAtOrBefore(historicalPrices[ticker] || [], d))
+      : getPriceAtOrBefore(historicalPrices[ticker] || [], d)
     
     totalBasis += lot.remaining_quantity * lot.cost_basis_per_unit
     if (price > 0) {
@@ -381,9 +384,10 @@ function calculateGroupMetrics(
   // Unrealized gains = current market value - total cost basis
   const unrealized = marketValue - totalBasis
 
-  const realized = groupTxs.reduce((sum, tx) => sum + (Number(tx.realized_gain) || 0), 0)
-  const dividends = groupTxs.reduce((sum, tx) => sum + (tx.type === 'Dividend' ? Number(tx.amount || 0) : 0), 0)
-  const interest = groupTxs.reduce((sum, tx) => sum + (tx.type === 'Interest' ? Number(tx.amount || 0) : 0), 0)
+  // Match performance page semantics: realized/income come from transactions in selected period.
+  const realized = groupPeriodTxs.reduce((sum, tx) => sum + (Number(tx.realized_gain) || 0), 0)
+  const dividends = groupPeriodTxs.reduce((sum, tx) => sum + (tx.type === 'Dividend' ? Number(tx.amount || 0) - Math.abs(Number(tx.fees || 0)) : 0), 0)
+  const interest = groupPeriodTxs.reduce((sum, tx) => sum + (tx.type === 'Interest' ? Number(tx.amount || 0) - Math.abs(Number(tx.fees || 0)) : 0), 0)
   const income = dividends + interest
   const netGain = unrealized + realized + income
   const portfolioValue = marketValue + groupCash
@@ -392,10 +396,10 @@ function calculateGroupMetrics(
   // Calculate IRR (MWR) using the centralized function
   // For account/total lens: include all cash flows (deposits/withdrawals)
   // For other lenses: calculate asset-only IRR (exclude deposits/withdrawals)
-  const irr = calculateMWRForLens(groupTxs, portfolioValue, d, lens)
+  const irr = calculateMWRForLens(groupPeriodTxs, portfolioValue, d, lens)
 
-  // Calculate TWR - time-weighted return based on portfolio value change
-  const twr = groupOriginalInvestment > 0 ? ((portfolioValue / groupOriginalInvestment) - 1) * 100 : 0
+  // Placeholder; overwritten by applyTWRFromFirstValue() after full series is built
+  const twr = 0
 
   return {
     portfolioValue,
@@ -408,43 +412,6 @@ function calculateGroupMetrics(
     irr,
     twr,
   }
-}
-
-function rebaseSeriesToRange(points: any[]) {
-  if (!points || points.length === 0) return
-
-  const baseline = points[0]
-  const baselinePortfolioValue = Number(baseline?.portfolioValue || 0)
-  const baselineUnrealized = Number(baseline?.unrealized || 0)
-  const baselineRealized = Number(baseline?.realized || 0)
-  const baselineIncome = Number(baseline?.income || 0)
-  const baselineDate = parseISO(baseline.date)
-
-  points.forEach((p: any) => {
-    const unrealized = Number(p?.unrealized || 0) - baselineUnrealized
-    const realized = Number(p?.realized || 0) - baselineRealized
-    const income = Number(p?.income || 0) - baselineIncome
-    const netGain = unrealized + realized + income
-
-    const pv = Number(p?.portfolioValue || 0)
-    const twr = baselinePortfolioValue !== 0
-      ? ((pv / baselinePortfolioValue) - 1) * 100
-      : 0
-
-    const currentDate = parseISO(p.date)
-    const years = (currentDate.getTime() - baselineDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
-    const irr = years > 0
-      ? ((Math.pow(1 + (twr / 100), 1 / years) - 1) * 100)
-      : 0
-
-    p.unrealized = unrealized
-    p.realized = realized
-    p.income = income
-    p.netGain = netGain
-    p.totalReturnPct = twr
-    p.twr = twr
-    p.irr = Number.isFinite(irr) ? irr : 0
-  })
 }
 
 function resolveDateRange(period: string, startDate?: string, endDate?: string) {
@@ -488,6 +455,16 @@ function calculateMWR(transactions: any[], portfolioValue: number, asOfDate: str
   return calculateMWRForLens(transactions, portfolioValue, asOfDate, 'total')
 }
 
+function applyTWRFromFirstValue(points: any[]) {
+  if (!points || points.length === 0) return
+  const firstPV = Number(points[0]?.portfolioValue || 0)
+  points.forEach((p: any) => {
+    const pv = Number(p?.portfolioValue || 0)
+    const twr = firstPV > 0 ? ((pv / firstPV) - 1) * 100 : 0
+    p.twr = twr
+  })
+}
+
 function calculateMWRForLens(transactions: any[], portfolioValue: number, asOfDate: string, lens: string) {
   const flows: number[] = []
   const dates: Date[] = []
@@ -511,7 +488,7 @@ function calculateMWRForLens(transactions: any[], portfolioValue: number, asOfDa
   })
   
   // Terminal value (current portfolio value)
-  flows.push(-portfolioValue)
+  flows.push(portfolioValue)
   dates.push(new Date(asOfDate))
   
   if (flows.length < 2) {
@@ -616,13 +593,15 @@ async function getBenchmarkSeries(supabase: any, benchmarks: string[], start: st
   const series: Record<string, { date: string, value: number }[]> = {}
   const benchIds = benchmarks.filter((b: string) => b !== SIXTY_FORTY)
   const tickers = benchIds.map((b: string) => BENCHMARK_MAP[b]).filter(Boolean)
+  const neededDates = buildDates(start, end, granularity)
 
   const prices = await getHistoricalPrices(supabase, tickers, start, end, granularity)
   benchIds.forEach((benchId: string) => {
     const ticker = BENCHMARK_MAP[benchId]
     const pts = prices[ticker] || []
-    const first = pts[0]?.close || 1
-    series[benchId] = pts.map(p => ({ date: p.date, value: first > 0 ? ((p.close / first) - 1) * 100 : 0 }))
+    const aligned = neededDates.map((date) => ({ date, close: getPriceAtOrBefore(pts, date) }))
+    const first = aligned.find((p) => p.close > 0)?.close || 0
+    series[benchId] = aligned.map((p) => ({ date: p.date, value: first > 0 ? ((p.close / first) - 1) * 100 : 0 }))
   })
 
   if (benchmarks.includes(SIXTY_FORTY)) {
@@ -633,4 +612,19 @@ async function getBenchmarkSeries(supabase: any, benchmarks: string[], start: st
   }
 
   return series
+}
+
+function getPriceAtOrBefore(points: { date: string, close: number }[], targetDate: string) {
+  if (!points || points.length === 0) return 0
+
+  let candidate = 0
+  for (const p of points) {
+    if (p.date <= targetDate) candidate = Number(p.close || 0)
+    else break
+  }
+
+  if (candidate > 0) return candidate
+
+  // If no earlier price exists in range, use the earliest available
+  return Number(points[0]?.close || 0)
 }
