@@ -93,6 +93,11 @@ export default function PortfolioHoldingsWithSlicers({
           fetch('/api/dashboard/allocations', { method: 'POST', body: JSON.stringify({ ...payload, aggregate: false }), cache: 'no-store' })
         ])
         const [pieData, tableData] = await Promise.all([pieRes.json(), tableRes.json()])
+        if (lens === 'account' || lens === 'sub_portfolio') {
+          // Debugging: log API responses for problematic lenses
+          console.debug('PortfolioHoldings: pieData', pieData)
+          console.debug('PortfolioHoldings: tableData', tableData)
+        }
         setPieAllocations(pieData.allocations || [])
         setAllocations(tableData.allocations || [])
         // Initial state: Empty openItems (Collapsed by default)
