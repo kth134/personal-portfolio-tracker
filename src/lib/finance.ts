@@ -264,6 +264,8 @@ export async function fetchAllUserTransactionsServer(supabase: any, userId: stri
         date,
         type,
         amount,
+        quantity,
+        price_per_unit,
         fees,
         funding_source,
         notes,

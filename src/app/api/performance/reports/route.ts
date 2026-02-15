@@ -93,6 +93,7 @@ export async function POST(req: Request) {
     const assetSeries: Record<string, Record<string, any[]>> = {} // For non-aggregate mode: group -> asset -> data
     const totals: Record<string, any> = {}
     const assetTotals: Record<string, Record<string, any>> = {} // For non-aggregate mode
+    const assetBreakdown: Record<string, any[]> = {} // For total portfolio non-aggregate mode
 
     for (const d of dates) {
       const filteredTx = allTx.filter(tx => tx.date <= d)
@@ -137,10 +138,37 @@ export async function POST(req: Request) {
       })
 
       if (lens === 'total') {
-        // Total portfolio lens: always aggregate everything
+        // Total portfolio lens: always keep aggregated series for summary cards
         if (!series['aggregated']) series['aggregated'] = []
         const calc = calculateGroupMetrics(filteredTx, filteredLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
         series['aggregated'].push({ date: d, ...calc })
+
+        // In non-aggregate mode, also return per-asset breakdown
+        if (!aggregate) {
+          const assetIds = new Set<string>()
+          filteredTx.forEach((tx: any) => {
+            if (tx.asset_id) assetIds.add(tx.asset_id)
+          })
+          filteredLots.forEach((lot: any) => {
+            const lotAsset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+            if (lotAsset?.id) assetIds.add(lotAsset.id)
+          })
+
+          Array.from(assetIds).forEach(assetId => {
+            const assetInfo = assetInfoMap.get(assetId)
+            const assetLabel = assetInfo?.name || assetInfo?.ticker || assetId
+            if (!assetBreakdown[assetLabel]) assetBreakdown[assetLabel] = []
+
+            const assetTx = filteredTx.filter(tx => tx.asset_id === assetId)
+            const assetLots = filteredLots.filter(lot => {
+              const lotAsset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+              return lotAsset?.id === assetId
+            })
+
+            const assetCalc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
+            assetBreakdown[assetLabel].push({ date: d, ...assetCalc })
+          })
+        }
       } else if (aggregate) {
         // Aggregate mode: one series per selected group (group-level aggregation)
         const groupIds = new Set<string>()
@@ -179,10 +207,29 @@ export async function POST(req: Request) {
           const groupId = getAssetGroupId(asset, lot.account_id)
           if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
         })
+        filteredTx.forEach((tx: any) => {
+          const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+          const groupId = getAssetGroupId(asset, tx.account_id)
+          if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
+        })
 
         Array.from(groupIds).forEach(groupId => {
           const groupLabel = getGroupLabel(groupId, filteredTx)
           if (!assetSeries[groupLabel]) assetSeries[groupLabel] = {}
+          if (!series[groupLabel]) series[groupLabel] = []
+
+          // Keep group-level series populated in non-aggregate mode so summary cards stay accurate
+          const groupTx = filteredTx.filter(tx => {
+            const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+            return getAssetGroupId(asset, tx.account_id) === groupId
+          })
+          const groupLots = filteredLots.filter(lot => {
+            const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+            return getAssetGroupId(asset, lot.account_id) === groupId
+          })
+
+          const groupCalc = calculateGroupMetrics(groupTx, groupLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
+          series[groupLabel].push({ date: d, ...groupCalc })
 
           // Get assets in this group
           const groupAssetIds = new Set<string>()
@@ -199,10 +246,10 @@ export async function POST(req: Request) {
             const assetLabel = assetInfo.name || assetInfo.ticker || assetId
             if (!assetSeries[groupLabel][assetLabel]) assetSeries[groupLabel][assetLabel] = []
 
-            const assetTx = filteredTx.filter(tx => tx.asset_id === assetId)
+            const assetTx = groupTx.filter(tx => tx.asset_id === assetId)
             const assetLots = filteredLots.filter(lot => {
               const lotAsset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
-              return lotAsset?.id === assetId
+              return lotAsset?.id === assetId && getAssetGroupId(lotAsset, lot.account_id) === groupId
             })
 
             const calc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
@@ -211,6 +258,13 @@ export async function POST(req: Request) {
         })
       }
     }
+
+    // Rebase metrics to the selected date range so summaries/charts are range-accurate.
+    Object.values(series).forEach(rebaseSeriesToRange)
+    Object.values(assetSeries).forEach(groupMap => {
+      Object.values(groupMap).forEach(rebaseSeriesToRange)
+    })
+    Object.values(assetBreakdown).forEach(rebaseSeriesToRange)
 
     // Calculate totals for aggregate mode
     for (const key of Object.keys(series)) {
@@ -243,45 +297,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // For total portfolio, include asset-level breakdown for non-aggregate view
-    /*
-    let assetBreakdown: Record<string, any[]> = {}
-    if (lens === 'total' && !aggregate) {
-      // Build asset-level series for total portfolio non-aggregate mode
-      for (const d of dates) {
-        const filteredTx = allTx.filter(tx => tx.date <= d)
-        const filteredLots = (allLots || []).filter(lot => lot.purchase_date <= d)
-
-        const assetIds = new Set<string>()
-        filteredLots.forEach((lot: any) => {
-          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
-          if (asset?.id) assetIds.add(asset.id)
-        })
-
-        Array.from(assetIds).forEach(assetId => {
-          const assetTx = filteredTx.filter(tx => tx.asset_id === assetId)
-          const assetLots = filteredLots.filter(lot => {
-            const lotAsset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
-            return lotAsset?.id === assetId
-          })
-
-          const ticker = assetToTicker.get(assetId) || ''
-          if (!assetBreakdown[ticker]) assetBreakdown[ticker] = []
-
-          const calc = calculateGroupMetrics(assetTx, assetLots, assetToTicker, historicalPrices, currentPrices, lastDateStr, d, lens)
-          assetBreakdown[ticker].push({ date: d, ...calc })
-        })
-      }
-    }
-    */
-
     return NextResponse.json({ 
       series, 
       totals, 
       benchmarks: benchmarkSeries,
       assetSeries: lens !== 'total' && !aggregate ? assetSeries : undefined,
       assetTotals: lens !== 'total' && !aggregate ? assetTotals : undefined,
-      // assetBreakdown: lens === 'total' && !aggregate ? assetBreakdown : undefined,
+      assetBreakdown: lens === 'total' && !aggregate ? assetBreakdown : undefined,
     })
   } catch (error) {
     console.error(error)
@@ -386,6 +408,43 @@ function calculateGroupMetrics(
     irr,
     twr,
   }
+}
+
+function rebaseSeriesToRange(points: any[]) {
+  if (!points || points.length === 0) return
+
+  const baseline = points[0]
+  const baselinePortfolioValue = Number(baseline?.portfolioValue || 0)
+  const baselineUnrealized = Number(baseline?.unrealized || 0)
+  const baselineRealized = Number(baseline?.realized || 0)
+  const baselineIncome = Number(baseline?.income || 0)
+  const baselineDate = parseISO(baseline.date)
+
+  points.forEach((p: any) => {
+    const unrealized = Number(p?.unrealized || 0) - baselineUnrealized
+    const realized = Number(p?.realized || 0) - baselineRealized
+    const income = Number(p?.income || 0) - baselineIncome
+    const netGain = unrealized + realized + income
+
+    const pv = Number(p?.portfolioValue || 0)
+    const twr = baselinePortfolioValue !== 0
+      ? ((pv / baselinePortfolioValue) - 1) * 100
+      : 0
+
+    const currentDate = parseISO(p.date)
+    const years = (currentDate.getTime() - baselineDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
+    const irr = years > 0
+      ? ((Math.pow(1 + (twr / 100), 1 / years) - 1) * 100)
+      : 0
+
+    p.unrealized = unrealized
+    p.realized = realized
+    p.income = income
+    p.netGain = netGain
+    p.totalReturnPct = twr
+    p.twr = twr
+    p.irr = Number.isFinite(irr) ? irr : 0
+  })
 }
 
 function resolveDateRange(period: string, startDate?: string, endDate?: string) {
