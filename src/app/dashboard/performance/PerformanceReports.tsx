@@ -90,6 +90,7 @@ export default function PerformanceReports() {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<ReportsResponse | null>(null)
   const [valuesLoading, setValuesLoading] = useState(false)
+  const axisWidth = valueMode === 'percent' ? 72 : 104
 
   const refreshValues = async () => {
     if (lens === 'total') return
@@ -468,7 +469,7 @@ export default function PerformanceReports() {
 
           {/* Aggregate Mode: Single chart with group-level lines */}
           {aggregate && (
-            <div className="space-y-4">
+            <div className="space-y-4 rounded-xl border bg-card p-5 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">MWR / TWR Performance</h3>
                 <div className="text-sm text-muted-foreground">(MWR = IRR, TWR = time‑weighted)</div>
@@ -478,14 +479,17 @@ export default function PerformanceReports() {
                   Benchmarks are hidden in $ mode (benchmark series are % returns).
                 </div>
               )}
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={chartSeries} margin={{ top: 20, right: 50, left: 20, bottom: 10 }}>
+              <div className="h-[420px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartSeries} margin={{ top: 20, right: 36, left: 24, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
+                  <XAxis dataKey="date" minTickGap={24} tickMargin={8} />
                   <YAxis 
                     tickFormatter={(v) => chartFormatter(v ?? 0, valueMode)} 
                     domain={['auto', 'auto']}
                     padding={{ top: 20, bottom: 20 }}
+                    width={axisWidth}
+                    tickMargin={8}
                   />
                   <Tooltip formatter={(v) => chartFormatter((v as number) ?? 0, valueMode)} />
                   <Legend />
@@ -517,6 +521,7 @@ export default function PerformanceReports() {
                   )}
                 </LineChart>
               </ResponsiveContainer>
+              </div>
             </div>
           )}
 
@@ -528,16 +533,19 @@ export default function PerformanceReports() {
                 {Object.entries(assetChartSeries).map(([groupKey, seriesData]) => {
                   const assetKeys = Object.keys(data?.assetSeries?.[groupKey] || {})
                   return (
-                    <div key={groupKey} className="space-y-2">
-                      <h4 className="font-semibold text-center border-b pb-2">{groupKey}</h4>
-                      <ResponsiveContainer width="100%" height={320}>
-                        <LineChart data={seriesData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+                    <div key={groupKey} className="space-y-3 rounded-xl border bg-card p-4 shadow-sm overflow-hidden">
+                      <h4 className="font-semibold text-center border-b pb-2 truncate">{groupKey}</h4>
+                      <div className="h-[340px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={seriesData} margin={{ top: 16, right: 24, left: 20, bottom: 18 }}>
                           <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="date" />
+                          <XAxis dataKey="date" minTickGap={24} tickMargin={8} />
                           <YAxis 
                             tickFormatter={(v) => chartFormatter(v ?? 0, valueMode)} 
                             domain={['auto', 'auto']}
                             padding={{ top: 10, bottom: 10 }}
+                            width={axisWidth}
+                            tickMargin={8}
                           />
                           <Tooltip formatter={(v) => chartFormatter((v as number) ?? 0, valueMode)} />
                           <Legend />
@@ -562,6 +570,7 @@ export default function PerformanceReports() {
                           ))}
                         </LineChart>
                       </ResponsiveContainer>
+                      </div>
                     </div>
                   )
                 })}
@@ -571,19 +580,22 @@ export default function PerformanceReports() {
 
           {/* Total Portfolio Non-Aggregate: Single chart with asset lines */}
           {!aggregate && lens === 'total' && (
-            <div className="space-y-4">
+            <div className="space-y-4 rounded-xl border bg-card p-5 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">MWR / TWR Performance by Asset</h3>
                 <div className="text-sm text-muted-foreground">Individual asset performance</div>
               </div>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={totalPortfolioAssetSeries['Total Portfolio'] || []} margin={{ top: 20, right: 50, left: 20, bottom: 10 }}>
+              <div className="h-[420px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={totalPortfolioAssetSeries['Total Portfolio'] || []} margin={{ top: 20, right: 36, left: 24, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
+                  <XAxis dataKey="date" minTickGap={24} tickMargin={8} />
                   <YAxis 
                     tickFormatter={(v) => chartFormatter(v ?? 0, valueMode)} 
                     domain={['auto', 'auto']}
                     padding={{ top: 20, bottom: 20 }}
+                    width={axisWidth}
+                    tickMargin={8}
                   />
                   <Tooltip formatter={(v) => chartFormatter((v as number) ?? 0, valueMode)} />
                   <Legend />
@@ -599,6 +611,7 @@ export default function PerformanceReports() {
                   ))}
                 </LineChart>
               </ResponsiveContainer>
+              </div>
             </div>
           )}
 
@@ -606,16 +619,19 @@ export default function PerformanceReports() {
           {aggregate && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {SERIES_METRICS.map(metric => (
-                <div key={metric.key} className="space-y-2">
+                <div key={metric.key} className="space-y-2 rounded-xl border bg-card p-4 shadow-sm overflow-hidden">
                   <h4 className="font-semibold">{metric.label}</h4>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <LineChart data={metricSeries(metric.key)} margin={{ top: 10, right: 50, left: 10, bottom: 10 }}>
+                  <div className="h-[290px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={metricSeries(metric.key)} margin={{ top: 16, right: 28, left: 20, bottom: 18 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
+                      <XAxis dataKey="date" minTickGap={24} tickMargin={8} />
                       <YAxis 
                         tickFormatter={(v) => formatUSD(v ?? 0)} 
                         domain={['auto', 'auto']}
                         padding={{ top: 20, bottom: 20 }}
+                        width={104}
+                        tickMargin={8}
                       />
                       <Tooltip formatter={(v) => formatUSD((v as number) ?? 0)} />
                       <Legend />
@@ -628,6 +644,7 @@ export default function PerformanceReports() {
                       )}
                     </LineChart>
                   </ResponsiveContainer>
+                  </div>
                 </div>
               ))}
             </div>
@@ -639,20 +656,23 @@ export default function PerformanceReports() {
               <h3 className="text-lg font-semibold">Metrics by Asset</h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {Object.keys(data?.assetSeries || {}).map(groupKey => (
-                  <div key={groupKey} className="space-y-4 border rounded-lg p-4">
-                    <h4 className="font-semibold text-center border-b pb-2">{groupKey}</h4>
+                  <div key={groupKey} className="space-y-4 border rounded-xl bg-card p-4 shadow-sm overflow-hidden">
+                    <h4 className="font-semibold text-center border-b pb-2 truncate">{groupKey}</h4>
                     <div className="grid grid-cols-1 gap-4">
                       {SERIES_METRICS.map(metric => (
-                        <div key={`${groupKey}-${metric.key}`} className="space-y-1">
+                        <div key={`${groupKey}-${metric.key}`} className="space-y-1 rounded-lg border bg-background/60 p-3 overflow-hidden">
                           <h5 className="text-sm text-muted-foreground">{metric.label}</h5>
-                          <ResponsiveContainer width="100%" height={180}>
-                            <LineChart data={assetMetricSeries(groupKey, metric.key)} margin={{ top: 5, right: 30, left: 5, bottom: 5 }}>
+                          <div className="h-[200px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={assetMetricSeries(groupKey, metric.key)} margin={{ top: 10, right: 22, left: 18, bottom: 14 }}>
                               <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="date" fontSize={10} />
+                              <XAxis dataKey="date" fontSize={10} minTickGap={20} tickMargin={6} />
                               <YAxis 
                                 tickFormatter={(v) => formatUSD(v ?? 0)} 
                                 fontSize={10}
                                 domain={['auto', 'auto']}
+                                width={96}
+                                tickMargin={6}
                               />
                               <Tooltip formatter={(v) => formatUSD((v as number) ?? 0)} />
                               <Legend fontSize={10} />
@@ -667,6 +687,7 @@ export default function PerformanceReports() {
                               ))}
                             </LineChart>
                           </ResponsiveContainer>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -680,16 +701,19 @@ export default function PerformanceReports() {
           {!aggregate && lens === 'total' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {SERIES_METRICS.map(metric => (
-                <div key={metric.key} className="space-y-2">
+                <div key={metric.key} className="space-y-2 rounded-xl border bg-card p-4 shadow-sm overflow-hidden">
                   <h4 className="font-semibold">{metric.label} by Asset</h4>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <LineChart data={assetMetricSeries('Total Portfolio', metric.key)} margin={{ top: 10, right: 50, left: 10, bottom: 10 }}>
+                  <div className="h-[290px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={assetMetricSeries('Total Portfolio', metric.key)} margin={{ top: 16, right: 28, left: 20, bottom: 18 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
+                      <XAxis dataKey="date" minTickGap={24} tickMargin={8} />
                       <YAxis 
                         tickFormatter={(v) => formatUSD(v ?? 0)} 
                         domain={['auto', 'auto']}
                         padding={{ top: 20, bottom: 20 }}
+                        width={104}
+                        tickMargin={8}
                       />
                       <Tooltip formatter={(v) => formatUSD((v as number) ?? 0)} />
                       <Legend />
@@ -698,6 +722,7 @@ export default function PerformanceReports() {
                       ))}
                     </LineChart>
                   </ResponsiveContainer>
+                  </div>
                 </div>
               ))}
             </div>
