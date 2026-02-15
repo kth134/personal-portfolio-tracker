@@ -179,7 +179,16 @@ export default function PortfolioHoldingsWithSlicers({
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems} className="space-y-4">
         {[...allocations]
            .map(g => {
-             const cashVal = lens === 'account' ? (cashByAccountName.get(g.key) || 0) : 0;
+             let cashVal = 0
+             if (lens === 'account') {
+               // `cashByAccountName` may be a Map on the server, but serialized
+               // props can arrive as plain objects in the client. Support both.
+               if (cashByAccountName instanceof Map) {
+                 cashVal = cashByAccountName.get(g.key) || 0
+               } else if (cashByAccountName && typeof cashByAccountName === 'object') {
+                 cashVal = (cashByAccountName as any)[g.key] || 0
+               }
+             }
              return { ...g, totalGroupVal: Number(g.value) + cashVal };
            })
            .sort((a,b) => b.totalGroupVal - a.totalGroupVal)
@@ -187,7 +196,7 @@ export default function PortfolioHoldingsWithSlicers({
           const groupWeight = totalValueAcrossSelection > 0 ? (group.totalGroupVal / totalValueAcrossSelection) * 100 : 0
 
           return (
-            <AccordionItem key={group.key} value={group.key} className="border rounded-lg overflow-hidden shadow-sm">
+            <AccordionItem key={String(group.key)} value={String(group.key)} className="border rounded-lg overflow-hidden shadow-sm">
               <AccordionTrigger className="bg-black text-white px-4 py-4 hover:bg-zinc-900 transition-colors">
                 <div className="flex justify-between w-full mr-4 text-left">
                   <span className="font-bold text-white uppercase">{group.key}</span>
@@ -250,11 +259,11 @@ export default function PortfolioHoldingsWithSlicers({
                           const vb = Number(k === 'cost_basis' ? (b.cost_basis ?? 0) : (b.value ?? 0)) || 0
                           return (va - vb) * dirMul
                         })
-                        .map((item: any) => {
+                        .map((item: any, idx: number) => {
                           const itemValue = Number(item.value) || 0
                           const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
                           return (
-                            <TableRow key={item.ticker}>
+                            <TableRow key={`${item.ticker ?? item.name ?? idx}`}>
                               <TableCell className="w-[40%]"><div className="font-bold">{item.ticker}</div><div className="text-[10px] opacity-70">{item.name}</div></TableCell>
                               <TableCell className="w-[20%] text-right tabular-nums">{formatUSD(item.cost_basis)}</TableCell>
                               <TableCell className="w-[20%] text-right tabular-nums font-bold">{formatUSD(itemValue)}</TableCell>
