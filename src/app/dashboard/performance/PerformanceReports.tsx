@@ -247,6 +247,19 @@ export default function PerformanceReports() {
   }
 
   // Metric series for non-aggregate mode (per group)
+  interface MetricsPoint {
+    date: string
+    netGain: number
+    income: number
+    realized: number
+    unrealized: number
+  }
+
+  interface MetricsData {
+    series: Record<string, MetricsPoint[]>
+    totals: Record<string, { netGain: number; income: number; realized: number; unrealized: number }>
+  }
+
   // Get metrics data for group (for CombinedCharts)
   const getGroupMetricsData = (groupKey: string, data: ReportsResponse) => {
     const assetSeries = data.assetSeries?.[groupKey] || {}
