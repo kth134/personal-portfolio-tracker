@@ -528,71 +528,92 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
         )}
       </div>
 
-      <div className="overflow-x-auto">
-        <Table>
+      <div className="-mx-4 overflow-x-auto px-4 overscroll-x-contain sm:mx-0 sm:px-0">
+        <Table className="min-w-[1320px] table-fixed">
+        <colgroup>
+          <col className="w-12" />
+          <col className="w-[7%]" />
+          <col className="w-[15%]" />
+          <col className="w-[14%]" />
+          <col className="w-[9%]" />
+          <col className="w-[10%]" />
+          <col className="w-[10%]" />
+          <col className="w-[9%]" />
+          <col className="w-[8%]" />
+          <col className="w-[10%]" />
+          <col className="w-[8%]" />
+        </colgroup>
         <TableHeader>
           <TableRow>
-            <TableHead>
+            <TableHead className="px-3">
               <Checkbox
                 checked={selectAll}
                 onCheckedChange={handleSelectAll}
               />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('ticker')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('ticker')}>
               Ticker <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('name')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('name')}>
               Name <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('sub_portfolio_id')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('sub_portfolio_id')}>
               Sub-Portfolio <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('asset_type')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('asset_type')}>
               Asset Type <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('asset_subtype')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('asset_subtype')}>
               Sub-Type <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('geography')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('geography')}>
               Geography <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('factor_tag')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('factor_tag')}>
               Factor <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('size_tag')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('size_tag')}>
               Size <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('notes')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('notes')}>
               Notes <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead className="px-3 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {sortedAssets.map(asset => (
             <TableRow key={asset.id}>
-              <TableCell>
+              <TableCell className="px-3">
                 <Checkbox
                   checked={selectedAssets.includes(asset.id)}
                   onCheckedChange={(checked) => handleSelectAsset(asset.id, checked as boolean)}
                 />
               </TableCell>
-              <TableCell>{asset.ticker}</TableCell>
-              <TableCell className="break-words whitespace-normal max-w-xs">{asset.name || '-'}</TableCell>
-              <TableCell className="break-words whitespace-normal max-w-xs">{subMap.get(asset.sub_portfolio_id || '') || '-'}</TableCell>
-              <TableCell>{asset.asset_type || '-'}</TableCell>
-              <TableCell>{asset.asset_subtype || '-'}</TableCell>
-              <TableCell>{asset.geography || '-'}</TableCell>
-              <TableCell>{asset.factor_tag || '-'}</TableCell>
-              <TableCell>{asset.size_tag || '-'}</TableCell>
-              <TableCell className="break-words whitespace-normal max-w-xs">{asset.notes || '-'}</TableCell>
-              <TableCell className="space-x-2">
-                <Button variant="outline" className="text-blue-600 border-blue-600 hover:bg-blue-50 h-8 px-3 text-xs" onClick={() => handleEdit(asset)}>
+              <TableCell className="px-3 whitespace-nowrap">{asset.ticker}</TableCell>
+              <TableCell className="px-3">
+                <span className="block truncate" title={asset.name || '-'}>{asset.name || '-'}</span>
+              </TableCell>
+              <TableCell className="px-3">
+                <span className="block truncate" title={subMap.get(asset.sub_portfolio_id || '') || '-'}>{subMap.get(asset.sub_portfolio_id || '') || '-'}</span>
+              </TableCell>
+              <TableCell className="px-3 whitespace-nowrap">{asset.asset_type || '-'}</TableCell>
+              <TableCell className="px-3 whitespace-nowrap">{asset.asset_subtype || '-'}</TableCell>
+              <TableCell className="px-3 whitespace-nowrap">{asset.geography || '-'}</TableCell>
+              <TableCell className="px-3 whitespace-nowrap">{asset.factor_tag || '-'}</TableCell>
+              <TableCell className="px-3 whitespace-nowrap">{asset.size_tag || '-'}</TableCell>
+              <TableCell className="px-3">
+                <span className="block truncate" title={asset.notes || '-'}>{asset.notes || '-'}</span>
+              </TableCell>
+              <TableCell className="px-3">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button variant="outline" className="text-blue-600 border-blue-600 hover:bg-blue-50 h-8 px-3 text-xs whitespace-nowrap" onClick={() => handleEdit(asset)}>
                   Edit
                 </Button>
-                <Button variant="outline" className="text-red-600 border-red-600 hover:bg-red-50 h-8 px-3 text-xs" onClick={() => handleDelete(asset.id)}>
+                <Button variant="outline" className="text-red-600 border-red-600 hover:bg-red-50 h-8 px-3 text-xs whitespace-nowrap" onClick={() => handleDelete(asset.id)}>
                   Delete
                 </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}

@@ -45,6 +45,18 @@ const LENSES = [
   { value: 'factor_tag', label: 'Factor/Style' },
 ];
 
+const formatUSDWhole = (value: number | null | undefined) => {
+  const num = Math.round(Number(value) || 0)
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num)
+}
+
+const formatPctTenth = (value: number | null | undefined) => `${(Number(value) || 0).toFixed(1)}%`
+
 function PerformanceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -590,32 +602,32 @@ function PerformanceContent() {
             <div className="text-center">
               <CardTitle className="break-words">Total Portfolio Value</CardTitle>
               <p className="text-2xl font-bold text-black mt-2 break-words">
-                {formatUSD(totals.market_value)}
+                {formatUSDWhole(totals.market_value)}
               </p>
             </div>
             <div className="text-center">
               <CardTitle className="break-words">Net Gain/Loss</CardTitle>
               <p className={cn("text-2xl font-bold mt-2 break-words", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
-                {formatUSD(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
+                {formatUSDWhole(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
               </p>
             </div>
             <div className="text-center space-y-2 text-lg">
               <div>
                 <p className="text-sm text-muted-foreground break-words">Unrealized G/L</p>
                 <p className={cn("font-bold break-words", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
-                  {formatUSD(totalUnrealized)}
+                  {formatUSDWhole(totalUnrealized)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground break-words">Realized G/L</p>
                 <p className={cn("font-bold break-words", totals.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                  {formatUSD(totals.realized_gain)}
+                  {formatUSDWhole(totals.realized_gain)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground break-words">Income</p>
                 <p className={cn("font-bold break-words", totals.dividends >= 0 ? "text-green-600" : "text-red-600")}>
-                  {formatUSD(totals.dividends)}
+                  {formatUSDWhole(totals.dividends)}
                 </p>
               </div>
             </div>
@@ -623,13 +635,13 @@ function PerformanceContent() {
               <div>
                 <p className="text-sm text-muted-foreground break-words">Total Return %</p>
                 <p className={cn("font-bold break-words", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
-                  {totalReturnPct.toFixed(2)}%
+                  {formatPctTenth(totalReturnPct)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground break-words">Annualized IRR</p>
                 <p className={cn("font-bold break-words", totalAnnualizedReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
-                  {totalAnnualizedReturnPct.toFixed(2)}%
+                  {formatPctTenth(totalAnnualizedReturnPct)}
                 </p>
               </div>
             </div>

@@ -589,54 +589,66 @@ const handleSort = (key: SortKey) => {
 
       {/* Tax Lots Table */}
       {taxLots.length > 0 ? (
-        <div className="overflow-x-auto">
+        <div className="-mx-4 overflow-x-auto px-4 overscroll-x-contain sm:mx-0 sm:px-0">
           <div className="flex justify-end text-sm text-muted-foreground mb-2">
             {(() => {
               const totalCount = total || 0
               return `Total: ${totalCount}`
             })()}
           </div>
-          <Table>
+          <Table className="min-w-[1320px] table-fixed">
+          <colgroup>
+            <col className="w-12" />
+            <col className="w-[16%]" />
+            <col className="w-[8%]" />
+            <col className="w-[12%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+            <col className="w-[12%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+          </colgroup>
           <TableHeader>
             <TableRow>
-              <TableHead>
+              <TableHead className="px-3">
                 <Checkbox
                   checked={selectAll}
                   onCheckedChange={handleSelectAll}
                 />
               </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort('account')}>Account <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort('asset')}>Asset <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort('date')}>Purchase Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-              <TableHead className="text-right cursor-pointer" onClick={() => handleSort('origQty')}>Original Qty <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-              <TableHead className="text-right cursor-pointer" onClick={() => handleSort('basisUnit')}>Basis/Unit <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-              <TableHead className="text-right cursor-pointer" onClick={() => handleSort('remainQty')}>Remaining Qty <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort('totalBasis')}>Total Remaining Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead className="cursor-pointer px-3" onClick={() => handleSort('account')}>Account <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="cursor-pointer px-3" onClick={() => handleSort('asset')}>Asset <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="cursor-pointer px-3" onClick={() => handleSort('date')}>Purchase Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="text-right cursor-pointer px-3" onClick={() => handleSort('origQty')}>Original Qty <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="text-right cursor-pointer px-3" onClick={() => handleSort('basisUnit')}>Basis/Unit <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="text-right cursor-pointer px-3" onClick={() => handleSort('remainQty')}>Remaining Qty <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="text-right cursor-pointer px-3" onClick={() => handleSort('totalBasis')}>Total Remaining Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="px-3">Status</TableHead>
+              <TableHead className="px-3 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {displayTaxLots.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((lot) => (
               <TableRow key={lot.id} className={cn(lot.remaining_quantity === 0 && "opacity-60 bg-muted/20")}>
-                <TableCell>
+                <TableCell className="px-3">
                   <Checkbox
                     checked={selectedLots.includes(lot.id)}
                     onCheckedChange={(checked) => handleSelectLot(lot.id, checked as boolean)}
                   />
                 </TableCell>
-                <TableCell>{lot.account?.name || '-'}</TableCell>
-                <TableCell className="w-16 break-words">
-                  {lot.asset?.ticker || '-'}
+                <TableCell className="px-3">
+                  <span className="block truncate" title={lot.account?.name || '-'}>{lot.account?.name || '-'}</span>
                 </TableCell>
-                <TableCell>{lot.purchase_date}</TableCell>
-                <TableCell className="text-right">{Number(lot.quantity).toFixed(8)}</TableCell>
-                <TableCell className="text-right">{formatUSD(Number(lot.cost_basis_per_unit))}</TableCell>
-                <TableCell className="text-right">{Number(lot.remaining_quantity).toFixed(8)}</TableCell>
-                <TableCell className="text-right">
+                <TableCell className="px-3 whitespace-nowrap">{lot.asset?.ticker || '-'}</TableCell>
+                <TableCell className="px-3 whitespace-nowrap">{lot.purchase_date}</TableCell>
+                <TableCell className="px-3 text-right tabular-nums whitespace-nowrap">{Number(lot.quantity).toFixed(8)}</TableCell>
+                <TableCell className="px-3 text-right tabular-nums whitespace-nowrap">{formatUSD(Number(lot.cost_basis_per_unit))}</TableCell>
+                <TableCell className="px-3 text-right tabular-nums whitespace-nowrap">{Number(lot.remaining_quantity).toFixed(8)}</TableCell>
+                <TableCell className="px-3 text-right tabular-nums whitespace-nowrap">
                   {formatUSD(Number(lot.remaining_quantity) * Number(lot.cost_basis_per_unit))}
                 </TableCell>
-                <TableCell>
+                <TableCell className="px-3 whitespace-nowrap">
                   <span className={cn(
                     "px-2 py-1 rounded-full text-xs font-medium",
                     lot.remaining_quantity === 0 
@@ -646,7 +658,8 @@ const handleSort = (key: SortKey) => {
                     {lot.remaining_quantity === 0 ? "Depleted" : "Active"}
                   </span>
                 </TableCell>
-                <TableCell className="flex gap-2">
+                <TableCell className="px-3">
+                  <div className="flex items-center justify-end gap-2">
                   <Button variant="ghost" size="sm" onClick={() => openEdit(lot)}>
                     <Edit2 className="h-4 w-4" />
                   </Button>
@@ -667,6 +680,7 @@ const handleSort = (key: SortKey) => {
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

@@ -361,51 +361,65 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
         )}
       </div>
 
-      <div className="overflow-x-auto">
-        <Table>
+      <div className="-mx-4 overflow-x-auto px-4 overscroll-x-contain sm:mx-0 sm:px-0">
+        <Table className="min-w-[760px] table-fixed">
+        <colgroup>
+          <col className="w-12" />
+          <col className="w-[24%]" />
+          <col className="w-[16%]" />
+          <col className="w-[26%]" />
+          <col className="w-[14%]" />
+          <col className="w-[20%]" />
+        </colgroup>
         <TableHeader>
           <TableRow>
-            <TableHead>
+            <TableHead className="px-3">
               <Checkbox
                 checked={selectAll}
                 onCheckedChange={handleSelectAll}
               />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('name')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('name')}>
               Name <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('type')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('type')}>
               Type <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('institution')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('institution')}>
               Institution <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead className="cursor-pointer" onClick={() => handleSort('tax_status')}>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('tax_status')}>
               Tax Status <ArrowUpDown className="ml-2 h-4 w-4 inline" />
             </TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead className="px-3 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {sortedAccounts.map(acc => (
             <TableRow key={acc.id}>
-              <TableCell>
+              <TableCell className="px-3">
                 <Checkbox
                   checked={selectedAccounts.includes(acc.id)}
                   onCheckedChange={(checked) => handleSelectAccount(acc.id, checked as boolean)}
                 />
               </TableCell>
-              <TableCell className="break-words whitespace-normal max-w-xs">{acc.name}</TableCell>
-              <TableCell>{acc.type}</TableCell>
-              <TableCell className="break-words whitespace-normal max-w-xs">{acc.institution || '-'}</TableCell>
-              <TableCell>{acc.tax_status || '-'}</TableCell>
-              <TableCell className="space-x-2">
-                <Button variant="outline" className="text-blue-600 border-blue-600 hover:bg-blue-50 h-8 px-3 text-xs" onClick={() => handleEdit(acc)}>
+              <TableCell className="px-3">
+                <span className="block truncate" title={acc.name}>{acc.name}</span>
+              </TableCell>
+              <TableCell className="px-3 whitespace-nowrap">{acc.type}</TableCell>
+              <TableCell className="px-3">
+                <span className="block truncate" title={acc.institution || '-'}>{acc.institution || '-'}</span>
+              </TableCell>
+              <TableCell className="px-3 whitespace-nowrap">{acc.tax_status || '-'}</TableCell>
+              <TableCell className="px-3">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button variant="outline" className="text-blue-600 border-blue-600 hover:bg-blue-50 h-8 px-3 text-xs whitespace-nowrap" onClick={() => handleEdit(acc)}>
                   Edit
                 </Button>
-                <Button variant="outline" className="text-red-600 border-red-600 hover:bg-red-50 h-8 px-3 text-xs" onClick={() => handleDelete(acc.id)}>
+                <Button variant="outline" className="text-red-600 border-red-600 hover:bg-red-50 h-8 px-3 text-xs whitespace-nowrap" onClick={() => handleDelete(acc.id)}>
                   Delete
                 </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}

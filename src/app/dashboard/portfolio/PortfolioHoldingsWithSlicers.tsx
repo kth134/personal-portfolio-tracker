@@ -30,6 +30,16 @@ const LENSES = [
   { value: 'factor_tag', label: 'Factor' },
 ]
 
+const formatUSDWhole = (value: number | null | undefined) => {
+  const num = Math.round(Number(value) || 0)
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num)
+}
+
 export default function PortfolioHoldingsWithSlicers({
   cash,
   cashByAccountName,
@@ -210,7 +220,7 @@ export default function PortfolioHoldingsWithSlicers({
                   <Pie data={sliceData} dataKey="value" nameKey="subkey" outerRadius={100} label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}>
                     {sliceData.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                   </Pie>
-                  <Tooltip formatter={(v: any) => formatUSD(v)} />
+                  <Tooltip formatter={(v: any) => formatUSDWhole(Number(v))} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>

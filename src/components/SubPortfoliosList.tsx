@@ -306,39 +306,55 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
         )}
       </div>
 
-      <div className="overflow-x-auto">
-        <Table>
+      <div className="-mx-4 overflow-x-auto px-4 overscroll-x-contain sm:mx-0 sm:px-0">
+        <Table className="min-w-[900px] table-fixed">
+        <colgroup>
+          <col className="w-12" />
+          <col className="w-[20%]" />
+          <col className="w-[30%]" />
+          <col className="w-[16%]" />
+          <col className="w-[20%]" />
+          <col className="w-[14%]" />
+        </colgroup>
         <TableHeader>
           <TableRow>
-            <TableHead>
+            <TableHead className="px-3">
               <Checkbox
                 checked={selectAll}
                 onCheckedChange={handleSelectAll}
               />
             </TableHead>
-            <TableHead onClick={() => handleSort('name')}>Name <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-            <TableHead onClick={() => handleSort('objective')}>Objective <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-            <TableHead onClick={() => handleSort('manager')}>Manager <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-            <TableHead onClick={() => handleSort('notes')}>Notes <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('name')}>Name <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('objective')}>Objective <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('manager')}>Manager <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+            <TableHead className="cursor-pointer px-3" onClick={() => handleSort('notes')}>Notes <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+            <TableHead className="px-3 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {sortedSubs.map(sub => (
             <TableRow key={sub.id}>
-              <TableCell>
+              <TableCell className="px-3">
                 <Checkbox
                   checked={selectedSubs.includes(sub.id)}
                   onCheckedChange={(checked) => handleSelectSub(sub.id, checked as boolean)}
                 />
               </TableCell>
-              <TableCell className="break-words whitespace-normal max-w-xs">{sub.name}</TableCell>
-              <TableCell className="break-words whitespace-normal max-w-xs">{sub.objective || '-'}</TableCell>
-              <TableCell>{sub.manager || '-'}</TableCell>
-              <TableCell className="break-words whitespace-normal max-w-xs">{sub.notes || '-'}</TableCell>
-              <TableCell>
-                <Button variant="outline" onClick={() => setEditingSub(sub)}>Edit</Button>
-                <Button variant="destructive" onClick={() => handleDelete(sub.id)}>Delete</Button>
+              <TableCell className="px-3">
+                <span className="block truncate" title={sub.name}>{sub.name}</span>
+              </TableCell>
+              <TableCell className="px-3">
+                <span className="block truncate" title={sub.objective || '-'}>{sub.objective || '-'}</span>
+              </TableCell>
+              <TableCell className="px-3 whitespace-nowrap">{sub.manager || '-'}</TableCell>
+              <TableCell className="px-3">
+                <span className="block truncate" title={sub.notes || '-'}>{sub.notes || '-'}</span>
+              </TableCell>
+              <TableCell className="px-3">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button variant="outline" className="whitespace-nowrap" onClick={() => setEditingSub(sub)}>Edit</Button>
+                <Button variant="destructive" className="whitespace-nowrap" onClick={() => handleDelete(sub.id)}>Delete</Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}

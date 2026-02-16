@@ -1299,97 +1299,116 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
       </div>
 
       {displayTransactions.length > 0 ? (
-        <div className="overflow-x-auto">
+        <div className="-mx-4 overflow-x-auto px-4 overscroll-x-contain sm:mx-0 sm:px-0">
           <div className="flex justify-end text-sm text-muted-foreground mb-2">
             {(() => {
               const totalCount = isSearchMode ? displayTransactions.length : (total || 0)
               return `Total: ${totalCount}`
             })()}
           </div>
-          <Table>
+          <Table className="min-w-[1700px] table-fixed">
+          <colgroup>
+            <col className="w-12" />
+            <col className="w-[10%]" />
+            <col className="w-[12%]" />
+            <col className="w-[8%]" />
+            <col className="w-[8%]" />
+            <col className="w-[10%]" />
+            <col className="w-[8%]" />
+            <col className="w-[8%]" />
+            <col className="w-[8%]" />
+            <col className="w-[8%]" />
+            <col className="w-[8%]" />
+            <col className="w-[12%]" />
+            <col className="w-[8%]" />
+          </colgroup>
           <TableHeader>
             <TableRow>
-              <TableHead>
+              <TableHead className="px-3">
                 <Checkbox
                   checked={selectAll}
                   onCheckedChange={handleSelectAll}
                 />
               </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('date')}>
+              <TableHead className="cursor-pointer px-3" onClick={() => toggleSort('date')}>
                 Date <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('account_name')}>
+              <TableHead className="cursor-pointer px-3" onClick={() => toggleSort('account_name')}>
                 Account <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('asset_ticker')}>
+              <TableHead className="cursor-pointer px-3" onClick={() => toggleSort('asset_ticker')}>
                 Asset <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('type')}>
+              <TableHead className="cursor-pointer px-3" onClick={() => toggleSort('type')}>
                 Type <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead>Funding Source</TableHead>
-              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('quantity')}>
+              <TableHead className="px-3">Funding Source</TableHead>
+              <TableHead className="text-right cursor-pointer px-3" onClick={() => toggleSort('quantity')}>
                 Quantity <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('price_per_unit')}>
+              <TableHead className="text-right cursor-pointer px-3" onClick={() => toggleSort('price_per_unit')}>
                 Price/Unit <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('amount')}>
+              <TableHead className="text-right cursor-pointer px-3" onClick={() => toggleSort('amount')}>
                 Amount <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('fees')}>
+              <TableHead className="text-right cursor-pointer px-3" onClick={() => toggleSort('fees')}>
                 Fees <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('realized_gain')}>
+              <TableHead className="text-right cursor-pointer px-3" onClick={() => toggleSort('realized_gain')}>
                 Realized G/L <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead>Notes</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead className="px-3">Notes</TableHead>
+              <TableHead className="px-3 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((tx) => (
               <TableRow key={tx.id}>
-                <TableCell>
+                <TableCell className="px-3">
                   <Checkbox
                     checked={selectedTransactions.includes(tx.id)}
                     onCheckedChange={(checked) => handleSelectTransaction(tx.id, checked as boolean)}
                   />
                 </TableCell>
-                <TableCell>{tx.date}</TableCell>
-                <TableCell>{tx.account?.name || '-'}</TableCell>
-                <TableCell className="w-16 break-words">
-                  {tx.asset?.ticker || '-'}
+                <TableCell className="px-3 whitespace-nowrap">{tx.date}</TableCell>
+                <TableCell className="px-3">
+                  <span className="block truncate" title={tx.account?.name || '-'}>{tx.account?.name || '-'}</span>
                 </TableCell>
-                <TableCell>{tx.type}</TableCell>
-                <TableCell>{tx.funding_source || '-'}</TableCell>
-                <TableCell className="text-right">
+                <TableCell className="px-3 whitespace-nowrap">{tx.asset?.ticker || '-'}</TableCell>
+                <TableCell className="px-3 whitespace-nowrap">{tx.type}</TableCell>
+                <TableCell className="px-3 whitespace-nowrap">{tx.funding_source || '-'}</TableCell>
+                <TableCell className="px-3 text-right tabular-nums whitespace-nowrap">
                   {tx.quantity != null ? Number(tx.quantity).toFixed(8) : '-'}
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="px-3 text-right tabular-nums whitespace-nowrap">
                   {tx.price_per_unit != null ? formatUSD(tx.price_per_unit) : '-'}
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="px-3 text-right tabular-nums whitespace-nowrap">
                   {tx.amount != null ? formatUSD(tx.amount) : '-'}
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="px-3 text-right tabular-nums whitespace-nowrap">
                   {tx.fees != null ? formatUSD(tx.fees) : '-'}
                 </TableCell>
                 <TableCell className={cn(
-                  "text-right font-medium",
+                  "px-3 text-right font-medium tabular-nums whitespace-nowrap",
                   tx.realized_gain != null && tx.realized_gain > 0 ? 'text-green-600' :
                   tx.realized_gain != null && tx.realized_gain < 0 ? 'text-red-600' : ''
                 )}>
                   {tx.realized_gain != null ? formatUSD(tx.realized_gain) : '-'}
                 </TableCell>
-                <TableCell className="break-words">{tx.notes || '-'}</TableCell>
-                <TableCell className="flex gap-2">
+                <TableCell className="px-3">
+                  <span className="block truncate" title={tx.notes || '-'}>{tx.notes || '-'}</span>
+                </TableCell>
+                <TableCell className="px-3">
+                  <div className="flex items-center justify-end gap-2">
                   <Button variant="ghost" size="sm" onClick={() => openEdit(tx)}>
                     <Edit2 className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => setDeletingTx(tx)}>
                     <Trash2 className="h-4 w-4 text-red-600" />
                   </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

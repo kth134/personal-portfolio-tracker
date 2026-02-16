@@ -34,7 +34,15 @@ const LENSES = [
   { value: 'factor_tag', label: 'Factor' },
 ];
 
-const formatUSDWhole = (value: number | null | undefined) => formatUSD(Math.round(Number(value) || 0));
+const formatUSDWhole = (value: number | null | undefined) => {
+  const num = Math.round(Number(value) || 0);
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num);
+};
 const formatPctTenth = (value: number | null | undefined) => `${(Number(value) || 0).toFixed(1)}%`;
 
 // use centralized calculateIRR and normalizeTransactionToFlow from src/lib/finance
