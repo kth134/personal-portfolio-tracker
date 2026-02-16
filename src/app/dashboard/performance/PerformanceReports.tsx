@@ -31,6 +31,7 @@ const PERIODS = [
   { value: '1Y', label: '1Y' },
   { value: '3Y', label: '3Y' },
   { value: '5Y', label: '5Y' },
+  { value: 'inception', label: 'From Inception' },
   { value: 'All', label: 'All' },
   { value: 'custom', label: 'Custom' },
 ]
