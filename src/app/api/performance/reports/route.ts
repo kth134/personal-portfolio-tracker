@@ -6,11 +6,11 @@ import { buildTotalsFromSeries } from '@/lib/performance-reports'
 
 export const dynamic = 'force-dynamic'
 
-const BENCHMARK_MAP: Record<string, string> = {
-  sp500: 'SPY',
-  nasdaq: 'QQQ',
-  tlt: 'TLT',
-  vxus: 'VXUS',
+const BENCHMARK_CANDIDATES: Record<string, string[]> = {
+  sp500: ['SPY', 'VOO', 'IVV', '^GSPC'],
+  nasdaq: ['QQQ', 'ONEQ', '^IXIC'],
+  tlt: ['TLT', 'IEF'],
+  vxus: ['VXUS', 'VEU'],
 }
 
 const SIXTY_FORTY = '6040'
@@ -82,10 +82,12 @@ export async function POST(req: Request) {
       return asset?.ticker || ''
     }).filter(Boolean))]
 
-    const benchmarkTickers = benchmarks
-      .filter((b: string) => b !== SIXTY_FORTY)
-      .map((b: string) => BENCHMARK_MAP[b])
-      .filter(Boolean)
+    const benchmarkTickers = [...new Set(
+      benchmarks
+        .filter((b: string) => b !== SIXTY_FORTY)
+        .flatMap((b: string) => BENCHMARK_CANDIDATES[b] || [])
+        .filter(Boolean)
+    )]
 
     const allTickers = [...new Set([...portfolioTickers, ...benchmarkTickers])]
 
@@ -783,12 +785,39 @@ async function getCurrentPrices(supabase: any, tickers: string[]) {
 async function getBenchmarkSeries(supabase: any, benchmarks: string[], start: string, end: string, granularity: 'daily' | 'monthly') {
   const series: Record<string, { date: string, value: number }[]> = {}
   const benchIds = benchmarks.filter((b: string) => b !== SIXTY_FORTY)
-  const tickers = benchIds.map((b: string) => BENCHMARK_MAP[b]).filter(Boolean)
+  const tickers = [...new Set(benchIds.flatMap((b: string) => BENCHMARK_CANDIDATES[b] || []).filter(Boolean))]
   const neededDates = buildDates(start, end, granularity)
 
   const prices = await getHistoricalPrices(supabase, tickers, start, end, granularity)
+
+  const selectBestTickerSeries = (candidates: string[]) => {
+    let bestTicker = ''
+    let bestPoints = -1
+    let bestCoverage = -1
+
+    candidates.forEach((ticker) => {
+      const pts = prices[ticker] || []
+      if (!pts.length) return
+
+      const coverageCount = neededDates.reduce((sum, date) => sum + (getPriceAtOrBefore(pts, date) > 0 ? 1 : 0), 0)
+      if (coverageCount > bestCoverage || (coverageCount === bestCoverage && pts.length > bestPoints)) {
+        bestCoverage = coverageCount
+        bestPoints = pts.length
+        bestTicker = ticker
+      }
+    })
+
+    return bestTicker
+  }
+
   benchIds.forEach((benchId: string) => {
-    const ticker = BENCHMARK_MAP[benchId]
+    const candidates = BENCHMARK_CANDIDATES[benchId] || []
+    const ticker = selectBestTickerSeries(candidates)
+    if (!ticker) {
+      series[benchId] = neededDates.map((date) => ({ date, value: 0 }))
+      return
+    }
+
     const pts = prices[ticker] || []
     const aligned = neededDates.map((date) => ({ date, close: getPriceAtOrBefore(pts, date) }))
     const first = aligned.find((p) => p.close > 0)?.close || 0
