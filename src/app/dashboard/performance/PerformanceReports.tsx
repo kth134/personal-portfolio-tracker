@@ -248,7 +248,7 @@ export default function PerformanceReports() {
 
   // Metric series for non-aggregate mode (per group)
   // Get metrics data for group (for CombinedCharts)
-  const getGroupMetricsData = (groupKey: string, data: ReportsResponse): MetricsData => {
+  const getGroupMetricsData = (groupKey: string, data: ReportsResponse) => {
     const assetSeries = data.assetSeries?.[groupKey] || {}
     const sliceSeries: Record<string, MetricsPoint[]> = {}
     Object.entries(assetSeries).forEach(([assetKey, points]) => {
@@ -274,7 +274,7 @@ export default function PerformanceReports() {
     return { series: sliceSeries, totals: sliceTotals }
   }
 
-  const getTotalPortfolioMetricsData = (data: ReportsResponse): MetricsData => {
+  const getTotalPortfolioMetricsData = (data: ReportsResponse) => {
     const sliceSeries: Record<string, MetricsPoint[]> = {}
     if (data.assetBreakdown) {
       Object.entries(data.assetBreakdown).forEach(([assetKey, points]) => {
