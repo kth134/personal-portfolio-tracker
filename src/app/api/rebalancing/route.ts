@@ -79,11 +79,13 @@ export async function GET(req: NextRequest) {
       const existingAsset = metrics.assets.find((a: any) => a.asset_id === lot.asset_id)
       if (existingAsset) {
         existingAsset.current_value += value
+        existingAsset.quantity += Number(lot.remaining_quantity) || 0
       } else {
         metrics.assets.push({
           asset_id: lot.asset_id,
           ticker: lot.asset?.ticker,
           name: lot.asset?.name,
+          quantity: Number(lot.remaining_quantity) || 0,
           current_value: value,
           asset_type: lot.asset?.asset_type,
           asset_subtype: lot.asset?.asset_subtype,

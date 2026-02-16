@@ -34,6 +34,9 @@ const LENSES = [
   { value: 'factor_tag', label: 'Factor' },
 ];
 
+const formatUSDWhole = (value: number | null | undefined) => formatUSD(Math.round(Number(value) || 0));
+const formatPctTenth = (value: number | null | undefined) => `${(Number(value) || 0).toFixed(1)}%`;
+
 // use centralized calculateIRR and normalizeTransactionToFlow from src/lib/finance
 
 // Portfolio Details Card Component - handles its own loading state
@@ -793,7 +796,7 @@ export default function DashboardHome() {
                   <div className="text-center mt-4">
                     <CardTitle className="text-lg">Total Portfolio Value</CardTitle>
                     <p className="text-3xl font-bold text-black mt-2">
-                      {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
+                      {performanceTotals ? formatUSDWhole(performanceTotals.market_value) : 'Loading...'}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-8 mt-6">
@@ -801,19 +804,19 @@ export default function DashboardHome() {
                       <div className="text-center">
                         <CardTitle>Net Gain/Loss</CardTitle>
                         <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                          {performanceTotals ? formatUSD(performanceTotals.net_gain) : 'Loading...'}
+                          {performanceTotals ? formatUSDWhole(performanceTotals.net_gain) : 'Loading...'}
                         </p>
                       </div>
                       <div className="text-center">
                         <CardTitle>Total Return %</CardTitle>
                         <p className={cn("text-2xl font-bold mt-2", performanceTotals?.total_return_pct >= 0 ? "text-green-600" : "text-red-600")}>
-                          {performanceTotals ? `${performanceTotals.total_return_pct.toFixed(2)}%` : 'Loading...'}
+                          {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
                         </p>
                       </div>
                       <div className="text-center">
                         <CardTitle>Annualized IRR</CardTitle>
                         <p className={cn("text-2xl font-bold mt-2", (performanceTotals?.irr_pct || 0) >= 0 ? "text-green-600" : "text-red-600")}>
-                          {performanceTotals ? `${(performanceTotals.irr_pct || 0).toFixed(2)}%` : 'Loading...'}
+                          {performanceTotals ? formatPctTenth(performanceTotals.irr_pct || 0) : 'Loading...'}
                         </p>
                       </div>
                     </div>
@@ -821,19 +824,19 @@ export default function DashboardHome() {
                       <div className="text-center">
                         <CardTitle>Unrealized G/L</CardTitle>
                         <p className={cn("text-2xl font-bold mt-2", performanceTotals?.unrealized_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                          {performanceTotals ? formatUSD(performanceTotals.unrealized_gain) : 'Loading...'}
+                          {performanceTotals ? formatUSDWhole(performanceTotals.unrealized_gain) : 'Loading...'}
                         </p>
                       </div>
                       <div className="text-center">
                         <CardTitle>Realized G/L</CardTitle>
                         <p className={cn("text-2xl font-bold mt-2", performanceTotals?.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                          {performanceTotals ? formatUSD(performanceTotals.realized_gain) : 'Loading...'}
+                          {performanceTotals ? formatUSDWhole(performanceTotals.realized_gain) : 'Loading...'}
                         </p>
                       </div>
                       <div className="text-center">
                         <CardTitle>Income</CardTitle>
                         <p className={cn("text-2xl font-bold mt-2", performanceTotals?.dividends >= 0 ? "text-green-600" : "text-red-600")}>
-                          {performanceTotals ? formatUSD(performanceTotals.dividends) : 'Loading...'}
+                          {performanceTotals ? formatUSDWhole(performanceTotals.dividends) : 'Loading...'}
                         </p>
                       </div>
                     </div>
@@ -880,7 +883,7 @@ export default function DashboardHome() {
                                     totalValue += currentValue
                                   })
 
-                                  return (totalValue > 0 ? totalWeightedDrift / totalValue * 100 : 0).toFixed(2) + '%'
+                                  return (totalValue > 0 ? totalWeightedDrift / totalValue * 100 : 0).toFixed(1) + '%'
                                 })()}
                               </p>
                             </div>
@@ -897,7 +900,7 @@ export default function DashboardHome() {
                                         return sum + (rel * weight)
                                       }, 0)
                                     : 0
-                                  return assetDrift.toFixed(2) + '%'
+                                  return assetDrift.toFixed(1) + '%'
                                 })()}
                               </p>
                             </div>
@@ -916,22 +919,29 @@ export default function DashboardHome() {
                         <div className="text-center">
                           <h4 className="font-semibold text-sm text-muted-foreground">Magnitude of Rebalance Actions (Net)</h4>
                           <p className={cn("text-xl font-bold", rebalancingData.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
-                            {formatUSD(Math.abs(rebalancingData.cashNeeded))}
+                            {formatUSDWhole(Math.abs(rebalancingData.cashNeeded))}
                           </p>
                         </div>
                       </div>
 
                       {/* Sub-Portfolios Table */}
                       <div>
-                        <div className="max-h-48 overflow-y-auto overflow-x-auto">
-                          <Table>
+                        <div className="max-h-48 overflow-y-auto">
+                          <Table className="w-full min-w-[760px] table-fixed" containerClassName="overscroll-x-contain">
+                            <colgroup>
+                              <col className="w-[32%]" />
+                              <col className="w-[20%]" />
+                              <col className="w-[16%]" />
+                              <col className="w-[16%]" />
+                              <col className="w-[16%]" />
+                            </colgroup>
                             <TableHeader>
                               <TableRow>
-                                <TableHead className="text-center break-words">Sub-Portfolio</TableHead>
-                                <TableHead className="text-center break-words">Current Value</TableHead>
-                                <TableHead className="text-center break-words">Target Allocation</TableHead>
-                                <TableHead className="text-center break-words">Actual Allocation</TableHead>
-                                <TableHead className="text-center break-words">Asset-Level Drift</TableHead>
+                                <TableHead className="px-3 sm:px-4 text-left">Sub-Portfolio</TableHead>
+                                <TableHead className="px-3 sm:px-4 text-right">Current Value</TableHead>
+                                <TableHead className="px-3 sm:px-4 text-right">Target Allocation</TableHead>
+                                <TableHead className="px-3 sm:px-4 text-right">Actual Allocation</TableHead>
+                                <TableHead className="px-3 sm:px-4 text-right">Asset-Level Drift</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -957,11 +967,11 @@ export default function DashboardHome() {
 
                                 return subPortfolios.map((sp, idx) => (
                                   <TableRow key={idx}>
-                                    <TableCell className="text-center font-medium break-words">{sp.name}</TableCell>
-                                    <TableCell className="text-center break-words">{formatUSD(sp.currentValue)}</TableCell>
-                                    <TableCell className="text-center break-words">{sp.target.toFixed(1)}%</TableCell>
-                                    <TableCell className="text-center break-words">{sp.currentPct.toFixed(1)}%</TableCell>
-                                    <TableCell className="text-center break-words">{sp.assetLevelDrift.toFixed(1)}%</TableCell>
+                                    <TableCell className="px-3 sm:px-4 text-left font-medium truncate">{sp.name}</TableCell>
+                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(sp.currentValue)}</TableCell>
+                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.target.toFixed(1)}%</TableCell>
+                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.currentPct.toFixed(1)}%</TableCell>
+                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.assetLevelDrift.toFixed(1)}%</TableCell>
                                   </TableRow>
                                 ))
                               })()}
@@ -1047,24 +1057,31 @@ export default function DashboardHome() {
                   <CardTitle className="text-center text-4xl">Recent Activity</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Table>
+                  <Table className="w-full min-w-[620px] table-fixed" containerClassName="overscroll-x-contain">
+                    <colgroup>
+                      <col className="w-[18%]" />
+                      <col className="w-[26%]" />
+                      <col className="w-[14%]" />
+                      <col className="w-[20%]" />
+                      <col className="w-[22%]" />
+                    </colgroup>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="text-center">Date</TableHead>
-                        <TableHead className="text-center">Account</TableHead>
-                        <TableHead className="text-center">Ticker</TableHead>
-                        <TableHead className="text-center">Type</TableHead>
-                        <TableHead className="text-center">Amount</TableHead>
+                        <TableHead className="px-3 sm:px-4 text-left">Date</TableHead>
+                        <TableHead className="px-3 sm:px-4 text-left">Account</TableHead>
+                        <TableHead className="px-3 sm:px-4 text-left">Ticker</TableHead>
+                        <TableHead className="px-3 sm:px-4 text-left">Type</TableHead>
+                        <TableHead className="px-3 sm:px-4 text-right">Amount</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {recentTransactions.map((tx) => (
                         <TableRow key={tx.id}>
-                          <TableCell className="text-center">{tx.date}</TableCell>
-                          <TableCell className="text-center">{tx.account?.name || ''}</TableCell>
-                          <TableCell className="text-center">{tx.asset?.ticker || ''}</TableCell>
-                          <TableCell className="text-center">{tx.type}</TableCell>
-                          <TableCell className="text-center">{formatUSD(tx.amount)}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.date}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-left truncate">{tx.account?.name || ''}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.asset?.ticker || ''}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.type}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(tx.amount)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1084,7 +1101,7 @@ export default function DashboardHome() {
                 <div className="text-center mt-4">
                   <CardTitle className="text-lg">Total Portfolio Value</CardTitle>
                   <p className="text-3xl font-bold text-black mt-2">
-                    {performanceTotals ? formatUSD(performanceTotals.market_value) : 'Loading...'}
+                    {performanceTotals ? formatUSDWhole(performanceTotals.market_value) : 'Loading...'}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-8 mt-6">
@@ -1092,19 +1109,19 @@ export default function DashboardHome() {
                     <div className="text-center">
                       <CardTitle>Net Gain/Loss</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatUSD(performanceTotals.net_gain) : 'Loading...'}
+                        {performanceTotals ? formatUSDWhole(performanceTotals.net_gain) : 'Loading...'}
                       </p>
                     </div>
                     <div className="text-center">
                       <CardTitle>Total Return %</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", performanceTotals?.total_return_pct >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? `${performanceTotals.total_return_pct.toFixed(2)}%` : 'Loading...'}
+                        {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
                       </p>
                     </div>
                     <div className="text-center">
                       <CardTitle>Annualized IRR</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", (performanceTotals?.irr_pct || 0) >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? `${(performanceTotals.irr_pct || 0).toFixed(2)}%` : 'Loading...'}
+                        {performanceTotals ? formatPctTenth(performanceTotals.irr_pct || 0) : 'Loading...'}
                       </p>
                     </div>
                   </div>
@@ -1112,19 +1129,19 @@ export default function DashboardHome() {
                     <div className="text-center">
                       <CardTitle>Unrealized G/L</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", performanceTotals?.unrealized_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatUSD(performanceTotals.unrealized_gain) : 'Loading...'}
+                        {performanceTotals ? formatUSDWhole(performanceTotals.unrealized_gain) : 'Loading...'}
                       </p>
                     </div>
                     <div className="text-center">
                       <CardTitle>Realized G/L</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", performanceTotals?.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatUSD(performanceTotals.realized_gain) : 'Loading...'}
+                        {performanceTotals ? formatUSDWhole(performanceTotals.realized_gain) : 'Loading...'}
                       </p>
                     </div>
                     <div className="text-center">
                       <CardTitle>Income</CardTitle>
                       <p className={cn("text-2xl font-bold mt-2", performanceTotals?.dividends >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatUSD(performanceTotals.dividends) : 'Loading...'}
+                        {performanceTotals ? formatUSDWhole(performanceTotals.dividends) : 'Loading...'}
                       </p>
                     </div>
                   </div>
@@ -1171,7 +1188,7 @@ export default function DashboardHome() {
                                   totalValue += currentValue
                                 })
 
-                                return (totalValue > 0 ? totalWeightedDrift / totalValue * 100 : 0).toFixed(2) + '%'
+                                return (totalValue > 0 ? totalWeightedDrift / totalValue * 100 : 0).toFixed(1) + '%'
                               })()}
                             </p>
                           </div>
@@ -1188,7 +1205,7 @@ export default function DashboardHome() {
                                       return sum + (rel * weight)
                                     }, 0)
                                   : 0
-                                return assetDrift.toFixed(2) + '%'
+                                return assetDrift.toFixed(1) + '%'
                               })()}
                             </p>
                           </div>
@@ -1207,22 +1224,29 @@ export default function DashboardHome() {
                       <div className="text-center">
                         <h4 className="font-semibold text-sm text-muted-foreground">Magnitude of Rebalance Actions (Net)</h4>
                         <p className={cn("text-xl font-bold", rebalancingData.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
-                          {formatUSD(Math.abs(rebalancingData.cashNeeded))}
+                          {formatUSDWhole(Math.abs(rebalancingData.cashNeeded))}
                         </p>
                       </div>
                     </div>
 
                     {/* Sub-Portfolios Table */}
-                    <div>
-                      <div className="max-h-48 overflow-y-auto overflow-x-auto">
-                        <Table>
+                      <div>
+                        <div className="max-h-48 overflow-y-auto">
+                          <Table className="w-full min-w-[760px] table-fixed" containerClassName="overscroll-x-contain">
+                            <colgroup>
+                              <col className="w-[32%]" />
+                              <col className="w-[20%]" />
+                              <col className="w-[16%]" />
+                              <col className="w-[16%]" />
+                              <col className="w-[16%]" />
+                            </colgroup>
                           <TableHeader>
                             <TableRow>
-                              <TableHead className="text-center break-words">Sub-Portfolio</TableHead>
-                              <TableHead className="text-center break-words">Current Value</TableHead>
-                              <TableHead className="text-center break-words">Target Allocation</TableHead>
-                              <TableHead className="text-center break-words">Actual Allocation</TableHead>
-                              <TableHead className="text-center break-words">Asset-Level Drift</TableHead>
+                                <TableHead className="px-3 sm:px-4 text-left">Sub-Portfolio</TableHead>
+                                <TableHead className="px-3 sm:px-4 text-right">Current Value</TableHead>
+                                <TableHead className="px-3 sm:px-4 text-right">Target Allocation</TableHead>
+                                <TableHead className="px-3 sm:px-4 text-right">Actual Allocation</TableHead>
+                                <TableHead className="px-3 sm:px-4 text-right">Asset-Level Drift</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -1248,11 +1272,11 @@ export default function DashboardHome() {
 
                               return subPortfolios.map((sp, idx) => (
                                 <TableRow key={idx}>
-                                  <TableCell className="text-center font-medium break-words">{sp.name}</TableCell>
-                                  <TableCell className="text-center break-words">{formatUSD(sp.currentValue)}</TableCell>
-                                  <TableCell className="text-center break-words">{sp.target.toFixed(1)}%</TableCell>
-                                  <TableCell className="text-center break-words">{sp.currentPct.toFixed(1)}%</TableCell>
-                                  <TableCell className="text-center break-words">{sp.assetLevelDrift.toFixed(1)}%</TableCell>
+                                    <TableCell className="px-3 sm:px-4 text-left font-medium truncate">{sp.name}</TableCell>
+                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(sp.currentValue)}</TableCell>
+                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.target.toFixed(1)}%</TableCell>
+                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.currentPct.toFixed(1)}%</TableCell>
+                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.assetLevelDrift.toFixed(1)}%</TableCell>
                                 </TableRow>
                               ))
                             })()}
@@ -1336,24 +1360,31 @@ export default function DashboardHome() {
                 <CardTitle className="text-center text-4xl">Recent Activity</CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
+                  <Table className="w-full min-w-[620px] table-fixed" containerClassName="overscroll-x-contain">
+                    <colgroup>
+                      <col className="w-[18%]" />
+                      <col className="w-[26%]" />
+                      <col className="w-[14%]" />
+                      <col className="w-[20%]" />
+                      <col className="w-[22%]" />
+                    </colgroup>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-center">Date</TableHead>
-                      <TableHead className="text-center">Account</TableHead>
-                      <TableHead className="text-center">Ticker</TableHead>
-                      <TableHead className="text-center">Type</TableHead>
-                      <TableHead className="text-center">Amount</TableHead>
+                        <TableHead className="px-3 sm:px-4 text-left">Date</TableHead>
+                        <TableHead className="px-3 sm:px-4 text-left">Account</TableHead>
+                        <TableHead className="px-3 sm:px-4 text-left">Ticker</TableHead>
+                        <TableHead className="px-3 sm:px-4 text-left">Type</TableHead>
+                        <TableHead className="px-3 sm:px-4 text-right">Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {recentTransactions.map((tx) => (
                       <TableRow key={tx.id}>
-                        <TableCell className="text-center">{tx.date}</TableCell>
-                        <TableCell className="text-center">{tx.account?.name || ''}</TableCell>
-                        <TableCell className="text-center">{tx.asset?.ticker || ''}</TableCell>
-                        <TableCell className="text-center">{tx.type}</TableCell>
-                        <TableCell className="text-center">{formatUSD(tx.amount)}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.date}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-left truncate">{tx.account?.name || ''}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.asset?.ticker || ''}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.type}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(tx.amount)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

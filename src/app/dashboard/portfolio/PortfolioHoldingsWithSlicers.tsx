@@ -66,6 +66,44 @@ export default function PortfolioHoldingsWithSlicers({
     )
   }
 
+  const getItemRemainingQuantity = (item: unknown) => {
+    if (!item) return 0
+
+    const itemRecord = item as Record<string, unknown>
+
+    const directRemainingQty =
+      itemRecord.remaining_quantity ??
+      itemRecord.remainingQuantity ??
+      itemRecord.quantity_remaining ??
+      itemRecord.quantityRemaining
+
+    if (directRemainingQty !== undefined && directRemainingQty !== null && directRemainingQty !== '') {
+      return Number(directRemainingQty) || 0
+    }
+
+    const activeLots = Array.isArray(itemRecord.active_tax_lots)
+      ? itemRecord.active_tax_lots
+      : Array.isArray(itemRecord.tax_lots)
+        ? itemRecord.tax_lots
+        : []
+
+    if (activeLots.length > 0) {
+      return activeLots.reduce((sum: number, lot: unknown) => {
+        const lotRecord = lot as Record<string, unknown>
+        const lotRemainingQty =
+          lotRecord.remaining_quantity ??
+          lotRecord.remainingQuantity ??
+          lotRecord.quantity_remaining ??
+          lotRecord.quantityRemaining ??
+          lotRecord.quantity ??
+          0
+        return sum + (Number(lotRemainingQty) || 0)
+      }, 0)
+    }
+
+    return Number(itemRecord.quantity) || 0
+  }
+
   useEffect(() => {
     if (lens === 'total') {
       setAvailableValues([])
@@ -214,33 +252,47 @@ export default function PortfolioHoldingsWithSlicers({
                   </div>
                 </div>
               </AccordionTrigger>
-              <AccordionContent className="p-0 overflow-x-auto">
-                <Table className="min-w-[800px] table-fixed">
+              <AccordionContent className="p-0 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+                <Table className="w-full min-w-[760px] table-fixed">
+                  <colgroup>
+                    <col className="w-[34%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[16%]" />
+                  </colgroup>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="w-[40%]">
-                        <button type="button" className="flex items-center gap-2" onClick={() => toggleItemSort(group.key, 'ticker')}>
-                          Asset
+                      <TableHead className="px-3 sm:px-4">
+                        <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => toggleItemSort(group.key, 'ticker')}>
+                          <span className="truncate">Asset</span>
                           {renderSortIndicator(itemSorts[group.key], 'ticker')}
                         </button>
                       </TableHead>
 
-                      <TableHead className="w-[20%] text-right">
-                        <button type="button" className="flex items-center gap-2 ml-auto" onClick={() => toggleItemSort(group.key, 'cost_basis')}>
+                      <TableHead className="px-3 sm:px-4 text-right">
+                        <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => toggleItemSort(group.key, 'quantity')}>
+                          Quantity
+                          {renderSortIndicator(itemSorts[group.key], 'quantity')}
+                        </button>
+                      </TableHead>
+
+                      <TableHead className="px-3 sm:px-4 text-right">
+                        <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => toggleItemSort(group.key, 'cost_basis')}>
                           Total Cost Basis
                           {renderSortIndicator(itemSorts[group.key], 'cost_basis')}
                         </button>
                       </TableHead>
 
-                      <TableHead className="w-[20%] text-right">
-                        <button type="button" className="flex items-center gap-2 ml-auto" onClick={() => toggleItemSort(group.key, 'value')}>
+                      <TableHead className="px-3 sm:px-4 text-right">
+                        <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => toggleItemSort(group.key, 'value')}>
                           Current Value
                           {renderSortIndicator(itemSorts[group.key], 'value')}
                         </button>
                       </TableHead>
 
-                      <TableHead className="w-[20%] text-right">
-                        <button type="button" className="flex items-center gap-2 ml-auto" onClick={() => toggleItemSort(group.key, 'weight')}>
+                      <TableHead className="px-3 sm:px-4 text-right">
+                        <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => toggleItemSort(group.key, 'weight')}>
                           Weight (Portfolio)
                           {renderSortIndicator(itemSorts[group.key], 'weight')}
                         </button>
@@ -260,6 +312,16 @@ export default function PortfolioHoldingsWithSlicers({
                             const bb = (b.ticker || '').toLowerCase()
                             return aa.localeCompare(bb) * dirMul
                           }
+                          if (k === 'quantity') {
+                            const qa = getItemRemainingQuantity(a)
+                            const qb = getItemRemainingQuantity(b)
+                            return (qa - qb) * dirMul
+                          }
+                          if (k === 'weight') {
+                            const wa = totalValueAcrossSelection > 0 ? ((Number(a.value) || 0) / totalValueAcrossSelection) * 100 : 0
+                            const wb = totalValueAcrossSelection > 0 ? ((Number(b.value) || 0) / totalValueAcrossSelection) * 100 : 0
+                            return (wa - wb) * dirMul
+                          }
                           const va = Number(k === 'cost_basis' ? (a.cost_basis ?? 0) : (a.value ?? 0)) || 0
                           const vb = Number(k === 'cost_basis' ? (b.cost_basis ?? 0) : (b.value ?? 0)) || 0
                           return (va - vb) * dirMul
@@ -267,12 +329,17 @@ export default function PortfolioHoldingsWithSlicers({
                         .map((item: any, idx: number) => {
                           const itemValue = Number(item.value) || 0
                           const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
+                          const itemQuantity = getItemRemainingQuantity(item)
                           return (
                             <TableRow key={`${item.ticker ?? item.name ?? idx}`}>
-                              <TableCell className="w-[40%]"><div className="font-bold">{item.ticker}</div><div className="text-[10px] opacity-70">{item.name}</div></TableCell>
-                              <TableCell className="w-[20%] text-right tabular-nums">{formatUSD(item.cost_basis)}</TableCell>
-                              <TableCell className="w-[20%] text-right tabular-nums font-bold">{formatUSD(itemValue)}</TableCell>
-                              <TableCell className="w-[20%] text-right tabular-nums">{itemWeight.toFixed(2)}%</TableCell>
+                              <TableCell className="px-3 sm:px-4 align-top">
+                                <div className="font-bold truncate">{item.ticker}</div>
+                                <div className="text-[10px] opacity-70 truncate">{item.name}</div>
+                              </TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{itemQuantity.toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(item.cost_basis)}</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums font-bold whitespace-nowrap">{formatUSD(itemValue)}</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{itemWeight.toFixed(2)}%</TableCell>
                             </TableRow>
                           )
                         })

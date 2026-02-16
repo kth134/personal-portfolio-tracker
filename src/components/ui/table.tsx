@@ -12,7 +12,10 @@ function Table({ className, containerClassName = "", ...props }: TableProps) {
   return (
     <div
       data-slot="table-container"
-      className={cn("relative w-full overflow-x-auto", containerClassName)}
+      className={cn(
+        "relative w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]",
+        containerClassName
+      )}
     >
       <table
         data-slot="table"

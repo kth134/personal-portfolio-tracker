@@ -375,7 +375,7 @@ function PerformanceContent() {
         });
 
         // Aggregate metrics by group from open lots
-        const metricsMap = new Map<string, { unrealized: number; marketValue: number; currentPrice?: number }>();
+        const metricsMap = new Map<string, { unrealized: number; marketValue: number; quantity: number; currentPrice?: number }>();
         openLotsData.forEach((lot: any) => {
           const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
           const qty = Number(lot.remaining_quantity);
@@ -395,9 +395,10 @@ function PerformanceContent() {
             case 'factor_tag': groupId = asset?.factor_tag || null; break;
           }
           if (!groupId) return;
-          const current = metricsMap.get(groupId) || { unrealized: 0, marketValue: 0 };
+          const current = metricsMap.get(groupId) || { unrealized: 0, marketValue: 0, quantity: 0 };
           current.unrealized += unrealThis;
           current.marketValue += marketThis;
+          current.quantity += qty;
           // For asset lens only
           if (lens === 'asset' && !current.currentPrice) {
             current.currentPrice = price;
@@ -428,7 +429,7 @@ function PerformanceContent() {
 
         // Combine
         const enhanced = groupingsWithSummary.map((row) => {
-          const metrics = metricsMap.get(row.grouping_id) || { unrealized: 0, marketValue: 0, currentPrice: undefined };
+          const metrics = metricsMap.get(row.grouping_id) || { unrealized: 0, marketValue: 0, quantity: 0, currentPrice: undefined };
           const summary = row.summary;
           const net =
             metrics.unrealized +
@@ -499,6 +500,7 @@ function PerformanceContent() {
             ...summary,
             unrealized_gain: metrics.unrealized,
             market_value: metrics.marketValue,
+            quantity: metrics.quantity,
             current_price: metrics.currentPrice,
             net_gain: net,
             total_cost_basis: totalCostBasis,
@@ -663,74 +665,110 @@ function PerformanceContent() {
           </span>
         )}
       </div>
-      <div className="overflow-x-auto">
-        <Table>
+      <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+        <Table className="w-full min-w-[1080px] table-fixed">
+          {lens === 'asset' ? (
+            <colgroup>
+              <col className="w-[22%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[11%]" />
+              <col className="w-[11%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+            </colgroup>
+          ) : (
+            <colgroup>
+              <col className="w-[26%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[9%]" />
+              <col className="w-[9%]" />
+            </colgroup>
+          )}
           <TableHeader>
             <TableRow>
               <TableHead 
-                className="cursor-pointer hover:bg-muted/50 select-none w-48"
+                className="cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
                 onClick={() => handleSort('display_name')}
               >
                 <div className="flex items-center">
-                  {lens.replace('_', ' ').toUpperCase()}
+                  <span className="truncate">{lens.replace('_', ' ').toUpperCase()}</span>
                   {getSortIcon('display_name')}
                 </div>
               </TableHead>
               {lens === 'asset' && (
                 <TableHead 
-                  className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                  className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
                   onClick={() => handleSort('current_price')}
                 >
-                  <div className="flex items-center justify-end">
+                  <div className="flex items-center justify-end whitespace-nowrap">
                     Current Price
                     {getSortIcon('current_price')}
                   </div>
                 </TableHead>
               )}
+              {lens === 'asset' && (
+                <TableHead 
+                  className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
+                  onClick={() => handleSort('quantity')}
+                >
+                  <div className="flex items-center justify-end whitespace-nowrap">
+                    Quantity
+                    {getSortIcon('quantity')}
+                  </div>
+                </TableHead>
+              )}
               <TableHead 
-                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
                 onClick={() => handleSort('market_value')}
               >
-                <div className="flex items-center justify-end">
+                <div className="flex items-center justify-end whitespace-nowrap">
                   Market Value
                   {getSortIcon('market_value')}
                 </div>
               </TableHead>
               <TableHead 
-                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
                 onClick={() => handleSort('unrealized_gain')}
               >
-                <div className="flex items-center justify-end">
-                  <span className="break-words">Unrealized G/L</span>
+                <div className="flex items-center justify-end whitespace-nowrap">
+                  <span>Unrealized G/L</span>
                   {getSortIcon('unrealized_gain')}
                 </div>
               </TableHead>
               <TableHead 
-                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
                 onClick={() => handleSort('realized_gain')}
               >
-                <div className="flex items-center justify-end">
-                  <span className="break-words">Realized G/L</span>
+                <div className="flex items-center justify-end whitespace-nowrap">
+                  <span>Realized G/L</span>
                   {getSortIcon('realized_gain')}
                 </div>
               </TableHead>
               <TableHead 
-                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
                 onClick={() => handleSort('dividends')}
               >
-                <div className="flex items-center justify-end">
+                <div className="flex items-center justify-end whitespace-nowrap">
                   Dividends
                   {getSortIcon('dividends')}
                 </div>
               </TableHead>
               <TableHead 
-                className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold"
+                className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold px-3 sm:px-4"
                 onClick={() => handleSort('net_gain')}
               >
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center justify-end">
-                      <span className="break-words">Net Gain/Loss</span>
+                    <div className="flex items-center justify-end whitespace-nowrap">
+                      <span>Net Gain/Loss</span>
                       {getSortIcon('net_gain')}
                     </div>
                   </TooltipTrigger>
@@ -740,13 +778,13 @@ function PerformanceContent() {
                 </Tooltip>
               </TableHead>
               <TableHead 
-                className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold"
+                className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold px-3 sm:px-4"
                 onClick={() => handleSort('total_return_pct')}
               >
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center justify-end">
-                      <span className="break-words">Total Return %</span>
+                    <div className="flex items-center justify-end whitespace-nowrap">
+                      <span>Total Return %</span>
                       {getSortIcon('total_return_pct')}
                     </div>
                   </TooltipTrigger>
@@ -756,13 +794,13 @@ function PerformanceContent() {
                 </Tooltip>
               </TableHead>
               <TableHead 
-                className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold"
+                className="text-right cursor-pointer hover:bg-muted/50 select-none font-bold px-3 sm:px-4"
                 onClick={() => handleSort('annualized_return_pct')}
               >
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center justify-end">
-                      <span className="break-words">Annualized IRR</span>
+                    <div className="flex items-center justify-end whitespace-nowrap">
+                      <span>Annualized IRR</span>
                       {getSortIcon('annualized_return_pct')}
                     </div>
                   </TooltipTrigger>
@@ -776,13 +814,13 @@ function PerformanceContent() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={lens === 'asset' ? 10 : 9} className="text-center py-8">
+                <TableCell colSpan={lens === 'asset' ? 10 : 8} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : sortedSummaries.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={lens === 'asset' ? 10 : 9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={lens === 'asset' ? 10 : 8} className="text-center py-8 text-muted-foreground">
                   No data yet for this lens. Add transactions to populate performance.
                 </TableCell>
               </TableRow>
@@ -790,23 +828,26 @@ function PerformanceContent() {
               <>
                 {sortedSummaries.map((row) => (
                   <TableRow key={row.grouping_id} className={lens === 'asset' && row.market_value === 0 ? "opacity-50" : ""}>
-                    <TableCell className="font-medium w-48">
+                    <TableCell className="font-medium px-3 sm:px-4 align-top">
                       {lens === 'asset' ? (
                         <div className="flex flex-col">
-                          <span className="font-bold break-words">{row.display_name.split(' - ')[0]}</span>
-                          {row.display_name.includes(' - ') && <span className="text-muted-foreground break-words">{row.display_name.split(' - ')[1]}</span>}
+                          <span className="font-bold truncate">{row.display_name.split(' - ')[0]}</span>
+                          {row.display_name.includes(' - ') && <span className="text-muted-foreground truncate">{row.display_name.split(' - ')[1]}</span>}
                         </div>
-                      ) : <span className="break-words">{row.display_name}</span>}
+                      ) : <span className="truncate block">{row.display_name}</span>}
                     </TableCell>
                     {lens === 'asset' && (
-                      <TableCell className="text-right">
+                      <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">
                         {row.current_price != null ? formatUSD(row.current_price) : '-'}
                       </TableCell>
                     )}
-                    <TableCell className="text-right">{formatUSD(row.market_value)}</TableCell>
+                    {lens === 'asset' && (
+                      <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(row.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
+                    )}
+                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(row.market_value)}</TableCell>
                     <TableCell
                       className={cn(
-                        "text-right",
+                        "px-3 sm:px-4 text-right tabular-nums whitespace-nowrap",
                         row.unrealized_gain > 0 ? "text-green-600" : row.unrealized_gain < 0 ? "text-red-600" : ""
                       )}
                     >
@@ -814,16 +855,16 @@ function PerformanceContent() {
                     </TableCell>
                     <TableCell
                       className={cn(
-                        "text-right",
+                        "px-3 sm:px-4 text-right tabular-nums whitespace-nowrap",
                         row.realized_gain > 0 ? "text-green-600" : row.realized_gain < 0 ? "text-red-600" : ""
                       )}
                     >
                       {formatUSD(row.realized_gain)}
                     </TableCell>
-                    <TableCell className="text-right">{formatUSD(row.dividends)}</TableCell>
+                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(row.dividends)}</TableCell>
                     <TableCell
                       className={cn(
-                        "text-right font-medium",
+                        "px-3 sm:px-4 text-right font-medium tabular-nums whitespace-nowrap",
                         row.net_gain > 0 ? "text-green-600" : row.net_gain < 0 ? "text-red-600" : ""
                       )}
                     >
@@ -831,7 +872,7 @@ function PerformanceContent() {
                     </TableCell>
                     <TableCell
                       className={cn(
-                        "text-right font-medium",
+                        "px-3 sm:px-4 text-right font-medium tabular-nums whitespace-nowrap",
                         row.total_return_pct > 0 ? "text-green-600" : row.total_return_pct < 0 ? "text-red-600" : ""
                       )}
                     >
@@ -839,7 +880,7 @@ function PerformanceContent() {
                     </TableCell>
                     <TableCell
                       className={cn(
-                        "text-right font-medium",
+                        "px-3 sm:px-4 text-right font-medium tabular-nums whitespace-nowrap",
                         row.annualized_return_pct > 0 ? "text-green-600" : row.annualized_return_pct < 0 ? "text-red-600" : ""
                       )}
                     >
@@ -860,22 +901,23 @@ function PerformanceContent() {
                 ))}
                 {/* Total row */}
                 <TableRow className="border-t-2 font-semibold bg-muted/50">
-                  <TableCell className="font-bold break-words">Total</TableCell>
-                  {lens === 'asset' && <TableCell className="text-right">-</TableCell>}
-                  <TableCell className="text-right font-bold">{formatUSD(totals.market_value)}</TableCell>
+                  <TableCell className="px-3 sm:px-4 font-bold">Total</TableCell>
+                  {lens === 'asset' && <TableCell className="px-3 sm:px-4 text-right">-</TableCell>}
+                  {lens === 'asset' && <TableCell className="px-3 sm:px-4 text-right">-</TableCell>}
+                  <TableCell className="px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap">{formatUSD(totals.market_value)}</TableCell>
                   <TableCell 
                     className={cn(
-                      "text-right font-bold",
+                      "px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap",
                       totals.unrealized_gain > 0 ? "text-green-600" : totals.unrealized_gain < 0 ? "text-red-600" : ""
                     )}
                   >
                     {formatUSD(totals.unrealized_gain)}
                   </TableCell>
-                  <TableCell className="text-right font-bold">{formatUSD(totals.realized_gain)}</TableCell>
-                  <TableCell className="text-right font-bold">{formatUSD(totals.dividends)}</TableCell>
+                  <TableCell className="px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap">{formatUSD(totals.realized_gain)}</TableCell>
+                  <TableCell className="px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap">{formatUSD(totals.dividends)}</TableCell>
                   <TableCell 
                     className={cn(
-                      "text-right font-bold",
+                      "px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap",
                       totals.net_gain > 0 ? "text-green-600" : totals.net_gain < 0 ? "text-red-600" : ""
                     )}
                   >
@@ -883,7 +925,7 @@ function PerformanceContent() {
                   </TableCell>
                   <TableCell 
                     className={cn(
-                      "text-right font-bold",
+                      "px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap",
                       totalReturnPct > 0 ? "text-green-600" : totalReturnPct < 0 ? "text-red-600" : ""
                     )}
                   >
@@ -891,7 +933,7 @@ function PerformanceContent() {
                   </TableCell>
                   <TableCell 
                     className={cn(
-                      "text-right font-bold",
+                      "px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap",
                       totalAnnualizedReturnPct > 0 ? "text-green-600" : totalAnnualizedReturnPct < 0 ? "text-red-600" : ""
                     )}
                   >

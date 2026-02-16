@@ -427,22 +427,132 @@ export default function RebalancingPage() {
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 max-w-[150px] bg-white border-zinc-300"/></div>
                         <div className="flex items-center gap-3 pt-4 sm:pt-0"><Switch id={`band-mode-${sp.id}`} checked={sp.band_mode} onCheckedChange={(checked) => updateSubPortfolio(sp.id, 'band_mode', checked ? 1 : 0)} /><Label htmlFor={`band-mode-${sp.id}`} className="text-xs font-medium cursor-pointer">{sp.band_mode ? 'Conservative' : 'Absolute'} Mode</Label></div>
                     </div>
-                    <div className="overflow-x-auto w-full"><Table className="min-w-[1200px] table-fixed w-full border-collapse"><TableHeader className="bg-muted/30"><TableRow><TableHead className="w-[12%] cursor-pointer" onClick={()=>handleSort('ticker')}>Asset <SortIcon col="ticker"/></TableHead><TableHead className="w-[12%] text-right cursor-pointer" onClick={()=>handleSort('current_value')}>Value ($) <SortIcon col="current_value"/></TableHead><TableHead className="w-[9%] text-right cursor-pointer" onClick={()=>handleSort('current_in_sp')}>Weight <SortIcon col="current_in_sp"/></TableHead><TableHead className="w-[9%] text-right text-blue-600 font-bold cursor-pointer" onClick={()=>handleSort('sub_portfolio_target_percentage')}>Target Weight <SortIcon col="sub_portfolio_target_percentage"/></TableHead><TableHead className="w-[9%] text-right cursor-pointer" onClick={()=>handleSort('implied_overall_target')}>Implied % <SortIcon col="implied_overall_target"/></TableHead><TableHead className="w-[9%] text-right cursor-pointer" onClick={()=>handleSort('drift_percentage')}>Drift % <SortIcon col="drift_percentage"/></TableHead><TableHead className="w-[10%] text-center">Action</TableHead><TableHead className="w-[30%] text-right pr-6">Tactical Suggestion</TableHead></TableRow></TableHeader><TableBody>{sortedItems.map((i: any) => (<TableRow key={i.asset_id} className="hover:bg-muted/5 h-16 group"><TableCell className="font-bold border-l-2 border-transparent group-hover:border-zinc-300 pl-4">{i.ticker}</TableCell><TableCell className="text-right tabular-nums">{formatUSD(i.current_value)}</TableCell><TableCell className="text-right tabular-nums">{i.current_in_sp.toFixed(1)}%</TableCell><TableCell className="text-right"><Input defaultValue={i.sub_portfolio_target_percentage} type="number" step="0.1" onBlur={(e) => updateAssetTarget(i.asset_id, sp.id, parseFloat(e.target.value))} className="h-8 text-right w-20 ml-auto border-zinc-200 bg-zinc-50/50 focus:ring-0"/></TableCell><TableCell className="text-right tabular-nums">{i.implied_overall_target.toFixed(1)}%</TableCell><TableCell className={cn("text-right tabular-nums font-bold", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell><TableCell className="text-center font-bold">{i.action === 'hold' ? <span className="text-zinc-300">-</span> : <div className="flex flex-col"><span className={cn(i.action === 'buy' ? "text-green-600" : "text-red-600")} >{i.action.toUpperCase()}</span><span className="text-[12px] font-medium">{formatUSD(i.amount)}</span></div>}</TableCell><TableCell className="text-right text-[12px] pr-6 italic text-zinc-600 whitespace-pre-wrap">{(() => {
-  const lines: any[] = [];
-  if (i.action === 'sell' && i.recommended_accounts?.length) {
-    i.recommended_accounts.forEach((s:any, idx:number) => {
-      lines.push(<div key={`sell-${idx}`} className="text-blue-700">Sell from {s.name}: {formatUSD(s.amount)}</div>);
-    });
-  }
-  if (i.reinvestment_suggestions?.length) {
-    i.reinvestment_suggestions.forEach((s:any, idx:number) => {
-      const accountLabel = s.account_name ? ` (${s.account_name}${s.tax_status ? `, ${s.tax_status}` : ''})` : '';
-      const label = s.from_ticker ? `Fund via ${s.from_ticker} sale${accountLabel}` : s.to_ticker ? `Use Funds to Buy ${s.to_ticker}` : 'Suggested';
-      lines.push(<div key={`re-${idx}`} className="text-blue-700">{label}: {formatUSD(s.amount)}</div>);
-    });
-  }
-  return lines.length ? lines : <span className="opacity-40">-</span>;
-})()}</TableCell></TableRow>))}<TableRow className="bg-zinc-900 text-white font-bold h-12 shadow-inner"><TableCell className="pl-4 uppercase tracking-tighter text-white">Total</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{formatUSD(totalVal)}</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{totalWeight.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{totalTarget.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{totalImplied.toFixed(1)}%</TableCell><TableCell className="text-right tabular-nums pr-4 text-white">{absDriftWtd.toFixed(1)}%</TableCell><TableCell className="text-center text-white">N/A</TableCell><TableCell className="text-right pr-6 opacity-60 text-white">N/A</TableCell></TableRow></TableBody></Table></div>
+                    <div className="overflow-x-auto w-full overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+                      <Table className="w-full min-w-[1260px] table-fixed border-collapse">
+                        <colgroup>
+                          <col className="w-[15%]" />
+                          <col className="w-[10%]" />
+                          <col className="w-[11%]" />
+                          <col className="w-[8%]" />
+                          <col className="w-[10%]" />
+                          <col className="w-[8%]" />
+                          <col className="w-[8%]" />
+                          <col className="w-[10%]" />
+                          <col className="w-[20%]" />
+                        </colgroup>
+                        <TableHeader className="bg-muted/30">
+                          <TableRow>
+                            <TableHead className="px-3 sm:px-4">
+                              <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => handleSort('ticker')}>
+                                <span className="truncate">Asset</span>
+                                <SortIcon col="ticker" />
+                              </button>
+                            </TableHead>
+                            <TableHead className="px-3 sm:px-4 text-right">
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('quantity')}>
+                                Quantity
+                                <SortIcon col="quantity" />
+                              </button>
+                            </TableHead>
+                            <TableHead className="px-3 sm:px-4 text-right">
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('current_value')}>
+                                Value ($)
+                                <SortIcon col="current_value" />
+                              </button>
+                            </TableHead>
+                            <TableHead className="px-3 sm:px-4 text-right">
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('current_in_sp')}>
+                                Weight
+                                <SortIcon col="current_in_sp" />
+                              </button>
+                            </TableHead>
+                            <TableHead className="px-3 sm:px-4 text-right text-blue-600 font-bold">
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('sub_portfolio_target_percentage')}>
+                                Target Weight
+                                <SortIcon col="sub_portfolio_target_percentage" />
+                              </button>
+                            </TableHead>
+                            <TableHead className="px-3 sm:px-4 text-right">
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('implied_overall_target')}>
+                                Implied %
+                                <SortIcon col="implied_overall_target" />
+                              </button>
+                            </TableHead>
+                            <TableHead className="px-3 sm:px-4 text-right">
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('drift_percentage')}>
+                                Drift %
+                                <SortIcon col="drift_percentage" />
+                              </button>
+                            </TableHead>
+                            <TableHead className="px-3 sm:px-4 text-center whitespace-nowrap">Action</TableHead>
+                            <TableHead className="px-3 sm:px-4 text-right whitespace-nowrap">Tactical Suggestion</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sortedItems.map((i: any) => (
+                            <TableRow key={i.asset_id} className="hover:bg-muted/5 h-16 group">
+                              <TableCell className="px-3 sm:px-4 font-bold border-l-2 border-transparent group-hover:border-zinc-300 align-top">
+                                <div className="truncate">{i.ticker}</div>
+                                <div className="text-[10px] opacity-70 truncate">{i.name}</div>
+                              </TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(i.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(i.current_value)}</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.current_in_sp.toFixed(1)}%</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right">
+                                <Input
+                                  defaultValue={i.sub_portfolio_target_percentage}
+                                  type="number"
+                                  step="0.1"
+                                  onBlur={(e) => updateAssetTarget(i.asset_id, sp.id, parseFloat(e.target.value))}
+                                  className="h-8 text-right w-20 ml-auto border-zinc-200 bg-zinc-50/50 focus:ring-0"
+                                />
+                              </TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.implied_overall_target.toFixed(1)}%</TableCell>
+                              <TableCell className={cn("px-3 sm:px-4 text-right tabular-nums font-bold whitespace-nowrap", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-center font-bold whitespace-nowrap">
+                                {i.action === 'hold' ? (
+                                  <span className="text-zinc-300">-</span>
+                                ) : (
+                                  <div className="flex flex-col">
+                                    <span className={cn(i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span>
+                                    <span className="text-[12px] font-medium">{formatUSD(i.amount)}</span>
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right text-[12px] italic text-zinc-600 whitespace-normal break-words">
+                                {(() => {
+                                  const lines: any[] = []
+                                  if (i.action === 'sell' && i.recommended_accounts?.length) {
+                                    i.recommended_accounts.forEach((s: any, idx: number) => {
+                                      lines.push(<div key={`sell-${idx}`} className="text-blue-700">Sell from {s.name}: {formatUSD(s.amount)}</div>)
+                                    })
+                                  }
+                                  if (i.reinvestment_suggestions?.length) {
+                                    i.reinvestment_suggestions.forEach((s: any, idx: number) => {
+                                      const accountLabel = s.account_name ? ` (${s.account_name}${s.tax_status ? `, ${s.tax_status}` : ''})` : ''
+                                      const label = s.from_ticker ? `Fund via ${s.from_ticker} sale${accountLabel}` : s.to_ticker ? `Use Funds to Buy ${s.to_ticker}` : 'Suggested'
+                                      lines.push(<div key={`re-${idx}`} className="text-blue-700">{label}: {formatUSD(s.amount)}</div>)
+                                    })
+                                  }
+                                  return lines.length ? lines : <span className="opacity-40">-</span>
+                                })()}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow className="bg-zinc-900 text-white font-bold h-12 shadow-inner">
+                            <TableCell className="px-3 sm:px-4 uppercase tracking-tighter text-white">Total</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">-</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{formatUSD(totalVal)}</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalWeight.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalTarget.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalImplied.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{absDriftWtd.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-center text-white">N/A</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right opacity-60 text-white">N/A</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
                 </AccordionContent>
               </AccordionItem>
             )
