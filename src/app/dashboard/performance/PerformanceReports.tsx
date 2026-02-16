@@ -247,28 +247,60 @@ export default function PerformanceReports() {
   }
 
   // Metric series for non-aggregate mode (per group)
-  const assetMetricSeries = (groupKey: string, metricKey: string) => {
-    // For Total Portfolio lens, use assetBreakdown
-    if (groupKey === 'Total Portfolio' && data?.assetBreakdown) {
-      const mapped: any[] = []
+  // Get metrics data for group (for CombinedCharts)
+  const getGroupMetricsData = (groupKey: string, data: ReportsResponse): MetricsData => {
+    const assetSeries = data.assetSeries?.[groupKey] || {}
+    const sliceSeries: Record<string, MetricsPoint[]> = {}
+    Object.entries(assetSeries).forEach(([assetKey, points]) => {
+      sliceSeries[assetKey] = points.map(p => ({
+        date: p.date,
+        netGain: p.netGain || 0,
+        income: p.income || 0,
+        realized: p.realized || 0,
+        unrealized: p.unrealized || 0,
+      }))
+    })
+
+    const sliceTotals: Record<string, any> = {}
+    const assetTotals = data.assetTotals?.[groupKey] || {}
+    Object.entries(assetTotals).forEach(([assetKey, totals]) => {
+      sliceTotals[assetKey] = {
+        netGain: totals.netGain || 0,
+        income: totals.income || 0,
+        realized: totals.realized || 0,
+        unrealized: totals.unrealized || 0,
+      }
+    })
+    return { series: sliceSeries, totals: sliceTotals }
+  }
+
+  const getTotalPortfolioMetricsData = (data: ReportsResponse): MetricsData => {
+    const sliceSeries: Record<string, MetricsPoint[]> = {}
+    if (data.assetBreakdown) {
       Object.entries(data.assetBreakdown).forEach(([assetKey, points]) => {
-        points.forEach((p: any, idx: number) => {
-          if (!mapped[idx]) mapped[idx] = { date: p.date }
-          mapped[idx][assetKey] = p[metricKey]
-        })
+        sliceSeries[assetKey] = points.map(p => ({
+          date: p.date,
+          netGain: p.netGain || 0,
+          income: p.income || 0,
+          realized: p.realized || 0,
+          unrealized: p.unrealized || 0,
+        }))
       })
-      return mapped
     }
-    // For other lenses, use assetSeries
-    const assets = data?.assetSeries?.[groupKey] || {}
-    const mapped: any[] = []
-    Object.entries(assets).forEach(([assetKey, points]) => {
-      points.forEach((p: any, idx: number) => {
-        if (!mapped[idx]) mapped[idx] = { date: p.date }
-        mapped[idx][assetKey] = p[metricKey]
+
+    const sliceTotals: Record<string, any> = {}
+    // Sum asset totals for portfolio
+    const totalsSum = { netGain: 0, income: 0, realized: 0, unrealized: 0 }
+    Object.entries(data.assetTotals || {}).forEach(([_, assets]) => {
+      Object.values(assets).forEach((totals: any) => {
+        totalsSum.netGain += totals.netGain || 0
+        totalsSum.income += totals.income || 0
+        totalsSum.realized += totals.realized || 0
+        totalsSum.unrealized += totals.unrealized || 0
       })
     })
-    return mapped
+    sliceTotals['aggregated'] = totalsSum
+    return { series: sliceSeries, totals: sliceTotals }
   }
 
   // Get totals based on mode
