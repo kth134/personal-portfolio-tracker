@@ -1,6 +1,6 @@
 'use client'
 
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, WaterfallChart, WaterfallBar } from 'recharts'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ComposedChart, Bar, Cell } from 'recharts'
 import { formatUSD } from '@/lib/formatters'
 import { useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -55,13 +55,18 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
   const waterfallData = useMemo(() => {
     const t = Object.values(data?.totals || {})[0] as any
     if (!t) return []
-    const i = t.income || 0, r = t.realized || 0, u = t.unrealized || 0, n = t.netGain || 0
+    const i = t.income || 0
+    const r = t.realized || 0
+    const u = t.unrealized || 0
+    const n = t.netGain || 0
+    const cumIncome = i
+    const cumRealized = i + r
+    const cumUnrealized = i + r + u
     return [
-      { name: 'Start', value: 0 },
-      { name: 'Income', value: i, color: i >= 0 ? THEME.positive : THEME.negative },
-      { name: 'Realized G/L', value: r, color: r >= 0 ? THEME.positive : THEME.negative },
-      { name: 'Unrealized G/L', value: u, color: u >= 0 ? THEME.positive : THEME.negative },
-      { name: 'Net Gain/Loss', value: n, color: n >= 0 ? THEME.positive : THEME.negative },
+      { name: 'Income', height: Math.abs(i), fill: i >= 0 ? THEME.positive : THEME.negative, y: i < 0 ? cumIncome : 0 },
+      { name: 'Realized G/L', height: Math.abs(r), fill: r >= 0 ? THEME.positive : THEME.negative, y: r < 0 ? cumRealized : cumIncome },
+      { name: 'Unrealized G/L', height: Math.abs(u), fill: u >= 0 ? THEME.positive : THEME.negative, y: u < 0 ? cumUnrealized : cumRealized },
+      { name: 'Net Gain/Loss', height: Math.abs(n), fill: n >= 0 ? THEME.accent : THEME.negative, y: 0 },
     ]
   }, [data])
 
@@ -123,21 +128,17 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
           </h4>
           <p className="text-xs text-neutral-500 mb-6 font-mono tracking-tight">Cumulative stack to total</p>
           <ResponsiveContainer width="100%" height="100%">
-            <WaterfallChart data={waterfallData} margin={{ top: 20, right: 30, left: 0, bottom: 30 }}>
+            <ComposedChart layout="vertical" data={waterfallData} margin={{ top: 20, right: 30, left: 0, bottom: 30 }} barCategoryGap={10}>
               <CartesianGrid stroke={THEME.grid} strokeDasharray="3,3" vertical={false} />
-              <XAxis dataKey="name" stroke="#666" fontFamily={THEME.fontMono} tick={{fontSize: 11, fontWeight: 500}} tickLine={false} axisLine={false} />
-              <YAxis stroke="#666" fontFamily={THEME.fontMono} tickLine={false} axisLine={false} tickFormatter={formatUSD} />
+              <XAxis type="number" stroke="#666" fontFamily={THEME.fontMono} tickLine={false} axisLine={false} tickFormatter={formatUSD} />
+              <YAxis type="category" dataKey="name" stroke="#666" fontFamily={THEME.fontMono} tick={{fontSize: 11, fontWeight: 500}} tickLine={false} axisLine={false} width={120} />
               <Tooltip content={tooltipContent} />
-              <WaterfallBar 
-                dataKey="value" 
-                fill={(entry: any) => entry.color || THEME.accent}
-                stroke={(entry: any) => entry.color || THEME.accent}
-                strokeWidth={1}
-                isAnimationActive
-                animationEasing="ease-out"
-                animationDuration={1000}
-              />
-            </WaterfallChart>
+              {waterfallData.map((entry, idx) => (
+                <Bar key={entry.name} dataKey="height" stackId="waterfall" yAxisId={0} barSize={40}>
+                  <Cell fill={entry.fill} stroke={entry.fill} strokeWidth={1} />
+                </Bar>
+              ))}
+            </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
