@@ -706,22 +706,22 @@ function PerformanceContent() {
               {lens === 'asset' && (
                 <TableHead 
                   className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
-                  onClick={() => handleSort('current_price')}
+                  onClick={() => handleSort('quantity')}
                 >
                   <div className="flex items-center justify-end whitespace-nowrap">
-                    Current Price
-                    {getSortIcon('current_price')}
+                    Quantity
+                    {getSortIcon('quantity')}
                   </div>
                 </TableHead>
               )}
               {lens === 'asset' && (
                 <TableHead 
                   className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
-                  onClick={() => handleSort('quantity')}
+                  onClick={() => handleSort('current_price')}
                 >
                   <div className="flex items-center justify-end whitespace-nowrap">
-                    Quantity
-                    {getSortIcon('quantity')}
+                    Current Price
+                    {getSortIcon('current_price')}
                   </div>
                 </TableHead>
               )}
@@ -837,12 +837,12 @@ function PerformanceContent() {
                       ) : <span className="truncate block">{row.display_name}</span>}
                     </TableCell>
                     {lens === 'asset' && (
+                      <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(row.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
+                    )}
+                    {lens === 'asset' && (
                       <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">
                         {row.current_price != null ? formatUSD(row.current_price) : '-'}
                       </TableCell>
-                    )}
-                    {lens === 'asset' && (
-                      <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(row.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
                     )}
                     <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(row.market_value)}</TableCell>
                     <TableCell

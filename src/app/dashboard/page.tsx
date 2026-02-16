@@ -124,7 +124,7 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate, refreshing }: {
                       <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSD(v) : ''} />
+                  <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSDWhole(v) : ''} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
