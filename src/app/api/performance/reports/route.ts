@@ -405,6 +405,7 @@ function calculateGroupMetrics(
 
   const currentState = calculatePortfolioStateAtDate(
     groupStateTxs,
+    groupLots,
     assetToTicker,
     historicalPrices,
     currentPrices,
@@ -413,6 +414,7 @@ function calculateGroupMetrics(
   )
   const startState = calculatePortfolioStateAtDate(
     groupStartStateTxs,
+    undefined,
     assetToTicker,
     historicalPrices,
     currentPrices,
@@ -459,12 +461,42 @@ function calculateGroupMetrics(
 
 function calculatePortfolioStateAtDate(
   stateTxs: any[],
+  stateLots: any[] | undefined,
   assetToTicker: Map<string, string>,
   historicalPrices: Record<string, { date: string, close: number }[]>,
   currentPrices: Record<string, number>,
   lastDateStr: string,
   asOfDate: string,
 ) {
+  // For current-day snapshots, prefer tax_lots state directly (matches Performance tab semantics).
+  if (stateLots && asOfDate === lastDateStr) {
+    const { totalCash } = calculateCashBalances(stateTxs)
+    let totalBasis = 0
+    let marketValue = 0
+
+    stateLots.forEach((lot: any) => {
+      const qty = Number(lot?.remaining_quantity || 0)
+      if (qty <= 0) return
+      const lotAsset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+      const ticker = lotAsset?.ticker || assetToTicker.get(lot.asset_id) || ''
+      const price = currentPrices[ticker] || getPriceAtOrBefore(historicalPrices[ticker] || [], asOfDate)
+      const basis = Number(lot?.cost_basis_per_unit || 0)
+
+      totalBasis += qty * basis
+      if (price > 0) {
+        marketValue += qty * price
+      }
+    })
+
+    const unrealized = marketValue - totalBasis
+    return {
+      marketValue,
+      totalBasis,
+      unrealized,
+      portfolioValue: marketValue + totalCash,
+    }
+  }
+
   const { totalCash } = calculateCashBalances(stateTxs)
 
   // Build open lots by simulating FIFO from transactions up to as-of date
@@ -713,10 +745,26 @@ async function getCurrentPrices(supabase: any, tickers: string[]) {
   const prices: Record<string, number> = {}
   if (!tickers.length) return prices
 
+  // Primary source: latest persisted prices from DB (same source used by performance tab).
+  const { data: latestDbPrices } = await supabase
+    .from('asset_prices')
+    .select('ticker, price, timestamp')
+    .in('ticker', tickers)
+    .order('timestamp', { ascending: false })
+
+  latestDbPrices?.forEach((p: any) => {
+    if (!prices[p.ticker]) {
+      prices[p.ticker] = Number(p.price)
+    }
+  })
+
+  const missingTickers = tickers.filter((t) => !(t in prices))
+  if (!missingTickers.length) return prices
+
   const alphaKey = process.env.ALPHA_VANTAGE_API_KEY
   if (!alphaKey) throw new Error('Missing ALPHA_VANTAGE_API_KEY')
 
-  for (const ticker of tickers) {
+  for (const ticker of missingTickers) {
     const alphaUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${alphaKey}`
     const alphaRes = await fetch(alphaUrl)
     if (alphaRes.ok) {
