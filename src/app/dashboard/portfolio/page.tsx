@@ -23,11 +23,13 @@ type TaxLot = {
 export default async function PortfolioPage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined }
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }> | { [key: string]: string | string[] | undefined }
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
+
+  const resolvedSearchParams = await Promise.resolve(searchParams)
 
   // Fetch data
   const [lotsRes, accountsRes, transactionsRes] = await Promise.all([
@@ -56,7 +58,7 @@ export default async function PortfolioPage({
   const lots = lotsRes.data as TaxLot[] | null
   const initialAccounts = accountsRes.data || []
   const transactions = transactionsRes
-  const tabParam = Array.isArray(searchParams.tab) ? searchParams.tab[0] : searchParams.tab
+  const tabParam = Array.isArray(resolvedSearchParams?.tab) ? resolvedSearchParams.tab[0] : resolvedSearchParams?.tab
   const initialTab = tabParam === 'rebalancing' ? 'rebalancing' : 'holdings'
 
   // Compute cash balances using centralized helper to ensure canonical behavior
@@ -72,7 +74,7 @@ export default async function PortfolioPage({
   return (
     <main className="p-8">
       <h1 className="text-3xl font-bold mb-8">Portfolio Management</h1>
-      <Tabs defaultValue={initialTab}>
+      <Tabs key={initialTab} defaultValue={initialTab}>
         <TabsList>
           <TabsTrigger value="holdings">Holdings</TabsTrigger>
           <TabsTrigger value="rebalancing">Rebalancing</TabsTrigger>

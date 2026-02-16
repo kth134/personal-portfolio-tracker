@@ -867,10 +867,10 @@ export default function DashboardHome() {
                       <div className="grid grid-cols-3 gap-4 items-stretch">
                         <div className="text-center h-full rounded-md border p-3">
                           <h4 className="font-semibold text-sm text-muted-foreground">Portfolio Drift</h4>
-                          <div className="grid grid-cols-2 gap-2 mt-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-2 mt-2">
                             <div className="text-center">
                               <p className="text-xs text-muted-foreground">Sub-Portfolio</p>
-                              <p className="text-xl font-bold">
+                              <p className="text-lg sm:text-xl font-bold leading-tight break-words">
                                 {(() => {
                                   // Calculate sub-portfolio relative drift from target allocations
                                   const subPortfolioAllocations: { [key: string]: number } = {}
@@ -900,7 +900,7 @@ export default function DashboardHome() {
                             </div>
                             <div className="text-center">
                               <p className="text-xs text-muted-foreground">Asset</p>
-                              <p className="text-xl font-bold">
+                              <p className="text-lg sm:text-xl font-bold leading-tight break-words">
                                 {(() => {
                                   const assetDrift = rebalancingData.totalValue > 0 
                                     ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
@@ -1172,10 +1172,10 @@ export default function DashboardHome() {
                     <div className="grid grid-cols-3 gap-4 items-stretch">
                       <div className="text-center h-full rounded-md border p-3">
                         <h4 className="font-semibold text-sm text-muted-foreground">Portfolio Drift</h4>
-                        <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-2 mt-2">
                           <div className="text-center">
                             <p className="text-xs text-muted-foreground">Sub-Portfolio</p>
-                            <p className="text-xl font-bold">
+                            <p className="text-lg sm:text-xl font-bold leading-tight break-words">
                               {(() => {
                                 // Calculate sub-portfolio relative drift from target allocations
                                 const subPortfolioAllocations: { [key: string]: number } = {}
@@ -1205,7 +1205,7 @@ export default function DashboardHome() {
                           </div>
                           <div className="text-center">
                             <p className="text-xs text-muted-foreground">Asset</p>
-                            <p className="text-xl font-bold">
+                            <p className="text-lg sm:text-xl font-bold leading-tight break-words">
                               {(() => {
                                 const assetDrift = rebalancingData.totalValue > 0 
                                   ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
