@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect, Fragment } from 'react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import CombinedMetricsCharts from '@/components/charts/CombinedMetricsCharts'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -617,39 +618,11 @@ export default function PerformanceReports() {
           )}
 
           {/* Metric charts for aggregate mode */}
-          {aggregate && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {SERIES_METRICS.map(metric => (
-                <div key={metric.key} className="space-y-2 rounded-xl border bg-card p-4 shadow-sm overflow-hidden">
-                  <h4 className="font-semibold">{metric.label}</h4>
-                  <div className="h-[290px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={metricSeries(metric.key)} margin={{ top: 16, right: 28, left: 20, bottom: 18 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" minTickGap={24} tickMargin={8} />
-                      <YAxis 
-                        tickFormatter={(v) => formatUSD(v ?? 0)} 
-                        domain={['auto', 'auto']}
-                        padding={{ top: 20, bottom: 20 }}
-                        width={104}
-                        tickMargin={8}
-                      />
-                      <Tooltip formatter={(v) => formatUSD((v as number) ?? 0)} />
-                      <Legend />
-                      {lens === 'total' ? (
-                        <Line type="monotone" dataKey="aggregated" name="Portfolio" stroke={COLORS[0]} />
-                      ) : (
-                        Object.keys(data?.series || {}).map((key, i) => (
-                          <Line key={key} type="monotone" dataKey={key} name={key} stroke={COLORS[i % COLORS.length]} />
-                        ))
-                      )}
-                    </LineChart>
-                  </ResponsiveContainer>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          import CombinedMetricsCharts from '@/components/charts/CombinedMetricsCharts'
+
+{aggregate && data && (
+  <CombinedMetricsCharts data={{ series: data.series || {}, totals: data.totals || {} }} />
+)}
 
           {/* Metric charts for non-aggregate mode - Non-total lens */}
           {!aggregate && lens !== 'total' && (
