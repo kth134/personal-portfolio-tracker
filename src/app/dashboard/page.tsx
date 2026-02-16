@@ -171,6 +171,9 @@ export default function DashboardHome() {
   const [showMfaSetupPrompt, setShowMfaSetupPrompt] = useState(false);
   const [dontAskAgain, setDontAskAgain] = useState(false);
 
+  const getSelectionValue = (item: { value: string; label: string }) =>
+    (lens === 'account' || lens === 'sub_portfolio') ? (item.label ?? item.value) : item.value;
+
   // Fetch distinct values for lens
   useEffect(() => {
     if (lens === 'total') {
@@ -190,7 +193,7 @@ export default function DashboardHome() {
         const data = await res.json();
         const vals: {value: string, label: string}[] = data.values || [];
         setAvailableValues(vals);
-        setSelectedValues(vals.map(item => item.value)); // default to all
+        setSelectedValues(Array.from(new Set(vals.map(item => getSelectionValue(item))))); // default to all
       } catch (err) {
         console.error('Failed to load lens values:', err);
       } finally {
@@ -755,8 +758,8 @@ export default function DashboardHome() {
                         <CommandEmpty>No values found.</CommandEmpty>
                         <CommandGroup>
                           {availableValues.map(item => (
-                            <CommandItem key={item.value} onSelect={() => toggleValue(item.value)}>
-                              <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />
+                            <CommandItem key={item.value} onSelect={() => toggleValue(getSelectionValue(item))}>
+                              <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(getSelectionValue(item)) ? "opacity-100" : "opacity-0")} />
                               {item.label}
                             </CommandItem>
                           ))}
@@ -851,7 +854,7 @@ export default function DashboardHome() {
                   </div>
                 </CardHeader>
               </Card>
-              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/strategy?tab=rebalancing')}>
+              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio?tab=rebalancing')}>
                 <CardHeader>
                   <CardTitle className="text-center text-4xl">Strategy</CardTitle>
                 </CardHeader>
@@ -861,8 +864,8 @@ export default function DashboardHome() {
                   ) : rebalancingData ? (
                     <div className="space-y-4">
                       {/* Top Metrics in 3 columns */}
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="text-center">
+                      <div className="grid grid-cols-3 gap-4 items-stretch">
+                        <div className="text-center h-full rounded-md border p-3">
                           <h4 className="font-semibold text-sm text-muted-foreground">Portfolio Drift</h4>
                           <div className="grid grid-cols-2 gap-2 mt-2">
                             <div className="text-center">
@@ -914,7 +917,7 @@ export default function DashboardHome() {
                             </div>
                           </div>
                         </div>
-                        <div className="text-center">
+                        <div className="text-center h-full rounded-md border p-3 flex flex-col justify-between">
                           <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>
                           <p className="text-xl font-bold">
                             {rebalancingData.currentAllocations.some((item: any) => item.action !== 'hold') ? (
@@ -924,7 +927,7 @@ export default function DashboardHome() {
                             )}
                           </p>
                         </div>
-                        <div className="text-center">
+                        <div className="text-center h-full rounded-md border p-3 flex flex-col justify-between">
                           <h4 className="font-semibold text-sm text-muted-foreground">Magnitude of Rebalance Actions (Net)</h4>
                           <p className={cn("text-xl font-bold", rebalancingData.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
                             {formatUSDWhole(Math.abs(rebalancingData.cashNeeded))}
@@ -1035,8 +1038,8 @@ export default function DashboardHome() {
                             <CommandEmpty>No values found.</CommandEmpty>
                             <CommandGroup>
                               {availableValues.map(item => (
-                                <CommandItem key={item.value} onSelect={() => toggleValue(item.value)}>
-                                  <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />
+                                <CommandItem key={item.value} onSelect={() => toggleValue(getSelectionValue(item))}>
+                                  <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(getSelectionValue(item)) ? "opacity-100" : "opacity-0")} />
                                 {item.label}
                               </CommandItem>
                             ))}
@@ -1156,7 +1159,7 @@ export default function DashboardHome() {
                 </div>
               </CardHeader>
             </Card>
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/strategy?tab=rebalancing')}>
+            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio?tab=rebalancing')}>
               <CardHeader>
                 <CardTitle className="text-center text-4xl">Strategy</CardTitle>
               </CardHeader>
@@ -1166,8 +1169,8 @@ export default function DashboardHome() {
                 ) : rebalancingData ? (
                   <div className="space-y-4">
                     {/* Top Metrics in 3 columns */}
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center">
+                    <div className="grid grid-cols-3 gap-4 items-stretch">
+                      <div className="text-center h-full rounded-md border p-3">
                         <h4 className="font-semibold text-sm text-muted-foreground">Portfolio Drift</h4>
                         <div className="grid grid-cols-2 gap-2 mt-2">
                           <div className="text-center">
@@ -1219,7 +1222,7 @@ export default function DashboardHome() {
                           </div>
                         </div>
                       </div>
-                      <div className="text-center">
+                      <div className="text-center h-full rounded-md border p-3 flex flex-col justify-between">
                         <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>
                         <p className="text-xl font-bold">
                           {rebalancingData.currentAllocations.some((item: any) => item.action !== 'hold') ? (
@@ -1229,7 +1232,7 @@ export default function DashboardHome() {
                           )}
                         </p>
                       </div>
-                      <div className="text-center">
+                      <div className="text-center h-full rounded-md border p-3 flex flex-col justify-between">
                         <h4 className="font-semibold text-sm text-muted-foreground">Magnitude of Rebalance Actions (Net)</h4>
                         <p className={cn("text-xl font-bold", rebalancingData.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
                           {formatUSDWhole(Math.abs(rebalancingData.cashNeeded))}
@@ -1339,8 +1342,8 @@ export default function DashboardHome() {
                             <CommandEmpty>No values found.</CommandEmpty>
                             <CommandGroup>
                               {availableValues.map(item => (
-                                <CommandItem key={item.value} onSelect={() => toggleValue(item.value)}>
-                                  <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(item.value) ? "opacity-100" : "opacity-0")} />
+                                <CommandItem key={item.value} onSelect={() => toggleValue(getSelectionValue(item))}>
+                                  <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(getSelectionValue(item)) ? "opacity-100" : "opacity-0")} />
                                   {item.label}
                                 </CommandItem>
                               ))}
