@@ -246,6 +246,18 @@ export default function PerformanceReports() {
     return mapped
   }
 
+  const assetMetricSeries = (groupKey: string, metricKey: string) => {
+    const groupData = groupKey === 'Total Portfolio' ? data?.assetBreakdown || {} : data?.assetSeries?.[groupKey] || {};
+    const mapped: any[] = [];
+    Object.entries(groupData).forEach(([assetKey, points]) => {
+      points.forEach((p, idx) => {
+        if (!mapped[idx]) mapped[idx] = { date: p.date };
+        mapped[idx][assetKey] = p[metricKey] || 0;
+      });
+    });
+    return mapped;
+  };
+
   // Metric series for non-aggregate mode (per group)
   interface MetricsPoint {
     date: string
@@ -663,7 +675,7 @@ export default function PerformanceReports() {
           )}
 
           {/* Metric charts for aggregate mode */}
-          import CombinedMetricsCharts from '@/components/charts/CombinedMetricsCharts'
+          {/* Combined Metrics Charts for aggregate */}
 
 {aggregate && data && (
   <CombinedMetricsCharts data={{ series: data.series || {}, totals: data.totals || {} }} />
