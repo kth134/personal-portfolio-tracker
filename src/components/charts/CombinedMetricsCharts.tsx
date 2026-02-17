@@ -95,22 +95,23 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
   }, [data])
 
   const valueBridgeData = useMemo<WaterfallRow[]>(() => {
-    const totalsList = Object.values(data?.totals || {}) as Array<{ netGain?: number; income?: number; realized?: number; unrealized?: number }>
-    if (!totalsList.length) return []
+    if (!combinedLineData.length) return []
 
-    const i = totalsList.reduce((sum, t) => sum + Number(t?.income || 0), 0)
-    const r = totalsList.reduce((sum, t) => sum + Number(t?.realized || 0), 0)
-    const u = totalsList.reduce((sum, t) => sum + Number(t?.unrealized || 0), 0)
-    const netGain = i + r + u
     const firstPoint = combinedLineData[0]
     const lastPoint = combinedLineData[combinedLineData.length - 1]
+
+    const startValue = Number(firstPoint?.portfolioValue ?? 0)
     const endValue = Number(lastPoint?.portfolioValue ?? 0)
-    const startValue = Number(firstPoint?.portfolioValue ?? (endValue - netGain))
+
+    // Use period deltas so each bar is a true step from left-to-right.
+    const incomeDelta = Number(lastPoint?.income ?? 0) - Number(firstPoint?.income ?? 0)
+    const realizedDelta = Number(lastPoint?.realized ?? 0) - Number(firstPoint?.realized ?? 0)
+    const unrealizedDelta = endValue - startValue - incomeDelta - realizedDelta
 
     const c0 = startValue
-    const c1 = c0 + i
-    const c2 = c1 + r
-    const c3 = c2 + u
+    const c1 = c0 + incomeDelta
+    const c2 = c1 + realizedDelta
+    const c3 = c2 + unrealizedDelta
 
     return [
       {
@@ -125,28 +126,28 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
       {
         name: 'Income',
         offset: Math.min(c0, c1),
-        value: Math.abs(i),
-        delta: i,
+        value: Math.abs(incomeDelta),
+        delta: incomeDelta,
         cumulative: c1,
-        fill: i >= 0 ? COLORS.positive : COLORS.negative,
+        fill: incomeDelta >= 0 ? COLORS.positive : COLORS.negative,
         isTotal: false,
       },
       {
         name: 'Realized G/L',
         offset: Math.min(c1, c2),
-        value: Math.abs(r),
-        delta: r,
+        value: Math.abs(realizedDelta),
+        delta: realizedDelta,
         cumulative: c2,
-        fill: r >= 0 ? COLORS.positive : COLORS.negative,
+        fill: realizedDelta >= 0 ? COLORS.positive : COLORS.negative,
         isTotal: false,
       },
       {
         name: 'Unrealized G/L',
         offset: Math.min(c2, c3),
-        value: Math.abs(u),
-        delta: u,
+        value: Math.abs(unrealizedDelta),
+        delta: unrealizedDelta,
         cumulative: c3,
-        fill: u >= 0 ? COLORS.positive : COLORS.negative,
+        fill: unrealizedDelta >= 0 ? COLORS.positive : COLORS.negative,
         isTotal: false,
       },
       {
