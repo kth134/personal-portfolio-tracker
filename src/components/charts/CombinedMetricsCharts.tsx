@@ -1,6 +1,6 @@
 'use client'
 
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ComposedChart, Bar, Cell, ReferenceLine } from 'recharts'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, Cell, ReferenceLine } from 'recharts'
 import { useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 
@@ -207,7 +207,7 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
           </h4>
           <p className="text-sm text-muted-foreground mb-4">Floating-step build from starting value to ending value</p>
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={valueBridgeData} margin={{ top: 16, right: 14, left: 8, bottom: 36 }} barCategoryGap={16}>
+            <BarChart data={valueBridgeData} margin={{ top: 16, right: 14, left: 8, bottom: 36 }} barCategoryGap={16}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-18} textAnchor="end" height={78} />
               <YAxis tickFormatter={axisFormatter} tickMargin={10} width={108} />
@@ -219,7 +219,7 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
                   <Cell key={entry.name} fill={entry.fill} stroke={entry.fill} strokeWidth={1} />
                 ))}
               </Bar>
-            </ComposedChart>
+            </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
