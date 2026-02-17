@@ -3,6 +3,63 @@ import { createClient } from '@/lib/supabase/server'
 import { endOfMonth, startOfMonth, addMonths, parseISO, isAfter, format, formatISO } from 'date-fns'
 import { calculateCashBalances, fetchAllUserTransactionsServer } from '@/lib/finance'
 
+type AssetMeta = {
+  id?: string
+  ticker?: string
+  name?: string
+  asset_type?: string
+  asset_subtype?: string
+  geography?: string
+  size_tag?: string
+  factor_tag?: string
+  sub_portfolio_id?: string
+}
+
+type TransactionEntry = {
+  date: string
+  asset_id?: string
+  account_id?: string
+  asset?: AssetMeta | AssetMeta[]
+  type?: string
+  quantity?: number | string | null
+  price_per_unit?: number | string | null
+  realized_gain?: number | string | null
+  amount?: number | string | null
+}
+
+type TaxLotEntry = {
+  asset_id?: string
+  account_id?: string
+  purchase_date: string
+  remaining_quantity?: number | string | null
+  cost_basis_per_unit?: number | string | null
+  quantity?: number | string | null
+  asset?: AssetMeta | AssetMeta[]
+}
+
+type GroupBucket = {
+  tx: TransactionEntry[]
+  lots: TaxLotEntry[]
+}
+
+type SimulatedLot = {
+  asset_id: string
+  remaining_quantity: number
+  cost_basis_per_unit: number
+}
+
+type SeriesPoint = {
+  date: string
+  portfolioValue: number
+  netGain: number
+  unrealized: number
+  realized: number
+  income: number
+  totalReturnPct: number
+  originalInvestment: number
+  benchmarkValues: Record<string, number>
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient()
@@ -13,14 +70,15 @@ export async function POST(req: Request) {
     const { lens, selectedValues, aggregate, benchmarks } = body
 
     // Fetch all transactions using centralized pagination
-    const allTx = await fetchAllUserTransactionsServer(supabase, user.id)
+    const allTx = (await fetchAllUserTransactionsServer(supabase, user.id)) as TransactionEntry[]
 
     const lotsQuery = supabase.from('tax_lots').select(`
       asset_id, account_id, purchase_date, remaining_quantity, cost_basis_per_unit, quantity,
       asset:assets (id, ticker, name, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolio_id)
     `).eq('user_id', user.id)
 
-    const { data: allLots } = await lotsQuery
+    const { data: allLotsRaw } = await lotsQuery
+    const allLots = (allLotsRaw || []) as TaxLotEntry[]
 
     console.log('Fetched transactions count:', allTx?.length || 0);
 
@@ -64,21 +122,21 @@ export async function POST(req: Request) {
     console.log('Historical prices keys:', Object.keys(historicalPrices));
 
     // For each date, simulate PerformanceContent calcs with filters
-    const series: Record<string, any[]> = {}
+    const series: Record<string, SeriesPoint[]> = {}
     for (const d of dates) {
       // Filter data <= d
       const filteredTx = allTx.filter(tx => tx.date <= d)
-      const filteredLots = (allLots || []).filter(lot => lot.purchase_date <= d) // But remaining needs simulation
+      const filteredLots = allLots.filter(lot => lot.purchase_date <= d) // But remaining needs simulation
 
       // Group filtered tx/lots by lens (if not aggregate)
-      const groups = new Map<string, { tx: any[], lots: any[] }>()
+      const groups = new Map<string, GroupBucket>()
       if (aggregate || lens === 'total') {
         groups.set('aggregated', { tx: filteredTx, lots: filteredLots })
       } else {
-        const getGroupId = (item: any, isLot: boolean) => {
+        const getGroupId = (item: TransactionEntry | TaxLotEntry, isLot: boolean) => {
           const asset = isLot ? (Array.isArray(item.asset) ? item.asset[0] : item.asset) : item.asset
           switch (lens) {
-            case 'account': return isLot ? item.account_id : item.account_id
+            case 'account': return item.account_id
             case 'sub_portfolio': return asset?.sub_portfolio_id
             case 'asset_type': return asset?.asset_type
             case 'asset_subtype': return asset?.asset_subtype
@@ -109,7 +167,7 @@ export async function POST(req: Request) {
         if (!series[groupKey]) series[groupKey] = []
 
         // Cash balances using centralized helper
-        const { balances: cashBalances, totalCash: groupCash } = calculateCashBalances(groupTxs)
+        const { totalCash: groupCash } = calculateCashBalances(groupTxs)
 
         // Total original investment (sum cost from all lots <= d)
         const groupOriginalInvestment = groupLots.reduce((sum, lot) => 
@@ -117,10 +175,11 @@ export async function POST(req: Request) {
         )
 
         // Simulate remaining_quantity for history (since tax_lots has current)
-        const simulatedOpenLots: any[] = []
+        const simulatedOpenLots: SimulatedLot[] = []
         const assetLots = new Map<string, { qty: number, basis: number }[]>()
         groupTxs.forEach(tx => {
           const assetId = tx.asset_id
+          if (!assetId) return
           if (tx.type === 'Buy') {
             const qty = Number(tx.quantity || 0)
             const prc = Number(tx.price_per_unit || 0)
@@ -210,10 +269,9 @@ const stocks = tickers.filter(t => t.toUpperCase() !== 'BTC');
     const cryptos = tickers.filter(t => t.toUpperCase() === 'BTC');
 
   // Helper to get monthly dates in range
-  const getMonthlyDates = (startDate: Date, endDate: Date): string[] => {
+    const getMonthlyDates = (startDate: Date, endDate: Date): string[] => {
     const dates: string[] = [];
     let current = endOfMonth(startOfMonth(startDate));
-    const todayStr = formatISO(new Date(), { representation: 'date' });
     while (current < endDate) {
       dates.push(format(current, 'yyyy-MM-dd'));
       current = addMonths(current, 1);
@@ -256,7 +314,7 @@ const stocks = tickers.filter(t => t.toUpperCase() !== 'BTC');
       const existingDates = new Set(prices[t].map(p => p.date));
       if (existingDates.size === neededDates.length) continue; // No gaps
 
-      let fetchedData: { date: string, close: number }[] = [];
+      const fetchedData: { date: string, close: number }[] = [];
       let source = 'finnhub';
 
       // Finnhub primary

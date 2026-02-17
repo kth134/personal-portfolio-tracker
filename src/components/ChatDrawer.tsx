@@ -31,6 +31,27 @@ const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false 
 const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false });
 const Bar = dynamic(() => import('recharts').then(mod => mod.Bar), { ssr: false });
 
+function MermaidCodeBlock({ code }: { code: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!ref.current || !code) return
+
+    mermaid.render('mermaid-graph-' + Math.random().toString(36).slice(2, 9), code)
+      .then(({ svg }) => {
+        if (ref.current) ref.current.innerHTML = svg
+      })
+      .catch((err) => {
+        console.error('Mermaid render error:', err)
+        if (ref.current) {
+          ref.current.innerHTML = `<pre class="bg-muted p-4 rounded overflow-x-auto text-sm">Mermaid Rendering Failed\n\n${code}</pre>`
+        }
+      })
+  }, [code])
+
+  return <div ref={ref} className="mermaid my-4" />
+}
+
 export function ChatDrawer() {
   const { 
     messages, 
@@ -113,33 +134,6 @@ export function ChatDrawer() {
       e.preventDefault();
       handleSend();
     }
-  };
-
-  // Render Mermaid diagrams safely
-  const MermaidChart = ({ code }: { code: string }) => {
-    const ref = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-      if (ref.current) {
-        try {
-          mermaid.render('mermaid-graph-' + Math.random(), code).then((result) => {
-            if (ref.current && result.svg) {
-              ref.current.innerHTML = result.svg;
-            }
-          }).catch((err) => {
-            console.error('Mermaid render error:', err);
-            if (ref.current) {
-              ref.current.innerHTML = `<pre class="bg-muted p-4 rounded overflow-x-auto text-sm">${code}</pre>`;
-            }
-          });
-        } catch (err) {
-          console.error('Mermaid error:', err);
-          if (ref.current) {
-            ref.current.innerHTML = `<pre class="bg-muted p-4 rounded overflow-x-auto text-sm">${code}</pre>`;
-          }
-        }
-      }
-    }, [code]);
-    return <div ref={ref} className="mermaid" />;
   };
 
   return (
@@ -252,20 +246,7 @@ export function ChatDrawer() {
                           const match = /language-(\w+)/.exec(className || '');
                           const codeString = String(children).trim();
                           if (!inline && match && match[1] === 'mermaid') {
-                            const mermaidRef = useRef<HTMLDivElement>(null);
-                            useEffect(() => {
-                              if (mermaidRef.current && codeString) {
-                                mermaid.render('mermaid-graph-' + Math.random().toString(36).substr(2, 9), codeString)
-                                  .then(({ svg }) => {
-                                    if (mermaidRef.current) mermaidRef.current.innerHTML = svg;
-                                  })
-                                  .catch(err => {
-                                    console.error('Mermaid render error:', err);
-                                    if (mermaidRef.current) mermaidRef.current.innerHTML = `<pre class="bg-muted p-4 rounded overflow-x-auto text-sm">Mermaid Rendering Failed\n\n${codeString}</pre>`;
-                                  });
-                              }
-                            }, [codeString]);
-                            return <div ref={mermaidRef} className="mermaid my-4" />;
+                            return <MermaidCodeBlock code={codeString} />;
                           }
                           return inline ? (
                             <code className="bg-black/10 rounded px-1 text-sm" {...props}>

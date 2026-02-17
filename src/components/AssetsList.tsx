@@ -50,7 +50,6 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
   // Search & mass actions
   const [search, setSearch] = useState('')
   const [selectedAssets, setSelectedAssets] = useState<string[]>([])
-  const [selectAll, setSelectAll] = useState(false)
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
   const [bulkForm, setBulkForm] = useState({
     asset_type: '',
@@ -80,24 +79,6 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
     }
     fetchOptions()
   }, [])
-
-  // Set form values when editing
-  useEffect(() => {
-    if (editingAsset) {
-      setForm({
-        ticker: editingAsset.ticker,
-        name: editingAsset.name || '',
-        sub_portfolio_id: editingAsset.sub_portfolio_id || '',
-        notes: editingAsset.notes || '',
-        asset_type: editingAsset.asset_type || '',
-        asset_subtype: editingAsset.asset_subtype || '',
-        geography: editingAsset.geography || '',
-        factor_tag: editingAsset.factor_tag || '',
-        size_tag: editingAsset.size_tag || ''
-      })
-      setOpen(true)
-    }
-  }, [editingAsset])
 
   const handleSort = (column: keyof Asset) => {
     if (sortColumn === column) {
@@ -138,11 +119,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
     )
   })
 
-  // Update select all
-  useEffect(() => {
-    const allSelected = sortedAssets.length > 0 && selectedAssets.length === sortedAssets.length
-    setSelectAll(allSelected)
-  }, [selectedAssets, sortedAssets])
+  const selectAll = sortedAssets.length > 0 && selectedAssets.length === sortedAssets.length
 
   const handleSelectAsset = (id: string, checked: boolean) => {
     if (checked) {
@@ -158,7 +135,6 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
     } else {
       setSelectedAssets([])
     }
-    setSelectAll(checked)
   }
 
   const handleBulkDelete = async () => {
@@ -170,7 +146,6 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
       await supabase.from('assets').delete().in('id', selectedAssets)
       setAssets(assets.filter(a => !selectedAssets.includes(a.id)))
       setSelectedAssets([])
-      setSelectAll(false)
     } catch (err: any) {
       alert('Bulk delete failed: ' + err.message)
     }
@@ -208,7 +183,6 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
       setBulkEditOpen(false)
       setBulkForm({ asset_type: '', asset_subtype: '', geography: '', factor_tag: '', size_tag: '', notes: '' })
       setSelectedAssets([])
-      setSelectAll(false)
     } catch (err: any) {
       alert('Bulk edit failed: ' + err.message)
     }
@@ -255,7 +229,19 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
   }
 
   const handleEdit = (asset: Asset) => {
+    setForm({
+      ticker: asset.ticker,
+      name: asset.name || '',
+      sub_portfolio_id: asset.sub_portfolio_id || '',
+      notes: asset.notes || '',
+      asset_type: asset.asset_type || '',
+      asset_subtype: asset.asset_subtype || '',
+      geography: asset.geography || '',
+      factor_tag: asset.factor_tag || '',
+      size_tag: asset.size_tag || ''
+    })
     setEditingAsset(asset)
+    setOpen(true)
   }
 
   return (

@@ -76,14 +76,23 @@ export async function POST(request: Request) {
       asset: { ticker: string }[];
     };
 
-    const validLots: LotEntry[] = (lotsRaw || [])
-      .filter((lot: any): lot is LotEntry =>
-        lot &&
-        lot.remaining_quantity > 0 &&
-        lot.asset &&
-        lot.asset.length > 0 &&
-        typeof lot.asset[0].ticker === 'string'
+    const isLotEntry = (lot: unknown): lot is LotEntry => {
+      if (!lot || typeof lot !== 'object') return false;
+      const candidate = lot as {
+        remaining_quantity?: number;
+        asset?: Array<{ ticker?: string }>;
+      };
+      return Boolean(
+        candidate.remaining_quantity &&
+        candidate.remaining_quantity > 0 &&
+        candidate.asset &&
+        candidate.asset.length > 0 &&
+        typeof candidate.asset[0]?.ticker === 'string'
       );
+    };
+
+    const validLots: LotEntry[] = (lotsRaw || [])
+      .filter(isLotEntry);
 
     // === Fetch transactions in period ===
     const { data: transactionsRaw, error: txError } = await supabase
@@ -106,10 +115,14 @@ export async function POST(request: Request) {
       realized_gain: number | null;
     };
 
+    const isTransactionEntry = (tx: unknown): tx is TransactionEntry => {
+      if (!tx || typeof tx !== 'object') return false;
+      const candidate = tx as { date?: unknown };
+      return typeof candidate.date === 'string';
+    };
+
     const transactions: TransactionEntry[] = (transactionsRaw || [])
-      .filter((tx: any): tx is TransactionEntry =>
-        tx && typeof tx.date === 'string'
-      );
+      .filter(isTransactionEntry);
 
     // === Tickers for prices ===
     const assetTickers = [...new Set(validLots.map(l => l.asset[0].ticker))];
@@ -166,7 +179,7 @@ export async function POST(request: Request) {
 
     // === Series for chart ===
     const series = dates.map((date, i) => {
-      const entry: Record<string, any> = {
+      const entry: Record<string, string | number> = {
         date,
         portfolio: ((portfolioValues[i] / initialValue) - 1) * 100
       };
@@ -203,7 +216,7 @@ export async function POST(request: Request) {
     // Build cash flows and matching dates (only include tx with valid dates)
     const cashFlows: number[] = [];
     const flowDates: Date[] = [];
-    transactions.forEach((tx: any) => {
+    transactions.forEach((tx) => {
       const date = new Date(tx.date);
       if (isNaN(date.getTime())) return;
       cashFlows.push(normalizeTransactionToFlow(tx));

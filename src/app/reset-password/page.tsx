@@ -17,25 +17,28 @@ function ResetPasswordContent() {
   const searchParams = useSearchParams()
   const supabase = createClient()
 
-  useEffect(() => {
-    const accessToken = searchParams.get('access_token')
-    const refreshToken = searchParams.get('refresh_token')
-    const type = searchParams.get('type')
+  const accessToken = searchParams.get('access_token')
+  const refreshToken = searchParams.get('refresh_token')
+  const type = searchParams.get('type')
+  const hasValidRecoveryParams = type === 'recovery' && Boolean(accessToken) && Boolean(refreshToken)
 
-    if (type === 'recovery' && accessToken && refreshToken) {
-      // Set the session with the recovery tokens
-      supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      }).then(({ error }) => {
-        if (error) {
-          setError('Invalid or expired recovery link.')
-        }
-      })
-    } else {
-      setError('Invalid or missing recovery token.')
-    }
-  }, [searchParams, supabase.auth])
+  useEffect(() => {
+    if (!hasValidRecoveryParams || !accessToken || !refreshToken) return
+
+    // Set the session with the recovery tokens
+    supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    }).then(({ error }) => {
+      if (error) {
+        setError('Invalid or expired recovery link.')
+      }
+    })
+  }, [hasValidRecoveryParams, accessToken, refreshToken, supabase.auth])
+
+  const displayError = !hasValidRecoveryParams
+    ? 'Invalid or missing recovery token.'
+    : error
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,7 +70,7 @@ function ResetPasswordContent() {
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <h1 className="text-2xl font-bold">Reset Password</h1>
-          {error && <p className="text-red-500">{error}</p>}
+          {displayError && <p className="text-red-500">{displayError}</p>}
           <div>
             <Label htmlFor="password">New Password</Label>
             <Input

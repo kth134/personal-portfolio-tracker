@@ -15,6 +15,68 @@ const BENCHMARK_CANDIDATES: Record<string, string[]> = {
 
 const SIXTY_FORTY = '6040'
 
+type SupabaseClientLike = Awaited<ReturnType<typeof createClient>>
+
+type AssetMeta = {
+  id?: string
+  ticker?: string
+  name?: string
+  account_id?: string
+  sub_portfolio_id?: string
+  asset_type?: string
+  asset_subtype?: string
+  geography?: string
+  size_tag?: string
+  factor_tag?: string
+}
+
+type TransactionEntry = {
+  date: string
+  asset_id?: string
+  account_id?: string
+  asset?: AssetMeta | AssetMeta[]
+  type?: string
+  quantity?: number | string | null
+  price_per_unit?: number | string | null
+  realized_gain?: number | string | null
+  amount?: number | string | null
+  fees?: number | string | null
+}
+
+type TaxLotEntry = {
+  asset_id?: string
+  account_id?: string
+  purchase_date: string
+  remaining_quantity?: number | string | null
+  cost_basis_per_unit?: number | string | null
+  quantity?: number | string | null
+  asset?: AssetMeta | AssetMeta[]
+}
+
+type MetricsCalc = {
+  portfolioValue: number
+  netGain: number
+  unrealized: number
+  realized: number
+  income: number
+  totalReturnPct: number
+  originalInvestment: number
+  startPortfolioValue: number
+  irr: number
+  twr: number
+}
+
+type ReportPoint = { date: string } & MetricsCalc
+
+type ReportTotals = {
+  netGain: number
+  income: number
+  realized: number
+  unrealized: number
+  totalReturnPct: number
+  irr: number
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient()
@@ -32,7 +94,7 @@ export async function POST(req: Request) {
       granularity = 'monthly',
       benchmarks = [],
     } = body
-    const allTx = await fetchAllUserTransactionsServer(supabase, user.id)
+    const allTx = (await fetchAllUserTransactionsServer(supabase, user.id)) as TransactionEntry[]
 
     const inceptionDate = allTx.length
       ? allTx.reduce((min, tx) => (tx.date < min ? tx.date : min), allTx[0].date)
@@ -52,7 +114,7 @@ export async function POST(req: Request) {
     const subPortfolioNames = new Map(subPortfolios?.map(sp => [sp.id, sp.name]) || [])
     const accountNames = new Map(accounts?.map(acc => [acc.id, acc.name]) || [])
     
-    const { data: allLots } = await supabase
+    const { data: allLotsRaw } = await supabase
       .from('tax_lots')
       .select(`
         asset_id,
@@ -68,6 +130,8 @@ export async function POST(req: Request) {
     if (!allTx || allTx.length === 0) {
       return NextResponse.json({ series: {}, totals: {}, benchmarks: {} })
     }
+
+    const allLots = (allLotsRaw || []) as TaxLotEntry[]
 
     const dates = buildDates(start, end, granularity)
     const lastDateStr = formatISO(new Date(), { representation: 'date' })
@@ -95,20 +159,20 @@ export async function POST(req: Request) {
     const currentPrices = await getCurrentPrices(supabase, allTickers)
     const benchmarkSeries = await getBenchmarkSeries(supabase, benchmarks, start, end, granularity)
 
-    const series: Record<string, any[]> = {}
-    const assetSeries: Record<string, Record<string, any[]>> = {} // For non-aggregate mode: group -> asset -> data
-    const totals: Record<string, any> = {}
-    const assetTotals: Record<string, Record<string, any>> = {} // For non-aggregate mode
-    const assetBreakdown: Record<string, any[]> = {} // For total portfolio non-aggregate mode
+    const series: Record<string, ReportPoint[]> = {}
+    const assetSeries: Record<string, Record<string, ReportPoint[]>> = {} // For non-aggregate mode: group -> asset -> data
+    const totals: Record<string, ReportTotals> = {}
+    const assetTotals: Record<string, Record<string, ReportTotals>> = {} // For non-aggregate mode
+    const assetBreakdown: Record<string, ReportPoint[]> = {} // For total portfolio non-aggregate mode
     const startStateTxAll = allTx.filter(tx => tx.date < start)
 
     for (const d of dates) {
       const filteredTx = allTx.filter(tx => tx.date <= d)
       const periodTx = allTx.filter(tx => tx.date >= start && tx.date <= d)
-      const filteredLots = (allLots || []).filter(lot => lot.purchase_date <= d)
+      const filteredLots = allLots.filter(lot => lot.purchase_date <= d)
 
       // Get group mapping for all assets (needed for both modes)
-      const getAssetGroupId = (asset: any, lotAccountId?: string) => {
+      const getAssetGroupId = (asset: AssetMeta | null | undefined, lotAccountId?: string) => {
         if (!asset) return null
         switch (lens) {
           case 'account': return lotAccountId || asset.account_id
@@ -134,7 +198,7 @@ export async function POST(req: Request) {
 
       // Build asset info map
       const assetInfoMap = new Map<string, { ticker: string, name: string, groupId: string | null }>()
-      allTx.forEach((tx: any) => {
+      allTx.forEach((tx) => {
         const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
         if (asset?.id && !assetInfoMap.has(asset.id)) {
           assetInfoMap.set(asset.id, {
@@ -166,10 +230,10 @@ export async function POST(req: Request) {
         // In non-aggregate mode, also return per-asset breakdown
         if (!aggregate) {
           const assetIds = new Set<string>()
-          filteredTx.forEach((tx: any) => {
+          filteredTx.forEach((tx) => {
             if (tx.asset_id) assetIds.add(tx.asset_id)
           })
-          filteredLots.forEach((lot: any) => {
+          filteredLots.forEach((lot) => {
             const lotAsset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
             if (lotAsset?.id) assetIds.add(lotAsset.id)
           })
@@ -206,12 +270,12 @@ export async function POST(req: Request) {
       } else if (aggregate) {
         // Aggregate mode: one series per selected group (group-level aggregation)
         const groupIds = new Set<string>()
-        filteredLots.forEach((lot: any) => {
+        filteredLots.forEach((lot) => {
           const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
           const groupId = getAssetGroupId(asset, lot.account_id)
           if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
         })
-        filteredTx.forEach((tx: any) => {
+        filteredTx.forEach((tx) => {
           const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
           const groupId = getAssetGroupId(asset, tx.account_id)
           if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
@@ -257,12 +321,12 @@ export async function POST(req: Request) {
       } else {
         // Non-aggregate mode: group -> asset level data
         const groupIds = new Set<string>()
-        filteredLots.forEach((lot: any) => {
+        filteredLots.forEach((lot) => {
           const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
           const groupId = getAssetGroupId(asset, lot.account_id)
           if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
         })
-        filteredTx.forEach((tx: any) => {
+        filteredTx.forEach((tx) => {
           const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
           const groupId = getAssetGroupId(asset, tx.account_id)
           if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
@@ -309,7 +373,7 @@ export async function POST(req: Request) {
 
           // Get assets in this group
           const groupAssetIds = new Set<string>()
-          filteredLots.forEach((lot: any) => {
+          filteredLots.forEach((lot) => {
             const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
             if (getAssetGroupId(asset, lot.account_id) === groupId && asset?.id) {
               groupAssetIds.add(asset.id)
@@ -391,10 +455,10 @@ export async function POST(req: Request) {
 }
 
 function calculateGroupMetrics(
-  groupStateTxs: any[],
-  groupPeriodTxs: any[],
-  groupStartStateTxs: any[],
-  groupLots: any[],
+  groupStateTxs: TransactionEntry[],
+  groupPeriodTxs: TransactionEntry[],
+  groupStartStateTxs: TransactionEntry[],
+  groupLots: TaxLotEntry[],
   assetToTicker: Map<string, string>,
   historicalPrices: Record<string, { date: string, close: number }[]>,
   currentPrices: Record<string, number>,
@@ -402,7 +466,7 @@ function calculateGroupMetrics(
   d: string,
   rangeStartDate: string,
   lens: string = 'total'
-) {
+): MetricsCalc {
   const groupOriginalInvestment = groupLots.reduce((sum, lot) => sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity)), 0)
 
   const currentState = calculatePortfolioStateAtDate(
@@ -462,8 +526,8 @@ function calculateGroupMetrics(
 }
 
 function calculatePortfolioStateAtDate(
-  stateTxs: any[],
-  stateLots: any[] | undefined,
+  stateTxs: TransactionEntry[],
+  stateLots: TaxLotEntry[] | undefined,
   assetToTicker: Map<string, string>,
   historicalPrices: Record<string, { date: string, close: number }[]>,
   currentPrices: Record<string, number>,
@@ -476,7 +540,7 @@ function calculatePortfolioStateAtDate(
     let totalBasis = 0
     let marketValue = 0
 
-    stateLots.forEach((lot: any) => {
+    stateLots.forEach((lot) => {
       const qty = Number(lot?.remaining_quantity || 0)
       if (qty <= 0) return
       const lotAsset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
@@ -615,14 +679,14 @@ function buildDates(start: string, end: string, granularity: 'daily' | 'monthly'
   return dates
 }
 
-function calculateMWR(transactions: any[], portfolioValue: number, asOfDate: string) {
+function calculateMWR(transactions: TransactionEntry[], portfolioValue: number, asOfDate: string) {
   return calculateMWRForLens(transactions, portfolioValue, asOfDate, 'total')
 }
 
-function applyTWRFromFirstValue(points: any[]) {
+function applyTWRFromFirstValue(points: ReportPoint[]) {
   if (!points || points.length === 0) return
   const firstPV = Number(points[0]?.portfolioValue || 0)
-  points.forEach((p: any) => {
+  points.forEach((p) => {
     const pv = Number(p?.portfolioValue || 0)
     const twr = firstPV > 0 ? ((pv / firstPV) - 1) * 100 : 0
     p.twr = twr
@@ -630,7 +694,7 @@ function applyTWRFromFirstValue(points: any[]) {
 }
 
 function calculateMWRForLens(
-  transactions: any[],
+  transactions: TransactionEntry[],
   portfolioValue: number,
   asOfDate: string,
   lens: string,
@@ -684,7 +748,7 @@ function calculateMWRForLens(
   return irr * 100
 }
 
-async function getHistoricalPrices(supabase: any, tickers: string[], start: string, end: string, granularity: 'daily' | 'monthly') {
+async function getHistoricalPrices(supabase: SupabaseClientLike, tickers: string[], start: string, end: string, granularity: 'daily' | 'monthly') {
   const prices: Record<string, { date: string, close: number }[]> = {}
   if (!tickers.length) return prices
 
@@ -702,7 +766,7 @@ async function getHistoricalPrices(supabase: any, tickers: string[], start: stri
     .lte('date', end)
     .order('date')
 
-  dbPrices?.forEach((p: any) => {
+  dbPrices?.forEach((p: { ticker: string, date: string, close: number | string }) => {
     if (!prices[p.ticker]) prices[p.ticker] = []
     prices[p.ticker].push({ date: p.date, close: Number(p.close) })
   })
@@ -743,7 +807,7 @@ async function getHistoricalPrices(supabase: any, tickers: string[], start: stri
   return prices
 }
 
-async function getCurrentPrices(supabase: any, tickers: string[]) {
+async function getCurrentPrices(supabase: SupabaseClientLike, tickers: string[]) {
   const prices: Record<string, number> = {}
   if (!tickers.length) return prices
 
@@ -754,7 +818,7 @@ async function getCurrentPrices(supabase: any, tickers: string[]) {
     .in('ticker', tickers)
     .order('timestamp', { ascending: false })
 
-  latestDbPrices?.forEach((p: any) => {
+  latestDbPrices?.forEach((p: { ticker: string, price: number | string, timestamp: string }) => {
     if (!prices[p.ticker]) {
       prices[p.ticker] = Number(p.price)
     }
@@ -782,7 +846,7 @@ async function getCurrentPrices(supabase: any, tickers: string[]) {
   return prices
 }
 
-async function getBenchmarkSeries(supabase: any, benchmarks: string[], start: string, end: string, granularity: 'daily' | 'monthly') {
+async function getBenchmarkSeries(supabase: SupabaseClientLike, benchmarks: string[], start: string, end: string, granularity: 'daily' | 'monthly') {
   const series: Record<string, { date: string, value: number }[]> = {}
   const benchIds = benchmarks.filter((b: string) => b !== SIXTY_FORTY)
   const tickers = [...new Set(benchIds.flatMap((b: string) => BENCHMARK_CANDIDATES[b] || []).filter(Boolean))]

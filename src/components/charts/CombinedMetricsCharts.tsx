@@ -34,6 +34,20 @@ interface Props {
   height?: number
 }
 
+type TooltipEntry = {
+  name?: string
+  value?: number | string
+  payload?: {
+    name?: string
+    delta?: number
+  }
+}
+
+type TooltipState = {
+  active?: boolean
+  payload?: TooltipEntry[]
+}
+
 export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
   const combinedLineData = useMemo((): MetricsPoint[] => {
     if (!data?.series) return []
@@ -90,14 +104,14 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
     ]
   }, [data])
 
-  const tooltipContent = ({ active, payload }: any) => active && payload?.length ? (
+  const tooltipContent = ({ active, payload }: TooltipState) => active && payload?.length ? (
     <div className="bg-black/95 backdrop-blur-sm border border-neutral-800 p-3 rounded-xl shadow-2xl min-w-[180px]">
       <div className="space-y-1 text-xs font-mono">
-        {payload.map((entry: any, idx: number) => (
+        {payload.map((entry, idx: number) => (
           <div key={idx} className="flex justify-between">
             <span className="opacity-80">{entry.name}</span>
-            <span className={cn('font-bold ml-2', entry.value >= 0 ? 'text-green-400' : 'text-red-400')}>
-              {formatUSD(entry.value)}
+            <span className={cn('font-bold ml-2', Number(entry.value || 0) >= 0 ? 'text-green-400' : 'text-red-400')}>
+              {formatUSD(Number(entry.value || 0))}
             </span>
           </div>
         ))}
@@ -105,7 +119,7 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
     </div>
   ) : null
 
-  const waterfallTooltipContent = ({ active, payload }: any) => {
+  const waterfallTooltipContent = ({ active, payload }: TooltipState) => {
     if (!active || !payload?.length) return null
     const row = payload[0]?.payload
     const delta = Number(row?.delta || 0)

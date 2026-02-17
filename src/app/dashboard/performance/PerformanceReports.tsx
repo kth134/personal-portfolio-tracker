@@ -61,13 +61,43 @@ const chartFormatter = (value: number, mode: 'percent' | 'dollar') => {
 
 type ValuesResponse = { values: { value: string, label: string }[] }
 
+type ReportPoint = {
+  date: string
+  portfolioValue?: number
+  netGain?: number
+  unrealized?: number
+  realized?: number
+  income?: number
+  totalReturnPct?: number
+  irr?: number
+  twr?: number
+}
+
+type ReportTotals = {
+  netGain: number
+  income: number
+  realized: number
+  unrealized: number
+  totalReturnPct: number
+  irr: number
+}
+
+type MetricTotals = {
+  netGain: number
+  income: number
+  realized: number
+  unrealized: number
+}
+
+type ChartRow = { date: string } & Record<string, string | number>
+
 type ReportsResponse = {
-  series: Record<string, any[]>
-  totals: Record<string, any>
+  series: Record<string, ReportPoint[]>
+  totals: Record<string, ReportTotals>
   benchmarks: Record<string, { date: string, value: number }[]>
-  assetSeries?: Record<string, Record<string, any[]>> // group -> asset -> data (for non-aggregate mode)
-  assetTotals?: Record<string, Record<string, any>> // group -> asset -> totals
-  assetBreakdown?: Record<string, any[]> // asset -> data (for total portfolio non-aggregate)
+  assetSeries?: Record<string, Record<string, ReportPoint[]>> // group -> asset -> data (for non-aggregate mode)
+  assetTotals?: Record<string, Record<string, ReportTotals>> // group -> asset -> totals
+  assetBreakdown?: Record<string, ReportPoint[]> // asset -> data (for total portfolio non-aggregate)
 }
 
 export default function PerformanceReports() {
@@ -170,7 +200,7 @@ export default function PerformanceReports() {
     if (!data?.series) return []
     const seriesKeys = Object.keys(data.series)
 
-    const byDate = new Map<string, any>()
+    const byDate = new Map<string, ChartRow>()
     seriesKeys.forEach(key => {
       const points = data.series[key] || []
       points.forEach((p) => {
@@ -193,10 +223,10 @@ export default function PerformanceReports() {
   // Non-aggregate mode: build series for each group (lens != total)
   const assetChartSeries = useMemo(() => {
     if (!data?.assetSeries) return {}
-    const result: Record<string, any[]> = {}
+    const result: Record<string, ChartRow[]> = {}
     
     Object.entries(data.assetSeries).forEach(([groupKey, assets]) => {
-      const byDate = new Map<string, any>()
+      const byDate = new Map<string, ChartRow>()
       Object.entries(assets).forEach(([assetKey, points]) => {
         points.forEach((p) => {
           const row = byDate.get(p.date) || { date: p.date }
@@ -213,7 +243,7 @@ export default function PerformanceReports() {
   // Total portfolio non-aggregate: asset breakdown
   const totalPortfolioAssetSeries = useMemo(() => {
     if (!data?.assetBreakdown) return {}
-    const byDate = new Map<string, any>()
+    const byDate = new Map<string, ChartRow>()
     const assetKeys = Object.keys(data.assetBreakdown)
     
     assetKeys.forEach(key => {
@@ -251,7 +281,7 @@ export default function PerformanceReports() {
       }))
     })
 
-    const sliceTotals: Record<string, { netGain: number; income: number; realized: number; unrealized: number }> = {}
+    const sliceTotals: Record<string, MetricTotals> = {}
     const assetTotals = data.assetTotals?.[groupKey] || {}
     Object.entries(assetTotals).forEach(([assetKey, totals]) => {
       sliceTotals[assetKey] = {
@@ -278,7 +308,7 @@ export default function PerformanceReports() {
       })
     }
 
-    const sliceTotals: Record<string, { netGain: number; income: number; realized: number; unrealized: number }> = {}
+    const sliceTotals: Record<string, MetricTotals> = {}
     const totalsSum = { netGain: 0, income: 0, realized: 0, unrealized: 0 }
     Object.entries(sliceSeries).forEach(([assetKey, points]) => {
       const last = points[points.length - 1]
@@ -296,7 +326,7 @@ export default function PerformanceReports() {
     })
 
     if (Object.keys(sliceTotals).length === 0) {
-      Object.values(data.totals || {}).forEach((totals: any) => {
+      Object.values(data.totals || {}).forEach((totals) => {
         totalsSum.netGain += totals?.netGain || 0
         totalsSum.income += totals?.income || 0
         totalsSum.realized += totals?.realized || 0
@@ -319,7 +349,7 @@ export default function PerformanceReports() {
     // Non-aggregate mode: sum across all groups
     const result = { netGain: 0, income: 0, realized: 0, unrealized: 0, totalReturnPct: 0, irr: 0 }
     let count = 0
-    Object.values(data.totals || {}).forEach((t: any) => {
+    Object.values(data.totals || {}).forEach((t) => {
       result.netGain += t?.netGain || 0
       result.income += t?.income || 0
       result.realized += t?.realized || 0
