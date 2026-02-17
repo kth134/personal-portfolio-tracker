@@ -54,13 +54,6 @@ const METRIC_CARDS = [
   { key: 'totalReturnPct', label: 'Total Return %', type: 'percent' },
 ]
 
-const SERIES_METRICS = [
-  { key: 'netGain', label: 'Net Gain / Loss' },
-  { key: 'income', label: 'Income' },
-  { key: 'realized', label: 'Realized G/L' },
-  { key: 'unrealized', label: 'Unrealized G/L' },
-]
-
 const chartFormatter = (value: number, mode: 'percent' | 'dollar') => {
   if (mode === 'percent') return `${value.toFixed(2)}%`
   return formatUSD(value)
@@ -177,23 +170,24 @@ export default function PerformanceReports() {
     if (!data?.series) return []
     const seriesKeys = Object.keys(data.series)
 
-    const mapped: any[] = []
+    const byDate = new Map<string, any>()
     seriesKeys.forEach(key => {
       const points = data.series[key] || []
-      points.forEach((p, idx) => {
-        if (!mapped[idx]) mapped[idx] = { date: p.date }
-        mapped[idx][`${key}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
-        mapped[idx][`${key}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
+      points.forEach((p) => {
+        const row = byDate.get(p.date) || { date: p.date }
+        row[`${key}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
+        row[`${key}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
         // Show benchmarks only in aggregate/total view
         if (valueMode === 'percent' && data.benchmarks) {
           Object.entries(data.benchmarks).forEach(([bmKey, bmSeries]) => {
             const match = bmSeries.find(b => b.date === p.date)
-            mapped[idx][bmKey] = match?.value ?? 0
+            row[bmKey] = match?.value ?? 0
           })
         }
+        byDate.set(p.date, row)
       })
     })
-    return mapped
+    return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date))
   }, [data, valueMode])
 
   // Non-aggregate mode: build series for each group (lens != total)
@@ -202,15 +196,16 @@ export default function PerformanceReports() {
     const result: Record<string, any[]> = {}
     
     Object.entries(data.assetSeries).forEach(([groupKey, assets]) => {
-      const mapped: any[] = []
+      const byDate = new Map<string, any>()
       Object.entries(assets).forEach(([assetKey, points]) => {
-        points.forEach((p, idx) => {
-          if (!mapped[idx]) mapped[idx] = { date: p.date }
-          mapped[idx][`${assetKey}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
-          mapped[idx][`${assetKey}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
+        points.forEach((p) => {
+          const row = byDate.get(p.date) || { date: p.date }
+          row[`${assetKey}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
+          row[`${assetKey}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
+          byDate.set(p.date, row)
         })
       })
-      result[groupKey] = mapped
+      result[groupKey] = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date))
     })
     return result
   }, [data?.assetSeries, valueMode])
@@ -218,45 +213,20 @@ export default function PerformanceReports() {
   // Total portfolio non-aggregate: asset breakdown
   const totalPortfolioAssetSeries = useMemo(() => {
     if (!data?.assetBreakdown) return {}
-    const mapped: any[] = []
+    const byDate = new Map<string, any>()
     const assetKeys = Object.keys(data.assetBreakdown)
     
     assetKeys.forEach(key => {
       const points = data.assetBreakdown![key] || []
-      points.forEach((p, idx) => {
-        if (!mapped[idx]) mapped[idx] = { date: p.date }
-        mapped[idx][`${key}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
-        mapped[idx][`${key}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
+      points.forEach((p) => {
+        const row = byDate.get(p.date) || { date: p.date }
+        row[`${key}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
+        row[`${key}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
+        byDate.set(p.date, row)
       })
     })
-    return { 'Total Portfolio': mapped }
+    return { 'Total Portfolio': Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date)) }
   }, [data?.assetBreakdown, valueMode])
-
-  // Metric series for aggregate mode
-  const metricSeries = (metricKey: string) => {
-    const seriesKeys = Object.keys(data?.series || {})
-    const mapped: any[] = []
-    seriesKeys.forEach(key => {
-      const points = data?.series?.[key] || []
-      points.forEach((p, idx) => {
-        if (!mapped[idx]) mapped[idx] = { date: p.date }
-        mapped[idx][key] = p[metricKey]
-      })
-    })
-    return mapped
-  }
-
-  const assetMetricSeries = (groupKey: string, metricKey: string) => {
-    const groupData = groupKey === 'Total Portfolio' ? data?.assetBreakdown || {} : data?.assetSeries?.[groupKey] || {};
-    const mapped: any[] = [];
-    Object.entries(groupData).forEach(([assetKey, points]) => {
-      points.forEach((p, idx) => {
-        if (!mapped[idx]) mapped[idx] = { date: p.date };
-        mapped[idx][assetKey] = p[metricKey] || 0;
-      });
-    });
-    return mapped;
-  };
 
   // Metric series for non-aggregate mode (per group)
   interface MetricsPoint {
@@ -265,11 +235,6 @@ export default function PerformanceReports() {
     income: number
     realized: number
     unrealized: number
-  }
-
-  interface MetricsData {
-    series: Record<string, MetricsPoint[]>
-    totals: Record<string, { netGain: number; income: number; realized: number; unrealized: number }>
   }
 
   // Get metrics data for group (for CombinedCharts)
@@ -286,7 +251,7 @@ export default function PerformanceReports() {
       }))
     })
 
-    const sliceTotals: Record<string, any> = {}
+    const sliceTotals: Record<string, { netGain: number; income: number; realized: number; unrealized: number }> = {}
     const assetTotals = data.assetTotals?.[groupKey] || {}
     Object.entries(assetTotals).forEach(([assetKey, totals]) => {
       sliceTotals[assetKey] = {
@@ -313,17 +278,32 @@ export default function PerformanceReports() {
       })
     }
 
-    const sliceTotals: Record<string, any> = {}
-    // Sum asset totals for portfolio
+    const sliceTotals: Record<string, { netGain: number; income: number; realized: number; unrealized: number }> = {}
     const totalsSum = { netGain: 0, income: 0, realized: 0, unrealized: 0 }
-    Object.entries(data.assetTotals || {}).forEach(([_, assets]) => {
-      Object.values(assets).forEach((totals: any) => {
-        totalsSum.netGain += totals.netGain || 0
-        totalsSum.income += totals.income || 0
-        totalsSum.realized += totals.realized || 0
-        totalsSum.unrealized += totals.unrealized || 0
-      })
+    Object.entries(sliceSeries).forEach(([assetKey, points]) => {
+      const last = points[points.length - 1]
+      const assetTotals = {
+        netGain: last?.netGain || 0,
+        income: last?.income || 0,
+        realized: last?.realized || 0,
+        unrealized: last?.unrealized || 0,
+      }
+      sliceTotals[assetKey] = assetTotals
+      totalsSum.netGain += assetTotals.netGain
+      totalsSum.income += assetTotals.income
+      totalsSum.realized += assetTotals.realized
+      totalsSum.unrealized += assetTotals.unrealized
     })
+
+    if (Object.keys(sliceTotals).length === 0) {
+      Object.values(data.totals || {}).forEach((totals: any) => {
+        totalsSum.netGain += totals?.netGain || 0
+        totalsSum.income += totals?.income || 0
+        totalsSum.realized += totals?.realized || 0
+        totalsSum.unrealized += totals?.unrealized || 0
+      })
+    }
+
     sliceTotals['aggregated'] = totalsSum
     return { series: sliceSeries, totals: sliceTotals }
   }
@@ -681,82 +661,24 @@ export default function PerformanceReports() {
   <CombinedMetricsCharts data={{ series: data.series || {}, totals: data.totals || {} }} />
 )}
 
-          {/* Metric charts for non-aggregate mode - Non-total lens */}
+          {/* Combined metrics for non-aggregate mode - Non-total lens */}
           {!aggregate && lens !== 'total' && (
             <div className="space-y-8">
-              <h3 className="text-lg font-semibold">Metrics by Asset</h3>
+              <h3 className="text-lg font-semibold">Combined Metrics by Asset</h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {Object.keys(data?.assetSeries || {}).map(groupKey => (
                   <div key={groupKey} className="space-y-4 border rounded-xl bg-card p-4 shadow-sm overflow-hidden">
                     <h4 className="font-semibold text-center border-b pb-2 truncate">{groupKey}</h4>
-                    <div className="grid grid-cols-1 gap-4">
-                      {SERIES_METRICS.map(metric => (
-                        <div key={`${groupKey}-${metric.key}`} className="space-y-1 rounded-lg border bg-background/60 p-3 overflow-hidden">
-                          <h5 className="text-sm text-muted-foreground">{metric.label}</h5>
-                          <div className="h-[200px] w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={assetMetricSeries(groupKey, metric.key)} margin={{ top: 10, right: 22, left: 18, bottom: 14 }}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="date" fontSize={10} minTickGap={20} tickMargin={6} />
-                              <YAxis 
-                                tickFormatter={(v) => formatUSD(v ?? 0)} 
-                                fontSize={10}
-                                domain={['auto', 'auto']}
-                                width={96}
-                                tickMargin={6}
-                              />
-                              <Tooltip formatter={(v) => formatUSD((v as number) ?? 0)} />
-                              <Legend fontSize={10} />
-                              {Object.keys(data?.assetSeries?.[groupKey] || {}).map((assetKey, i) => (
-                                <Line 
-                                  key={assetKey} 
-                                  type="monotone" 
-                                  dataKey={assetKey} 
-                                  name={assetKey} 
-                                  stroke={COLORS[i % COLORS.length]} 
-                                />
-                              ))}
-                            </LineChart>
-                          </ResponsiveContainer>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <CombinedMetricsCharts data={data ? getGroupMetricsData(groupKey, data) : null} />
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Metric charts for non-aggregate mode - Total Portfolio lens */}
+          {/* Combined metrics for non-aggregate mode - Total Portfolio lens */}
           {!aggregate && lens === 'total' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {SERIES_METRICS.map(metric => (
-                <div key={metric.key} className="space-y-2 rounded-xl border bg-card p-4 shadow-sm overflow-hidden">
-                  <h4 className="font-semibold">{metric.label} by Asset</h4>
-                  <div className="h-[290px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={assetMetricSeries('Total Portfolio', metric.key)} margin={{ top: 16, right: 28, left: 20, bottom: 18 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" minTickGap={24} tickMargin={8} />
-                      <YAxis 
-                        tickFormatter={(v) => formatUSD(v ?? 0)} 
-                        domain={['auto', 'auto']}
-                        padding={{ top: 20, bottom: 20 }}
-                        width={104}
-                        tickMargin={8}
-                      />
-                      <Tooltip formatter={(v) => formatUSD((v as number) ?? 0)} />
-                      <Legend />
-                      {Object.keys(data?.assetBreakdown || {}).map((assetKey, i) => (
-                        <Line key={assetKey} type="monotone" dataKey={assetKey} name={assetKey} stroke={COLORS[i % COLORS.length]} />
-                      ))}
-                    </LineChart>
-                  </ResponsiveContainer>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <CombinedMetricsCharts data={data ? getTotalPortfolioMetricsData(data) : null} />
           )}
         </>
       )}

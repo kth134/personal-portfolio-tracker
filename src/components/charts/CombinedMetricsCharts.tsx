@@ -53,20 +53,40 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
   }, [data])
 
   const waterfallData = useMemo(() => {
-    const t = Object.values(data?.totals || {})[0] as any
-    if (!t) return []
-    const i = t.income || 0
-    const r = t.realized || 0
-    const u = t.unrealized || 0
-    const n = t.netGain || 0
-    const cumIncome = i
-    const cumRealized = i + r
-    const cumUnrealized = i + r + u
+    const totalsList = Object.values(data?.totals || {}) as Array<{ netGain?: number; income?: number; realized?: number; unrealized?: number }>
+    if (!totalsList.length) return []
+
+    const i = totalsList.reduce((sum, t) => sum + Number(t?.income || 0), 0)
+    const r = totalsList.reduce((sum, t) => sum + Number(t?.realized || 0), 0)
+    const u = totalsList.reduce((sum, t) => sum + Number(t?.unrealized || 0), 0)
+
+    let running = 0
+    const steps = [
+      { name: 'Income', delta: i },
+      { name: 'Realized G/L', delta: r },
+      { name: 'Unrealized G/L', delta: u },
+    ].map((step) => {
+      const next = running + step.delta
+      const row = {
+        name: step.name,
+        delta: step.delta,
+        offset: Math.min(running, next),
+        value: Math.abs(step.delta),
+        fill: step.delta >= 0 ? THEME.positive : THEME.negative,
+      }
+      running = next
+      return row
+    })
+
     return [
-      { name: 'Income', height: Math.abs(i), fill: i >= 0 ? THEME.positive : THEME.negative, y: i < 0 ? cumIncome : 0 },
-      { name: 'Realized G/L', height: Math.abs(r), fill: r >= 0 ? THEME.positive : THEME.negative, y: r < 0 ? cumRealized : cumIncome },
-      { name: 'Unrealized G/L', height: Math.abs(u), fill: u >= 0 ? THEME.positive : THEME.negative, y: u < 0 ? cumUnrealized : cumRealized },
-      { name: 'Net Gain/Loss', height: Math.abs(n), fill: n >= 0 ? THEME.accent : THEME.negative, y: 0 },
+      ...steps,
+      {
+        name: 'Net Gain/Loss',
+        delta: running,
+        offset: Math.min(0, running),
+        value: Math.abs(running),
+        fill: running >= 0 ? THEME.accent : THEME.negative,
+      },
     ]
   }, [data])
 
@@ -85,11 +105,29 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
     </div>
   ) : null
 
+  const waterfallTooltipContent = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null
+    const row = payload[0]?.payload
+    const delta = Number(row?.delta || 0)
+    return (
+      <div className="bg-black/95 backdrop-blur-sm border border-neutral-800 p-3 rounded-xl shadow-2xl min-w-[180px]">
+        <div className="space-y-1 text-xs font-mono">
+          <div className="flex justify-between">
+            <span className="opacity-80">{row?.name}</span>
+            <span className={cn('font-bold ml-2', delta >= 0 ? 'text-green-400' : 'text-red-400')}>
+              {formatUSD(delta)}
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       {/* Combined Lines */}
       <Card className="border-neutral-800 shadow-xl overflow-hidden">
-        <CardContent className="p-6 pt-0 h-full min-h-[450px]">
+        <CardContent className="p-6 pt-0" style={{ minHeight: `${height}px` }}>
           <h4 className="font-mono text-xl font-bold tracking-wider mb-1 text-neutral-200">
             Metrics Evolution
           </h4>
@@ -122,7 +160,7 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
 
       {/* Waterfall */}
       <Card className="border-neutral-800 shadow-xl overflow-hidden">
-        <CardContent className="p-6 pt-0 h-full min-h-[450px]">
+        <CardContent className="p-6 pt-0" style={{ minHeight: `${height}px` }}>
           <h4 className="font-mono text-xl font-bold tracking-wider mb-1 text-neutral-200">
             Net Gain Breakdown
           </h4>
@@ -132,12 +170,13 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
               <CartesianGrid stroke={THEME.grid} strokeDasharray="3,3" vertical={false} />
               <XAxis type="number" stroke="#666" fontFamily={THEME.fontMono} tickLine={false} axisLine={false} tickFormatter={formatUSD} />
               <YAxis type="category" dataKey="name" stroke="#666" fontFamily={THEME.fontMono} tick={{fontSize: 11, fontWeight: 500}} tickLine={false} axisLine={false} width={120} />
-              <Tooltip content={tooltipContent} />
-              {waterfallData.map((entry, idx) => (
-                <Bar key={entry.name} dataKey="height" stackId="waterfall" yAxisId={0} barSize={40}>
-                  <Cell fill={entry.fill} stroke={entry.fill} strokeWidth={1} />
-                </Bar>
-              ))}
+              <Tooltip content={waterfallTooltipContent} />
+              <Bar dataKey="offset" stackId="waterfall" fill="transparent" stroke="transparent" barSize={40} />
+              <Bar dataKey="value" stackId="waterfall" barSize={40}>
+                {waterfallData.map((entry) => (
+                  <Cell key={entry.name} fill={entry.fill} stroke={entry.fill} strokeWidth={1} />
+                ))}
+              </Bar>
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
