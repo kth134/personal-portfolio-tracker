@@ -11,7 +11,6 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Check, ChevronsUpDown, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatUSD } from '@/lib/formatters'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7']
 
@@ -55,9 +54,31 @@ const METRIC_CARDS: { key: keyof ReportTotals, label: string, type?: 'percent' }
 ]
 
 const chartFormatter = (value: number, mode: 'percent' | 'dollar') => {
-  if (mode === 'percent') return `${value.toFixed(2)}%`
-  return formatUSD(value)
+  if (mode === 'percent') return `${value.toFixed(1)}%`
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value || 0)
 }
+
+const chartAxisFormatter = (value: number, mode: 'percent' | 'dollar') => {
+  if (mode === 'percent') return `${value.toFixed(1)}%`
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    maximumFractionDigits: 0,
+  }).format(value || 0)
+}
+
+const formatUSDWhole = (value: number) => new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+}).format(value || 0)
 
 type ValuesResponse = { values: { value: string, label: string }[] }
 
@@ -117,7 +138,7 @@ export default function PerformanceReports() {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<ReportsResponse | null>(null)
   const [valuesLoading, setValuesLoading] = useState(false)
-  const axisWidth = valueMode === 'percent' ? 72 : 104
+  const axisWidth = valueMode === 'percent' ? 78 : 112
 
   const refreshValues = async () => {
     if (lens === 'total') return
@@ -371,8 +392,8 @@ export default function PerformanceReports() {
   }, [data, lens, aggregate])
 
   return (
-    <div className="space-y-10">
-      <div className="flex flex-wrap gap-4 items-end">
+    <div className="space-y-8 w-full min-w-0">
+      <div className="flex flex-wrap gap-4 items-end rounded-xl border bg-muted/20 p-4">
         <div>
           <Label>Slice by</Label>
           <Select value={lens} onValueChange={setLens}>
@@ -384,7 +405,7 @@ export default function PerformanceReports() {
         </div>
 
         {lens !== 'total' && (
-          <div className="min-w-64">
+          <div className="w-full sm:w-auto sm:min-w-64">
             <Label>Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}</Label>
             <Popover>
               <PopoverTrigger asChild>
@@ -479,7 +500,7 @@ export default function PerformanceReports() {
           </Select>
         </div>
 
-        <div className="min-w-64">
+        <div className="w-full sm:w-auto sm:min-w-64">
           <Label>Benchmarks</Label>
           <Popover>
             <PopoverTrigger asChild>
@@ -528,14 +549,14 @@ export default function PerformanceReports() {
 
       {!loading && (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
             {METRIC_CARDS.map(card => (
-              <div key={card.key} className="border rounded-lg p-4">
+              <div key={card.key} className="border rounded-lg p-4 min-w-0">
                 <div className="text-sm text-muted-foreground">{card.label}</div>
                 <div className="text-xl font-semibold">
                   {card.type === 'percent'
-                    ? `${(totals?.[card.key] || 0).toFixed(2)}%`
-                    : formatUSD(totals?.[card.key] || 0)}
+                    ? `${(totals?.[card.key] || 0).toFixed(1)}%`
+                    : formatUSDWhole(totals?.[card.key] || 0)}
                 </div>
               </div>
             ))}
@@ -543,7 +564,7 @@ export default function PerformanceReports() {
 
           {/* Aggregate Mode: Single chart with group-level lines */}
           {aggregate && (
-            <div className="space-y-4 rounded-xl border bg-card p-5 shadow-sm overflow-hidden">
+            <div className="space-y-4 rounded-xl border bg-card p-4 sm:p-5 shadow-sm overflow-hidden min-w-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">MWR / TWR Performance</h3>
                 <div className="text-sm text-muted-foreground">(MWR = IRR, TWR = time‑weighted)</div>
@@ -553,17 +574,17 @@ export default function PerformanceReports() {
                   Benchmarks are hidden in $ mode (benchmark series are % returns).
                 </div>
               )}
-              <div className="h-[420px] w-full">
+              <div className="h-[360px] sm:h-[420px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartSeries} margin={{ top: 20, right: 36, left: 24, bottom: 20 }}>
+                <LineChart data={chartSeries} margin={{ top: 16, right: 14, left: 10, bottom: 28 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" minTickGap={24} tickMargin={8} />
+                  <XAxis dataKey="date" minTickGap={24} tickMargin={10} tick={{ fontSize: 11 }} />
                   <YAxis 
-                    tickFormatter={(v) => chartFormatter(v ?? 0, valueMode)} 
+                    tickFormatter={(v) => chartAxisFormatter(v ?? 0, valueMode)} 
                     domain={['auto', 'auto']}
                     padding={{ top: 20, bottom: 20 }}
                     width={axisWidth}
-                    tickMargin={8}
+                    tickMargin={10}
                   />
                   <Tooltip formatter={(v) => chartFormatter((v as number) ?? 0, valueMode)} />
                   <Legend />
@@ -607,19 +628,19 @@ export default function PerformanceReports() {
                 {Object.entries(assetChartSeries).map(([groupKey, seriesData]) => {
                   const assetKeys = Object.keys(data?.assetSeries?.[groupKey] || {})
                   return (
-                    <div key={groupKey} className="space-y-3 rounded-xl border bg-card p-4 shadow-sm overflow-hidden">
+                    <div key={groupKey} className="space-y-3 rounded-xl border bg-card p-4 shadow-sm overflow-hidden min-w-0">
                       <h4 className="font-semibold text-center border-b pb-2 truncate">{groupKey}</h4>
-                      <div className="h-[340px] w-full">
+                      <div className="h-[320px] w-full min-w-0">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={seriesData} margin={{ top: 16, right: 24, left: 20, bottom: 18 }}>
+                        <LineChart data={seriesData} margin={{ top: 16, right: 12, left: 8, bottom: 28 }}>
                           <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="date" minTickGap={24} tickMargin={8} />
+                          <XAxis dataKey="date" minTickGap={24} tickMargin={10} tick={{ fontSize: 11 }} />
                           <YAxis 
-                            tickFormatter={(v) => chartFormatter(v ?? 0, valueMode)} 
+                            tickFormatter={(v) => chartAxisFormatter(v ?? 0, valueMode)} 
                             domain={['auto', 'auto']}
                             padding={{ top: 10, bottom: 10 }}
                             width={axisWidth}
-                            tickMargin={8}
+                            tickMargin={10}
                           />
                           <Tooltip formatter={(v) => chartFormatter((v as number) ?? 0, valueMode)} />
                           <Legend />
@@ -654,22 +675,22 @@ export default function PerformanceReports() {
 
           {/* Total Portfolio Non-Aggregate: Single chart with asset lines */}
           {!aggregate && lens === 'total' && (
-            <div className="space-y-4 rounded-xl border bg-card p-5 shadow-sm overflow-hidden">
+            <div className="space-y-4 rounded-xl border bg-card p-4 sm:p-5 shadow-sm overflow-hidden min-w-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">MWR / TWR Performance by Asset</h3>
                 <div className="text-sm text-muted-foreground">Individual asset performance</div>
               </div>
-              <div className="h-[420px] w-full">
+              <div className="h-[360px] sm:h-[420px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={totalPortfolioAssetSeries['Total Portfolio'] || []} margin={{ top: 20, right: 36, left: 24, bottom: 20 }}>
+                <LineChart data={totalPortfolioAssetSeries['Total Portfolio'] || []} margin={{ top: 16, right: 14, left: 10, bottom: 28 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" minTickGap={24} tickMargin={8} />
+                  <XAxis dataKey="date" minTickGap={24} tickMargin={10} tick={{ fontSize: 11 }} />
                   <YAxis 
-                    tickFormatter={(v) => chartFormatter(v ?? 0, valueMode)} 
+                    tickFormatter={(v) => chartAxisFormatter(v ?? 0, valueMode)} 
                     domain={['auto', 'auto']}
                     padding={{ top: 20, bottom: 20 }}
                     width={axisWidth}
-                    tickMargin={8}
+                    tickMargin={10}
                   />
                   <Tooltip formatter={(v) => chartFormatter((v as number) ?? 0, valueMode)} />
                   <Legend />
@@ -702,7 +723,7 @@ export default function PerformanceReports() {
               <h3 className="text-lg font-semibold">Combined Metrics by Asset</h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {Object.keys(data?.assetSeries || {}).map(groupKey => (
-                  <div key={groupKey} className="space-y-4 border rounded-xl bg-card p-4 shadow-sm overflow-hidden">
+                  <div key={groupKey} className="space-y-4 border rounded-xl bg-card p-4 shadow-sm overflow-hidden min-w-0">
                     <h4 className="font-semibold text-center border-b pb-2 truncate">{groupKey}</h4>
                     <CombinedMetricsCharts data={data ? getGroupMetricsData(groupKey, data) : null} />
                   </div>

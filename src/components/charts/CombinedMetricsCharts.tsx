@@ -1,7 +1,6 @@
 'use client'
 
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, Cell, ReferenceLine } from 'recharts'
-import { formatUSD } from '@/lib/formatters'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ComposedChart, Bar, Cell, ReferenceLine } from 'recharts'
 import { useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 
@@ -10,8 +9,9 @@ const COLORS = {
   income: '#10b981',
   realized: '#f59e0b',
   unrealized: '#ef4444',
-  start: '#8b5cf6',
-  end: '#06b6d4',
+  total: '#334155',
+  positive: '#10b981',
+  negative: '#ef4444',
 }
 
 interface MetricsPoint {
@@ -43,7 +43,31 @@ type TooltipState = {
   payload?: TooltipEntry[]
 }
 
+type WaterfallRow = {
+  name: string
+  offset: number
+  value: number
+  delta: number
+  cumulative: number
+  fill: string
+  isTotal: boolean
+}
+
 export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
+  const formatUSDWhole = (value: number) => new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value || 0)
+
+  const axisFormatter = (value: number) => new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    maximumFractionDigits: 0,
+  }).format(value || 0)
+
   const combinedLineData = useMemo((): MetricsPoint[] => {
     if (!data?.series) return []
     type AggregatedPoint = {
@@ -70,7 +94,7 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
     return Array.from(dateAgg.values()).sort((a, b) => a.date.localeCompare(b.date))
   }, [data])
 
-  const valueBridgeData = useMemo(() => {
+  const valueBridgeData = useMemo<WaterfallRow[]>(() => {
     const totalsList = Object.values(data?.totals || {}) as Array<{ netGain?: number; income?: number; realized?: number; unrealized?: number }>
     if (!totalsList.length) return []
 
@@ -83,29 +107,88 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
     const endValue = Number(lastPoint?.portfolioValue ?? 0)
     const startValue = Number(firstPoint?.portfolioValue ?? (endValue - netGain))
 
+    const c0 = startValue
+    const c1 = c0 + i
+    const c2 = c1 + r
+    const c3 = c2 + u
+
     return [
-      { name: 'Starting Value', value: startValue, fill: COLORS.start },
-      { name: 'Income', value: i, fill: i >= 0 ? COLORS.income : COLORS.unrealized },
-      { name: 'Realized G/L', value: r, fill: r >= 0 ? COLORS.realized : COLORS.unrealized },
-      { name: 'Unrealized G/L', value: u, fill: u >= 0 ? COLORS.net : COLORS.unrealized },
-      { name: 'Ending Value', value: endValue, fill: COLORS.end },
+      {
+        name: 'Starting Value',
+        offset: 0,
+        value: Math.abs(startValue),
+        delta: startValue,
+        cumulative: c0,
+        fill: COLORS.total,
+        isTotal: true,
+      },
+      {
+        name: 'Income',
+        offset: Math.min(c0, c1),
+        value: Math.abs(i),
+        delta: i,
+        cumulative: c1,
+        fill: i >= 0 ? COLORS.positive : COLORS.negative,
+        isTotal: false,
+      },
+      {
+        name: 'Realized G/L',
+        offset: Math.min(c1, c2),
+        value: Math.abs(r),
+        delta: r,
+        cumulative: c2,
+        fill: r >= 0 ? COLORS.positive : COLORS.negative,
+        isTotal: false,
+      },
+      {
+        name: 'Unrealized G/L',
+        offset: Math.min(c2, c3),
+        value: Math.abs(u),
+        delta: u,
+        cumulative: c3,
+        fill: u >= 0 ? COLORS.positive : COLORS.negative,
+        isTotal: false,
+      },
+      {
+        name: 'Ending Value',
+        offset: 0,
+        value: Math.abs(endValue),
+        delta: endValue,
+        cumulative: endValue,
+        fill: COLORS.total,
+        isTotal: true,
+      },
     ]
   }, [combinedLineData, data])
 
+  const waterfallTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null
+    const row = payload[0]?.payload
+    if (!row) return null
+
+    return (
+      <div className="rounded-md border bg-background p-2 text-xs shadow-sm">
+        <div className="font-medium mb-1">{row.name}</div>
+        <div>{row.isTotal ? 'Value' : 'Change'}: {formatUSDWhole(row.delta)}</div>
+        {!row.isTotal && <div>Running Total: {formatUSDWhole(row.cumulative)}</div>}
+      </div>
+    )
+  }
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <Card className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        <CardContent className="p-5" style={{ minHeight: `${height}px` }}>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
+      <Card className="rounded-xl border bg-card shadow-sm overflow-hidden min-w-0">
+        <CardContent className="p-4 sm:p-5" style={{ minHeight: `${height}px` }}>
           <h4 className="text-lg font-semibold mb-1">
             Metrics Evolution
           </h4>
           <p className="text-sm text-muted-foreground mb-4">Aggregated over the selected period</p>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={combinedLineData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
+            <LineChart data={combinedLineData} margin={{ top: 12, right: 14, left: 8, bottom: 28 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" minTickGap={24} tickMargin={8} />
-              <YAxis tickFormatter={formatUSD} tickMargin={8} width={96} />
-              <Tooltip formatter={(value) => formatUSD(Number(value || 0))} />
+              <XAxis dataKey="date" minTickGap={24} tickMargin={10} tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={axisFormatter} tickMargin={10} width={108} />
+              <Tooltip formatter={(value) => formatUSDWhole(Number(value || 0))} />
               <Legend />
               <Line type="monotone" dataKey="netGain" name="Net G/L" stroke={COLORS.net} strokeWidth={2.5} dot={false} />
               <Line type="monotone" dataKey="income" name="Income" stroke={COLORS.income} strokeWidth={2} dot={false} />
@@ -116,25 +199,26 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        <CardContent className="p-5" style={{ minHeight: `${height}px` }}>
+      <Card className="rounded-xl border bg-card shadow-sm overflow-hidden min-w-0">
+        <CardContent className="p-4 sm:p-5" style={{ minHeight: `${height}px` }}>
           <h4 className="text-lg font-semibold mb-1">
             Waterfall Build
           </h4>
-          <p className="text-sm text-muted-foreground mb-4">Start value, return components, and ending value</p>
+          <p className="text-sm text-muted-foreground mb-4">Floating-step build from starting value to ending value</p>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={valueBridgeData} margin={{ top: 20, right: 24, left: 8, bottom: 24 }} barCategoryGap={22}>
+            <ComposedChart data={valueBridgeData} margin={{ top: 16, right: 14, left: 8, bottom: 36 }} barCategoryGap={16}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-12} textAnchor="end" height={68} />
-              <YAxis tickFormatter={formatUSD} tickMargin={8} width={96} />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-18} textAnchor="end" height={78} />
+              <YAxis tickFormatter={axisFormatter} tickMargin={10} width={108} />
               <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
-              <Tooltip formatter={(value) => formatUSD(Number(value || 0))} />
-              <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={48}>
+              <Tooltip content={waterfallTooltip} />
+              <Bar dataKey="offset" stackId="wf" fill="transparent" stroke="transparent" isAnimationActive={false} />
+              <Bar dataKey="value" stackId="wf" radius={[6, 6, 0, 0]} barSize={38}>
                 {valueBridgeData.map((entry) => (
                   <Cell key={entry.name} fill={entry.fill} stroke={entry.fill} strokeWidth={1} />
                 ))}
               </Bar>
-            </BarChart>
+            </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
