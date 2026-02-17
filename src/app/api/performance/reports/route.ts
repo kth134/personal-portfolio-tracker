@@ -136,24 +136,31 @@ export async function POST(req: Request) {
     const dates = buildDates(start, end, granularity)
     const lastDateStr = formatISO(new Date(), { representation: 'date' })
 
-    const assetToTicker = new Map(allTx.filter(tx => tx.asset).map(tx => {
-      const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
-      return [asset.id, asset.ticker]
-    }))
+    const assetToTicker = new Map<string, string>(
+      allTx
+        .map((tx) => (Array.isArray(tx.asset) ? tx.asset[0] : tx.asset))
+        .filter((asset): asset is AssetMeta => Boolean(asset?.id && asset?.ticker))
+        .map((asset) => [asset.id!, asset.ticker!])
+    )
 
-    const portfolioTickers = [...new Set(allTx.filter(tx => tx.asset_id).map(tx => {
-      const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
-      return asset?.ticker || ''
-    }).filter(Boolean))]
-
-    const benchmarkTickers = [...new Set(
-      benchmarks
-        .filter((b: string) => b !== SIXTY_FORTY)
-        .flatMap((b: string) => BENCHMARK_CANDIDATES[b] || [])
-        .filter(Boolean)
+    const portfolioTickers: string[] = [...new Set(
+      allTx
+        .filter(tx => tx.asset_id)
+        .map(tx => {
+          const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+          return asset?.ticker
+        })
+        .filter((ticker): ticker is string => typeof ticker === 'string' && ticker.length > 0)
     )]
 
-    const allTickers = [...new Set([...portfolioTickers, ...benchmarkTickers])]
+    const benchmarkTickers: string[] = [...new Set(
+      (benchmarks as string[])
+        .filter((b: string) => b !== SIXTY_FORTY)
+        .flatMap((b: string) => BENCHMARK_CANDIDATES[b] || [])
+        .filter((ticker): ticker is string => typeof ticker === 'string' && ticker.length > 0)
+    )]
+
+    const allTickers: string[] = [...new Set([...portfolioTickers, ...benchmarkTickers])]
 
     const historicalPrices = await getHistoricalPrices(supabase, allTickers, start, end, granularity)
     const currentPrices = await getCurrentPrices(supabase, allTickers)
@@ -172,16 +179,16 @@ export async function POST(req: Request) {
       const filteredLots = allLots.filter(lot => lot.purchase_date <= d)
 
       // Get group mapping for all assets (needed for both modes)
-      const getAssetGroupId = (asset: AssetMeta | null | undefined, lotAccountId?: string) => {
+      const getAssetGroupId = (asset: AssetMeta | null | undefined, lotAccountId?: string): string | null => {
         if (!asset) return null
         switch (lens) {
-          case 'account': return lotAccountId || asset.account_id
-          case 'sub_portfolio': return asset.sub_portfolio_id
-          case 'asset_type': return asset.asset_type
-          case 'asset_subtype': return asset.asset_subtype
-          case 'geography': return asset.geography
-          case 'size_tag': return asset.size_tag
-          case 'factor_tag': return asset.factor_tag
+          case 'account': return lotAccountId || asset.account_id || null
+          case 'sub_portfolio': return asset.sub_portfolio_id || null
+          case 'asset_type': return asset.asset_type || null
+          case 'asset_subtype': return asset.asset_subtype || null
+          case 'geography': return asset.geography || null
+          case 'size_tag': return asset.size_tag || null
+          case 'factor_tag': return asset.factor_tag || null
           default: return null
         }
       }
@@ -544,7 +551,8 @@ function calculatePortfolioStateAtDate(
       const qty = Number(lot?.remaining_quantity || 0)
       if (qty <= 0) return
       const lotAsset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
-      const ticker = lotAsset?.ticker || assetToTicker.get(lot.asset_id) || ''
+      const lotAssetId = lot.asset_id || lotAsset?.id
+      const ticker = lotAsset?.ticker || (lotAssetId ? assetToTicker.get(lotAssetId) : '') || ''
       const price = currentPrices[ticker] || getPriceAtOrBefore(historicalPrices[ticker] || [], asOfDate)
       const basis = Number(lot?.cost_basis_per_unit || 0)
 

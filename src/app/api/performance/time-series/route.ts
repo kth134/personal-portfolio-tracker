@@ -85,10 +85,12 @@ export async function POST(req: Request) {
     if (!allTx || allTx.length === 0) return NextResponse.json({ series: {} })
 
     // Asset maps
-    const assetToTicker = new Map(allTx.filter(tx => tx.asset).map(tx => {
-      const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
-      return [asset.id, asset.ticker]
-    }))
+    const assetToTicker = new Map<string, string>(
+      allTx
+        .map((tx) => (Array.isArray(tx.asset) ? tx.asset[0] : tx.asset))
+        .filter((asset): asset is AssetMeta => Boolean(asset?.id && asset?.ticker))
+        .map((asset) => [asset.id!, asset.ticker!])
+    )
 
     // Generate dates (monthly + today)
     const firstDate = allTx[0].date
@@ -102,10 +104,15 @@ export async function POST(req: Request) {
     if (dates[dates.length - 1] !== lastDate) dates.push(lastDate)
 
     // All tickers + benchmarks
-    const portfolioTickers = [...new Set(allTx.filter(tx => tx.asset_id).map(tx => {
-      const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
-      return asset?.ticker || ''
-    }))]
+    const portfolioTickers: string[] = [...new Set(
+      allTx
+        .filter(tx => tx.asset_id)
+        .map(tx => {
+          const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+          return asset?.ticker
+        })
+        .filter((ticker): ticker is string => typeof ticker === 'string' && ticker.length > 0)
+    )]
     const benchmarkMap: Record<string, string> = {
       sp500: 'SPY',
       nasdaq: 'QQQ',
@@ -113,8 +120,10 @@ export async function POST(req: Request) {
       gold: 'GLD',
       bitcoin: 'BTC'
     }
-    const benchmarkTickers = benchmarks.map((b: string) => benchmarkMap[b]).filter(Boolean)
-    const allTickers = [...new Set([...portfolioTickers, ...benchmarkTickers])]
+    const benchmarkTickers: string[] = (benchmarks as string[])
+      .map((b: string) => benchmarkMap[b])
+      .filter((ticker): ticker is string => typeof ticker === 'string' && ticker.length > 0)
+    const allTickers: string[] = [...new Set([...portfolioTickers, ...benchmarkTickers])]
     const historicalPrices = await getHistoricalPrices(allTickers, firstDate, lastDate)
     const currentPrices = await getCurrentPrices(allTickers);
     const lastDateStr = formatISO(new Date(), { representation: 'date' });
@@ -133,16 +142,17 @@ export async function POST(req: Request) {
       if (aggregate || lens === 'total') {
         groups.set('aggregated', { tx: filteredTx, lots: filteredLots })
       } else {
-        const getGroupId = (item: TransactionEntry | TaxLotEntry, isLot: boolean) => {
-          const asset = isLot ? (Array.isArray(item.asset) ? item.asset[0] : item.asset) : item.asset
+        const getGroupId = (item: TransactionEntry | TaxLotEntry, isLot: boolean): string | null => {
+          const rawAsset = item.asset
+          const asset = Array.isArray(rawAsset) ? rawAsset[0] : rawAsset
           switch (lens) {
-            case 'account': return item.account_id
-            case 'sub_portfolio': return asset?.sub_portfolio_id
-            case 'asset_type': return asset?.asset_type
-            case 'asset_subtype': return asset?.asset_subtype
-            case 'geography': return asset?.geography
-            case 'size_tag': return asset?.size_tag
-            case 'factor_tag': return asset?.factor_tag
+            case 'account': return item.account_id || null
+            case 'sub_portfolio': return asset?.sub_portfolio_id || null
+            case 'asset_type': return asset?.asset_type || null
+            case 'asset_subtype': return asset?.asset_subtype || null
+            case 'geography': return asset?.geography || null
+            case 'size_tag': return asset?.size_tag || null
+            case 'factor_tag': return asset?.factor_tag || null
             default: return null
           }
         }
@@ -248,6 +258,7 @@ export async function POST(req: Request) {
           unrealized,
           realized,
           income,
+          totalReturnPct,
           originalInvestment: groupOriginalInvestment,
           benchmarkValues: bmValues,
         })

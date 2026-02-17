@@ -45,7 +45,7 @@ const BENCHMARKS = [
   { value: '6040', label: '60/40' },
 ]
 
-const METRIC_CARDS = [
+const METRIC_CARDS: { key: keyof ReportTotals, label: string, type?: 'percent' }[] = [
   { key: 'netGain', label: 'Net Gain / Loss' },
   { key: 'income', label: 'Income' },
   { key: 'realized', label: 'Realized G/L' },
@@ -81,6 +81,8 @@ type ReportTotals = {
   totalReturnPct: number
   irr: number
 }
+
+const EMPTY_TOTALS: ReportTotals = { netGain: 0, income: 0, realized: 0, unrealized: 0, totalReturnPct: 0, irr: 0 }
 
 type MetricTotals = {
   netGain: number
@@ -205,8 +207,8 @@ export default function PerformanceReports() {
       const points = data.series[key] || []
       points.forEach((p) => {
         const row = byDate.get(p.date) || { date: p.date }
-        row[`${key}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
-        row[`${key}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
+        row[`${key}-twr`] = valueMode === 'percent' ? (p.twr ?? 0) : (p.portfolioValue ?? 0)
+        row[`${key}-mwr`] = valueMode === 'percent' ? (p.irr ?? 0) : (p.netGain ?? 0)
         // Show benchmarks only in aggregate/total view
         if (valueMode === 'percent' && data.benchmarks) {
           Object.entries(data.benchmarks).forEach(([bmKey, bmSeries]) => {
@@ -230,8 +232,8 @@ export default function PerformanceReports() {
       Object.entries(assets).forEach(([assetKey, points]) => {
         points.forEach((p) => {
           const row = byDate.get(p.date) || { date: p.date }
-          row[`${assetKey}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
-          row[`${assetKey}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
+          row[`${assetKey}-twr`] = valueMode === 'percent' ? (p.twr ?? 0) : (p.portfolioValue ?? 0)
+          row[`${assetKey}-mwr`] = valueMode === 'percent' ? (p.irr ?? 0) : (p.netGain ?? 0)
           byDate.set(p.date, row)
         })
       })
@@ -250,8 +252,8 @@ export default function PerformanceReports() {
       const points = data.assetBreakdown![key] || []
       points.forEach((p) => {
         const row = byDate.get(p.date) || { date: p.date }
-        row[`${key}-twr`] = valueMode === 'percent' ? p.twr : p.portfolioValue
-        row[`${key}-mwr`] = valueMode === 'percent' ? p.irr : p.netGain
+        row[`${key}-twr`] = valueMode === 'percent' ? (p.twr ?? 0) : (p.portfolioValue ?? 0)
+        row[`${key}-mwr`] = valueMode === 'percent' ? (p.irr ?? 0) : (p.netGain ?? 0)
         byDate.set(p.date, row)
       })
     })
@@ -342,12 +344,12 @@ export default function PerformanceReports() {
   }
 
   // Get totals based on mode
-  const totals = useMemo(() => {
-    if (!data) return {}
+  const totals = useMemo<ReportTotals>(() => {
+    if (!data) return EMPTY_TOTALS
     if (lens === 'total' || aggregate) {
       // For total lens or aggregate mode, use the first (or only) series totals
       const firstKey = Object.keys(data.totals || {})[0]
-      return data.totals?.[firstKey] || {}
+      return data.totals?.[firstKey] || EMPTY_TOTALS
     }
     // Non-aggregate mode: sum across all groups
     const result = { netGain: 0, income: 0, realized: 0, unrealized: 0, totalReturnPct: 0, irr: 0 }

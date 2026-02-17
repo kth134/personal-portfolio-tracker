@@ -16,10 +16,10 @@ const COLORS = {
 
 interface MetricsPoint {
   date: string
-  netGain: number
-  income: number
-  realized: number
-  unrealized: number
+  netGain?: number
+  income?: number
+  realized?: number
+  unrealized?: number
   portfolioValue?: number
 }
 
@@ -46,7 +46,15 @@ type TooltipState = {
 export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
   const combinedLineData = useMemo((): MetricsPoint[] => {
     if (!data?.series) return []
-    const dateAgg = new Map<string, MetricsPoint>()
+    type AggregatedPoint = {
+      date: string
+      netGain: number
+      income: number
+      realized: number
+      unrealized: number
+      portfolioValue: number
+    }
+    const dateAgg = new Map<string, AggregatedPoint>()
     Object.values(data.series).forEach(points => {
       points.forEach(p => {
         const key = p.date
@@ -120,7 +128,7 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
               <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-12} textAnchor="end" height={68} />
               <YAxis tickFormatter={formatUSD} tickMargin={8} width={96} />
               <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
-              <Tooltip formatter={(value: number | string) => formatUSD(Number(value || 0))} />
+              <Tooltip formatter={(value) => formatUSD(Number(value || 0))} />
               <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={48}>
                 {valueBridgeData.map((entry) => (
                   <Cell key={entry.name} fill={entry.fill} stroke={entry.fill} strokeWidth={1} />
