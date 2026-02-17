@@ -265,6 +265,7 @@ export default function PerformanceReports() {
     income: number
     realized: number
     unrealized: number
+    portfolioValue?: number
   }
 
   // Get metrics data for group (for CombinedCharts)
@@ -278,6 +279,7 @@ export default function PerformanceReports() {
         income: p.income || 0,
         realized: p.realized || 0,
         unrealized: p.unrealized || 0,
+        portfolioValue: p.portfolioValue || 0,
       }))
     })
 
@@ -304,6 +306,7 @@ export default function PerformanceReports() {
           income: p.income || 0,
           realized: p.realized || 0,
           unrealized: p.unrealized || 0,
+          portfolioValue: p.portfolioValue || 0,
         }))
       })
     }
