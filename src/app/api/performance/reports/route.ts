@@ -485,6 +485,23 @@ export async function POST(req: Request) {
       assetBreakdownCount: Object.keys(assetBreakdown).length,
     })
 
+    const rangeCoverage = validateSeriesRangeCoverage({
+      start,
+      end,
+      series,
+      assetSeries,
+      assetBreakdown,
+    })
+    if (rangeCoverage.totalMismatches > 0) {
+      console.warn(`[performance-reports][${requestId}] range coverage mismatches`, {
+        totalChecked: rangeCoverage.totalChecked,
+        totalMismatches: rangeCoverage.totalMismatches,
+        samples: rangeCoverage.samples,
+      })
+    } else {
+      logPhase('validated-range-coverage', { totalChecked: rangeCoverage.totalChecked, totalMismatches: 0 })
+    }
+
     // Normalize gain components to first plotted point so all downstream totals/charts
     // align with the same period-buildup semantics as the value bridge.
     Object.values(series).forEach(rebaseGainComponentsFromFirstPoint)
@@ -747,7 +764,23 @@ function calculatePortfolioStateAtDate(
 }
 
 function resolveDateRange(period: string, startDate?: string, endDate?: string, inceptionDate?: string) {
-  if (startDate && endDate) return { start: startDate, end: endDate }
+  if (period === 'custom') {
+    if (!startDate || !endDate) {
+      throw new Error('Custom period requires both startDate and endDate')
+    }
+    if (startDate > endDate) {
+      throw new Error('Custom period startDate must be on or before endDate')
+    }
+    return { start: startDate, end: endDate }
+  }
+
+  if (startDate && endDate) {
+    if (startDate > endDate) {
+      throw new Error('startDate must be on or before endDate')
+    }
+    return { start: startDate, end: endDate }
+  }
+
   const today = new Date()
   let start: Date
   switch (period) {
@@ -764,6 +797,39 @@ function resolveDateRange(period: string, startDate?: string, endDate?: string, 
     default: start = subYears(today, 1)
   }
   return { start: format(start, 'yyyy-MM-dd'), end: format(today, 'yyyy-MM-dd') }
+}
+
+function validateSeriesRangeCoverage(input: {
+  start: string
+  end: string
+  series: Record<string, ReportPoint[]>
+  assetSeries: Record<string, Record<string, ReportPoint[]>>
+  assetBreakdown: Record<string, ReportPoint[]>
+}) {
+  let totalChecked = 0
+  let totalMismatches = 0
+  const samples: Array<Record<string, unknown>> = []
+
+  const check = (label: string, points: ReportPoint[]) => {
+    if (!points || points.length === 0) return
+    totalChecked += 1
+    const firstDate = points[0]?.date
+    const lastDate = points[points.length - 1]?.date
+    if (firstDate !== input.start || lastDate !== input.end) {
+      totalMismatches += 1
+      if (samples.length < 10) {
+        samples.push({ label, expectedStart: input.start, expectedEnd: input.end, firstDate, lastDate, points: points.length })
+      }
+    }
+  }
+
+  Object.entries(input.series || {}).forEach(([key, points]) => check(`series:${key}`, points))
+  Object.entries(input.assetSeries || {}).forEach(([groupKey, assets]) => {
+    Object.entries(assets || {}).forEach(([assetKey, points]) => check(`assetSeries:${groupKey}:${assetKey}`, points))
+  })
+  Object.entries(input.assetBreakdown || {}).forEach(([assetKey, points]) => check(`assetBreakdown:${assetKey}`, points))
+
+  return { totalChecked, totalMismatches, samples }
 }
 
 function buildDates(start: string, end: string, granularity: 'daily' | 'monthly') {

@@ -182,6 +182,12 @@ export default function PerformanceReports() {
   }
 
   const fetchReports = async () => {
+    if (period === 'custom' && (!customStart || !customEnd)) {
+      setError('Please select both custom start and end dates.')
+      setLoading(false)
+      return
+    }
+
     const requestId = ++reportsRequestIdRef.current
     reportsAbortRef.current?.abort()
     const controller = new AbortController()
