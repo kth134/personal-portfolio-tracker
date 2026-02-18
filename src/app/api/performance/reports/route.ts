@@ -229,10 +229,9 @@ export async function POST(req: Request) {
     logPhase('prepared-series-structures', { dateCount: dates.length })
 
     for (const d of dates) {
-      const isRangeBaselinePoint = d === start
-      const filteredTx = allTx.filter(tx => isRangeBaselinePoint ? tx.date < start : tx.date <= d)
-      const periodTx = allTx.filter(tx => isRangeBaselinePoint ? tx.date < start : (tx.date >= start && tx.date <= d))
-      const filteredLots = allLots.filter(lot => isRangeBaselinePoint ? lot.purchase_date < start : lot.purchase_date <= d)
+      const filteredTx = allTx.filter(tx => tx.date <= d)
+      const periodTx = allTx.filter(tx => tx.date >= start && tx.date <= d)
+      const filteredLots = allLots.filter(lot => lot.purchase_date <= d)
 
       // Get group mapping for all assets (needed for both modes)
       const getAssetGroupId = (asset: AssetMeta | null | undefined, lotAccountId?: string): string | null => {
@@ -336,19 +335,17 @@ export async function POST(req: Request) {
         }
       } else if (aggregate) {
         // Aggregate mode: one series per selected group (group-level aggregation)
-        const groupIds = new Set<string>(selectedValues)
-        if (groupIds.size === 0) {
-          filteredLots.forEach((lot) => {
-            const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
-            const groupId = getAssetGroupId(asset, lot.account_id)
-            if (groupId) groupIds.add(groupId)
-          })
-          filteredTx.forEach((tx) => {
-            const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
-            const groupId = getAssetGroupId(asset, tx.account_id)
-            if (groupId) groupIds.add(groupId)
-          })
-        }
+        const groupIds = new Set<string>()
+        filteredLots.forEach((lot) => {
+          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+          const groupId = getAssetGroupId(asset, lot.account_id)
+          if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
+        })
+        filteredTx.forEach((tx) => {
+          const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+          const groupId = getAssetGroupId(asset, tx.account_id)
+          if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
+        })
 
         Array.from(groupIds).forEach(groupId => {
           const groupLabel = getGroupLabel(groupId)
@@ -389,19 +386,17 @@ export async function POST(req: Request) {
         })
       } else {
         // Non-aggregate mode: group -> asset level data
-        const groupIds = new Set<string>(selectedValues)
-        if (groupIds.size === 0) {
-          filteredLots.forEach((lot) => {
-            const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
-            const groupId = getAssetGroupId(asset, lot.account_id)
-            if (groupId) groupIds.add(groupId)
-          })
-          filteredTx.forEach((tx) => {
-            const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
-            const groupId = getAssetGroupId(asset, tx.account_id)
-            if (groupId) groupIds.add(groupId)
-          })
-        }
+        const groupIds = new Set<string>()
+        filteredLots.forEach((lot) => {
+          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset
+          const groupId = getAssetGroupId(asset, lot.account_id)
+          if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
+        })
+        filteredTx.forEach((tx) => {
+          const asset = Array.isArray(tx.asset) ? tx.asset[0] : tx.asset
+          const groupId = getAssetGroupId(asset, tx.account_id)
+          if (groupId && selectedValues.includes(groupId)) groupIds.add(groupId)
+        })
 
         Array.from(groupIds).forEach(groupId => {
           const groupLabel = getGroupLabel(groupId)
