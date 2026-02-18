@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ReferenceLine } from 'recharts'
+import type { TooltipContentProps } from 'recharts'
 
 const BRIDGE_COLORS = {
   anchor: '#334155',
@@ -170,9 +171,9 @@ export default function PortfolioValueBridge({ input }: Props) {
     return [minValue - padding, maxValue + padding]
   }, [rows])
 
-  const tooltipContent = ({ active, payload }: { active?: boolean; payload?: Array<{ payload?: BridgeRow }> }) => {
+  const tooltipContent = ({ active, payload }: TooltipContentProps<number, string>) => {
     if (!active || !payload?.length) return null
-    const row = payload[0]?.payload
+    const row = payload[0]?.payload as BridgeRow | undefined
     if (!row) return null
 
     return (
