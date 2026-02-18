@@ -81,9 +81,9 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
     const lastPoint = combinedLineData[combinedLineData.length - 1]
     const startValue = Number(firstPoint?.portfolioValue ?? 0)
     const apiTerminalValue = Number(lastPoint?.portfolioValue ?? 0)
-    const income = Number(lastPoint?.income ?? 0)
-    const realized = Number(lastPoint?.realized ?? 0)
-    const unrealized = Number(lastPoint?.unrealized ?? 0)
+    const income = Number(lastPoint?.income ?? 0) - Number(firstPoint?.income ?? 0)
+    const realized = Number(lastPoint?.realized ?? 0) - Number(firstPoint?.realized ?? 0)
+    const unrealized = apiTerminalValue - startValue - income - realized
 
     return { startValue, apiTerminalValue, income, realized, unrealized }
   }, [combinedLineData])
