@@ -500,6 +500,17 @@ export async function POST(req: Request) {
     })
     Object.values(assetBreakdown).forEach(applyTWRFromFirstValue)
 
+    const attributionValidation = validateAttributionAcrossSeries({ series, assetSeries, assetBreakdown })
+    if (attributionValidation.totalMismatches > 0) {
+      console.warn(`[performance-reports][${requestId}] attribution mismatches`, {
+        totalChecked: attributionValidation.totalChecked,
+        totalMismatches: attributionValidation.totalMismatches,
+        samples: attributionValidation.samples,
+      })
+    } else {
+      logPhase('validated-attribution', { totalChecked: attributionValidation.totalChecked, totalMismatches: 0 })
+    }
+
     Object.assign(totals, buildTotalsFromSeries(series))
     logPhase('built-totals', { totalsCount: Object.keys(totals).length })
 
@@ -823,6 +834,84 @@ function rebaseGainComponentsFromFirstPoint(points: ReportPoint[]) {
     point.netGain = netGain
     point.totalReturnPct = totalReturnPct
   })
+}
+
+function validateAttributionSeries(points: ReportPoint[], label: string) {
+  if (!points || points.length === 0) return { checked: 0, mismatches: 0, samples: [] as Array<Record<string, unknown>> }
+
+  const basePortfolioValue = Number(points[0]?.portfolioValue || 0)
+  let checked = 0
+  let mismatches = 0
+  const samples: Array<Record<string, unknown>> = []
+  const tolerance = 1e-4
+
+  points.forEach((point) => {
+    checked += 1
+    const portfolioDelta = Number(point?.portfolioValue || 0) - basePortfolioValue
+    const netContributions = Number(point?.netContributions || 0)
+    const income = Number(point?.income || 0)
+    const realized = Number(point?.realized || 0)
+    const unrealized = Number(point?.unrealized || 0)
+    const netGain = Number(point?.netGain || 0)
+    const expectedUnrealized = portfolioDelta - netContributions - income - realized
+    const expectedNetGain = income + realized + expectedUnrealized
+
+    const unrealizedDiff = Math.abs(unrealized - expectedUnrealized)
+    const netGainDiff = Math.abs(netGain - expectedNetGain)
+
+    if (unrealizedDiff > tolerance || netGainDiff > tolerance) {
+      mismatches += 1
+      if (samples.length < 5) {
+        samples.push({
+          label,
+          date: point.date,
+          unrealized,
+          expectedUnrealized,
+          unrealizedDiff,
+          netGain,
+          expectedNetGain,
+          netGainDiff,
+        })
+      }
+    }
+  })
+
+  return { checked, mismatches, samples }
+}
+
+function validateAttributionAcrossSeries(input: {
+  series: Record<string, ReportPoint[]>
+  assetSeries: Record<string, Record<string, ReportPoint[]>>
+  assetBreakdown: Record<string, ReportPoint[]>
+}) {
+  let totalChecked = 0
+  let totalMismatches = 0
+  const samples: Array<Record<string, unknown>> = []
+
+  Object.entries(input.series || {}).forEach(([key, points]) => {
+    const result = validateAttributionSeries(points, `series:${key}`)
+    totalChecked += result.checked
+    totalMismatches += result.mismatches
+    samples.push(...result.samples)
+  })
+
+  Object.entries(input.assetSeries || {}).forEach(([groupKey, assets]) => {
+    Object.entries(assets || {}).forEach(([assetKey, points]) => {
+      const result = validateAttributionSeries(points, `assetSeries:${groupKey}:${assetKey}`)
+      totalChecked += result.checked
+      totalMismatches += result.mismatches
+      samples.push(...result.samples)
+    })
+  })
+
+  Object.entries(input.assetBreakdown || {}).forEach(([assetKey, points]) => {
+    const result = validateAttributionSeries(points, `assetBreakdown:${assetKey}`)
+    totalChecked += result.checked
+    totalMismatches += result.mismatches
+    samples.push(...result.samples)
+  })
+
+  return { totalChecked, totalMismatches, samples: samples.slice(0, 10) }
 }
 
 function calculateMWRForLens(
