@@ -234,7 +234,7 @@ export default function PortfolioValueBridge({ input }: Props) {
       </div>
       <div className="h-[320px] sm:h-full w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 16, right: 14, left: 8, bottom: isMobile ? 20 : 36 }} barCategoryGap={2} barGap={0}>
+          <ComposedChart data={rows} margin={{ top: 16, right: 14, left: 8, bottom: isMobile ? 20 : 36 }} barCategoryGap={0} barGap={0}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="name"
@@ -249,13 +249,13 @@ export default function PortfolioValueBridge({ input }: Props) {
             <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
             <Tooltip content={tooltipContent} />
             <Line type="linear" dataKey="runningTotal" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 4" dot={false} activeDot={false} isAnimationActive={false} />
-            <Bar dataKey="stepOffset" stackId="bridge" fillOpacity={0} strokeOpacity={0} isAnimationActive={false} barSize={60} />
-            <Bar dataKey="stepValue" stackId="bridge" radius={[6, 6, 0, 0]} barSize={60} isAnimationActive={false}>
+            <Bar dataKey="stepOffset" stackId="bridge" fillOpacity={0} strokeOpacity={0} isAnimationActive={false} barSize={68} />
+            <Bar dataKey="stepValue" stackId="bridge" radius={[6, 6, 0, 0]} barSize={68} isAnimationActive={false}>
               {rows.map((row) => (
                 <Cell key={`step-${row.name}`} fill={row.isAnchor ? 'transparent' : row.fill} stroke={row.isAnchor ? 'transparent' : row.fill} strokeWidth={1} />
               ))}
             </Bar>
-            <Bar dataKey="anchorValue" stackId="bridge" radius={[6, 6, 0, 0]} barSize={60} isAnimationActive={false}>
+            <Bar dataKey="anchorValue" stackId="bridge" radius={[6, 6, 0, 0]} barSize={68} isAnimationActive={false}>
               {rows.map((row) => (
                 <Cell key={`anchor-${row.name}`} fill={row.isAnchor ? row.fill : 'transparent'} stroke={row.isAnchor ? row.fill : 'transparent'} strokeWidth={1} />
               ))}
