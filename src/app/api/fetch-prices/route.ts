@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
+    const refreshedAt = new Date().toISOString();
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Unauthorized');
@@ -23,7 +24,7 @@ export async function GET() {
     const uniqueTickers = [...new Set(assets?.map((a: any) => a.ticker) || [])];
     if (!uniqueTickers.length) {
       console.log('No assets found; skipping price fetch');
-      return NextResponse.json({ success: true, message: 'No assets' });
+      return NextResponse.json({ success: true, message: 'No assets', refreshedAt });
     }
 
     const cryptoAssets = assets?.filter((a: any) => a.asset_subtype?.toLowerCase() === 'crypto') || [];
@@ -104,9 +105,13 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ success: true, inserted: { crypto: cryptoTickers.length, stocks: stockTickers.length } });
+    return NextResponse.json({ success: true, inserted: { crypto: cryptoTickers.length, stocks: stockTickers.length }, refreshedAt });
   } catch (error) {
     console.error('Price fetch error:', error);
     return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });
   }
+}
+
+export async function POST() {
+  return GET()
 }

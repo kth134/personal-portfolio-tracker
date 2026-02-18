@@ -203,6 +203,19 @@ export async function POST(req: Request) {
     logPhase('fetched-historical-prices', { tickerCount: Object.keys(historicalPrices).length })
     const currentPrices = await getCurrentPrices(supabase, allTickers)
     logPhase('fetched-current-prices', { tickerCount: Object.keys(currentPrices).length })
+
+    let latestPriceTimestamp: string | null = null
+    if (portfolioTickers.length) {
+      const { data: latestPriceRows } = await supabase
+        .from('asset_prices')
+        .select('timestamp')
+        .in('ticker', portfolioTickers)
+        .order('timestamp', { ascending: false })
+        .limit(1)
+      latestPriceTimestamp = latestPriceRows?.[0]?.timestamp || null
+    }
+    logPhase('resolved-latest-price-timestamp', { latestPriceTimestamp })
+
     const benchmarkSeries = await getBenchmarkSeries(supabase, benchmarks, start, end, granularity)
     logPhase('fetched-benchmark-series', { benchmarkCount: Object.keys(benchmarkSeries).length })
 
@@ -499,6 +512,7 @@ export async function POST(req: Request) {
       series,
       totals,
       benchmarks: benchmarkSeries,
+      latestPriceTimestamp,
       assetSeries: lens !== 'total' && !aggregate ? assetSeries : undefined,
       assetTotals: lens !== 'total' && !aggregate ? assetTotals : undefined,
       assetBreakdown: lens === 'total' && !aggregate ? assetBreakdown : undefined,
@@ -837,8 +851,16 @@ async function getHistoricalPrices(supabase: SupabaseClientLike, tickers: string
     prices[p.ticker].push({ date: p.date, close: Number(p.close) })
   })
 
+  const enableLiveFetch = process.env.PERFORMANCE_REPORTS_ALLOW_LIVE_PRICE_FETCH === 'true'
+  if (!enableLiveFetch) {
+    return prices
+  }
+
   const alphaKey = process.env.ALPHA_VANTAGE_API_KEY
-  if (!alphaKey) throw new Error('Missing ALPHA_VANTAGE_API_KEY')
+  if (!alphaKey) {
+    console.warn('[performance-reports] Missing ALPHA_VANTAGE_API_KEY; returning DB historical prices only')
+    return prices
+  }
 
   const inserts: { ticker: string, date: string, close: number, source: string }[] = []
 
@@ -850,8 +872,17 @@ async function getHistoricalPrices(supabase: SupabaseClientLike, tickers: string
 
     const func = granularity === 'daily' ? 'TIME_SERIES_DAILY_ADJUSTED' : 'TIME_SERIES_MONTHLY'
     const alphaUrl = `https://www.alphavantage.co/query?function=${func}&symbol=${t}&apikey=${alphaKey}`
-    const alphaRes = await fetch(alphaUrl)
-    if (!alphaRes.ok) continue
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 4000)
+    let alphaRes: Response | null = null
+    try {
+      alphaRes = await fetch(alphaUrl, { signal: controller.signal })
+    } catch {
+      alphaRes = null
+    } finally {
+      clearTimeout(timeout)
+    }
+    if (!alphaRes?.ok) continue
     const alphaData = await alphaRes.json()
     const series = alphaData['Time Series (Daily)'] || alphaData['Monthly Time Series']
     if (!series) continue
@@ -890,16 +921,55 @@ async function getCurrentPrices(supabase: SupabaseClientLike, tickers: string[])
     }
   })
 
-  const missingTickers = tickers.filter((t) => !(t in prices))
+  let missingTickers = tickers.filter((t) => !(t in prices))
   if (!missingTickers.length) return prices
 
+  // Secondary DB fallback: latest historical close for any ticker not in asset_prices.
+  const { data: latestHistorical } = await supabase
+    .from('historical_prices')
+    .select('ticker, close, date')
+    .in('ticker', missingTickers)
+    .order('date', { ascending: false })
+
+  latestHistorical?.forEach((row: { ticker: string; close: number | string; date: string }) => {
+    if (!(row.ticker in prices)) {
+      prices[row.ticker] = Number(row.close)
+    }
+  })
+
+  missingTickers = tickers.filter((t) => !(t in prices))
+  if (!missingTickers.length) return prices
+
+  const enableLiveFetch = process.env.PERFORMANCE_REPORTS_ALLOW_LIVE_PRICE_FETCH === 'true'
+  if (!enableLiveFetch) {
+    missingTickers.forEach((ticker) => {
+      prices[ticker] = 0
+    })
+    return prices
+  }
+
   const alphaKey = process.env.ALPHA_VANTAGE_API_KEY
-  if (!alphaKey) throw new Error('Missing ALPHA_VANTAGE_API_KEY')
+  if (!alphaKey) {
+    console.warn('[performance-reports] Missing ALPHA_VANTAGE_API_KEY; returning DB current prices only')
+    missingTickers.forEach((ticker) => {
+      prices[ticker] = 0
+    })
+    return prices
+  }
 
   for (const ticker of missingTickers) {
     const alphaUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${alphaKey}`
-    const alphaRes = await fetch(alphaUrl)
-    if (alphaRes.ok) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3500)
+    let alphaRes: Response | null = null
+    try {
+      alphaRes = await fetch(alphaUrl, { signal: controller.signal })
+    } catch {
+      alphaRes = null
+    } finally {
+      clearTimeout(timeout)
+    }
+    if (alphaRes?.ok) {
       const data = await alphaRes.json()
       const quote = data['Global Quote']
       if (quote && quote['05. price']) {

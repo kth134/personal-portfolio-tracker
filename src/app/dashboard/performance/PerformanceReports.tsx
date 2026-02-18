@@ -118,6 +118,7 @@ type ReportsResponse = {
   series: Record<string, ReportPoint[]>
   totals: Record<string, ReportTotals>
   benchmarks: Record<string, { date: string, value: number }[]>
+  latestPriceTimestamp?: string | null
   assetSeries?: Record<string, Record<string, ReportPoint[]>> // group -> asset -> data (for non-aggregate mode)
   assetTotals?: Record<string, Record<string, ReportTotals>> // group -> asset -> totals
   assetBreakdown?: Record<string, ReportPoint[]> // asset -> data (for total portfolio non-aggregate)
@@ -137,11 +138,29 @@ export default function PerformanceReports() {
   const [selectedBenchmarks, setSelectedBenchmarks] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lastPriceRefreshAt, setLastPriceRefreshAt] = useState<string | null>(null)
   const [data, setData] = useState<ReportsResponse | null>(null)
   const [valuesLoading, setValuesLoading] = useState(false)
   const reportsAbortRef = useRef<AbortController | null>(null)
   const reportsRequestIdRef = useRef(0)
   const axisWidth = valueMode === 'percent' ? 78 : 112
+
+  const lastRefreshLabel = useMemo(() => {
+    if (!lastPriceRefreshAt) return null
+    const date = new Date(lastPriceRefreshAt)
+    if (Number.isNaN(date.getTime())) return null
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Chicago',
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+      timeZoneName: 'short',
+    }).format(date)
+  }, [lastPriceRefreshAt])
 
   const refreshValues = async () => {
     if (lens === 'total') return
@@ -196,6 +215,9 @@ export default function PerformanceReports() {
       const json = await res.json() as ReportsResponse
       if (requestId === reportsRequestIdRef.current) {
         setData(json)
+        if (typeof json.latestPriceTimestamp === 'string' && json.latestPriceTimestamp) {
+          setLastPriceRefreshAt(json.latestPriceTimestamp)
+        }
       }
     } catch (err) {
       if (requestId !== reportsRequestIdRef.current) return
@@ -221,6 +243,8 @@ export default function PerformanceReports() {
       if (!res.ok) {
         throw new Error(`Price refresh failed (${res.status})`)
       }
+      const refreshJson = await res.json().catch(() => null) as { refreshedAt?: string } | null
+      setLastPriceRefreshAt(typeof refreshJson?.refreshedAt === 'string' ? refreshJson.refreshedAt : new Date().toISOString())
       // Re-fetch reports with fresh prices
       await fetchReports()
     } catch {
@@ -583,6 +607,12 @@ export default function PerformanceReports() {
             {loading ? 'Hold...' : 'Refresh Prices'}
           </Button>
         </div>
+
+        {lastRefreshLabel && (
+          <div className="w-full text-xs text-muted-foreground">
+            Last price refresh: {lastRefreshLabel} (US Central)
+          </div>
+        )}
       </div>
 
       {loading && <div className="text-center py-12">Loading performance reports...</div>}
