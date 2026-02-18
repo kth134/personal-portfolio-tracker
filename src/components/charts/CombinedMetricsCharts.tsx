@@ -6,10 +6,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import PortfolioValueBridge from '@/components/charts/PortfolioValueBridge'
 
 const COLORS = {
-  net: '#3b82f6',
-  income: '#10b981',
-  realized: '#f59e0b',
-  unrealized: '#ef4444',
+  income: '#3b82f6',
+  realized: '#8b5cf6',
+  unrealized: '#f59e0b',
+  netPositive: '#10b981',
+  netNegative: '#ef4444',
   total: '#334155',
   positive: '#10b981',
   negative: '#ef4444',
@@ -72,7 +73,29 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
         dateAgg.set(key, agg)
       })
     })
-    return Array.from(dateAgg.values()).sort((a, b) => a.date.localeCompare(b.date))
+    const sorted = Array.from(dateAgg.values()).sort((a, b) => a.date.localeCompare(b.date))
+    if (!sorted.length) return sorted
+
+    const first = sorted[0]
+    const firstIncome = Number(first?.income || 0)
+    const firstRealized = Number(first?.realized || 0)
+    const firstPortfolioValue = Number(first?.portfolioValue || 0)
+
+    return sorted.map((point) => {
+      const currentPortfolioValue = Number(point?.portfolioValue || 0)
+      const incomeDelta = Number(point?.income || 0) - firstIncome
+      const realizedDelta = Number(point?.realized || 0) - firstRealized
+      const unrealizedDelta = (currentPortfolioValue - firstPortfolioValue) - incomeDelta - realizedDelta
+      const netGain = incomeDelta + realizedDelta + unrealizedDelta
+
+      return {
+        ...point,
+        income: incomeDelta,
+        realized: realizedDelta,
+        unrealized: unrealizedDelta,
+        netGain,
+      }
+    })
   }, [data])
 
   const valueBridgeInput = useMemo(() => {
@@ -86,6 +109,11 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
     const unrealized = apiTerminalValue - startValue - income - realized
 
     return { startValue, apiTerminalValue, income, realized, unrealized }
+  }, [combinedLineData])
+
+  const netGainColor = useMemo(() => {
+    const lastNetGain = Number(combinedLineData[combinedLineData.length - 1]?.netGain || 0)
+    return lastNetGain < 0 ? COLORS.netNegative : COLORS.netPositive
   }, [combinedLineData])
 
   return (
@@ -103,10 +131,10 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
               <YAxis tickFormatter={axisFormatter} tickMargin={10} width={108} />
               <Tooltip formatter={(value) => formatUSDWhole(Number(value || 0))} />
               <Legend />
-              <Line type="monotone" dataKey="netGain" name="Net G/L" stroke={COLORS.net} strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="income" name="Income" stroke={COLORS.income} strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="realized" name="Realized" stroke={COLORS.realized} strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="unrealized" name="Unrealized" stroke={COLORS.unrealized} strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="income" name="Income" stroke={COLORS.income} strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="realized" name="Realized G/L" stroke={COLORS.realized} strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="unrealized" name="Unrealized G/L" stroke={COLORS.unrealized} strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="netGain" name="Net G/L" stroke={netGainColor} strokeWidth={2.5} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>

@@ -218,7 +218,7 @@ export default function PortfolioValueBridge({ input }: Props) {
       </div>
       <div className="h-[320px] sm:h-full w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 16, right: 14, left: 8, bottom: isMobile ? 20 : 36 }} barCategoryGap={12}>
+          <ComposedChart data={rows} margin={{ top: 16, right: 14, left: 8, bottom: isMobile ? 20 : 36 }} barCategoryGap={2} barGap={0}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="name"
