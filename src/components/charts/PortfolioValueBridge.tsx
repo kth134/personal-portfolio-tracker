@@ -58,6 +58,13 @@ function formatWholeCurrency(value: number): string {
   return FULL_CURRENCY.format(value || 0)
 }
 
+function formatSignedCurrency(value: number): string {
+  const abs = formatWholeCurrency(Math.abs(value))
+  if (value > 0) return `+${abs}`
+  if (value < 0) return `-${abs}`
+  return abs
+}
+
 function toFiniteNumber(value: number): number {
   return Number.isFinite(value) ? value : 0
 }
@@ -177,6 +184,13 @@ export default function PortfolioValueBridge({ input }: Props) {
     return [minValue - padding, maxValue + padding]
   }, [rows])
 
+  const netGainLoss = useMemo(() => {
+    if (!rows.length) return 0
+    const start = Number(rows[0]?.runningTotal || 0)
+    const end = Number(rows[rows.length - 1]?.runningTotal || 0)
+    return end - start
+  }, [rows])
+
   const tooltipContent = ({ active, payload }: TooltipContentProps<number, string>) => {
     if (!active || !payload?.length) return null
     const row = payload[0]?.payload as BridgeRow | undefined
@@ -193,6 +207,15 @@ export default function PortfolioValueBridge({ input }: Props) {
 
   return (
     <div className="space-y-3 h-full">
+      <div className="flex items-center justify-end text-sm">
+        <span className="text-muted-foreground mr-2">Net Gain / Loss</span>
+        <span
+          className="font-semibold"
+          style={{ color: netGainLoss > 0 ? BRIDGE_COLORS.positive : netGainLoss < 0 ? BRIDGE_COLORS.negative : undefined }}
+        >
+          {formatSignedCurrency(netGainLoss)}
+        </span>
+      </div>
       <div className="h-[320px] sm:h-full w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={rows} margin={{ top: 16, right: 14, left: 8, bottom: isMobile ? 20 : 36 }} barCategoryGap={16}>
@@ -211,12 +234,12 @@ export default function PortfolioValueBridge({ input }: Props) {
             <Tooltip content={tooltipContent} />
             <Line type="linear" dataKey="runningTotal" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 4" dot={false} activeDot={false} isAnimationActive={false} />
             <Bar dataKey="stepOffset" stackId="steps" fillOpacity={0} strokeOpacity={0} isAnimationActive={false} />
-            <Bar dataKey="stepValue" stackId="steps" radius={[6, 6, 0, 0]} barSize={30} isAnimationActive={false}>
+            <Bar dataKey="stepValue" stackId="steps" radius={[6, 6, 0, 0]} barSize={38} isAnimationActive={false}>
               {rows.map((row) => (
                 <Cell key={`step-${row.name}`} fill={row.isAnchor ? 'transparent' : row.fill} stroke={row.isAnchor ? 'transparent' : row.fill} strokeWidth={1} />
               ))}
             </Bar>
-            <Bar dataKey="anchorValue" stackId="anchors" radius={[6, 6, 0, 0]} barSize={40} isAnimationActive={false}>
+            <Bar dataKey="anchorValue" stackId="anchors" radius={[6, 6, 0, 0]} barSize={46} isAnimationActive={false}>
               {rows.map((row) => (
                 <Cell key={`anchor-${row.name}`} fill={row.isAnchor ? row.fill : 'transparent'} stroke={row.isAnchor ? row.fill : 'transparent'} strokeWidth={1} />
               ))}

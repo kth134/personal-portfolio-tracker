@@ -480,6 +480,14 @@ export async function POST(req: Request) {
       assetBreakdownCount: Object.keys(assetBreakdown).length,
     })
 
+    // Normalize gain components to first plotted point so all downstream totals/charts
+    // align with the same period-buildup semantics as the value bridge.
+    Object.values(series).forEach(rebaseGainComponentsFromFirstPoint)
+    Object.values(assetSeries).forEach(groupMap => {
+      Object.values(groupMap).forEach(rebaseGainComponentsFromFirstPoint)
+    })
+    Object.values(assetBreakdown).forEach(rebaseGainComponentsFromFirstPoint)
+
     // TWR should be based on first in-range portfolio value (matching chart expectation)
     Object.values(series).forEach(applyTWRFromFirstValue)
     Object.values(assetSeries).forEach(groupMap => {
@@ -770,6 +778,30 @@ function applyTWRFromFirstValue(points: ReportPoint[]) {
     const pv = Number(p?.portfolioValue || 0)
     const twr = firstPV > 0 ? ((pv / firstPV) - 1) * 100 : 0
     p.twr = twr
+  })
+}
+
+function rebaseGainComponentsFromFirstPoint(points: ReportPoint[]) {
+  if (!points || points.length === 0) return
+
+  const baseline = points[0]
+  const baseUnrealized = Number(baseline?.unrealized || 0)
+  const baseRealized = Number(baseline?.realized || 0)
+  const baseIncome = Number(baseline?.income || 0)
+  const basePortfolioValue = Number(baseline?.portfolioValue || 0)
+
+  points.forEach((point) => {
+    const unrealized = Number(point?.unrealized || 0) - baseUnrealized
+    const realized = Number(point?.realized || 0) - baseRealized
+    const income = Number(point?.income || 0) - baseIncome
+    const netGain = unrealized + realized + income
+    const totalReturnPct = basePortfolioValue > 0 ? (netGain / basePortfolioValue) * 100 : 0
+
+    point.unrealized = unrealized
+    point.realized = realized
+    point.income = income
+    point.netGain = netGain
+    point.totalReturnPct = totalReturnPct
   })
 }
 
