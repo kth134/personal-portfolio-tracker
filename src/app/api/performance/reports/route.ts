@@ -673,9 +673,15 @@ function calculatePortfolioStateAtDate(
     if (!assetId) return
     if (tx.type === 'Buy') {
       const qty = Number(tx.quantity || 0)
+      if (qty <= 0) return
+      const rawAmount = Math.abs(Number(tx.amount || 0))
+      const fee = Math.abs(Number(tx.fees || 0))
       const prc = Number(tx.price_per_unit || 0)
+      const basisPerUnit = rawAmount > 0
+        ? rawAmount / qty
+        : (prc > 0 ? prc + (fee / qty) : 0)
       if (!assetLots.has(assetId)) assetLots.set(assetId, [])
-      assetLots.get(assetId)!.push({ qty, basis: prc })
+      assetLots.get(assetId)!.push({ qty, basis: basisPerUnit })
     } else if (tx.type === 'Sell') {
       const qty = Number(tx.quantity || 0)
       if (assetLots.has(assetId)) {
