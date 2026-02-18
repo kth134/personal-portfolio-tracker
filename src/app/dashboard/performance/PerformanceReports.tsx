@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect, Fragment } from 'react'
+import { useMemo, useState, useEffect, Fragment, useRef } from 'react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
 import CombinedMetricsCharts from '@/components/charts/CombinedMetricsCharts'
 import { Button } from '@/components/ui/button'
@@ -136,8 +136,11 @@ export default function PerformanceReports() {
   const [returnMode, setReturnMode] = useState<'both' | 'twr' | 'mwr'>('both')
   const [selectedBenchmarks, setSelectedBenchmarks] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<ReportsResponse | null>(null)
   const [valuesLoading, setValuesLoading] = useState(false)
+  const reportsAbortRef = useRef<AbortController | null>(null)
+  const reportsRequestIdRef = useRef(0)
   const axisWidth = valueMode === 'percent' ? 78 : 112
 
   const refreshValues = async () => {
@@ -159,7 +162,14 @@ export default function PerformanceReports() {
   }
 
   const fetchReports = async () => {
+    const requestId = ++reportsRequestIdRef.current
+    reportsAbortRef.current?.abort()
+    const controller = new AbortController()
+    reportsAbortRef.current = controller
+    const timeout = setTimeout(() => controller.abort(), 20000)
+
     setLoading(true)
+    setError(null)
     try {
       const payload = {
         lens,
@@ -176,21 +186,45 @@ export default function PerformanceReports() {
         body: JSON.stringify(payload),
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        signal: controller.signal,
       })
+
+      if (!res.ok) {
+        throw new Error(`Request failed (${res.status})`)
+      }
+
       const json = await res.json() as ReportsResponse
-      setData(json)
+      if (requestId === reportsRequestIdRef.current) {
+        setData(json)
+      }
+    } catch (err) {
+      if (requestId !== reportsRequestIdRef.current) return
+      if ((err as DOMException)?.name === 'AbortError') {
+        setError('Performance reports timed out. Please try again.')
+        return
+      }
+      setError('Failed to load performance reports. Please retry.')
     } finally {
-      setLoading(false)
+      clearTimeout(timeout)
+      if (requestId === reportsRequestIdRef.current) {
+        setLoading(false)
+      }
     }
   }
 
   const refreshPrices = async () => {
     setLoading(true)
+    setError(null)
     try {
       // Trigger price refresh for portfolio assets and benchmarks
-      await fetch('/api/fetch-prices', { method: 'POST', credentials: 'include' })
+      const res = await fetch('/api/fetch-prices', { method: 'POST', credentials: 'include' })
+      if (!res.ok) {
+        throw new Error(`Price refresh failed (${res.status})`)
+      }
       // Re-fetch reports with fresh prices
       await fetchReports()
+    } catch {
+      setError('Unable to refresh prices right now. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -217,6 +251,12 @@ export default function PerformanceReports() {
     fetchReports()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lens, selectedValues, aggregate, period, customStart, customEnd, granularity, selectedBenchmarks])
+
+  useEffect(() => {
+    return () => {
+      reportsAbortRef.current?.abort()
+    }
+  }, [])
 
   // Main chart series (aggregate mode or total portfolio)
   const chartSeries = useMemo(() => {
@@ -546,6 +586,7 @@ export default function PerformanceReports() {
       </div>
 
       {loading && <div className="text-center py-12">Loading performance reports...</div>}
+      {!loading && error && <div className="text-center py-4 text-sm text-destructive">{error}</div>}
 
       {!loading && (
         <>

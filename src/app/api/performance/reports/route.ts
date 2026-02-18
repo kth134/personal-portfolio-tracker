@@ -78,10 +78,26 @@ type ReportTotals = {
 }
 
 export async function POST(req: Request) {
+  const requestStartedAt = Date.now()
+  const requestId = Math.random().toString(36).slice(2, 10)
+  let lastCheckpoint = requestStartedAt
+  const logPhase = (phase: string, details?: Record<string, unknown>) => {
+    const now = Date.now()
+    const totalMs = now - requestStartedAt
+    const phaseMs = now - lastCheckpoint
+    lastCheckpoint = now
+    if (details) {
+      console.info(`[performance-reports][${requestId}] ${phase} (+${phaseMs}ms, total ${totalMs}ms)`, details)
+      return
+    }
+    console.info(`[performance-reports][${requestId}] ${phase} (+${phaseMs}ms, total ${totalMs}ms)`)
+  }
+
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    logPhase('authenticated', { userId: user.id })
 
     const body = await req.json()
     const {
@@ -94,12 +110,22 @@ export async function POST(req: Request) {
       granularity = 'monthly',
       benchmarks = [],
     } = body
+    logPhase('parsed-request', {
+      lens,
+      aggregate,
+      period,
+      granularity,
+      selectedValuesCount: Array.isArray(selectedValues) ? selectedValues.length : 0,
+      benchmarksCount: Array.isArray(benchmarks) ? benchmarks.length : 0,
+    })
     const allTx = (await fetchAllUserTransactionsServer(supabase, user.id)) as TransactionEntry[]
+    logPhase('fetched-transactions', { transactionCount: allTx.length })
 
     const inceptionDate = allTx.length
       ? allTx.reduce((min, tx) => (tx.date < min ? tx.date : min), allTx[0].date)
       : format(new Date(), 'yyyy-MM-dd')
     const { start, end } = resolveDateRange(period, startDate, endDate, inceptionDate)
+    logPhase('resolved-date-range', { start, end, inceptionDate })
     
     // Fetch sub-portfolios and accounts for name lookup
     const { data: subPortfolios } = await supabase
@@ -110,6 +136,10 @@ export async function POST(req: Request) {
       .from('accounts')
       .select('id, name')
       .eq('user_id', user.id)
+    logPhase('fetched-lookups', {
+      subPortfolioCount: subPortfolios?.length || 0,
+      accountCount: accounts?.length || 0,
+    })
     
     const subPortfolioNames = new Map(subPortfolios?.map(sp => [sp.id, sp.name]) || [])
     const accountNames = new Map(accounts?.map(acc => [acc.id, acc.name]) || [])
@@ -126,8 +156,10 @@ export async function POST(req: Request) {
         asset:assets (id, ticker, asset_type, asset_subtype, geography, size_tag, factor_tag, sub_portfolio_id)
       `)
       .eq('user_id', user.id)
+    logPhase('fetched-tax-lots', { lotCount: allLotsRaw?.length || 0 })
 
     if (!allTx || allTx.length === 0) {
+      logPhase('empty-transactions-return')
       return NextResponse.json({ series: {}, totals: {}, benchmarks: {} })
     }
 
@@ -161,10 +193,18 @@ export async function POST(req: Request) {
     )]
 
     const allTickers: string[] = [...new Set([...portfolioTickers, ...benchmarkTickers])]
+    logPhase('prepared-tickers', {
+      portfolioTickerCount: portfolioTickers.length,
+      benchmarkTickerCount: benchmarkTickers.length,
+      totalTickerCount: allTickers.length,
+    })
 
     const historicalPrices = await getHistoricalPrices(supabase, allTickers, start, end, granularity)
+    logPhase('fetched-historical-prices', { tickerCount: Object.keys(historicalPrices).length })
     const currentPrices = await getCurrentPrices(supabase, allTickers)
+    logPhase('fetched-current-prices', { tickerCount: Object.keys(currentPrices).length })
     const benchmarkSeries = await getBenchmarkSeries(supabase, benchmarks, start, end, granularity)
+    logPhase('fetched-benchmark-series', { benchmarkCount: Object.keys(benchmarkSeries).length })
 
     const series: Record<string, ReportPoint[]> = {}
     const assetSeries: Record<string, Record<string, ReportPoint[]>> = {} // For non-aggregate mode: group -> asset -> data
@@ -172,6 +212,7 @@ export async function POST(req: Request) {
     const assetTotals: Record<string, Record<string, ReportTotals>> = {} // For non-aggregate mode
     const assetBreakdown: Record<string, ReportPoint[]> = {} // For total portfolio non-aggregate mode
     const startStateTxAll = allTx.filter(tx => tx.date < start)
+    logPhase('prepared-series-structures', { dateCount: dates.length })
 
     for (const d of dates) {
       const filteredTx = allTx.filter(tx => tx.date <= d)
@@ -420,6 +461,11 @@ export async function POST(req: Request) {
         })
       }
     }
+    logPhase('built-series-data', {
+      seriesCount: Object.keys(series).length,
+      assetSeriesGroupCount: Object.keys(assetSeries).length,
+      assetBreakdownCount: Object.keys(assetBreakdown).length,
+    })
 
     // TWR should be based on first in-range portfolio value (matching chart expectation)
     Object.values(series).forEach(applyTWRFromFirstValue)
@@ -429,6 +475,7 @@ export async function POST(req: Request) {
     Object.values(assetBreakdown).forEach(applyTWRFromFirstValue)
 
     Object.assign(totals, buildTotalsFromSeries(series))
+    logPhase('built-totals', { totalsCount: Object.keys(totals).length })
 
     // Calculate totals for non-aggregate mode (asset level)
     for (const groupKey of Object.keys(assetSeries)) {
@@ -446,17 +493,28 @@ export async function POST(req: Request) {
         }
       }
     }
+    logPhase('built-asset-totals', { groupCount: Object.keys(assetTotals).length })
 
-    return NextResponse.json({ 
-      series, 
-      totals, 
+    const responsePayload = {
+      series,
+      totals,
       benchmarks: benchmarkSeries,
       assetSeries: lens !== 'total' && !aggregate ? assetSeries : undefined,
       assetTotals: lens !== 'total' && !aggregate ? assetTotals : undefined,
       assetBreakdown: lens === 'total' && !aggregate ? assetBreakdown : undefined,
+    }
+
+    logPhase('responding', {
+      responseSeriesCount: Object.keys(series).length,
+      includeAssetSeries: Boolean(responsePayload.assetSeries),
+      includeAssetTotals: Boolean(responsePayload.assetTotals),
+      includeAssetBreakdown: Boolean(responsePayload.assetBreakdown),
     })
+
+    return NextResponse.json(responsePayload)
   } catch (error) {
-    console.error(error)
+    const totalMs = Date.now() - requestStartedAt
+    console.error(`[performance-reports][${requestId}] failed after ${totalMs}ms`, error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
