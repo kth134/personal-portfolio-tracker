@@ -22,8 +22,9 @@ type BridgeRow = {
   name: string
   shortName: string
   range: [number, number]
-  offset: number
-  value: number
+  anchorValue: number
+  stepOffset: number
+  stepValue: number
   delta: number
   runningTotal: number
   isAnchor: boolean
@@ -87,8 +88,9 @@ function buildPortfolioValueBridge(input: RawBridgeInput): BridgeRow[] {
       name: 'Starting Value',
       shortName: 'Start',
       range: [0, startValue],
-      offset: Math.min(0, startValue),
-      value: Math.abs(startValue),
+      anchorValue: Math.abs(startValue),
+      stepOffset: 0,
+      stepValue: 0,
       delta: startValue,
       runningTotal: startValue,
       isAnchor: true,
@@ -98,8 +100,9 @@ function buildPortfolioValueBridge(input: RawBridgeInput): BridgeRow[] {
       name: 'Income',
       shortName: 'Income',
       range: [startValue, step1],
-      offset: Math.min(startValue, step1),
-      value: Math.abs(income),
+      anchorValue: 0,
+      stepOffset: Math.min(startValue, step1),
+      stepValue: Math.abs(income),
       delta: income,
       runningTotal: step1,
       isAnchor: false,
@@ -109,8 +112,9 @@ function buildPortfolioValueBridge(input: RawBridgeInput): BridgeRow[] {
       name: 'Realized Gain/Loss',
       shortName: 'Realized',
       range: [step1, step2],
-      offset: Math.min(step1, step2),
-      value: Math.abs(realized),
+      anchorValue: 0,
+      stepOffset: Math.min(step1, step2),
+      stepValue: Math.abs(realized),
       delta: realized,
       runningTotal: step2,
       isAnchor: false,
@@ -120,8 +124,9 @@ function buildPortfolioValueBridge(input: RawBridgeInput): BridgeRow[] {
       name: 'Unrealized Gain/Loss',
       shortName: 'Unrealized',
       range: [step2, step3],
-      offset: Math.min(step2, step3),
-      value: Math.abs(unrealized),
+      anchorValue: 0,
+      stepOffset: Math.min(step2, step3),
+      stepValue: Math.abs(unrealized),
       delta: unrealized,
       runningTotal: step3,
       isAnchor: false,
@@ -131,8 +136,9 @@ function buildPortfolioValueBridge(input: RawBridgeInput): BridgeRow[] {
       name: 'Terminal Value',
       shortName: 'End',
       range: [0, reconciledTerminal],
-      offset: Math.min(0, reconciledTerminal),
-      value: Math.abs(reconciledTerminal),
+      anchorValue: Math.abs(reconciledTerminal),
+      stepOffset: 0,
+      stepValue: 0,
       delta: reconciledTerminal,
       runningTotal: reconciledTerminal,
       isAnchor: true,
@@ -204,10 +210,15 @@ export default function PortfolioValueBridge({ input }: Props) {
             <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
             <Tooltip content={tooltipContent} />
             <Line type="linear" dataKey="runningTotal" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 4" dot={false} activeDot={false} isAnimationActive={false} />
-            <Bar dataKey="offset" stackId="value-bridge" fill="transparent" stroke="transparent" isAnimationActive={false} />
-            <Bar dataKey="value" stackId="value-bridge" radius={[6, 6, 0, 0]} barSize={36} isAnimationActive={false}>
+            <Bar dataKey="stepOffset" stackId="steps" fillOpacity={0} strokeOpacity={0} isAnimationActive={false} />
+            <Bar dataKey="stepValue" stackId="steps" radius={[6, 6, 0, 0]} barSize={30} isAnimationActive={false}>
               {rows.map((row) => (
-                <Cell key={row.name} fill={row.fill} stroke={row.fill} strokeWidth={1} />
+                <Cell key={`step-${row.name}`} fill={row.isAnchor ? 'transparent' : row.fill} stroke={row.isAnchor ? 'transparent' : row.fill} strokeWidth={1} />
+              ))}
+            </Bar>
+            <Bar dataKey="anchorValue" stackId="anchors" radius={[6, 6, 0, 0]} barSize={40} isAnimationActive={false}>
+              {rows.map((row) => (
+                <Cell key={`anchor-${row.name}`} fill={row.isAnchor ? row.fill : 'transparent'} stroke={row.isAnchor ? row.fill : 'transparent'} strokeWidth={1} />
               ))}
             </Bar>
           </ComposedChart>
