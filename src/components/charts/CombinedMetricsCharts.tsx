@@ -19,6 +19,7 @@ const COLORS = {
 interface MetricsPoint {
   date: string
   netGain?: number
+  netContributions?: number
   income?: number
   realized?: number
   unrealized?: number
@@ -55,6 +56,7 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
     type AggregatedPoint = {
       date: string
       netGain: number
+      netContributions: number
       income: number
       realized: number
       unrealized: number
@@ -64,8 +66,9 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
     Object.values(data.series).forEach(points => {
       points.forEach(p => {
         const key = p.date
-        const agg = dateAgg.get(key) || { date: key, netGain: 0, income: 0, realized: 0, unrealized: 0, portfolioValue: 0 }
+        const agg = dateAgg.get(key) || { date: key, netGain: 0, netContributions: 0, income: 0, realized: 0, unrealized: 0, portfolioValue: 0 }
         agg.netGain += p.netGain || 0
+        agg.netContributions += p.netContributions || 0
         agg.income += p.income || 0
         agg.realized += p.realized || 0
         agg.unrealized += p.unrealized || 0
@@ -77,19 +80,22 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
     if (!sorted.length) return sorted
 
     const first = sorted[0]
+    const firstNetContributions = Number(first?.netContributions || 0)
     const firstIncome = Number(first?.income || 0)
     const firstRealized = Number(first?.realized || 0)
     const firstPortfolioValue = Number(first?.portfolioValue || 0)
 
     return sorted.map((point) => {
       const currentPortfolioValue = Number(point?.portfolioValue || 0)
+      const netContributionsDelta = Number(point?.netContributions || 0) - firstNetContributions
       const incomeDelta = Number(point?.income || 0) - firstIncome
       const realizedDelta = Number(point?.realized || 0) - firstRealized
-      const unrealizedDelta = (currentPortfolioValue - firstPortfolioValue) - incomeDelta - realizedDelta
+      const unrealizedDelta = (currentPortfolioValue - firstPortfolioValue) - netContributionsDelta - incomeDelta - realizedDelta
       const netGain = incomeDelta + realizedDelta + unrealizedDelta
 
       return {
         ...point,
+        netContributions: netContributionsDelta,
         income: incomeDelta,
         realized: realizedDelta,
         unrealized: unrealizedDelta,
@@ -104,11 +110,12 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
     const lastPoint = combinedLineData[combinedLineData.length - 1]
     const startValue = Number(firstPoint?.portfolioValue ?? 0)
     const apiTerminalValue = Number(lastPoint?.portfolioValue ?? 0)
-    const income = Number(lastPoint?.income ?? 0) - Number(firstPoint?.income ?? 0)
-    const realized = Number(lastPoint?.realized ?? 0) - Number(firstPoint?.realized ?? 0)
-    const unrealized = apiTerminalValue - startValue - income - realized
+    const netContributions = Number(lastPoint?.netContributions ?? 0)
+    const income = Number(lastPoint?.income ?? 0)
+    const realized = Number(lastPoint?.realized ?? 0)
+    const unrealized = Number(lastPoint?.unrealized ?? 0)
 
-    return { startValue, apiTerminalValue, income, realized, unrealized }
+    return { startValue, apiTerminalValue, netContributions, income, realized, unrealized }
   }, [combinedLineData])
 
   const netGainColor = useMemo(() => {
@@ -145,7 +152,7 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
           <h4 className="text-lg font-semibold mb-1">
             Portfolio Value Bridge
           </h4>
-          <p className="text-sm text-muted-foreground mb-4">Starting Value → Income → Realized → Unrealized → Terminal Value</p>
+          <p className="text-sm text-muted-foreground mb-4">Starting Value → Net Contributions → Income → Realized → Unrealized → Terminal Value</p>
           <PortfolioValueBridge input={valueBridgeInput} />
         </CardContent>
       </Card>

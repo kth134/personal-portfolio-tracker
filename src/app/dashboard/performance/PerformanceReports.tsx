@@ -86,6 +86,7 @@ type ReportPoint = {
   date: string
   portfolioValue?: number
   netGain?: number
+  netContributions?: number
   unrealized?: number
   realized?: number
   income?: number
@@ -349,6 +350,7 @@ export default function PerformanceReports() {
   interface MetricsPoint {
     date: string
     netGain: number
+    netContributions?: number
     income: number
     realized: number
     unrealized: number
@@ -363,6 +365,7 @@ export default function PerformanceReports() {
       sliceSeries[assetKey] = points.map(p => ({
         date: p.date,
         netGain: p.netGain || 0,
+        netContributions: p.netContributions || 0,
         income: p.income || 0,
         realized: p.realized || 0,
         unrealized: p.unrealized || 0,
@@ -390,6 +393,7 @@ export default function PerformanceReports() {
         sliceSeries[assetKey] = points.map(p => ({
           date: p.date,
           netGain: p.netGain || 0,
+          netContributions: p.netContributions || 0,
           income: p.income || 0,
           realized: p.realized || 0,
           unrealized: p.unrealized || 0,
@@ -441,7 +445,8 @@ export default function PerformanceReports() {
       const endValue = Number(last?.portfolioValue || 0)
       const income = Number(last?.income || 0) - Number(first?.income || 0)
       const realized = Number(last?.realized || 0) - Number(first?.realized || 0)
-      const unrealized = endValue - startValue - income - realized
+      const netContributions = Number(last?.netContributions || 0) - Number(first?.netContributions || 0)
+      const unrealized = endValue - startValue - netContributions - income - realized
       const netGain = income + realized + unrealized
       const totalReturnPct = startValue > 0 ? (netGain / startValue) * 100 : 0
       const irr = Number(data.totals?.aggregated?.irr || 0)

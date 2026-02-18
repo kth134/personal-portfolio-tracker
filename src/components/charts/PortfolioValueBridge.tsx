@@ -13,6 +13,7 @@ const BRIDGE_COLORS = {
 type RawBridgeInput = {
   startValue: number
   apiTerminalValue: number
+  netContributions: number
   income: number
   realized: number
   unrealized: number
@@ -77,18 +78,20 @@ function getTolerance(startValue: number, endValue: number): number {
 function buildPortfolioValueBridge(input: RawBridgeInput): BridgeRow[] {
   const startValue = toFiniteNumber(input.startValue)
   const apiTerminalValue = toFiniteNumber(input.apiTerminalValue)
+  const netContributions = toFiniteNumber(input.netContributions)
   const income = toFiniteNumber(input.income)
   const realized = toFiniteNumber(input.realized)
   const unrealized = toFiniteNumber(input.unrealized)
 
-  const theoreticalTerminal = startValue + income + realized + unrealized
+  const theoreticalTerminal = startValue + netContributions + income + realized + unrealized
   const checksumTolerance = getTolerance(startValue, apiTerminalValue)
   const checksumDelta = Math.abs(theoreticalTerminal - apiTerminalValue)
   const reconciledTerminal = checksumDelta <= checksumTolerance ? theoreticalTerminal : apiTerminalValue
 
-  const step1 = startValue + income
-  const step2 = step1 + realized
-  const step3 = step2 + unrealized
+  const step1 = startValue + netContributions
+  const step2 = step1 + income
+  const step3 = step2 + realized
+  const step4 = step3 + unrealized
 
   const rows: BridgeRow[] = [
     {
@@ -104,38 +107,50 @@ function buildPortfolioValueBridge(input: RawBridgeInput): BridgeRow[] {
       fill: BRIDGE_COLORS.anchor,
     },
     {
-      name: 'Income',
-      shortName: 'Income',
+      name: 'Net Contributions',
+      shortName: 'Contrib',
       range: [startValue, step1],
       anchorValue: 0,
       stepOffset: Math.min(startValue, step1),
+      stepValue: Math.abs(netContributions),
+      delta: netContributions,
+      runningTotal: step1,
+      isAnchor: false,
+      fill: netContributions >= 0 ? BRIDGE_COLORS.positive : BRIDGE_COLORS.negative,
+    },
+    {
+      name: 'Income',
+      shortName: 'Income',
+      range: [step1, step2],
+      anchorValue: 0,
+      stepOffset: Math.min(step1, step2),
       stepValue: Math.abs(income),
       delta: income,
-      runningTotal: step1,
+      runningTotal: step2,
       isAnchor: false,
       fill: income >= 0 ? BRIDGE_COLORS.positive : BRIDGE_COLORS.negative,
     },
     {
       name: 'Realized Gain/Loss',
       shortName: 'Realized',
-      range: [step1, step2],
+      range: [step2, step3],
       anchorValue: 0,
-      stepOffset: Math.min(step1, step2),
+      stepOffset: Math.min(step2, step3),
       stepValue: Math.abs(realized),
       delta: realized,
-      runningTotal: step2,
+      runningTotal: step3,
       isAnchor: false,
       fill: realized >= 0 ? BRIDGE_COLORS.positive : BRIDGE_COLORS.negative,
     },
     {
       name: 'Unrealized Gain/Loss',
       shortName: 'Unrealized',
-      range: [step2, step3],
+      range: [step3, step4],
       anchorValue: 0,
-      stepOffset: Math.min(step2, step3),
+      stepOffset: Math.min(step3, step4),
       stepValue: Math.abs(unrealized),
       delta: unrealized,
-      runningTotal: step3,
+      runningTotal: step4,
       isAnchor: false,
       fill: unrealized >= 0 ? BRIDGE_COLORS.positive : BRIDGE_COLORS.negative,
     },
@@ -186,9 +201,10 @@ export default function PortfolioValueBridge({ input }: Props) {
 
   const netGainLoss = useMemo(() => {
     if (!rows.length) return 0
-    const start = Number(rows[0]?.runningTotal || 0)
-    const end = Number(rows[rows.length - 1]?.runningTotal || 0)
-    return end - start
+    const income = Number(rows.find((row) => row.name === 'Income')?.delta || 0)
+    const realized = Number(rows.find((row) => row.name === 'Realized Gain/Loss')?.delta || 0)
+    const unrealized = Number(rows.find((row) => row.name === 'Unrealized Gain/Loss')?.delta || 0)
+    return income + realized + unrealized
   }, [rows])
 
   const tooltipContent = ({ active, payload }: TooltipContentProps<number, string>) => {

@@ -56,6 +56,7 @@ type TaxLotEntry = {
 type MetricsCalc = {
   portfolioValue: number
   netGain: number
+  netContributions: number
   unrealized: number
   realized: number
   income: number
@@ -234,9 +235,13 @@ export async function POST(req: Request) {
 
       // Get group mapping for all assets (needed for both modes)
       const getAssetGroupId = (asset: AssetMeta | null | undefined, lotAccountId?: string): string | null => {
-        if (!asset) return null
         switch (lens) {
-          case 'account': return lotAccountId || asset.account_id || null
+          case 'account': return lotAccountId || asset?.account_id || null
+          default:
+            if (!asset) return null
+            break
+        }
+        switch (lens) {
           case 'sub_portfolio': return asset.sub_portfolio_id || null
           case 'asset_type': return asset.asset_type || null
           case 'asset_subtype': return asset.asset_subtype || null
@@ -575,16 +580,21 @@ function calculateGroupMetrics(
     rangeStartDate,
   )
 
-  // Rebase unrealized to selected range start.
-  const unrealized = currentState.unrealized - startState.unrealized
-
-  // Match performance page semantics: realized/income come from transactions in selected period.
+  // Match performance page semantics: realized/income/contributions come from transactions in selected period.
   const realized = groupPeriodTxs.reduce((sum, tx) => sum + (Number(tx.realized_gain) || 0), 0)
   const dividends = groupPeriodTxs.reduce((sum, tx) => sum + (tx.type === 'Dividend' ? Number(tx.amount || 0) - Math.abs(Number(tx.fees || 0)) : 0), 0)
   const interest = groupPeriodTxs.reduce((sum, tx) => sum + (tx.type === 'Interest' ? Number(tx.amount || 0) - Math.abs(Number(tx.fees || 0)) : 0), 0)
   const income = dividends + interest
-  const netGain = unrealized + realized + income
+  const netContributions = groupPeriodTxs.reduce((sum, tx) => {
+    const type = tx.type || ''
+    if (type !== 'Deposit' && type !== 'Withdrawal') return sum
+    return sum + (Number(tx.amount || 0) - Math.abs(Number(tx.fees || 0)))
+  }, 0)
+
   const portfolioValue = currentState.portfolioValue
+  const valueDelta = portfolioValue - startState.portfolioValue
+  const unrealized = valueDelta - netContributions - realized - income
+  const netGain = unrealized + realized + income
   const totalReturnPct = startState.portfolioValue > 0 ? (netGain / startState.portfolioValue) * 100 : 0
 
   // Calculate IRR (MWR) using the centralized function
@@ -601,6 +611,7 @@ function calculateGroupMetrics(
   return {
     portfolioValue,
     netGain,
+    netContributions,
     unrealized,
     realized,
     income,
@@ -785,18 +796,21 @@ function rebaseGainComponentsFromFirstPoint(points: ReportPoint[]) {
   if (!points || points.length === 0) return
 
   const baseline = points[0]
-  const baseUnrealized = Number(baseline?.unrealized || 0)
+  const baseContributions = Number(baseline?.netContributions || 0)
   const baseRealized = Number(baseline?.realized || 0)
   const baseIncome = Number(baseline?.income || 0)
   const basePortfolioValue = Number(baseline?.portfolioValue || 0)
 
   points.forEach((point) => {
-    const unrealized = Number(point?.unrealized || 0) - baseUnrealized
+    const portfolioDelta = Number(point?.portfolioValue || 0) - basePortfolioValue
+    const netContributions = Number(point?.netContributions || 0) - baseContributions
     const realized = Number(point?.realized || 0) - baseRealized
     const income = Number(point?.income || 0) - baseIncome
+    const unrealized = portfolioDelta - netContributions - realized - income
     const netGain = unrealized + realized + income
     const totalReturnPct = basePortfolioValue > 0 ? (netGain / basePortfolioValue) * 100 : 0
 
+    point.netContributions = netContributions
     point.unrealized = unrealized
     point.realized = realized
     point.income = income
