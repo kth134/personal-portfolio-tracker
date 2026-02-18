@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ReferenceLine } from 'recharts'
+import { ResponsiveContainer, ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ReferenceLine, Line } from 'recharts'
 import type { TooltipContentProps } from 'recharts'
 
 const BRIDGE_COLORS = {
@@ -189,7 +189,7 @@ export default function PortfolioValueBridge({ input }: Props) {
     <div className="space-y-3 h-full">
       <div className="h-[320px] sm:h-full w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 16, right: 14, left: 8, bottom: isMobile ? 20 : 36 }} barCategoryGap={16}>
+          <ComposedChart data={rows} margin={{ top: 16, right: 14, left: 8, bottom: isMobile ? 20 : 36 }} barCategoryGap={16}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="name"
@@ -203,13 +203,14 @@ export default function PortfolioValueBridge({ input }: Props) {
             <YAxis tickFormatter={formatCompactCurrency} tickMargin={10} width={90} domain={yDomain} />
             <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
             <Tooltip content={tooltipContent} />
+            <Line type="linear" dataKey="runningTotal" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 4" dot={false} activeDot={false} isAnimationActive={false} />
             <Bar dataKey="offset" stackId="value-bridge" fill="transparent" stroke="transparent" isAnimationActive={false} />
-            <Bar dataKey="value" stackId="value-bridge" radius={[6, 6, 0, 0]} barSize={36}>
+            <Bar dataKey="value" stackId="value-bridge" radius={[6, 6, 0, 0]} barSize={36} isAnimationActive={false}>
               {rows.map((row) => (
                 <Cell key={row.name} fill={row.fill} stroke={row.fill} strokeWidth={1} />
               ))}
             </Bar>
-          </BarChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 

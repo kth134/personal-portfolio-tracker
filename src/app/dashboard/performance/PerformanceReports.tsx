@@ -663,13 +663,13 @@ export default function PerformanceReports() {
                     // Total portfolio: single portfolio line + benchmarks
                     <>
                       {(returnMode === 'both' || returnMode === 'twr') && (
-                        <Line type="monotone" dataKey="aggregated-twr" name="Portfolio TWR" stroke={COLORS[0]} />
+                        <Line type="monotone" dataKey="aggregated-twr" name="Portfolio TWR" stroke={COLORS[0]} strokeWidth={2.5} dot={false} />
                       )}
                       {(returnMode === 'both' || returnMode === 'mwr') && (
-                        <Line type="monotone" dataKey="aggregated-mwr" name="Portfolio MWR" stroke={COLORS[1]} />
+                        <Line type="monotone" dataKey="aggregated-mwr" name="Portfolio MWR" stroke={COLORS[1]} strokeWidth={2.5} dot={false} />
                       )}
                       {Object.keys(data?.benchmarks || {}).map((bm, i) => (
-                        <Line key={bm} type="monotone" dataKey={bm} name={BENCHMARKS.find(b => b.value === bm)?.label || bm} stroke={COLORS[i + 2]} />
+                        <Line key={bm} type="monotone" dataKey={bm} name={BENCHMARKS.find(b => b.value === bm)?.label || bm} stroke={COLORS[i + 2]} strokeWidth={2} dot={false} />
                       ))}
                     </>
                   ) : (
@@ -677,10 +677,10 @@ export default function PerformanceReports() {
                     Object.keys(data?.series || {}).map((key, i) => (
                       <Fragment key={key}>
                         {(returnMode === 'both' || returnMode === 'twr') && (
-                          <Line type="monotone" dataKey={`${key}-twr`} name={`${key} TWR`} stroke={COLORS[i % COLORS.length]} />
+                          <Line type="monotone" dataKey={`${key}-twr`} name={`${key} TWR`} stroke={COLORS[i % COLORS.length]} strokeWidth={2.5} dot={false} />
                         )}
                         {(returnMode === 'both' || returnMode === 'mwr') && (
-                          <Line type="monotone" dataKey={`${key}-mwr`} name={`${key} MWR`} stroke={COLORS[(i + 1) % COLORS.length]} />
+                          <Line type="monotone" dataKey={`${key}-mwr`} name={`${key} MWR`} stroke={COLORS[(i + 1) % COLORS.length]} strokeWidth={2.5} dot={false} />
                         )}
                       </Fragment>
                     ))
@@ -722,6 +722,8 @@ export default function PerformanceReports() {
                               dataKey={`${assetKey}-twr`} 
                               name={`${assetKey} TWR`} 
                               stroke={COLORS[i % COLORS.length]} 
+                              strokeWidth={2.5}
+                              dot={false}
                             />
                           ))}
                           {(returnMode === 'both' || returnMode === 'mwr') && assetKeys.map((assetKey, i) => (
@@ -731,6 +733,8 @@ export default function PerformanceReports() {
                               dataKey={`${assetKey}-mwr`} 
                               name={`${assetKey} MWR`} 
                               stroke={COLORS[(i + 5) % COLORS.length]} 
+                              strokeWidth={2.5}
+                              dot={false}
                               strokeDasharray="5 5"
                             />
                           ))}
@@ -768,10 +772,10 @@ export default function PerformanceReports() {
                   {Object.keys(data?.assetBreakdown || {}).map((assetKey, i) => (
                     <Fragment key={assetKey}>
                       {(returnMode === 'both' || returnMode === 'twr') && (
-                        <Line type="monotone" dataKey={`${assetKey}-twr`} name={`${assetKey} TWR`} stroke={COLORS[i % COLORS.length]} />
+                        <Line type="monotone" dataKey={`${assetKey}-twr`} name={`${assetKey} TWR`} stroke={COLORS[i % COLORS.length]} strokeWidth={2.5} dot={false} />
                       )}
                       {(returnMode === 'both' || returnMode === 'mwr') && (
-                        <Line type="monotone" dataKey={`${assetKey}-mwr`} name={`${assetKey} MWR`} stroke={COLORS[(i + 5) % COLORS.length]} strokeDasharray="5 5" />
+                        <Line type="monotone" dataKey={`${assetKey}-mwr`} name={`${assetKey} MWR`} stroke={COLORS[(i + 5) % COLORS.length]} strokeWidth={2.5} dot={false} strokeDasharray="5 5" />
                       )}
                     </Fragment>
                   ))}
