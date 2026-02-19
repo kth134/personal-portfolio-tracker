@@ -416,9 +416,9 @@ export default function RebalancingPage() {
               <AccordionItem key={sp.id} value={sp.id} className="border rounded-xl mb-6 overflow-hidden shadow-sm bg-background">
                 <AccordionTrigger className="bg-black text-white px-6 hover:bg-zinc-900 transition-all font-bold uppercase hover:no-underline">
                   <div className="flex justify-between w-full mr-6 items-center">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-1 min-w-0 items-center gap-1">
                         <span>{sp.name}</span>
-                        {hasBreach && <AlertTriangle className="w-4 h-4 text-yellow-400" />}
+                        {hasBreach && <AlertTriangle className="w-3 h-3 ml-0.5 flex-shrink-0 text-yellow-400" />}
                     </div>
                     <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-3 text-[10px] sm:text-sm font-mono opacity-90 font-bold sm:items-center items-end">
                       <span>Value: {formatUSDWhole(totalVal)}</span>
