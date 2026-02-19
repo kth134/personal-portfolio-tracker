@@ -420,7 +420,7 @@ export default function RebalancingPage() {
                         <span>{sp.name}</span>
                         {hasBreach && <AlertTriangle className="w-4 h-4 text-yellow-400" />}
                     </div>
-                    <div className="flex gap-6 text-[10px] md:text-sm font-mono opacity-90 font-bold">
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-3 text-[10px] sm:text-sm font-mono opacity-90 font-bold sm:items-center items-end">
                       <span>Value: {formatUSDWhole(totalVal)}</span>
                       <span>Alloc: {allocPct.toFixed(1)}%</span>
                       <span className="text-blue-200">Target: {targetAllocPct.toFixed(1)}%</span>
@@ -438,7 +438,7 @@ export default function RebalancingPage() {
                         <div className="flex items-center gap-3 pt-4 sm:pt-0"><Switch id={`band-mode-${sp.id}`} checked={sp.band_mode} onCheckedChange={(checked) => updateSubPortfolio(sp.id, 'band_mode', checked ? 1 : 0)} /><Label htmlFor={`band-mode-${sp.id}`} className="text-xs font-medium cursor-pointer">{sp.band_mode ? 'Conservative' : 'Absolute'} Mode</Label></div>
                     </div>
                     <div className="overflow-x-auto w-full overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-                      <Table className="w-full min-w-[1260px] table-fixed border-collapse">
+                      <Table className="w-full min-w-[1100px] table-fixed border-collapse">
                         <colgroup>
                           <col className="w-[15%]" />
                           <col className="w-[10%]" />
@@ -448,25 +448,25 @@ export default function RebalancingPage() {
                           <col className="w-[8%]" />
                           <col className="w-[8%]" />
                           <col className="w-[10%]" />
-                          <col className="w-[20%]" />
+                          <col className="w-[16%]" />
                         </colgroup>
                         <TableHeader className="bg-muted/30">
                           <TableRow>
                             <TableHead className="px-3 sm:px-4">
                               <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => handleSort('ticker')}>
-                                <span className="truncate">Asset</span>
+                                <span className="truncate">Ticker</span>
                                 <SortIcon col="ticker" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
                               <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('quantity')}>
-                                Quantity
+                                Qty
                                 <SortIcon col="quantity" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
                               <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('current_value')}>
-                                Value ($)
+                                Val ($)
                                 <SortIcon col="current_value" />
                               </button>
                             </TableHead>
@@ -478,13 +478,13 @@ export default function RebalancingPage() {
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right text-blue-600 font-bold">
                               <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('sub_portfolio_target_percentage')}>
-                                Target Weight
+                                Tgt Wt
                                 <SortIcon col="sub_portfolio_target_percentage" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
                               <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('implied_overall_target')}>
-                                Implied %
+                                Impl. %
                                 <SortIcon col="implied_overall_target" />
                               </button>
                             </TableHead>
@@ -495,7 +495,7 @@ export default function RebalancingPage() {
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-center whitespace-nowrap">Action</TableHead>
-                            <TableHead className="px-3 sm:px-4 text-right whitespace-nowrap">Tactical Suggestion</TableHead>
+                            <TableHead className="px-3 sm:px-4 text-right whitespace-nowrap">Suggest.</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -505,7 +505,7 @@ export default function RebalancingPage() {
                                 <div className="truncate">{i.ticker}</div>
                                 <div className="text-[10px] opacity-70 truncate">{i.name}</div>
                               </TableCell>
-                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(i.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(i.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(i.current_value)}</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.current_in_sp.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right">
