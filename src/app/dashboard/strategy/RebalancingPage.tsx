@@ -421,7 +421,7 @@ export default function RebalancingPage() {
                         {hasBreach && <AlertTriangle className="w-4 h-4 text-yellow-400" />}
                     </div>
                     <div className="flex gap-6 text-[10px] md:text-sm font-mono opacity-90 font-bold">
-                      <span>Value: {formatUSD(totalVal)}</span>
+                      <span>Value: {formatUSDWhole(totalVal)}</span>
                       <span>Alloc: {allocPct.toFixed(1)}%</span>
                       <span className="text-blue-200">Target: {targetAllocPct.toFixed(1)}%</span>
                       <span className={cn(subDrift > 0 ? "text-green-400" : (subDrift < 0 ? "text-red-400" : ""))}>
@@ -506,7 +506,7 @@ export default function RebalancingPage() {
                                 <div className="text-[10px] opacity-70 truncate">{i.name}</div>
                               </TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(i.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
-                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(i.current_value)}</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(i.current_value)}</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.current_in_sp.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right">
                                 <Input
@@ -525,7 +525,7 @@ export default function RebalancingPage() {
                                 ) : (
                                   <div className="flex flex-col">
                                     <span className={cn(i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span>
-                                    <span className="text-[12px] font-medium">{formatUSD(i.amount)}</span>
+                                    <span className="text-[12px] font-medium">{formatUSDWhole(i.amount)}</span>
                                   </div>
                                 )}
                               </TableCell>
@@ -534,14 +534,14 @@ export default function RebalancingPage() {
                                   const lines: any[] = []
                                   if (i.action === 'sell' && i.recommended_accounts?.length) {
                                     i.recommended_accounts.forEach((s: any, idx: number) => {
-                                      lines.push(<div key={`sell-${idx}`} className="text-blue-700">Sell from {s.name}: {formatUSD(s.amount)}</div>)
+                                      lines.push(<div key={`sell-${idx}`} className="text-blue-700">Sell from {s.name}: {formatUSDWhole(s.amount)}</div>)
                                     })
                                   }
                                   if (i.reinvestment_suggestions?.length) {
                                     i.reinvestment_suggestions.forEach((s: any, idx: number) => {
                                       const accountLabel = s.account_name ? ` (${s.account_name}${s.tax_status ? `, ${s.tax_status}` : ''})` : ''
                                       const label = s.from_ticker ? `Fund via ${s.from_ticker} sale${accountLabel}` : s.to_ticker ? `Use Funds to Buy ${s.to_ticker}` : 'Suggested'
-                                      lines.push(<div key={`re-${idx}`} className="text-blue-700">{label}: {formatUSD(s.amount)}</div>)
+                                      lines.push(<div key={`re-${idx}`} className="text-blue-700">{label}: {formatUSDWhole(s.amount)}</div>)
                                     })
                                   }
                                   return lines.length ? lines : <span className="opacity-40">-</span>
@@ -552,7 +552,7 @@ export default function RebalancingPage() {
                           <TableRow className="bg-zinc-900 text-white font-bold h-12 shadow-inner">
                             <TableCell className="px-3 sm:px-4 uppercase tracking-tighter text-white">Total</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">-</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{formatUSD(totalVal)}</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{formatUSDWhole(totalVal)}</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalWeight.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalTarget.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalImplied.toFixed(1)}%</TableCell>
