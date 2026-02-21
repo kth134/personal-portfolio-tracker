@@ -685,67 +685,35 @@ function calculatePortfolioStateAtDate(
 
   const { totalCash } = calculateCashBalances(stateTxs)
 
-  // Build open lots by simulating FIFO from transactions up to as-of date
-  const simulatedOpenLots: { asset_id: string, remaining_quantity: number, cost_basis_per_unit: number }[] = []
-  const assetLots = new Map<string, { qty: number, basis: number }[]>()
-
-  stateTxs.forEach(tx => {
+  // Historical valuation should be transaction-driven for consistency across
+  // all chart points (preset and custom ranges).
+  const quantitiesByAsset = new Map<string, number>()
+  stateTxs.forEach((tx) => {
     const assetId = tx.asset_id
     if (!assetId) return
-    if (tx.type === 'Buy') {
-      const qty = Number(tx.quantity || 0)
-      if (qty <= 0) return
-      const rawAmount = Math.abs(Number(tx.amount || 0))
-      const fee = Math.abs(Number(tx.fees || 0))
-      const prc = Number(tx.price_per_unit || 0)
-      const basisPerUnit = rawAmount > 0
-        ? rawAmount / qty
-        : (prc > 0 ? prc + (fee / qty) : 0)
-      if (!assetLots.has(assetId)) assetLots.set(assetId, [])
-      assetLots.get(assetId)!.push({ qty, basis: basisPerUnit })
-    } else if (tx.type === 'Sell') {
-      const qty = Number(tx.quantity || 0)
-      if (assetLots.has(assetId)) {
-        let remain = qty
-        const lots = assetLots.get(assetId)!
-        for (let i = 0; i < lots.length && remain > 0; i++) {
-          if (lots[i].qty > remain) {
-            lots[i].qty -= remain
-            remain = 0
-          } else {
-            remain -= lots[i].qty
-            lots[i].qty = 0
-          }
-        }
-        assetLots.set(assetId, lots.filter(l => l.qty > 0))
-      }
-    }
+    const qty = Number(tx.quantity || 0)
+    if (!Number.isFinite(qty) || qty === 0) return
+    const type = tx.type || ''
+    if (type !== 'Buy' && type !== 'Sell') return
+
+    const signedQty = type === 'Buy' ? qty : -qty
+    quantitiesByAsset.set(assetId, (quantitiesByAsset.get(assetId) || 0) + signedQty)
   })
 
-  Array.from(assetLots.entries()).forEach(([assetId, lots]) => {
-    lots.forEach(lot => {
-      if (lot.qty > 0) {
-        simulatedOpenLots.push({ asset_id: assetId, remaining_quantity: lot.qty, cost_basis_per_unit: lot.basis })
-      }
-    })
-  })
-
-  let totalBasis = 0
   let marketValue = 0
-
-  simulatedOpenLots.forEach(lot => {
-    const ticker = assetToTicker.get(lot.asset_id) || ''
+  quantitiesByAsset.forEach((quantity, assetId) => {
+    if (quantity === 0) return
+    const ticker = assetToTicker.get(assetId) || ''
     const price = asOfDate === lastDateStr
       ? (currentPrices[ticker] || getPriceAtOrBefore(historicalPrices[ticker] || [], asOfDate))
       : getPriceAtOrBefore(historicalPrices[ticker] || [], asOfDate)
-
-    totalBasis += lot.remaining_quantity * lot.cost_basis_per_unit
     if (price > 0) {
-      marketValue += lot.remaining_quantity * price
+      marketValue += quantity * price
     }
   })
 
-  const unrealized = marketValue - totalBasis
+  const totalBasis = 0
+  const unrealized = 0
   const portfolioValue = marketValue + totalCash
 
   return {
