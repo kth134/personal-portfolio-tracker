@@ -442,29 +442,7 @@ export default function PerformanceReports() {
   const totals = useMemo<ReportTotals>(() => {
     if (!data) return EMPTY_TOTALS
     if (lens === 'total' && aggregate) {
-      const totalSeries = data.series?.aggregated || []
-      if (!totalSeries.length) return EMPTY_TOTALS
-      const first = totalSeries[0]
-      const last = totalSeries[totalSeries.length - 1]
-
-      const startValue = Number(first?.portfolioValue || 0)
-      const endValue = Number(last?.portfolioValue || 0)
-      const income = Number(last?.income || 0) - Number(first?.income || 0)
-      const realized = Number(last?.realized || 0) - Number(first?.realized || 0)
-      const netContributions = Number(last?.netContributions || 0) - Number(first?.netContributions || 0)
-      const unrealized = endValue - startValue - netContributions - income - realized
-      const netGain = income + realized + unrealized
-      const totalReturnPct = startValue > 0 ? (netGain / startValue) * 100 : 0
-      const irr = Number(data.totals?.aggregated?.irr || 0)
-
-      return {
-        netGain,
-        income,
-        realized,
-        unrealized,
-        totalReturnPct,
-        irr,
-      }
+      return data.totals?.aggregated || EMPTY_TOTALS
     }
 
     if (aggregate) {

@@ -76,32 +76,7 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
         dateAgg.set(key, agg)
       })
     })
-    const sorted = Array.from(dateAgg.values()).sort((a, b) => a.date.localeCompare(b.date))
-    if (!sorted.length) return sorted
-
-    const first = sorted[0]
-    const firstNetContributions = Number(first?.netContributions || 0)
-    const firstIncome = Number(first?.income || 0)
-    const firstRealized = Number(first?.realized || 0)
-    const firstPortfolioValue = Number(first?.portfolioValue || 0)
-
-    return sorted.map((point) => {
-      const currentPortfolioValue = Number(point?.portfolioValue || 0)
-      const netContributionsDelta = Number(point?.netContributions || 0) - firstNetContributions
-      const incomeDelta = Number(point?.income || 0) - firstIncome
-      const realizedDelta = Number(point?.realized || 0) - firstRealized
-      const unrealizedDelta = (currentPortfolioValue - firstPortfolioValue) - netContributionsDelta - incomeDelta - realizedDelta
-      const netGain = incomeDelta + realizedDelta + unrealizedDelta
-
-      return {
-        ...point,
-        netContributions: netContributionsDelta,
-        income: incomeDelta,
-        realized: realizedDelta,
-        unrealized: unrealizedDelta,
-        netGain,
-      }
-    })
+    return Array.from(dateAgg.values()).sort((a, b) => a.date.localeCompare(b.date))
   }, [data])
 
   const valueBridgeInput = useMemo(() => {

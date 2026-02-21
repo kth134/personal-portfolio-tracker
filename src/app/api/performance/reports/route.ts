@@ -502,20 +502,13 @@ export async function POST(req: Request) {
       logPhase('validated-range-coverage', { totalChecked: rangeCoverage.totalChecked, totalMismatches: 0 })
     }
 
-    // Normalize gain components to first plotted point so all downstream totals/charts
-    // align with the same period-buildup semantics as the value bridge.
-    Object.values(series).forEach(rebaseGainComponentsFromFirstPoint)
+    // TWR should be based on the start-of-range portfolio value derived from
+    // pre-range transaction history (not the first plotted point value).
+    Object.values(series).forEach(applyTWRFromStartValue)
     Object.values(assetSeries).forEach(groupMap => {
-      Object.values(groupMap).forEach(rebaseGainComponentsFromFirstPoint)
+      Object.values(groupMap).forEach(applyTWRFromStartValue)
     })
-    Object.values(assetBreakdown).forEach(rebaseGainComponentsFromFirstPoint)
-
-    // TWR should be based on first in-range portfolio value (matching chart expectation)
-    Object.values(series).forEach(applyTWRFromFirstValue)
-    Object.values(assetSeries).forEach(groupMap => {
-      Object.values(groupMap).forEach(applyTWRFromFirstValue)
-    })
-    Object.values(assetBreakdown).forEach(applyTWRFromFirstValue)
+    Object.values(assetBreakdown).forEach(applyTWRFromStartValue)
 
     const attributionValidation = validateAttributionAcrossSeries({ series, assetSeries, assetBreakdown })
     if (attributionValidation.totalMismatches > 0) {
@@ -861,44 +854,13 @@ function buildDates(start: string, end: string, granularity: 'daily' | 'monthly'
   return dates
 }
 
-function calculateMWR(transactions: TransactionEntry[], portfolioValue: number, asOfDate: string) {
-  return calculateMWRForLens(transactions, portfolioValue, asOfDate, 'total')
-}
-
-function applyTWRFromFirstValue(points: ReportPoint[]) {
+function applyTWRFromStartValue(points: ReportPoint[]) {
   if (!points || points.length === 0) return
-  const firstPV = Number(points[0]?.portfolioValue || 0)
   points.forEach((p) => {
+    const startPV = Number(p?.startPortfolioValue || 0)
     const pv = Number(p?.portfolioValue || 0)
-    const twr = firstPV > 0 ? ((pv / firstPV) - 1) * 100 : 0
+    const twr = startPV > 0 ? ((pv / startPV) - 1) * 100 : 0
     p.twr = twr
-  })
-}
-
-function rebaseGainComponentsFromFirstPoint(points: ReportPoint[]) {
-  if (!points || points.length === 0) return
-
-  const baseline = points[0]
-  const baseContributions = Number(baseline?.netContributions || 0)
-  const baseRealized = Number(baseline?.realized || 0)
-  const baseIncome = Number(baseline?.income || 0)
-  const basePortfolioValue = Number(baseline?.portfolioValue || 0)
-
-  points.forEach((point) => {
-    const portfolioDelta = Number(point?.portfolioValue || 0) - basePortfolioValue
-    const netContributions = Number(point?.netContributions || 0) - baseContributions
-    const realized = Number(point?.realized || 0) - baseRealized
-    const income = Number(point?.income || 0) - baseIncome
-    const unrealized = portfolioDelta - netContributions - realized - income
-    const netGain = unrealized + realized + income
-    const totalReturnPct = basePortfolioValue > 0 ? (netGain / basePortfolioValue) * 100 : 0
-
-    point.netContributions = netContributions
-    point.unrealized = unrealized
-    point.realized = realized
-    point.income = income
-    point.netGain = netGain
-    point.totalReturnPct = totalReturnPct
   })
 }
 
@@ -995,21 +957,26 @@ function calculateMWRForLens(
     flows.push(-startPortfolioValue)
     dates.push(new Date(opening.startDate))
   }
-  
-  // For account/total lens: include all transactions (deposits/withdrawals matter)
-  // For other lenses: only include asset transactions (Buy/Sell/Dividend/Interest)
-  const includeAllFlows = lens === 'total' || lens === 'account'
+
+  // Total/account MWR is investor money-weighted return, so only external flows
+  // should be included. Other grouping lenses use asset-level flow semantics.
+  const includeOnlyExternalFlows = lens === 'total' || lens === 'account'
+  const externalFlowTypes = new Set(['Deposit', 'Withdrawal', 'Dividend', 'Interest'])
   
   transactions.forEach(tx => {
     const type = tx?.type || ''
-    // Skip non-asset flows for non-account lenses
-    if (!includeAllFlows && (type === 'Deposit' || type === 'Withdrawal')) {
-      return
-    }
-    // Skip fee-only transactions
     if (type === 'Fee') {
       return
     }
+
+    if (includeOnlyExternalFlows && !externalFlowTypes.has(type)) {
+      return
+    }
+
+    if (!includeOnlyExternalFlows && (type === 'Deposit' || type === 'Withdrawal')) {
+      return
+    }
+
     flows.push(transactionFlowForIRR(tx))
     dates.push(new Date(tx.date))
   })
