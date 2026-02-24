@@ -921,7 +921,7 @@ export default function DashboardHome() {
                           <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>
                           <p className="text-xl font-bold">
                             {rebalancingData.currentAllocations.some((item: any) => item.action !== 'hold') ? (
-                              <span className="text-yellow-600">Yes</span>
+                              <span className="text-red-600">Yes</span>
                             ) : (
                               'No'
                             )}
@@ -1226,7 +1226,7 @@ export default function DashboardHome() {
                         <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>
                         <p className="text-xl font-bold">
                           {rebalancingData.currentAllocations.some((item: any) => item.action !== 'hold') ? (
-                            <span className="text-yellow-600">Yes</span>
+                            <span className="text-red-600">Yes</span>
                           ) : (
                             'No'
                           )}
