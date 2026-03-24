@@ -9,9 +9,14 @@ export async function PUT(request: NextRequest) {
 
     const { asset_id, sub_portfolio_id, target_percentage } = await request.json()
 
-    if (typeof target_percentage !== 'number' || target_percentage < 0 || target_percentage > 100) {
+    const scaled = typeof target_percentage === 'number' ? target_percentage * 100 : NaN
+    const hasTwoOrFewerDecimals = Number.isFinite(scaled) && Math.abs(scaled - Math.round(scaled)) < 1e-9
+
+    if (typeof target_percentage !== 'number' || !Number.isFinite(target_percentage) || target_percentage < 0 || target_percentage > 100 || !hasTwoOrFewerDecimals) {
       return NextResponse.json({ error: 'Invalid target percentage' }, { status: 400 })
     }
+
+    const normalizedTarget = Math.round(target_percentage * 100) / 100
 
     // Check if sub-portfolio belongs to user
     const { data: subPortfolio } = await supabase
@@ -43,7 +48,7 @@ export async function PUT(request: NextRequest) {
       .upsert({
         asset_id,
         sub_portfolio_id,
-        target_percentage,
+        target_percentage: normalizedTarget,
         user_id: user.id
       }, {
         onConflict: 'asset_id,sub_portfolio_id,user_id'

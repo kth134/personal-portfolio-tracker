@@ -42,6 +42,16 @@ const formatUSDWhole = (value: number | null | undefined) => {
   }).format(num)
 }
 
+const parsePercentWithTwoDecimals = (rawValue: string): number | null => {
+  const trimmed = rawValue.trim()
+  if (trimmed === '') return null
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) return null
+  const scaled = parsed * 100
+  if (Math.abs(scaled - Math.round(scaled)) > 1e-9) return null
+  return Math.round(scaled) / 100
+}
+
 export default function RebalancingPage() {
   const [lens, setLens] = useState('total')
   const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([])
@@ -84,13 +94,17 @@ export default function RebalancingPage() {
 
     try {
       const endpoint = field === 'target_allocation' ? '/api/rebalancing/sub-portfolio-target' : '/api/rebalancing/thresholds';
-      const payload = { id, [field]: field === 'band_mode' ? !!value : value };
+      const payload = field === 'target_allocation'
+        ? { id, target_percentage: value }
+        : { id, [field]: field === 'band_mode' ? !!value : value };
       const res = await fetch(endpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (res.ok) {
         // Soft refresh of data to sync with DB without resetting local overrides manually
         const softRes = await fetch('/api/rebalancing', { cache: 'no-store' });
         const softPayload = await softRes.json();
         setData(softPayload);
+      } else {
+        console.error('Save failed for sub-portfolio update:', await res.text());
       }
     } catch (err) { console.error('Save failed:', err) }
   }
@@ -432,7 +446,14 @@ export default function RebalancingPage() {
                 </AccordionTrigger>
                 <AccordionContent className="p-0 bg-background">
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 p-4 bg-zinc-50 border-b">
-                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input defaultValue={sp.target_allocation} type="number" step="0.1" onBlur={(e) => updateSubPortfolio(sp.id, 'target_allocation', parseFloat(e.target.value))} className="h-8 max-w-[150px] bg-white border-zinc-300"/></div>
+                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
+                          const parsed = parsePercentWithTwoDecimals(e.target.value)
+                          if (parsed === null) {
+                            alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
+                            return
+                          }
+                          updateSubPortfolio(sp.id, 'target_allocation', parsed)
+                        }} className="h-8 max-w-[150px] bg-white border-zinc-300"/></div>
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Upside Threshold %</Label><Input defaultValue={sp.upside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'upside_threshold', parseFloat(e.target.value))} className="h-8 max-w-[150px] bg-white border-zinc-300"/></div>
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 max-w-[150px] bg-white border-zinc-300"/></div>
                         <div className="flex items-center gap-3 pt-4 sm:pt-0"><Switch id={`band-mode-${sp.id}`} checked={sp.band_mode} onCheckedChange={(checked) => updateSubPortfolio(sp.id, 'band_mode', checked ? 1 : 0)} /><Label htmlFor={`band-mode-${sp.id}`} className="text-xs font-medium cursor-pointer">{sp.band_mode ? 'Conservative' : 'Absolute'} Mode</Label></div>
@@ -512,8 +533,17 @@ export default function RebalancingPage() {
                                 <Input
                                   defaultValue={i.sub_portfolio_target_percentage}
                                   type="number"
-                                  step="0.1"
-                                  onBlur={(e) => updateAssetTarget(i.asset_id, sp.id, parseFloat(e.target.value))}
+                                  min="0"
+                                  max="100"
+                                  step="0.01"
+                                  onBlur={(e) => {
+                                    const parsed = parsePercentWithTwoDecimals(e.target.value)
+                                    if (parsed === null) {
+                                      alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
+                                      return
+                                    }
+                                    updateAssetTarget(i.asset_id, sp.id, parsed)
+                                  }}
                                   className="h-8 text-right w-20 ml-auto border-zinc-200 bg-zinc-50/50 focus:ring-0"
                                 />
                               </TableCell>

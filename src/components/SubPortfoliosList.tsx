@@ -47,6 +47,11 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
     notes: ''
   })
 
+  const hasTwoOrFewerDecimals = (value: number) => {
+    const scaled = value * 100
+    return Math.abs(scaled - Math.round(scaled)) < 1e-9
+  }
+
   useEffect(() => {
     if (editingSub) {
       setForm({
@@ -167,15 +172,16 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const supabase = createClient()
-    const allocNum = Number(form.target_allocation)
-    if (allocNum < 0 || allocNum > 100) {
-      alert('Target allocation must be 0-100')
+    const hasAllocation = form.target_allocation.trim() !== ''
+    const allocNum = hasAllocation ? Number(form.target_allocation) : null
+    if (allocNum !== null && (!Number.isFinite(allocNum) || allocNum < 0 || allocNum > 100 || !hasTwoOrFewerDecimals(allocNum))) {
+      alert('Target allocation must be between 0 and 100 with up to 2 decimal places')
       return
     }
     let data, error
     const submitData = {
       name: form.name,
-      target_allocation: allocNum || null,
+      target_allocation: allocNum === null ? null : Math.round(allocNum * 100) / 100,
       objective: form.objective || null,
       manager: form.manager || null,
       notes: form.notes || null
@@ -220,7 +226,7 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
             </div>
             <div>
               <Label>Target Allocation (%)</Label>
-              <Input type="number" min="0" max="100" value={form.target_allocation} onChange={e => setForm({...form, target_allocation: e.target.value})} />
+              <Input type="number" min="0" max="100" step="0.01" value={form.target_allocation} onChange={e => setForm({...form, target_allocation: e.target.value})} />
             </div>
             <div>
               <Label>Objective</Label>
