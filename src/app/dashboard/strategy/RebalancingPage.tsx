@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, Cell,
   PieChart, Pie, Legend
@@ -15,9 +15,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Check, ChevronsUpDown, ArrowUpDown, RefreshCw, AlertTriangle } from 'lucide-react'
-import { formatUSD } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
-import { calculateRebalanceActions } from '@/lib/rebalancing-logic'
+import { calculatePortfolioAssetAction } from '@/lib/rebalancing-logic'
 import { refreshAssetPrices } from '../portfolio/actions'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7']
@@ -94,9 +93,20 @@ export default function RebalancingPage() {
 
     try {
       const endpoint = field === 'target_allocation' ? '/api/rebalancing/sub-portfolio-target' : '/api/rebalancing/thresholds';
+      const currentSp = (data?.subPortfolios || []).find((sp: any) => sp.id === id) || {};
+      const currentOverride = overrideSubSettings[id] || {};
+      const effectiveUpside = currentOverride.upside ?? currentSp.upside_threshold ?? 5;
+      const effectiveDownside = currentOverride.downside ?? currentSp.downside_threshold ?? 5;
+      const effectiveBandMode = currentOverride.bandMode ?? currentSp.band_mode ?? false;
+
       const payload = field === 'target_allocation'
         ? { id, target_percentage: value }
-        : { id, [field]: field === 'band_mode' ? !!value : value };
+        : {
+            id,
+            upside_threshold: field === 'upside_threshold' ? value : effectiveUpside,
+            downside_threshold: field === 'downside_threshold' ? value : effectiveDownside,
+            band_mode: field === 'band_mode' ? !!value : !!effectiveBandMode,
+          };
       const res = await fetch(endpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (res.ok) {
         // Soft refresh of data to sync with DB without resetting local overrides manually
@@ -160,125 +170,145 @@ export default function RebalancingPage() {
       return acc;
     }, {});
 
-    // 2. Process Assets with dynamic math
+    // 2. Process assets while preserving sub-portfolio target editing context.
     const allocations = data.currentAllocations.map((a: any) => {
       const sp = subPortfolios.find((p: any) => p.id === a.sub_portfolio_id);
       const targetInGroup = overrideAssetTargets[a.asset_id] ?? a.sub_portfolio_target_percentage;
       const groupVal = subIdValues[a.sub_portfolio_id] || 0;
-      const res = calculateRebalanceActions({
-        currentValue: a.current_value,
-        actualGroupValue: groupVal,
-        totalPortfolioValue: data.totalValue,
-        targetInGroup,
-        groupTargetRatio: sp?.target_allocation || 0,
-        upsideThreshold: sp?.upside_threshold,
-        downsideThreshold: sp?.downside_threshold,
-        bandMode: sp?.band_mode
-      });
-      return { ...a, sub_portfolio_target_percentage: targetInGroup, implied_overall_target: res.impliedOverallTarget, current_in_sp: res.currentInGroupPct, drift_percentage: res.driftPercentage, action: res.action, amount: res.amount };
+      const impliedOverallTarget = ((sp?.target_allocation || 0) * targetInGroup) / 100;
+      const currentInSPPct = groupVal > 0 ? (a.current_value / groupVal) * 100 : 0;
+      const driftInSP = targetInGroup > 0 ? ((currentInSPPct - targetInGroup) / targetInGroup) * 100 : 0;
+
+      return {
+        ...a,
+        sub_portfolio_target_percentage: targetInGroup,
+        implied_overall_target: impliedOverallTarget,
+        current_in_sp: currentInSPPct,
+        drift_percentage_in_sp: driftInSP,
+      };
     });
 
-    // 3. Client-side tactical suggestions (tax-aware + no overshoot)
-    const accountHoldings = data.accountHoldings || {};
-    const spTotals = allocations.reduce((acc: Record<string, number>, r: any) => {
-      acc[r.sub_portfolio_id] = (acc[r.sub_portfolio_id] || 0) + r.current_value;
-      return acc;
-    }, {});
+    // 3. Portfolio-wide drift/action by asset.
+    // Assumes each asset is aligned to a single sub-portfolio.
+    const portfolioAssetActions = new Map<string, any>();
+    allocations.forEach((row: any) => {
+      const sp = subPortfolios.find((p: any) => p.id === row.sub_portfolio_id);
+      const res = calculatePortfolioAssetAction({
+        currentValue: row.current_value,
+        totalPortfolioValue: data.totalValue,
+        targetOverallPct: row.implied_overall_target || 0,
+        upsideThreshold: Math.abs(sp?.upside_threshold ?? 5),
+        downsideThreshold: Math.abs(sp?.downside_threshold ?? 5),
+        bandMode: !!sp?.band_mode,
+      });
 
+      portfolioAssetActions.set(row.asset_id, {
+        asset_id: row.asset_id,
+        ticker: row.ticker,
+        name: row.name,
+        current_value: row.current_value,
+        target_overall_pct: row.implied_overall_target || 0,
+        current_overall_pct: res.currentOverallPct,
+        drift_percentage: res.driftPercentage,
+        action: res.action,
+        amount: res.amount,
+      });
+    });
+
+    // 4. Portfolio-wide tactical suggestions (cross sub-portfolios).
+    const accountHoldings = data.accountHoldings || {};
     const remainingNeedByAsset: Record<string, number> = {};
     const remainingAvailByAsset: Record<string, number> = {};
+    const reinvestmentByAsset: Record<string, any[]> = {};
 
-    allocations.forEach((r: any) => {
-      const spT = spTotals[r.sub_portfolio_id] || 0;
-      const tVal = spT * (r.sub_portfolio_target_percentage / 100);
-      const need = Math.max(0, tVal - r.current_value);
-      const available = Math.max(0, r.current_value - tVal);
-      remainingNeedByAsset[r.asset_id] = need;
-      remainingAvailByAsset[r.asset_id] = available;
+    const assetActionList = Array.from(portfolioAssetActions.values());
+    assetActionList.forEach((asset: any) => {
+      remainingNeedByAsset[asset.asset_id] = asset.action === 'buy' ? asset.amount : 0;
+      remainingAvailByAsset[asset.asset_id] = asset.action === 'sell' ? asset.amount : 0;
+      reinvestmentByAsset[asset.asset_id] = [];
     });
 
-    const updatedAllocations = allocations.map((res: any) => {
-      let reinvestment_suggestions: any[] = [];
+    const sellAssets = assetActionList
+      .filter((a: any) => a.action === 'sell' && a.amount > 0)
+      .sort((a: any, b: any) => b.drift_percentage - a.drift_percentage);
+    const buyAssets = assetActionList
+      .filter((a: any) => a.action === 'buy' && a.amount > 0)
+      .sort((a: any, b: any) => a.drift_percentage - b.drift_percentage);
 
-      if (res.action === 'sell') {
-        // Recompute account-level sell recommendations locally so they update with band mode changes
-        const holdings = accountHoldings[res.asset_id] || [];
-        const sortedHoldings = [...holdings].sort((a: any, b: any) => {
-          const aTax = a.tax_status === 'Taxable' ? 1 : 0;
-          const bTax = b.tax_status === 'Taxable' ? 1 : 0;
-          if (aTax !== bTax) return aTax - bTax;
-          return b.value - a.value;
+    sellAssets.forEach((sellAsset: any) => {
+      let remainingToDeploy = remainingAvailByAsset[sellAsset.asset_id] || 0;
+      buyAssets.forEach((buyAsset: any) => {
+        if (remainingToDeploy <= 0) return;
+        const need = remainingNeedByAsset[buyAsset.asset_id] || 0;
+        if (need <= 0) return;
+
+        const transfer = Math.min(remainingToDeploy, need);
+        if (transfer <= 0) return;
+
+        reinvestmentByAsset[sellAsset.asset_id].push({
+          to_ticker: buyAsset.ticker,
+          amount: transfer,
+          reason: `Redeploy into underweight ${buyAsset.ticker}`,
         });
 
-        let remainingToSell = res.amount;
-        const recommended_accounts: any[] = [];
-        sortedHoldings.forEach((h: any) => {
-          if (remainingToSell <= 0) return;
-          const take = Math.min(h.value, remainingToSell);
-          if (take > 0) {
-            recommended_accounts.push({ id: h.account_id, name: h.name || 'Unknown', amount: take, reason: 'Trimming overweight position' });
-            remainingToSell -= take;
-          }
+        reinvestmentByAsset[buyAsset.asset_id].push({
+          from_ticker: sellAsset.ticker,
+          amount: transfer,
+          reason: `Fund from overweight ${sellAsset.ticker}`,
         });
 
-        res.recommended_accounts = recommended_accounts;
+        remainingToDeploy -= transfer;
+        remainingAvailByAsset[sellAsset.asset_id] = Math.max(0, (remainingAvailByAsset[sellAsset.asset_id] || 0) - transfer);
+        remainingNeedByAsset[buyAsset.asset_id] = Math.max(0, need - transfer);
+      });
+    });
 
-        let remainingToDeploy = res.amount;
-        const deficits = allocations
-          .filter((r: any) => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
-          .map((r: any) => ({ ...r, need: remainingNeedByAsset[r.asset_id] || 0 }))
-          .filter((r: any) => r.need > 0)
-          .sort((a: any, b: any) => a.drift_percentage - b.drift_percentage);
+    const recommendedAccountsByAsset: Record<string, any[]> = {};
+    sellAssets.forEach((sellAsset: any) => {
+      const holdings = accountHoldings[sellAsset.asset_id] || [];
+      const sortedHoldings = [...holdings].sort((a: any, b: any) => {
+        const aTax = a.tax_status === 'Taxable' ? 1 : 0;
+        const bTax = b.tax_status === 'Taxable' ? 1 : 0;
+        if (aTax !== bTax) return aTax - bTax;
+        return b.value - a.value;
+      });
 
-        deficits.forEach((d: any) => {
-          if (remainingToDeploy <= 0) return;
-          const take = Math.min(d.need, remainingToDeploy);
-          if (take > 0) {
-            reinvestment_suggestions.push({ to_ticker: d.ticker, amount: take, reason: `Redeploy into underweight ${d.ticker}` });
-            remainingToDeploy -= take;
-            remainingNeedByAsset[d.asset_id] = Math.max(0, (remainingNeedByAsset[d.asset_id] || 0) - take);
-          }
-        });
-      }
-
-      if (res.action === 'buy') {
-        let needed = res.amount;
-        const sources = allocations
-          .filter((r: any) => r.sub_portfolio_id === res.sub_portfolio_id && r.asset_id !== res.asset_id)
-          .map((r: any) => {
-            const available = remainingAvailByAsset[r.asset_id] || 0;
-            const holdings = accountHoldings[r.asset_id] || [];
-            const hasNonTaxable = holdings.some((h: any) => h.tax_status && h.tax_status !== 'Taxable' && h.value > 0);
-            const taxPriority = hasNonTaxable ? 0 : 1;
-            return { ...r, available, taxPriority, holdings };
-          })
-          .filter((r: any) => r.available > 0)
-          .sort((a: any, b: any) => (a.taxPriority - b.taxPriority) || (b.drift_percentage - a.drift_percentage));
-
-        sources.forEach((s: any) => {
-          if (needed <= 0) return;
-          let remainingFromAsset = Math.min(s.available, needed);
-          const sortedHoldings = [...(s.holdings || [])].sort((a: any, b: any) => {
-            const aTax = a.tax_status === 'Taxable' ? 1 : 0;
-            const bTax = b.tax_status === 'Taxable' ? 1 : 0;
-            if (aTax !== bTax) return aTax - bTax;
-            return b.value - a.value;
+      const recommendations: any[] = [];
+      let remainingToSell = sellAsset.amount;
+      sortedHoldings.forEach((h: any) => {
+        if (remainingToSell <= 0) return;
+        const take = Math.min(h.value, remainingToSell);
+        if (take > 0) {
+          recommendations.push({
+            id: h.account_id,
+            name: h.name || 'Unknown',
+            amount: take,
+            reason: 'Trimming overweight position',
           });
+          remainingToSell -= take;
+        }
+      });
+      recommendedAccountsByAsset[sellAsset.asset_id] = recommendations;
+    });
 
-          sortedHoldings.forEach((h: any) => {
-            if (remainingFromAsset <= 0) return;
-            const take = Math.min(h.value, remainingFromAsset);
-            if (take > 0) {
-              reinvestment_suggestions.push({ from_ticker: s.ticker, amount: take, account_id: h.account_id, account_name: h.name, tax_status: h.tax_status, reason: `Reallocated from overweight ${s.ticker}` });
-              remainingFromAsset -= take;
-              needed -= take;
-              remainingAvailByAsset[s.asset_id] = Math.max(0, (remainingAvailByAsset[s.asset_id] || 0) - take);
-            }
-          });
-        });
-      }
+    const updatedAllocations = allocations.map((row: any) => {
+      const portfolio = portfolioAssetActions.get(row.asset_id) || {
+        current_overall_pct: 0,
+        target_overall_pct: 0,
+        drift_percentage: 0,
+        action: 'hold',
+        amount: 0,
+      };
 
-      return { ...res, reinvestment_suggestions, recommended_accounts: res.recommended_accounts || [] };
+      return {
+        ...row,
+        current_percentage: portfolio.current_overall_pct,
+        drift_percentage: portfolio.drift_percentage,
+        action: portfolio.action,
+        amount: portfolio.amount,
+        reinvestment_suggestions: reinvestmentByAsset[row.asset_id] || [],
+        recommended_accounts: recommendedAccountsByAsset[row.asset_id] || [],
+      };
     });
 
     const totalWeightedAssetDrift = updatedAllocations.reduce((sum: number, item: any) => {
@@ -297,23 +327,24 @@ export default function RebalancingPage() {
       return sum + (Math.abs(relDrift) * weight);
     }, 0);
 
-    const netImpact = updatedAllocations.reduce((sum: number, item: any) => {
+    const netImpact = assetActionList.reduce((sum: number, item: any) => {
       if (item.action === 'sell') return sum + item.amount;
       if (item.action === 'buy') return sum - item.amount;
       return sum;
     }, 0);
 
-    return { allocations: updatedAllocations, subPortfolios, totalWeightedAssetDrift, totalWeightedSubDrift, netImpact };
+    return {
+      allocations: updatedAllocations,
+      subPortfolios,
+      assetLevel: assetActionList,
+      totalWeightedAssetDrift,
+      totalWeightedSubDrift,
+      netImpact,
+    };
   }, [data, overrideSubSettings, overrideAssetTargets]);
 
   const chartSlices = useMemo(() => {
     if (!calculatedData) return [];
-
-    const overallDrift = (a: any) => {
-      const currentOverallPct = data.totalValue > 0 ? (a.current_value / data.totalValue) * 100 : 0;
-      const targetOverallPct = a.implied_overall_target || 0;
-      return targetOverallPct > 0 ? ((currentOverallPct - targetOverallPct) / targetOverallPct) * 100 : 0;
-    };
 
     let base: any[] = [];
     if (lens === 'total') {
@@ -336,8 +367,6 @@ export default function RebalancingPage() {
       base = Array.from(groupMap.entries()).filter(([k]) => selectedValues.length === 0 || selectedValues.includes(k)).map(([k, items]) => ({ key: k, data: items }));
     }
 
-    const useGroupDrift = lens === 'sub_portfolio' && !aggregate;
-
     if (aggregate && base.length > 1) {
         const points = base.map(g => {
           const val = g.data.reduce((s: number, i: any) => s + i.current_value, 0);
@@ -352,7 +381,7 @@ export default function RebalancingPage() {
           ...s,
           data: s.data.map((a: any) => ({
             ...a,
-            drift_percentage: useGroupDrift ? a.drift_percentage : overallDrift(a)
+            drift_percentage: a.drift_percentage
           }))
         }));
     }
@@ -384,6 +413,9 @@ export default function RebalancingPage() {
   if (loading || !calculatedData) return <div className="p-8 text-center text-lg animate-pulse">Calculating rebalancing paths...</div>
 
   const rebalanceNeeded = calculatedData.allocations.some((a: any) => a.action !== 'hold')
+  const actionableAssets = [...(calculatedData.assetLevel || [])]
+    .filter((a: any) => a.action !== 'hold')
+    .sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage));
 
   return (
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
@@ -400,6 +432,57 @@ export default function RebalancingPage() {
         {lens !== 'total' && (<div className="w-64"><Label className="text-[10px] font-bold uppercase mb-1 block">Filter Selection</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-between bg-background">{selectedValues.length} selected <ChevronsUpDown className="w-4 h-4 ml-2 opacity-50" /></Button></PopoverTrigger><PopoverContent className="w-64 p-0"><Command><CommandInput placeholder="Search..." /><CommandList><CommandGroup className="max-h-64 overflow-y-auto">{availableValues.map(v => { const filterValue = lens === 'sub_portfolio' ? (v.label ?? v.value) : v.value; return (<CommandItem key={v.value} onSelect={() => toggleValue(filterValue)}><Check className={cn("w-4 h-4 mr-2", selectedValues.includes(filterValue) ? "opacity-100" : "opacity-0")} />{v.label}</CommandItem>) })}</CommandGroup></CommandList></Command></PopoverContent></Popover></div>)}
         {lens !== 'total' && selectedValues.length > 1 && (<div className="flex items-center gap-2 mb-2 p-2 border rounded-md bg-background"><Switch checked={aggregate} onCheckedChange={setAggregate} id="agg-switch" /><Label htmlFor="agg-switch" className="text-xs cursor-pointer">Aggregate</Label></div>)}
         <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 ml-auto flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
+      </div>
+
+      <div className="bg-card p-4 rounded-xl border shadow-sm">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h3 className="text-sm font-bold uppercase tracking-wide">Portfolio Execution</h3>
+          <span className="text-xs text-muted-foreground">Asset-level recommendations across sub-portfolios</span>
+        </div>
+        {actionableAssets.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No portfolio-wide asset actions are currently triggered.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table className="min-w-[860px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Asset</TableHead>
+                  <TableHead className="text-right">Current %</TableHead>
+                  <TableHead className="text-right text-blue-600">Target %</TableHead>
+                  <TableHead className="text-right">Drift %</TableHead>
+                  <TableHead className="text-center">Action</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Suggested Pairing</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {actionableAssets.map((asset: any) => {
+                  const pairings = calculatedData.allocations.find((a: any) => a.asset_id === asset.asset_id)?.reinvestment_suggestions || [];
+                  return (
+                    <TableRow key={asset.asset_id}>
+                      <TableCell>
+                        <div className="font-semibold">{asset.ticker}</div>
+                        <div className="text-xs text-muted-foreground">{asset.name}</div>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{asset.current_overall_pct.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right tabular-nums text-blue-700">{asset.target_overall_pct.toFixed(1)}%</TableCell>
+                      <TableCell className={cn("text-right tabular-nums font-semibold", asset.drift_percentage > 0 ? "text-green-600" : "text-red-600")}>{asset.drift_percentage > 0 ? '+' : ''}{asset.drift_percentage.toFixed(1)}%</TableCell>
+                      <TableCell className={cn("text-center font-bold", asset.action === 'buy' ? "text-green-600" : "text-red-600")}>{asset.action.toUpperCase()}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatUSDWhole(asset.amount)}</TableCell>
+                      <TableCell className="text-xs text-blue-700">
+                        {pairings.length > 0 ? pairings.slice(0, 2).map((s: any, idx: number) => (
+                          <div key={`${asset.asset_id}-pair-${idx}`}>
+                            {s.to_ticker ? `To ${s.to_ticker}` : `From ${s.from_ticker}`}: {formatUSDWhole(s.amount)}
+                          </div>
+                        )) : <span className="text-muted-foreground">-</span>}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -511,7 +594,7 @@ export default function RebalancingPage() {
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
                               <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('drift_percentage')}>
-                                Drift %
+                                Port Drift %
                                 <SortIcon col="drift_percentage" />
                               </button>
                             </TableHead>
