@@ -208,6 +208,7 @@ export default function RebalancingPage() {
         name: row.name,
         current_value: row.current_value,
         target_overall_pct: row.implied_overall_target || 0,
+        amount_mode: sp?.band_mode ? 'Conservative' : 'Absolute',
         current_overall_pct: res.currentOverallPct,
         drift_percentage: res.driftPercentage,
         action: res.action,
@@ -562,6 +563,7 @@ export default function RebalancingPage() {
                   <TableHead className="text-right text-blue-600">Target %</TableHead>
                   <TableHead className="text-right">Drift %</TableHead>
                   <TableHead className="text-center">Action</TableHead>
+                  <TableHead className="text-center">Amount Mode</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Suggested Pairing</TableHead>
                 </TableRow>
@@ -579,6 +581,18 @@ export default function RebalancingPage() {
                       <TableCell className="text-right tabular-nums text-blue-700">{asset.target_overall_pct.toFixed(1)}%</TableCell>
                       <TableCell className={cn("text-right tabular-nums font-semibold", asset.drift_percentage > 0 ? "text-green-600" : "text-red-600")}>{asset.drift_percentage > 0 ? '+' : ''}{asset.drift_percentage.toFixed(1)}%</TableCell>
                       <TableCell className={cn("text-center font-bold", asset.action === 'buy' ? "text-green-600" : "text-red-600")}>{asset.action.toUpperCase()}</TableCell>
+                      <TableCell className="text-center">
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                            asset.amount_mode === 'Conservative'
+                              ? 'bg-amber-100 text-amber-800 border-amber-200'
+                              : 'bg-sky-100 text-sky-800 border-sky-200'
+                          )}
+                        >
+                          {asset.amount_mode}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSDWhole(asset.amount)}</TableCell>
                       <TableCell className="text-xs text-blue-700">
                         {pairings.length > 0 ? pairings.slice(0, 2).map((s: any, idx: number) => (
