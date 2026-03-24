@@ -219,12 +219,29 @@ export default function RebalancingPage() {
     const accountHoldings = data.accountHoldings || {};
     const remainingNeedByAsset: Record<string, number> = {};
     const remainingAvailByAsset: Record<string, number> = {};
+    const excessToTargetByAsset: Record<string, number> = {};
+    const deficitToTargetByAsset: Record<string, number> = {};
     const reinvestmentByAsset: Record<string, any[]> = {};
 
     const assetActionList = Array.from(portfolioAssetActions.values());
     assetActionList.forEach((asset: any) => {
-      remainingNeedByAsset[asset.asset_id] = asset.action === 'buy' ? asset.amount : 0;
-      remainingAvailByAsset[asset.asset_id] = asset.action === 'sell' ? asset.amount : 0;
+      const targetValue = (data.totalValue * (asset.target_overall_pct || 0)) / 100;
+      const excessToTarget = Math.max(0, asset.current_value - targetValue);
+      const deficitToTarget = Math.max(0, targetValue - asset.current_value);
+
+      excessToTargetByAsset[asset.asset_id] = excessToTarget;
+      deficitToTargetByAsset[asset.asset_id] = deficitToTarget;
+
+      // Sell actions are capped at explicit action amount. Non-triggered sources can only fund up to excess-to-target.
+      remainingAvailByAsset[asset.asset_id] = asset.action === 'sell'
+        ? Math.min(asset.amount, excessToTarget)
+        : excessToTarget;
+
+      // Buy actions are capped at explicit action amount. Non-triggered destinations can only absorb up to deficit-to-target.
+      remainingNeedByAsset[asset.asset_id] = asset.action === 'buy'
+        ? Math.min(asset.amount, deficitToTarget)
+        : deficitToTarget;
+
       reinvestmentByAsset[asset.asset_id] = [];
     });
 
@@ -235,31 +252,125 @@ export default function RebalancingPage() {
       .filter((a: any) => a.action === 'buy' && a.amount > 0)
       .sort((a: any, b: any) => a.drift_percentage - b.drift_percentage);
 
+    const applyTransfer = (
+      fromAsset: any,
+      toAsset: any,
+      amount: number,
+      toReason: string,
+      fromReason: string,
+      pairType: 'explicit' | 'implied'
+    ) => {
+      if (amount <= 0) return;
+
+      reinvestmentByAsset[fromAsset.asset_id].push({
+        to_ticker: toAsset.ticker,
+        amount,
+        reason: toReason,
+        pair_type: pairType,
+      });
+
+      reinvestmentByAsset[toAsset.asset_id].push({
+        from_ticker: fromAsset.ticker,
+        amount,
+        reason: fromReason,
+        pair_type: pairType,
+      });
+
+      remainingAvailByAsset[fromAsset.asset_id] = Math.max(0, (remainingAvailByAsset[fromAsset.asset_id] || 0) - amount);
+      remainingNeedByAsset[toAsset.asset_id] = Math.max(0, (remainingNeedByAsset[toAsset.asset_id] || 0) - amount);
+    };
+
+    // Phase 1: Pair explicitly triggered sells and buys first.
     sellAssets.forEach((sellAsset: any) => {
       let remainingToDeploy = remainingAvailByAsset[sellAsset.asset_id] || 0;
       buyAssets.forEach((buyAsset: any) => {
+        if (buyAsset.asset_id === sellAsset.asset_id) return;
         if (remainingToDeploy <= 0) return;
         const need = remainingNeedByAsset[buyAsset.asset_id] || 0;
         if (need <= 0) return;
 
         const transfer = Math.min(remainingToDeploy, need);
-        if (transfer <= 0) return;
-
-        reinvestmentByAsset[sellAsset.asset_id].push({
-          to_ticker: buyAsset.ticker,
-          amount: transfer,
-          reason: `Redeploy into underweight ${buyAsset.ticker}`,
-        });
-
-        reinvestmentByAsset[buyAsset.asset_id].push({
-          from_ticker: sellAsset.ticker,
-          amount: transfer,
-          reason: `Fund from overweight ${sellAsset.ticker}`,
-        });
-
+        applyTransfer(
+          sellAsset,
+          buyAsset,
+          transfer,
+          `Redeploy into triggered underweight ${buyAsset.ticker}`,
+          `Fund triggered buy from overweight ${sellAsset.ticker}`,
+          'explicit'
+        );
         remainingToDeploy -= transfer;
-        remainingAvailByAsset[sellAsset.asset_id] = Math.max(0, (remainingAvailByAsset[sellAsset.asset_id] || 0) - transfer);
-        remainingNeedByAsset[buyAsset.asset_id] = Math.max(0, need - transfer);
+      });
+    });
+
+    // Phase 2: If buy actions still need funding, source from assets furthest above overall target
+    // even if those source assets did not breach upside thresholds.
+    buyAssets.forEach((buyAsset: any) => {
+      let needed = remainingNeedByAsset[buyAsset.asset_id] || 0;
+      if (needed <= 0) return;
+
+      const sourcePool = assetActionList
+        .filter((source: any) => source.asset_id !== buyAsset.asset_id && (remainingAvailByAsset[source.asset_id] || 0) > 0)
+        .sort((a: any, b: any) => {
+          const excessDelta = (excessToTargetByAsset[b.asset_id] || 0) - (excessToTargetByAsset[a.asset_id] || 0);
+          if (excessDelta !== 0) return excessDelta;
+          return b.drift_percentage - a.drift_percentage;
+        });
+
+      sourcePool.forEach((sourceAsset: any) => {
+        if (needed <= 0) return;
+        const available = remainingAvailByAsset[sourceAsset.asset_id] || 0;
+        if (available <= 0) return;
+
+        const transfer = Math.min(available, needed);
+        const sourceReason = sourceAsset.action === 'sell'
+          ? `Fund triggered buy from overweight ${sourceAsset.ticker}`
+          : `Implied funding from above-target ${sourceAsset.ticker}`;
+
+        applyTransfer(
+          sourceAsset,
+          buyAsset,
+          transfer,
+          `Allocate toward triggered underweight ${buyAsset.ticker}`,
+          sourceReason,
+          'implied'
+        );
+        needed -= transfer;
+      });
+    });
+
+    // Phase 3: If sell actions still have proceeds, deploy to assets furthest below overall target
+    // even if those destination assets did not breach downside thresholds.
+    sellAssets.forEach((sellAsset: any) => {
+      let available = remainingAvailByAsset[sellAsset.asset_id] || 0;
+      if (available <= 0) return;
+
+      const destinationPool = assetActionList
+        .filter((dest: any) => dest.asset_id !== sellAsset.asset_id && (remainingNeedByAsset[dest.asset_id] || 0) > 0)
+        .sort((a: any, b: any) => {
+          const deficitDelta = (deficitToTargetByAsset[b.asset_id] || 0) - (deficitToTargetByAsset[a.asset_id] || 0);
+          if (deficitDelta !== 0) return deficitDelta;
+          return a.drift_percentage - b.drift_percentage;
+        });
+
+      destinationPool.forEach((destAsset: any) => {
+        if (available <= 0) return;
+        const need = remainingNeedByAsset[destAsset.asset_id] || 0;
+        if (need <= 0) return;
+
+        const transfer = Math.min(available, need);
+        const destReason = destAsset.action === 'buy'
+          ? `Redeploy into triggered underweight ${destAsset.ticker}`
+          : `Implied redeploy into below-target ${destAsset.ticker}`;
+
+        applyTransfer(
+          sellAsset,
+          destAsset,
+          transfer,
+          destReason,
+          `Fund from overweight ${sellAsset.ticker}`,
+          'implied'
+        );
+        available -= transfer;
       });
     });
 
@@ -662,7 +773,16 @@ export default function RebalancingPage() {
                                     i.reinvestment_suggestions.forEach((s: any, idx: number) => {
                                       const accountLabel = s.account_name ? ` (${s.account_name}${s.tax_status ? `, ${s.tax_status}` : ''})` : ''
                                       const label = s.from_ticker ? `Fund via ${s.from_ticker} sale${accountLabel}` : s.to_ticker ? `Use Funds to Buy ${s.to_ticker}` : 'Suggested'
-                                      lines.push(<div key={`re-${idx}`} className="text-blue-700">{label}: {formatUSDWhole(s.amount)}</div>)
+                                      const badgeText = s.pair_type === 'explicit' ? 'Explicit' : 'Implied'
+                                      const badgeClass = s.pair_type === 'explicit'
+                                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                        : 'bg-amber-100 text-amber-700 border-amber-200'
+                                      lines.push(
+                                        <div key={`re-${idx}`} className="text-blue-700 flex items-center justify-end gap-1.5">
+                                          <span className={cn('inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide', badgeClass)}>{badgeText}</span>
+                                          <span>{label}: {formatUSDWhole(s.amount)}</span>
+                                        </div>
+                                      )
                                     })
                                   }
                                   return lines.length ? lines : <span className="opacity-40">-</span>
