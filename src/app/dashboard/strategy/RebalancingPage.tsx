@@ -544,15 +544,16 @@ export default function RebalancingPage() {
                     <div className="overflow-x-auto w-full overscroll-x-contain [-webkit-overflow-scrolling:touch]">
                       <Table className="w-full min-w-[1100px] table-fixed border-collapse">
                         <colgroup>
-                          <col className="w-[15%]" />
-                          <col className="w-[10%]" />
+                          <col className="w-[14%]" />
+                          <col className="w-[9%]" />
                           <col className="w-[11%]" />
-                          <col className="w-[8%]" />
+                          <col className="w-[9%]" />
+                          <col className="w-[11%]" />
                           <col className="w-[10%]" />
                           <col className="w-[8%]" />
                           <col className="w-[8%]" />
-                          <col className="w-[10%]" />
-                          <col className="w-[16%]" />
+                          <col className="w-[8%]" />
+                          <col className="w-[12%]" />
                         </colgroup>
                         <TableHeader className="bg-muted/30">
                           <TableRow>
@@ -576,20 +577,26 @@ export default function RebalancingPage() {
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
                               <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('current_in_sp')}>
-                                Weight
+                                Sub-Portfolio Weight
                                 <SortIcon col="current_in_sp" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right text-blue-600 font-bold">
                               <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('sub_portfolio_target_percentage')}>
-                                Tgt Wt
+                                Target Sub-Portfolio Weight
                                 <SortIcon col="sub_portfolio_target_percentage" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
                               <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('implied_overall_target')}>
-                                Impl. %
+                                Overall Target Weight
                                 <SortIcon col="implied_overall_target" />
+                              </button>
+                            </TableHead>
+                            <TableHead className="px-3 sm:px-4 text-right">
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('current_percentage')}>
+                                Overall Weight
+                                <SortIcon col="current_percentage" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
@@ -631,6 +638,7 @@ export default function RebalancingPage() {
                                 />
                               </TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.implied_overall_target.toFixed(1)}%</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(i.current_percentage || 0).toFixed(1)}%</TableCell>
                               <TableCell className={cn("px-3 sm:px-4 text-right tabular-nums font-bold whitespace-nowrap", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-center font-bold whitespace-nowrap">
                                 {i.action === 'hold' ? (
@@ -669,6 +677,7 @@ export default function RebalancingPage() {
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalWeight.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalTarget.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalImplied.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{allocPct.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{absDriftWtd.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-center text-white">N/A</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right opacity-60 text-white">N/A</TableCell>
