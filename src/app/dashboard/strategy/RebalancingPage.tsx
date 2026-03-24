@@ -527,7 +527,32 @@ export default function RebalancingPage() {
   const rebalanceNeeded = calculatedData.allocations.some((a: any) => a.action !== 'hold')
   const actionableAssets = [...(calculatedData.assetLevel || [])]
     .filter((a: any) => a.action !== 'hold')
-    .sort((a: any, b: any) => Math.abs(b.drift_percentage) - Math.abs(a.drift_percentage));
+    .sort((a: any, b: any) => (b.amount || 0) - (a.amount || 0));
+
+  const impliedFlowRows = (() => {
+    const flowMap = new Map<string, { from: string; to: string; amount: number; type: 'Implied' }>();
+
+    calculatedData.allocations.forEach((asset: any) => {
+      const sourceTicker = asset.ticker || 'Unknown';
+      (asset.reinvestment_suggestions || []).forEach((s: any) => {
+        if (s.pair_type !== 'implied' || !s.to_ticker || !s.amount) return;
+        const key = `${sourceTicker}->${s.to_ticker}`;
+        const current = flowMap.get(key);
+        if (!current) {
+          flowMap.set(key, {
+            from: sourceTicker,
+            to: s.to_ticker,
+            amount: s.amount,
+            type: 'Implied',
+          });
+          return;
+        }
+        current.amount += s.amount;
+      });
+    });
+
+    return Array.from(flowMap.values()).sort((a, b) => b.amount - a.amount);
+  })();
 
   return (
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
@@ -551,12 +576,16 @@ export default function RebalancingPage() {
           <h3 className="text-sm font-bold uppercase tracking-wide">Portfolio Execution</h3>
           <span className="text-xs text-muted-foreground">Asset-level recommendations across sub-portfolios</span>
         </div>
-        {actionableAssets.length === 0 ? (
+        {actionableAssets.length === 0 && impliedFlowRows.length === 0 ? (
           <div className="text-sm text-muted-foreground">No portfolio-wide asset actions are currently triggered.</div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto space-y-4">
+            {actionableAssets.length > 0 && (
             <Table className="min-w-[860px]">
               <TableHeader>
+                <TableRow>
+                  <TableHead colSpan={8} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Explicit Transactions</TableHead>
+                </TableRow>
                 <TableRow>
                   <TableHead>Asset</TableHead>
                   <TableHead className="text-right">Current %</TableHead>
@@ -606,6 +635,35 @@ export default function RebalancingPage() {
                 })}
               </TableBody>
             </Table>
+            )}
+
+            {impliedFlowRows.length > 0 && (
+              <Table className="min-w-[860px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead colSpan={4} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Implied Funding Flows</TableHead>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead>From</TableHead>
+                    <TableHead>To</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-center">Type</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {impliedFlowRows.map((flow, idx) => (
+                    <TableRow key={`implied-flow-${idx}`}>
+                      <TableCell className="font-semibold">{flow.from}</TableCell>
+                      <TableCell className="font-semibold">{flow.to}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatUSDWhole(flow.amount)}</TableCell>
+                      <TableCell className="text-center">
+                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">Implied</span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </div>
         )}
       </div>
@@ -689,43 +747,43 @@ export default function RebalancingPage() {
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
-                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('quantity')}>
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 text-right whitespace-normal leading-tight" onClick={() => handleSort('quantity')}>
                                 Qty
                                 <SortIcon col="quantity" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
-                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('current_value')}>
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 text-right whitespace-normal leading-tight" onClick={() => handleSort('current_value')}>
                                 Val ($)
                                 <SortIcon col="current_value" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
-                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('current_in_sp')}>
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 text-right whitespace-normal leading-tight" onClick={() => handleSort('current_in_sp')}>
                                 Sub-Portfolio Weight
                                 <SortIcon col="current_in_sp" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right text-blue-600 font-bold">
-                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('sub_portfolio_target_percentage')}>
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 text-right whitespace-normal leading-tight" onClick={() => handleSort('sub_portfolio_target_percentage')}>
                                 Target Sub-Portfolio Weight
                                 <SortIcon col="sub_portfolio_target_percentage" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
-                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('implied_overall_target')}>
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 text-right whitespace-normal leading-tight" onClick={() => handleSort('implied_overall_target')}>
                                 Overall Target Weight
                                 <SortIcon col="implied_overall_target" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
-                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('current_percentage')}>
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 text-right whitespace-normal leading-tight" onClick={() => handleSort('current_percentage')}>
                                 Overall Weight
                                 <SortIcon col="current_percentage" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
-                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => handleSort('drift_percentage')}>
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 text-right whitespace-normal leading-tight" onClick={() => handleSort('drift_percentage')}>
                                 Port Drift %
                                 <SortIcon col="drift_percentage" />
                               </button>
