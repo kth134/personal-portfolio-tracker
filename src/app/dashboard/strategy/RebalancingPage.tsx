@@ -554,6 +554,10 @@ export default function RebalancingPage() {
     return Array.from(flowMap.values()).sort((a, b) => b.amount - a.amount);
   })();
 
+  const getPairingsForAsset = (assetId: string) => {
+    return calculatedData.allocations.find((a: any) => a.asset_id === assetId)?.reinvestment_suggestions || [];
+  };
+
   return (
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
@@ -579,7 +583,89 @@ export default function RebalancingPage() {
         {actionableAssets.length === 0 && impliedFlowRows.length === 0 ? (
           <div className="text-sm text-muted-foreground">No portfolio-wide asset actions are currently triggered.</div>
         ) : (
-          <div className="overflow-x-auto space-y-4">
+          <div className="space-y-4">
+            {actionableAssets.length > 0 && (
+            <div className="md:hidden space-y-3">
+              <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Explicit Transactions</div>
+              {actionableAssets.map((asset: any) => {
+                const pairings = getPairingsForAsset(asset.asset_id);
+                return (
+                  <div key={`mobile-explicit-${asset.asset_id}`} className="rounded-lg border bg-background p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-semibold leading-tight">{asset.ticker}</div>
+                        <div className="text-xs text-muted-foreground leading-tight">{asset.name}</div>
+                      </div>
+                      <span className={cn("text-xs font-bold", asset.action === 'buy' ? "text-green-600" : "text-red-600")}>{asset.action.toUpperCase()}</span>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold tabular-nums">{formatUSDWhole(asset.amount)}</div>
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                          asset.amount_mode === 'Conservative'
+                            ? 'bg-amber-100 text-amber-800 border-amber-200'
+                            : 'bg-sky-100 text-sky-800 border-sky-200'
+                        )}
+                      >
+                        {asset.amount_mode}
+                      </span>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                      <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                        <div className="text-zinc-500">Current</div>
+                        <div className="font-semibold tabular-nums">{asset.current_overall_pct.toFixed(1)}%</div>
+                      </div>
+                      <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                        <div className="text-zinc-500">Target</div>
+                        <div className="font-semibold tabular-nums text-blue-700">{asset.target_overall_pct.toFixed(1)}%</div>
+                      </div>
+                      <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                        <div className="text-zinc-500">Drift</div>
+                        <div className={cn("font-semibold tabular-nums", asset.drift_percentage > 0 ? "text-green-600" : "text-red-600")}>{asset.drift_percentage > 0 ? '+' : ''}{asset.drift_percentage.toFixed(1)}%</div>
+                      </div>
+                    </div>
+
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-xs font-semibold text-zinc-600">Pairings</summary>
+                      <div className="mt-2 space-y-1 text-xs text-blue-700">
+                        {pairings.length > 0 ? pairings.slice(0, 4).map((s: any, idx: number) => (
+                          <div key={`mobile-pair-${asset.asset_id}-${idx}`} className="flex items-center justify-between gap-2">
+                            <span className="truncate">{s.to_ticker ? `To ${s.to_ticker}` : `From ${s.from_ticker}`}</span>
+                            <span className="tabular-nums whitespace-nowrap">{formatUSDWhole(s.amount)}</span>
+                          </div>
+                        )) : <span className="text-muted-foreground">No pairings</span>}
+                      </div>
+                    </details>
+                  </div>
+                )
+              })}
+            </div>
+            )}
+
+            {impliedFlowRows.length > 0 && (
+              <div className="md:hidden space-y-3">
+                <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Implied Funding Flows</div>
+                {impliedFlowRows.map((flow, idx) => (
+                  <details key={`mobile-implied-${idx}`} className="rounded-lg border bg-background p-3 shadow-sm">
+                    <summary className="cursor-pointer list-none">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-xs text-zinc-500">{`${flow.from} -> ${flow.to}`}</div>
+                          <div className="font-semibold tabular-nums">{formatUSDWhole(flow.amount)}</div>
+                        </div>
+                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">Implied</span>
+                      </div>
+                    </summary>
+                    <div className="mt-2 text-xs text-zinc-600">Funds are routed from above-target assets to below-target assets without pushing either side through target boundaries.</div>
+                  </details>
+                ))}
+              </div>
+            )}
+
+            <div className="hidden md:block overflow-x-auto space-y-4">
             {actionableAssets.length > 0 && (
             <Table className="min-w-[860px]">
               <TableHeader>
@@ -599,7 +685,7 @@ export default function RebalancingPage() {
               </TableHeader>
               <TableBody>
                 {actionableAssets.map((asset: any) => {
-                  const pairings = calculatedData.allocations.find((a: any) => a.asset_id === asset.asset_id)?.reinvestment_suggestions || [];
+                  const pairings = getPairingsForAsset(asset.asset_id);
                   return (
                     <TableRow key={asset.asset_id}>
                       <TableCell>
@@ -664,6 +750,7 @@ export default function RebalancingPage() {
                 </TableBody>
               </Table>
             )}
+            </div>
           </div>
         )}
       </div>
@@ -724,7 +811,79 @@ export default function RebalancingPage() {
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 max-w-[150px] bg-white border-zinc-300"/></div>
                         <div className="flex items-center gap-3 pt-4 sm:pt-0"><Switch id={`band-mode-${sp.id}`} checked={sp.band_mode} onCheckedChange={(checked) => updateSubPortfolio(sp.id, 'band_mode', checked ? 1 : 0)} /><Label htmlFor={`band-mode-${sp.id}`} className="text-xs font-medium cursor-pointer">{sp.band_mode ? 'Conservative' : 'Absolute'} Mode</Label></div>
                     </div>
-                    <div className="overflow-x-auto w-full overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+                    <div className="md:hidden p-3 space-y-3 bg-zinc-50 border-b">
+                      {sortedItems.map((i: any) => (
+                        <div key={`mobile-${i.asset_id}`} className="rounded-lg border bg-background p-3 shadow-sm">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="font-semibold leading-tight truncate">{i.ticker}</div>
+                              <div className="text-xs text-muted-foreground truncate">{i.name}</div>
+                            </div>
+                            {i.action === 'hold' ? (
+                              <span className="text-xs font-semibold text-zinc-400">HOLD</span>
+                            ) : (
+                              <div className="text-right">
+                                <div className={cn("text-xs font-bold", i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</div>
+                                <div className="text-xs font-semibold tabular-nums">{formatUSDWhole(i.amount)}</div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">SP Wt</span><div className="font-semibold tabular-nums">{i.current_in_sp.toFixed(1)}%</div></div>
+                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">SP Target</span><div className="font-semibold tabular-nums text-blue-700">{Number(i.sub_portfolio_target_percentage || 0).toFixed(1)}%</div></div>
+                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Overall Wt</span><div className="font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div></div>
+                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Port Drift</span><div className={cn("font-semibold tabular-nums", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div></div>
+                          </div>
+
+                          <div className="mt-2 space-y-1">
+                            <Label className="text-[10px] font-bold uppercase text-zinc-500">Target Sub-Portfolio Weight</Label>
+                            <Input
+                              defaultValue={i.sub_portfolio_target_percentage}
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              onBlur={(e) => {
+                                const parsed = parsePercentWithTwoDecimals(e.target.value)
+                                if (parsed === null) {
+                                  alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
+                                  return
+                                }
+                                updateAssetTarget(i.asset_id, sp.id, parsed)
+                              }}
+                              className="h-8 text-right w-28 ml-auto border-zinc-200 bg-zinc-50/50 focus:ring-0"
+                            />
+                          </div>
+
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-xs font-semibold text-zinc-600">Details</summary>
+                            <div className="mt-2 space-y-1 text-xs text-blue-700">
+                              {i.action === 'sell' && i.recommended_accounts?.length ? i.recommended_accounts.map((s: any, idx: number) => (
+                                <div key={`mobile-sell-${i.asset_id}-${idx}`}>Sell from {s.name}: {formatUSDWhole(s.amount)}</div>
+                              )) : null}
+                              {i.reinvestment_suggestions?.length ? i.reinvestment_suggestions.map((s: any, idx: number) => {
+                                const accountLabel = s.account_name ? ` (${s.account_name}${s.tax_status ? `, ${s.tax_status}` : ''})` : ''
+                                const label = s.from_ticker ? `Fund via ${s.from_ticker} sale${accountLabel}` : s.to_ticker ? `Use Funds to Buy ${s.to_ticker}` : 'Suggested'
+                                const badgeText = s.pair_type === 'explicit' ? 'Explicit' : 'Implied'
+                                const badgeClass = s.pair_type === 'explicit'
+                                  ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                  : 'bg-amber-100 text-amber-700 border-amber-200'
+                                return (
+                                  <div key={`mobile-re-${i.asset_id}-${idx}`} className="flex items-center justify-between gap-2">
+                                    <span className={cn('inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide', badgeClass)}>{badgeText}</span>
+                                    <span className="text-right">{label}: {formatUSDWhole(s.amount)}</span>
+                                  </div>
+                                )
+                              }) : null}
+                              {!(i.action === 'sell' && i.recommended_accounts?.length) && !i.reinvestment_suggestions?.length ? <span className="text-muted-foreground">No suggestions</span> : null}
+                            </div>
+                          </details>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="hidden md:block overflow-x-auto w-full overscroll-x-contain [-webkit-overflow-scrolling:touch]">
                       <Table className="w-full min-w-[1100px] table-fixed border-collapse">
                         <colgroup>
                           <col className="w-[14%]" />
