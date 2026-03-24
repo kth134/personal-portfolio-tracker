@@ -572,19 +572,15 @@ export default function RebalancingPage() {
 
   return (
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="flex justify-end">
+        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Value</Label><div className="text-xl font-bold font-mono">{formatUSDWhole(data.totalValue)}</div></div>
         <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Sub-Portfolio Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div></div>
         <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Asset Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div></div>
         <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Rebalance Needed</Label><div className={cn("text-xl font-bold flex items-center justify-center mt-1", rebalanceNeeded ? "text-red-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div></div>
-        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground text-blue-600 leading-none">Net Impact</Label><div className={cn("text-xl font-bold mt-1 font-mono", calculatedData.netImpact > 0 ? "text-green-600" : (calculatedData.netImpact < 0 ? "text-red-500" : "text-black"))}>{calculatedData.netImpact > 0 ? "+" : ""}{formatUSDWhole(calculatedData.netImpact)}</div></div>
-      </div>
-
-      <div className="flex flex-wrap gap-4 items-end border-b pb-4 bg-muted/10 p-4 rounded-xl">
-        <div className="w-56"><Label className="text-[10px] font-bold uppercase mb-1 block">View Lens</Label><Select value={lens} onValueChange={setLens}><SelectTrigger className="bg-background focus:ring-0"><SelectValue/></SelectTrigger><SelectContent>{LENSES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent></Select></div>
-        {lens !== 'total' && (<div className="w-64"><Label className="text-[10px] font-bold uppercase mb-1 block">Filter Selection</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-between bg-background">{selectedValues.length} selected <ChevronsUpDown className="w-4 h-4 ml-2 opacity-50" /></Button></PopoverTrigger><PopoverContent className="w-64 p-0"><Command><CommandInput placeholder="Search..." /><CommandList><CommandGroup className="max-h-64 overflow-y-auto">{availableValues.map(v => { const filterValue = lens === 'sub_portfolio' ? (v.label ?? v.value) : v.value; return (<CommandItem key={v.value} onSelect={() => toggleValue(filterValue)}><Check className={cn("w-4 h-4 mr-2", selectedValues.includes(filterValue) ? "opacity-100" : "opacity-0")} />{v.label}</CommandItem>) })}</CommandGroup></CommandList></Command></PopoverContent></Popover></div>)}
-        {lens !== 'total' && selectedValues.length > 1 && (<div className="flex items-center gap-2 mb-2 p-2 border rounded-md bg-background"><Switch checked={aggregate} onCheckedChange={setAggregate} id="agg-switch" /><Label htmlFor="agg-switch" className="text-xs cursor-pointer">Aggregate</Label></div>)}
-        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 ml-auto flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
       </div>
 
       <div className="bg-card p-4 rounded-xl border shadow-sm">
@@ -664,11 +660,8 @@ export default function RebalancingPage() {
                   <details key={`mobile-implied-${idx}`} className="rounded-lg border bg-background p-3 shadow-sm">
                     <summary className="cursor-pointer list-none">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="text-xs text-zinc-500">{`${flow.from} -> ${flow.to}`}</div>
-                          <div className="font-semibold tabular-nums">{formatUSDWhole(flow.amount)}</div>
-                        </div>
-                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">Implied</span>
+                        <div className="text-xs text-zinc-500 truncate">{`${flow.from} -> ${flow.to}`}</div>
+                        <div className="font-semibold tabular-nums whitespace-nowrap">{formatUSDWhole(flow.amount)}</div>
                       </div>
                     </summary>
                     <div className="mt-2 text-xs text-zinc-600">Funds are routed from above-target assets to below-target assets without pushing either side through target boundaries.</div>
@@ -769,6 +762,12 @@ export default function RebalancingPage() {
         )}
       </div>
 
+      <div className="flex flex-wrap gap-4 items-end border-b pb-4 bg-muted/10 p-4 rounded-xl">
+        <div className="w-56"><Label className="text-[10px] font-bold uppercase mb-1 block">View Lens</Label><Select value={lens} onValueChange={setLens}><SelectTrigger className="bg-background focus:ring-0"><SelectValue/></SelectTrigger><SelectContent>{LENSES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent></Select></div>
+        {lens !== 'total' && (<div className="w-64"><Label className="text-[10px] font-bold uppercase mb-1 block">Filter Selection</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-between bg-background">{selectedValues.length} selected <ChevronsUpDown className="w-4 h-4 ml-2 opacity-50" /></Button></PopoverTrigger><PopoverContent className="w-64 p-0"><Command><CommandInput placeholder="Search..." /><CommandList><CommandGroup className="max-h-64 overflow-y-auto">{availableValues.map(v => { const filterValue = lens === 'sub_portfolio' ? (v.label ?? v.value) : v.value; return (<CommandItem key={v.value} onSelect={() => toggleValue(filterValue)}><Check className={cn("w-4 h-4 mr-2", selectedValues.includes(filterValue) ? "opacity-100" : "opacity-0")} />{v.label}</CommandItem>) })}</CommandGroup></CommandList></Command></PopoverContent></Popover></div>)}
+        {lens !== 'total' && selectedValues.length > 1 && (<div className="flex items-center gap-2 mb-2 p-2 border rounded-md bg-background"><Switch checked={aggregate} onCheckedChange={setAggregate} id="agg-switch" /><Label htmlFor="agg-switch" className="text-xs cursor-pointer">Aggregate</Label></div>)}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {chartSlices.map((slice, idx) => (
           <div key={idx} className={cn("bg-card p-6 rounded-xl border shadow-sm space-y-4", chartSlices.length === 1 && "lg:col-span-2")}> 
@@ -779,7 +778,7 @@ export default function RebalancingPage() {
       </div>
 
       <div className="pt-8 border-t">
-        <h2 className="text-xl font-bold mb-6">Tactical Execution Dashboard</h2>
+        <h2 className="text-xl font-bold mb-6">Asset Allocation Management</h2>
         <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
           {calculatedData.subPortfolios.map((sp: any) => {
             const items = calculatedData.allocations.filter((a: any) => a.sub_portfolio_id === sp.id)
@@ -828,26 +827,16 @@ export default function RebalancingPage() {
                     <div className="md:hidden p-3 space-y-3 bg-zinc-50 border-b">
                       {sortedItems.map((i: any) => (
                         <div key={`mobile-${i.asset_id}`} className="rounded-lg border bg-background p-3 shadow-sm">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="font-semibold leading-tight truncate">{i.ticker}</div>
-                              <div className="text-xs text-muted-foreground truncate">{i.name}</div>
-                            </div>
-                            {i.action === 'hold' ? (
-                              <span className="text-xs font-semibold text-zinc-400">HOLD</span>
-                            ) : (
-                              <div className="text-right">
-                                <div className={cn("text-xs font-bold", i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</div>
-                                <div className="text-xs font-semibold tabular-nums">{formatUSDWhole(i.amount)}</div>
-                              </div>
-                            )}
+                          <div className="min-w-0">
+                            <div className="font-semibold leading-tight truncate">{i.ticker}</div>
+                            <div className="text-xs text-muted-foreground truncate">{i.name}</div>
                           </div>
 
                           <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">SP Wt</span><div className="font-semibold tabular-nums">{i.current_in_sp.toFixed(1)}%</div></div>
-                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">SP Target</span><div className="font-semibold tabular-nums text-blue-700">{Number(i.sub_portfolio_target_percentage || 0).toFixed(1)}%</div></div>
-                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Overall Wt</span><div className="font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div></div>
+                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Amount</span><div className="font-semibold tabular-nums">{formatUSDWhole(i.amount)}</div></div>
                             <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Port Drift</span><div className={cn("font-semibold tabular-nums", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div></div>
+                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Overall Target</span><div className="font-semibold tabular-nums text-blue-700">{Number(i.implied_overall_target || 0).toFixed(1)}%</div></div>
+                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Overall Wt.</span><div className="font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div></div>
                           </div>
 
                           <div className="mt-2 space-y-1">

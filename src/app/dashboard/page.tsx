@@ -863,8 +863,8 @@ export default function DashboardHome() {
                     <p>Loading strategy data...</p>
                   ) : rebalancingData ? (
                     <div className="space-y-4">
-                      {/* Top Metrics in 3 columns */}
-                      <div className="grid grid-cols-3 gap-4 items-stretch">
+                      {/* Top Metrics */}
+                      <div className="grid grid-cols-2 gap-4 items-stretch">
                         <div className="text-center h-full rounded-md border p-3">
                           <h4 className="font-semibold text-sm text-muted-foreground">Portfolio Drift</h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-2 mt-2">
@@ -925,12 +925,6 @@ export default function DashboardHome() {
                             ) : (
                               'No'
                             )}
-                          </p>
-                        </div>
-                        <div className="text-center h-full rounded-md border p-3 flex flex-col justify-between">
-                          <h4 className="font-semibold text-sm text-muted-foreground">Magnitude of Rebalance Actions (Net)</h4>
-                          <p className={cn("text-xl font-bold", rebalancingData.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
-                            {formatUSDWhole(Math.abs(rebalancingData.cashNeeded))}
                           </p>
                         </div>
                       </div>
@@ -1168,8 +1162,8 @@ export default function DashboardHome() {
                   <p>Loading strategy data...</p>
                 ) : rebalancingData ? (
                   <div className="space-y-4">
-                    {/* Top Metrics in 3 columns */}
-                    <div className="grid grid-cols-3 gap-4 items-stretch">
+                    {/* Top Metrics */}
+                    <div className="grid grid-cols-2 gap-4 items-stretch">
                       <div className="text-center h-full rounded-md border p-3">
                         <h4 className="font-semibold text-sm text-muted-foreground">Portfolio Drift</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-2 mt-2">
@@ -1230,12 +1224,6 @@ export default function DashboardHome() {
                           ) : (
                             'No'
                           )}
-                        </p>
-                      </div>
-                      <div className="text-center h-full rounded-md border p-3 flex flex-col justify-between">
-                        <h4 className="font-semibold text-sm text-muted-foreground">Magnitude of Rebalance Actions (Net)</h4>
-                        <p className={cn("text-xl font-bold", rebalancingData.cashNeeded > 0 ? "text-red-600" : "text-green-600")}>
-                          {formatUSDWhole(Math.abs(rebalancingData.cashNeeded))}
                         </p>
                       </div>
                     </div>
