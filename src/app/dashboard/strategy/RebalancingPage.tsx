@@ -530,20 +530,32 @@ export default function RebalancingPage() {
     .sort((a: any, b: any) => (b.amount || 0) - (a.amount || 0));
 
   const impliedFlowRows = (() => {
-    const flowMap = new Map<string, { from: string; to: string; amount: number; type: 'Implied' }>();
+    const metricsByTicker = new Map<string, { current: number; target: number; drift: number }>();
+    (calculatedData.assetLevel || []).forEach((asset: any) => {
+      metricsByTicker.set(asset.ticker, {
+        current: Number(asset.current_overall_pct || 0),
+        target: Number(asset.target_overall_pct || 0),
+        drift: Number(asset.drift_percentage || 0),
+      });
+    });
+
+    const flowMap = new Map<string, { from: string; to: string; amount: number; current_pct: number; target_pct: number; drift_pct: number }>();
 
     calculatedData.allocations.forEach((asset: any) => {
       const sourceTicker = asset.ticker || 'Unknown';
       (asset.reinvestment_suggestions || []).forEach((s: any) => {
         if (s.pair_type !== 'implied' || !s.to_ticker || !s.amount) return;
         const key = `${sourceTicker}->${s.to_ticker}`;
+        const destinationMetrics = metricsByTicker.get(s.to_ticker) || { current: 0, target: 0, drift: 0 };
         const current = flowMap.get(key);
         if (!current) {
           flowMap.set(key, {
             from: sourceTicker,
             to: s.to_ticker,
             amount: s.amount,
-            type: 'Implied',
+            current_pct: destinationMetrics.current,
+            target_pct: destinationMetrics.target,
+            drift_pct: destinationMetrics.drift,
           });
           return;
         }
@@ -577,7 +589,7 @@ export default function RebalancingPage() {
 
       <div className="bg-card p-4 rounded-xl border shadow-sm">
         <div className="flex items-center justify-between gap-3 mb-3">
-          <h3 className="text-sm font-bold uppercase tracking-wide">Portfolio Execution</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wide">Recommended Rebalancing Execution</h3>
           <span className="text-xs text-muted-foreground">Asset-level recommendations across sub-portfolios</span>
         </div>
         {actionableAssets.length === 0 && impliedFlowRows.length === 0 ? (
@@ -586,7 +598,7 @@ export default function RebalancingPage() {
           <div className="space-y-4">
             {actionableAssets.length > 0 && (
             <div className="md:hidden space-y-3">
-              <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Explicit Transactions</div>
+              <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Triggered Actions</div>
               {actionableAssets.map((asset: any) => {
                 const pairings = getPairingsForAsset(asset.asset_id);
                 return (
@@ -647,7 +659,7 @@ export default function RebalancingPage() {
 
             {impliedFlowRows.length > 0 && (
               <div className="md:hidden space-y-3">
-                <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Implied Funding Flows</div>
+                <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Supporting Flows</div>
                 {impliedFlowRows.map((flow, idx) => (
                   <details key={`mobile-implied-${idx}`} className="rounded-lg border bg-background p-3 shadow-sm">
                     <summary className="cursor-pointer list-none">
@@ -670,7 +682,7 @@ export default function RebalancingPage() {
             <Table className="min-w-[860px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead colSpan={8} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Explicit Transactions</TableHead>
+                  <TableHead colSpan={8} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Triggered Actions</TableHead>
                 </TableRow>
                 <TableRow>
                   <TableHead>Asset</TableHead>
@@ -727,13 +739,15 @@ export default function RebalancingPage() {
               <Table className="min-w-[860px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead colSpan={4} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Implied Funding Flows</TableHead>
+                    <TableHead colSpan={6} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Supporting Flows</TableHead>
                   </TableRow>
                   <TableRow>
                     <TableHead>From</TableHead>
                     <TableHead>To</TableHead>
+                    <TableHead className="text-right">Current %</TableHead>
+                    <TableHead className="text-right text-blue-600">Target %</TableHead>
+                    <TableHead className="text-right">Drift %</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="text-center">Type</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -741,10 +755,10 @@ export default function RebalancingPage() {
                     <TableRow key={`implied-flow-${idx}`}>
                       <TableCell className="font-semibold">{flow.from}</TableCell>
                       <TableCell className="font-semibold">{flow.to}</TableCell>
+                      <TableCell className="text-right tabular-nums">{flow.current_pct.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right tabular-nums text-blue-700">{flow.target_pct.toFixed(1)}%</TableCell>
+                      <TableCell className={cn("text-right tabular-nums font-semibold", flow.drift_pct > 0 ? "text-green-600" : "text-red-600")}>{flow.drift_pct > 0 ? '+' : ''}{flow.drift_pct.toFixed(1)}%</TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSDWhole(flow.amount)}</TableCell>
-                      <TableCell className="text-center">
-                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">Implied</span>
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
