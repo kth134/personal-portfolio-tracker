@@ -681,7 +681,7 @@ export default function RebalancingPage() {
                   <TableHead className="text-right text-blue-600">Target %</TableHead>
                   <TableHead className="text-right">Drift %</TableHead>
                   <TableHead className="text-center">Action</TableHead>
-                  <TableHead className="text-center">Rebalance Type</TableHead>
+                  <TableHead className="text-center">Rebalance Mode</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Suggested Pairing</TableHead>
                 </TableRow>
