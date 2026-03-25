@@ -583,14 +583,12 @@ export default function RebalancingPage() {
         <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Rebalance Needed</Label><div className={cn("text-xl font-bold flex items-center justify-center mt-1", rebalanceNeeded ? "text-red-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div></div>
       </div>
 
+      {rebalanceNeeded && (actionableAssets.length > 0 || impliedFlowRows.length > 0) && (
       <div className="bg-card p-4 rounded-xl border shadow-sm">
         <div className="flex items-center justify-between gap-3 mb-3">
           <h3 className="text-sm font-bold uppercase tracking-wide">Recommended Rebalancing Execution</h3>
           <span className="text-xs text-muted-foreground">Asset-level recommendations across sub-portfolios</span>
         </div>
-        {actionableAssets.length === 0 && impliedFlowRows.length === 0 ? (
-          <div className="text-sm text-muted-foreground">No portfolio-wide asset actions are currently triggered.</div>
-        ) : (
           <div className="space-y-4">
             {actionableAssets.length > 0 && (
             <div className="md:hidden space-y-3">
@@ -759,8 +757,8 @@ export default function RebalancingPage() {
             )}
             </div>
           </div>
-        )}
       </div>
+      )}
 
       <div className="flex flex-wrap gap-4 items-end border-b pb-4 bg-muted/10 p-4 rounded-xl">
         <div className="w-56"><Label className="text-[10px] font-bold uppercase mb-1 block">View Lens</Label><Select value={lens} onValueChange={setLens}><SelectTrigger className="bg-background focus:ring-0"><SelectValue/></SelectTrigger><SelectContent>{LENSES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent></Select></div>
