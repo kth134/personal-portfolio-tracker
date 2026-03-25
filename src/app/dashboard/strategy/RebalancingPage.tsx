@@ -572,8 +572,15 @@ export default function RebalancingPage() {
 
   return (
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
-      <div className="flex justify-end">
-        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between border-b pb-4 bg-muted/10 p-4 rounded-xl">
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="w-56"><Label className="text-[10px] font-bold uppercase mb-1 block">View Lens</Label><Select value={lens} onValueChange={setLens}><SelectTrigger className="bg-background focus:ring-0"><SelectValue/></SelectTrigger><SelectContent>{LENSES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent></Select></div>
+          {lens !== 'total' && (<div className="w-64"><Label className="text-[10px] font-bold uppercase mb-1 block">Filter Selection</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-between bg-background">{selectedValues.length} selected <ChevronsUpDown className="w-4 h-4 ml-2 opacity-50" /></Button></PopoverTrigger><PopoverContent className="w-64 p-0"><Command><CommandInput placeholder="Search..." /><CommandList><CommandGroup className="max-h-64 overflow-y-auto">{availableValues.map(v => { const filterValue = lens === 'sub_portfolio' ? (v.label ?? v.value) : v.value; return (<CommandItem key={v.value} onSelect={() => toggleValue(filterValue)}><Check className={cn("w-4 h-4 mr-2", selectedValues.includes(filterValue) ? "opacity-100" : "opacity-0")} />{v.label}</CommandItem>) })}</CommandGroup></CommandList></Command></PopoverContent></Popover></div>)}
+          {lens !== 'total' && selectedValues.length > 1 && (<div className="flex items-center gap-2 mb-2 p-2 border rounded-md bg-background"><Switch checked={aggregate} onCheckedChange={setAggregate} id="agg-switch" /><Label htmlFor="agg-switch" className="text-xs cursor-pointer">Aggregate</Label></div>)}
+        </div>
+        <div className="flex justify-start lg:justify-end">
+          <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -581,12 +588,6 @@ export default function RebalancingPage() {
         <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Sub-Portfolio Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div></div>
         <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Asset Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div></div>
         <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Rebalance Needed</Label><div className={cn("text-xl font-bold flex items-center justify-center mt-1", rebalanceNeeded ? "text-red-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div></div>
-      </div>
-
-      <div className="flex flex-wrap gap-4 items-end border-b pb-4 bg-muted/10 p-4 rounded-xl">
-        <div className="w-56"><Label className="text-[10px] font-bold uppercase mb-1 block">View Lens</Label><Select value={lens} onValueChange={setLens}><SelectTrigger className="bg-background focus:ring-0"><SelectValue/></SelectTrigger><SelectContent>{LENSES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent></Select></div>
-        {lens !== 'total' && (<div className="w-64"><Label className="text-[10px] font-bold uppercase mb-1 block">Filter Selection</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-between bg-background">{selectedValues.length} selected <ChevronsUpDown className="w-4 h-4 ml-2 opacity-50" /></Button></PopoverTrigger><PopoverContent className="w-64 p-0"><Command><CommandInput placeholder="Search..." /><CommandList><CommandGroup className="max-h-64 overflow-y-auto">{availableValues.map(v => { const filterValue = lens === 'sub_portfolio' ? (v.label ?? v.value) : v.value; return (<CommandItem key={v.value} onSelect={() => toggleValue(filterValue)}><Check className={cn("w-4 h-4 mr-2", selectedValues.includes(filterValue) ? "opacity-100" : "opacity-0")} />{v.label}</CommandItem>) })}</CommandGroup></CommandList></Command></PopoverContent></Popover></div>)}
-        {lens !== 'total' && selectedValues.length > 1 && (<div className="flex items-center gap-2 mb-2 p-2 border rounded-md bg-background"><Switch checked={aggregate} onCheckedChange={setAggregate} id="agg-switch" /><Label htmlFor="agg-switch" className="text-xs cursor-pointer">Aggregate</Label></div>)}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -114,6 +114,38 @@ export default function PortfolioHoldingsWithSlicers({
     return Number(itemRecord.quantity) || 0
   }
 
+  const getItemRemainingCostBasis = (item: unknown) => {
+    if (!item) return 0
+
+    const itemRecord = item as Record<string, unknown>
+
+    const activeLots = Array.isArray(itemRecord.active_tax_lots)
+      ? itemRecord.active_tax_lots
+      : Array.isArray(itemRecord.tax_lots)
+        ? itemRecord.tax_lots
+        : []
+
+    if (activeLots.length > 0) {
+      return activeLots.reduce((sum: number, lot: unknown) => {
+        const lotRecord = lot as Record<string, unknown>
+        const lotRemainingQty =
+          lotRecord.remaining_quantity ??
+          lotRecord.remainingQuantity ??
+          lotRecord.quantity_remaining ??
+          lotRecord.quantityRemaining ??
+          lotRecord.quantity ??
+          0
+        const lotCostBasisPerUnit =
+          lotRecord.cost_basis_per_unit ??
+          lotRecord.costBasisPerUnit ??
+          0
+        return sum + ((Number(lotRemainingQty) || 0) * (Number(lotCostBasisPerUnit) || 0))
+      }, 0)
+    }
+
+    return Number(itemRecord.cost_basis) || 0
+  }
+
   useEffect(() => {
     if (lens === 'total') {
       setAvailableValues([])
@@ -265,11 +297,13 @@ export default function PortfolioHoldingsWithSlicers({
               <AccordionContent className="p-0 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
                 <Table className="w-full min-w-[760px] table-fixed">
                   <colgroup>
-                    <col className="w-[34%]" />
+                    <col className="w-[26%]" />
+                    <col className="w-[12%]" />
                     <col className="w-[14%]" />
-                    <col className="w-[18%]" />
-                    <col className="w-[18%]" />
-                    <col className="w-[16%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[10%]" />
                   </colgroup>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
@@ -288,9 +322,23 @@ export default function PortfolioHoldingsWithSlicers({
                       </TableHead>
 
                       <TableHead className="px-3 sm:px-4 text-right">
+                        <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => toggleItemSort(group.key, 'cost_basis_per_share')}>
+                          Cost Basis/Share
+                          {renderSortIndicator(itemSorts[group.key], 'cost_basis_per_share')}
+                        </button>
+                      </TableHead>
+
+                      <TableHead className="px-3 sm:px-4 text-right">
                         <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => toggleItemSort(group.key, 'cost_basis')}>
                           Total Cost Basis
                           {renderSortIndicator(itemSorts[group.key], 'cost_basis')}
+                        </button>
+                      </TableHead>
+
+                      <TableHead className="px-3 sm:px-4 text-right">
+                        <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => toggleItemSort(group.key, 'current_price')}>
+                          Current Price
+                          {renderSortIndicator(itemSorts[group.key], 'current_price')}
                         </button>
                       </TableHead>
 
@@ -327,6 +375,20 @@ export default function PortfolioHoldingsWithSlicers({
                             const qb = getItemRemainingQuantity(b)
                             return (qa - qb) * dirMul
                           }
+                          if (k === 'cost_basis_per_share') {
+                            const qa = getItemRemainingQuantity(a)
+                            const qb = getItemRemainingQuantity(b)
+                            const cpa = qa > 0 ? getItemRemainingCostBasis(a) / qa : 0
+                            const cpb = qb > 0 ? getItemRemainingCostBasis(b) / qb : 0
+                            return (cpa - cpb) * dirMul
+                          }
+                          if (k === 'current_price') {
+                            const qa = getItemRemainingQuantity(a)
+                            const qb = getItemRemainingQuantity(b)
+                            const cpa = qa > 0 ? (Number(a.value) || 0) / qa : 0
+                            const cpb = qb > 0 ? (Number(b.value) || 0) / qb : 0
+                            return (cpa - cpb) * dirMul
+                          }
                           if (k === 'weight') {
                             const wa = totalValueAcrossSelection > 0 ? ((Number(a.value) || 0) / totalValueAcrossSelection) * 100 : 0
                             const wb = totalValueAcrossSelection > 0 ? ((Number(b.value) || 0) / totalValueAcrossSelection) * 100 : 0
@@ -340,6 +402,9 @@ export default function PortfolioHoldingsWithSlicers({
                           const itemValue = Number(item.value) || 0
                           const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
                           const itemQuantity = getItemRemainingQuantity(item)
+                          const itemRemainingCostBasis = getItemRemainingCostBasis(item)
+                          const itemCostBasisPerShare = itemQuantity > 0 ? itemRemainingCostBasis / itemQuantity : 0
+                          const itemCurrentPrice = itemQuantity > 0 ? itemValue / itemQuantity : 0
                           return (
                             <TableRow key={`${item.ticker ?? item.name ?? idx}`}>
                               <TableCell className="px-3 sm:px-4 align-top">
@@ -347,7 +412,9 @@ export default function PortfolioHoldingsWithSlicers({
                                 <div className="text-[10px] opacity-70 truncate">{item.name}</div>
                               </TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{itemQuantity.toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(itemCostBasisPerShare)}</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(item.cost_basis)}</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(itemCurrentPrice)}</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums font-bold whitespace-nowrap">{formatUSD(itemValue)}</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{itemWeight.toFixed(2)}%</TableCell>
                             </TableRow>
