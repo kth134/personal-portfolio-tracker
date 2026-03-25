@@ -220,8 +220,6 @@ export default function RebalancingPage() {
     const accountHoldings = data.accountHoldings || {};
     const remainingNeedByAsset: Record<string, number> = {};
     const remainingAvailByAsset: Record<string, number> = {};
-    const excessToTargetByAsset: Record<string, number> = {};
-    const deficitToTargetByAsset: Record<string, number> = {};
     const reinvestmentByAsset: Record<string, any[]> = {};
 
     const assetActionList = Array.from(portfolioAssetActions.values());
@@ -229,9 +227,6 @@ export default function RebalancingPage() {
       const targetValue = (data.totalValue * (asset.target_overall_pct || 0)) / 100;
       const excessToTarget = Math.max(0, asset.current_value - targetValue);
       const deficitToTarget = Math.max(0, targetValue - asset.current_value);
-
-      excessToTargetByAsset[asset.asset_id] = excessToTarget;
-      deficitToTargetByAsset[asset.asset_id] = deficitToTarget;
 
       // Sell actions are capped at explicit action amount. Non-triggered sources can only fund up to excess-to-target.
       remainingAvailByAsset[asset.asset_id] = asset.action === 'sell'
@@ -312,8 +307,7 @@ export default function RebalancingPage() {
       const sourcePool = assetActionList
         .filter((source: any) => source.asset_id !== buyAsset.asset_id && (remainingAvailByAsset[source.asset_id] || 0) > 0)
         .sort((a: any, b: any) => {
-          const excessDelta = (excessToTargetByAsset[b.asset_id] || 0) - (excessToTargetByAsset[a.asset_id] || 0);
-          if (excessDelta !== 0) return excessDelta;
+          // Prioritize assets furthest above target by relative drift percentage.
           return b.drift_percentage - a.drift_percentage;
         });
 
@@ -348,8 +342,7 @@ export default function RebalancingPage() {
       const destinationPool = assetActionList
         .filter((dest: any) => dest.asset_id !== sellAsset.asset_id && (remainingNeedByAsset[dest.asset_id] || 0) > 0)
         .sort((a: any, b: any) => {
-          const deficitDelta = (deficitToTargetByAsset[b.asset_id] || 0) - (deficitToTargetByAsset[a.asset_id] || 0);
-          if (deficitDelta !== 0) return deficitDelta;
+          // Prioritize assets furthest below target by relative drift percentage.
           return a.drift_percentage - b.drift_percentage;
         });
 
@@ -530,12 +523,13 @@ export default function RebalancingPage() {
     .sort((a: any, b: any) => (b.amount || 0) - (a.amount || 0));
 
   const impliedFlowRows = (() => {
-    const metricsByTicker = new Map<string, { current: number; target: number; drift: number }>();
+    const metricsByTicker = new Map<string, { current: number; target: number; drift: number; action: string }>();
     (calculatedData.assetLevel || []).forEach((asset: any) => {
       metricsByTicker.set(asset.ticker, {
         current: Number(asset.current_overall_pct || 0),
         target: Number(asset.target_overall_pct || 0),
         drift: Number(asset.drift_percentage || 0),
+        action: asset.action || 'hold',
       });
     });
 
@@ -546,16 +540,22 @@ export default function RebalancingPage() {
       (asset.reinvestment_suggestions || []).forEach((s: any) => {
         if (s.pair_type !== 'implied' || !s.to_ticker || !s.amount) return;
         const key = `${sourceTicker}->${s.to_ticker}`;
-        const destinationMetrics = metricsByTicker.get(s.to_ticker) || { current: 0, target: 0, drift: 0 };
+        const sourceMetrics = metricsByTicker.get(sourceTicker) || { current: 0, target: 0, drift: 0, action: 'hold' };
+        const destinationMetrics = metricsByTicker.get(s.to_ticker) || { current: 0, target: 0, drift: 0, action: 'hold' };
+        const supportingMetrics = sourceMetrics.action === 'hold' && destinationMetrics.action !== 'hold'
+          ? sourceMetrics
+          : destinationMetrics.action === 'hold' && sourceMetrics.action !== 'hold'
+            ? destinationMetrics
+            : sourceMetrics;
         const current = flowMap.get(key);
         if (!current) {
           flowMap.set(key, {
             from: sourceTicker,
             to: s.to_ticker,
             amount: s.amount,
-            current_pct: destinationMetrics.current,
-            target_pct: destinationMetrics.target,
-            drift_pct: destinationMetrics.drift,
+            current_pct: supportingMetrics.current,
+            target_pct: supportingMetrics.target,
+            drift_pct: supportingMetrics.drift,
           });
           return;
         }
@@ -637,7 +637,7 @@ export default function RebalancingPage() {
                     <details className="mt-2">
                       <summary className="cursor-pointer text-xs font-semibold text-zinc-600">Pairings</summary>
                       <div className="mt-2 space-y-1 text-xs text-blue-700">
-                        {pairings.length > 0 ? pairings.slice(0, 4).map((s: any, idx: number) => (
+                        {pairings.length > 0 ? pairings.map((s: any, idx: number) => (
                           <div key={`mobile-pair-${asset.asset_id}-${idx}`} className="flex items-center justify-between gap-2">
                             <span className="truncate">{s.to_ticker ? `To ${s.to_ticker}` : `From ${s.from_ticker}`}</span>
                             <span className="tabular-nums whitespace-nowrap">{formatUSDWhole(s.amount)}</span>
@@ -713,7 +713,7 @@ export default function RebalancingPage() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSDWhole(asset.amount)}</TableCell>
                       <TableCell className="text-xs text-blue-700">
-                        {pairings.length > 0 ? pairings.slice(0, 2).map((s: any, idx: number) => (
+                        {pairings.length > 0 ? pairings.map((s: any, idx: number) => (
                           <div key={`${asset.asset_id}-pair-${idx}`}>
                             {s.to_ticker ? `To ${s.to_ticker}` : `From ${s.from_ticker}`}: {formatUSDWhole(s.amount)}
                           </div>
