@@ -683,7 +683,7 @@ export default function RebalancingPage() {
                   <TableHead className="text-right text-blue-600">Target %</TableHead>
                   <TableHead className="text-right">Drift %</TableHead>
                   <TableHead className="text-center">Action</TableHead>
-                  <TableHead className="text-center">Amount Mode</TableHead>
+                  <TableHead className="text-center">Rebalance Type</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Suggested Pairing</TableHead>
                 </TableRow>
@@ -835,28 +835,28 @@ export default function RebalancingPage() {
                           <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
                             <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Amount</span><div className="font-semibold tabular-nums">{formatUSDWhole(i.amount)}</div></div>
                             <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Port Drift</span><div className={cn("font-semibold tabular-nums", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div></div>
+                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Sub-Portfolio Weight</span><div className="font-semibold tabular-nums">{Number(i.current_in_sp || 0).toFixed(1)}%</div></div>
+                            <div className="rounded bg-zinc-50 px-2 py-1">
+                              <span className="text-zinc-500">Target Sub-Portfolio Weight</span>
+                              <Input
+                                defaultValue={i.sub_portfolio_target_percentage}
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                onBlur={(e) => {
+                                  const parsed = parsePercentWithTwoDecimals(e.target.value)
+                                  if (parsed === null) {
+                                    alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
+                                    return
+                                  }
+                                  updateAssetTarget(i.asset_id, sp.id, parsed)
+                                }}
+                                className="mt-1 h-8 text-right w-full border-zinc-200 bg-zinc-50/50 focus:ring-0"
+                              />
+                            </div>
                             <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Overall Target</span><div className="font-semibold tabular-nums text-blue-700">{Number(i.implied_overall_target || 0).toFixed(1)}%</div></div>
                             <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Overall Wt.</span><div className="font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div></div>
-                          </div>
-
-                          <div className="mt-2 space-y-1">
-                            <Label className="text-[10px] font-bold uppercase text-zinc-500">Target Sub-Portfolio Weight</Label>
-                            <Input
-                              defaultValue={i.sub_portfolio_target_percentage}
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="0.01"
-                              onBlur={(e) => {
-                                const parsed = parsePercentWithTwoDecimals(e.target.value)
-                                if (parsed === null) {
-                                  alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
-                                  return
-                                }
-                                updateAssetTarget(i.asset_id, sp.id, parsed)
-                              }}
-                              className="h-8 text-right w-28 ml-auto border-zinc-200 bg-zinc-50/50 focus:ring-0"
-                            />
                           </div>
 
                           <details className="mt-2">
@@ -920,16 +920,16 @@ export default function RebalancingPage() {
                                 <SortIcon col="current_value" />
                               </button>
                             </TableHead>
-                            <TableHead className="px-3 sm:px-4 text-right">
-                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 text-right whitespace-normal leading-tight" onClick={() => handleSort('current_in_sp')}>
-                                Sub-Portfolio Weight
-                                <SortIcon col="current_in_sp" />
-                              </button>
-                            </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right text-blue-600 font-bold">
                               <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 text-right whitespace-normal leading-tight" onClick={() => handleSort('sub_portfolio_target_percentage')}>
                                 Target Sub-Portfolio Weight
                                 <SortIcon col="sub_portfolio_target_percentage" />
+                              </button>
+                            </TableHead>
+                            <TableHead className="px-3 sm:px-4 text-right">
+                              <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 text-right whitespace-normal leading-tight" onClick={() => handleSort('current_in_sp')}>
+                                Sub-Portfolio Weight
+                                <SortIcon col="current_in_sp" />
                               </button>
                             </TableHead>
                             <TableHead className="px-3 sm:px-4 text-right">
@@ -963,7 +963,6 @@ export default function RebalancingPage() {
                               </TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(i.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(i.current_value)}</TableCell>
-                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.current_in_sp.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right">
                                 <Input
                                   defaultValue={i.sub_portfolio_target_percentage}
@@ -982,6 +981,7 @@ export default function RebalancingPage() {
                                   className="h-8 text-right w-20 ml-auto border-zinc-200 bg-zinc-50/50 focus:ring-0"
                                 />
                               </TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.current_in_sp.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.implied_overall_target.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(i.current_percentage || 0).toFixed(1)}%</TableCell>
                               <TableCell className={cn("px-3 sm:px-4 text-right tabular-nums font-bold whitespace-nowrap", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell>
@@ -1028,8 +1028,8 @@ export default function RebalancingPage() {
                             <TableCell className="px-3 sm:px-4 uppercase tracking-tighter text-white">Total</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">-</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{formatUSDWhole(totalVal)}</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalWeight.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalTarget.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalWeight.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalImplied.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{allocPct.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{absDriftWtd.toFixed(1)}%</TableCell>
