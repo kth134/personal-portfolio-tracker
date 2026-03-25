@@ -825,26 +825,15 @@ export default function RebalancingPage() {
                     <div className="md:hidden p-3 space-y-3 bg-zinc-50 border-b">
                       {sortedItems.map((i: any) => (
                         <div key={`mobile-${i.asset_id}`} className="rounded-lg border bg-background p-3 shadow-sm">
-                          <div className="min-w-0">
-                            <div className="font-semibold leading-tight truncate">{i.ticker}</div>
-                            <div className="text-xs text-muted-foreground truncate">{i.name}</div>
-                          </div>
-
-                          <div className="mt-2 flex items-center justify-between gap-2 rounded bg-zinc-50 px-2 py-1.5">
-                            <span className="text-[11px] text-zinc-500">Triggered Action</span>
-                            {i.action === 'hold' ? (
-                              <span className="text-[11px] font-semibold text-zinc-400">No action</span>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <span className={cn("text-[11px] font-bold", i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span>
-                                <span className="text-[11px] font-semibold tabular-nums">{formatUSDWhole(i.amount)}</span>
-                              </div>
-                            )}
+                          <div className="flex items-start justify-between gap-2 min-w-0">
+                            <div className="min-w-0">
+                              <div className="font-semibold leading-tight truncate">{i.ticker}</div>
+                              <div className="text-xs text-muted-foreground truncate">{i.name}</div>
+                            </div>
+                            <div className="font-semibold leading-tight tabular-nums whitespace-nowrap">{formatUSDWhole(i.current_value)}</div>
                           </div>
 
                           <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Current Value</span><div className="font-semibold tabular-nums">{formatUSDWhole(i.current_value)}</div></div>
-                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Drift</span><div className={cn("font-semibold tabular-nums", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div></div>
                             <div className="rounded bg-zinc-50 px-2 py-1">
                               <span className="text-zinc-500">Sub-Portfolio Target</span>
                               <Input
@@ -867,6 +856,18 @@ export default function RebalancingPage() {
                             <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Sub-Portfolio Weight</span><div className="font-semibold tabular-nums">{Number(i.current_in_sp || 0).toFixed(1)}%</div></div>
                             <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Overall Target</span><div className="font-semibold tabular-nums text-blue-700">{Number(i.implied_overall_target || 0).toFixed(1)}%</div></div>
                             <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Overall Wt.</span><div className="font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div></div>
+                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Drift</span><div className={cn("font-semibold tabular-nums", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div></div>
+                            <div className="rounded bg-zinc-50 px-2 py-1">
+                              <span className="text-zinc-500">Action and Amount</span>
+                              {i.action === 'hold' ? (
+                                <div className="font-semibold text-zinc-400">No action</div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span className={cn("font-semibold", i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span>
+                                  <span className="font-semibold tabular-nums">{formatUSDWhole(i.amount)}</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           <details className="mt-2">
