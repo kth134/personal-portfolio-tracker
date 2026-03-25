@@ -322,13 +322,6 @@ export default function PortfolioHoldingsWithSlicers({
                       </TableHead>
 
                       <TableHead className="px-3 sm:px-4 text-right">
-                        <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => toggleItemSort(group.key, 'cost_basis_per_share')}>
-                          Cost Basis/Share
-                          {renderSortIndicator(itemSorts[group.key], 'cost_basis_per_share')}
-                        </button>
-                      </TableHead>
-
-                      <TableHead className="px-3 sm:px-4 text-right">
                         <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => toggleItemSort(group.key, 'cost_basis')}>
                           Total Cost Basis
                           {renderSortIndicator(itemSorts[group.key], 'cost_basis')}
@@ -339,6 +332,13 @@ export default function PortfolioHoldingsWithSlicers({
                         <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => toggleItemSort(group.key, 'current_price')}>
                           Current Price
                           {renderSortIndicator(itemSorts[group.key], 'current_price')}
+                        </button>
+                      </TableHead>
+
+                      <TableHead className="px-3 sm:px-4 text-right">
+                        <button type="button" className="ml-auto flex w-full items-center justify-end gap-2 whitespace-nowrap" onClick={() => toggleItemSort(group.key, 'cost_basis_per_share')}>
+                          Cost Basis/Share
+                          {renderSortIndicator(itemSorts[group.key], 'cost_basis_per_share')}
                         </button>
                       </TableHead>
 
@@ -412,9 +412,9 @@ export default function PortfolioHoldingsWithSlicers({
                                 <div className="text-[10px] opacity-70 truncate">{item.name}</div>
                               </TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{itemQuantity.toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
-                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(itemCostBasisPerShare)}</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(item.cost_basis)}</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(itemCurrentPrice)}</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(itemCostBasisPerShare)}</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums font-bold whitespace-nowrap">{formatUSD(itemValue)}</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{itemWeight.toFixed(2)}%</TableCell>
                             </TableRow>
