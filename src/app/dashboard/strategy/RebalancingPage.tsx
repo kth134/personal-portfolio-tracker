@@ -841,35 +841,49 @@ export default function RebalancingPage() {
                           </div>
 
                           <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                            <div className="rounded bg-zinc-50 px-2 py-1">
-                              <span className="text-zinc-500">Sub-Portfolio Target</span>
-                              <Input
-                                defaultValue={i.sub_portfolio_target_percentage}
-                                type="number"
-                                min="0"
-                                max="100"
-                                step="0.01"
-                                onBlur={(e) => {
-                                  const parsed = parsePercentWithTwoDecimals(e.target.value)
-                                  if (parsed === null) {
-                                    alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
-                                    return
-                                  }
-                                  updateAssetTarget(i.asset_id, sp.id, parsed)
-                                }}
-                                className="mt-1 h-8 text-right w-full border-zinc-200 bg-zinc-50/50 focus:ring-0"
-                              />
+                            <div className="rounded border border-red-200 bg-red-50/40 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]">
+                              <span className="text-zinc-600 text-center leading-tight">Sub-Portfolio Target</span>
+                              <div className="flex items-center justify-center">
+                                <Input
+                                  defaultValue={i.sub_portfolio_target_percentage}
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.01"
+                                  onBlur={(e) => {
+                                    const parsed = parsePercentWithTwoDecimals(e.target.value)
+                                    if (parsed === null) {
+                                      alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
+                                      return
+                                    }
+                                    updateAssetTarget(i.asset_id, sp.id, parsed)
+                                  }}
+                                  className="h-8 text-right w-full max-w-[130px] border-red-200 bg-white focus:ring-0"
+                                />
+                              </div>
                             </div>
-                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Sub-Portfolio Weight</span><div className="font-semibold tabular-nums">{Number(i.current_in_sp || 0).toFixed(1)}%</div></div>
-                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Overall Target</span><div className="font-semibold tabular-nums text-blue-700">{Number(i.implied_overall_target || 0).toFixed(1)}%</div></div>
-                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Overall Wt.</span><div className="font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div></div>
-                            <div className="rounded bg-zinc-50 px-2 py-1"><span className="text-zinc-500">Drift</span><div className={cn("font-semibold tabular-nums", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div></div>
-                            <div className="rounded bg-zinc-50 px-2 py-1">
-                              <span className="text-zinc-500">Action and Amount</span>
+                            <div className="rounded bg-zinc-50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]">
+                              <span className="text-zinc-500 text-center leading-tight">Sub-Portfolio Weight</span>
+                              <div className="flex items-center justify-center font-semibold tabular-nums">{Number(i.current_in_sp || 0).toFixed(1)}%</div>
+                            </div>
+                            <div className="rounded bg-zinc-50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]">
+                              <span className="text-zinc-500 text-center leading-tight">Overall Target</span>
+                              <div className="flex items-center justify-center font-semibold tabular-nums">{Number(i.implied_overall_target || 0).toFixed(1)}%</div>
+                            </div>
+                            <div className="rounded bg-zinc-50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]">
+                              <span className="text-zinc-500 text-center leading-tight">Overall Wt.</span>
+                              <div className="flex items-center justify-center font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div>
+                            </div>
+                            <div className="rounded bg-zinc-50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]">
+                              <span className="text-zinc-500 text-center leading-tight">Drift</span>
+                              <div className={cn("flex items-center justify-center font-semibold tabular-nums", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div>
+                            </div>
+                            <div className={cn("rounded px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]", i.action === 'buy' ? "bg-emerald-50" : i.action === 'sell' ? "bg-rose-50" : "bg-zinc-50")}>
+                              <span className="text-zinc-500 text-center leading-tight">Action and Amount</span>
                               {i.action === 'hold' ? (
-                                <div className="font-semibold text-zinc-400">No action</div>
+                                <div className="flex items-center justify-center font-semibold text-zinc-400">No action</div>
                               ) : (
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center justify-center gap-2">
                                   <span className={cn("font-semibold", i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span>
                                   <span className="font-semibold tabular-nums">{formatUSDWhole(i.amount)}</span>
                                 </div>
