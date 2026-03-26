@@ -661,6 +661,15 @@ export default function RebalancingPage() {
 
   const outOfBandPlanRows = rebalancingPlanRows.filter((row: any) => row.type === 'Out-of-Band Asset')
   const supportingPlanRows = rebalancingPlanRows.filter((row: any) => row.type === 'Supporting Transaction')
+  const summarizePlanRows = (rows: any[]) => rows.reduce((acc, row) => {
+    if (row.action === 'buy') acc.grossBuy += Number(row.amount || 0)
+    if (row.action === 'sell') acc.grossSell += Number(row.amount || 0)
+    acc.netFlow += row.action === 'buy' ? Number(row.amount || 0) : -Number(row.amount || 0)
+    return acc
+  }, { grossBuy: 0, grossSell: 0, netFlow: 0 })
+
+  const outOfBandSummary = summarizePlanRows(outOfBandPlanRows)
+  const supportingSummary = summarizePlanRows(supportingPlanRows)
 
   return (
     <div className="flex flex-col gap-4 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
@@ -765,7 +774,16 @@ export default function RebalancingPage() {
             {rebalancingPlanRows.length > 0 && (
               <div className="md:hidden space-y-3">
                 <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Rebalancing Plan</div>
-                {outOfBandPlanRows.length > 0 && <div className="text-[11px] uppercase tracking-wide text-zinc-500 px-1">Out-of-Band Assets</div>}
+                {outOfBandPlanRows.length > 0 && (
+                  <div className="px-1">
+                    <div className="text-[11px] uppercase tracking-wide text-zinc-500">Out-of-Band Assets</div>
+                    <div className="text-[11px] text-zinc-600">Gross Buy: <span className="font-semibold tabular-nums text-green-700">{formatUSDWhole(outOfBandSummary.grossBuy)}</span></div>
+                    <div className="text-[11px] text-zinc-600">Gross Sell: <span className="font-semibold tabular-nums text-red-700">{formatUSDWhole(outOfBandSummary.grossSell)}</span></div>
+                    <div className={cn("text-[11px] font-semibold tabular-nums", outOfBandSummary.netFlow >= 0 ? "text-green-700" : "text-red-700")}>
+                      Net Flow: {formatUSDWhole(outOfBandSummary.netFlow)}
+                    </div>
+                  </div>
+                )}
                 {outOfBandPlanRows.map((row, idx) => (
                   <div key={`mobile-plan-out-${idx}`} className="rounded-lg border bg-background p-3 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
@@ -810,7 +828,16 @@ export default function RebalancingPage() {
                     </details>
                   </div>
                 ))}
-                {supportingPlanRows.length > 0 && <div className="pt-1 text-[11px] uppercase tracking-wide text-zinc-500 px-1">Supporting Transactions</div>}
+                {supportingPlanRows.length > 0 && (
+                  <div className="px-1 pt-1">
+                    <div className="text-[11px] uppercase tracking-wide text-zinc-500">Supporting Transactions</div>
+                    <div className="text-[11px] text-zinc-600">Gross Buy: <span className="font-semibold tabular-nums text-green-700">{formatUSDWhole(supportingSummary.grossBuy)}</span></div>
+                    <div className="text-[11px] text-zinc-600">Gross Sell: <span className="font-semibold tabular-nums text-red-700">{formatUSDWhole(supportingSummary.grossSell)}</span></div>
+                    <div className={cn("text-[11px] font-semibold tabular-nums", supportingSummary.netFlow >= 0 ? "text-green-700" : "text-red-700")}>
+                      Net Flow: {formatUSDWhole(supportingSummary.netFlow)}
+                    </div>
+                  </div>
+                )}
                 {supportingPlanRows.map((row, idx) => (
                   <div key={`mobile-plan-${idx}`} className="rounded-lg border bg-background p-3 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
@@ -904,6 +931,27 @@ export default function RebalancingPage() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {outOfBandPlanRows.length > 0 && (
+                    <>
+                    <TableRow className="bg-zinc-50/80">
+                      <TableCell colSpan={7} className="text-right text-xs font-semibold uppercase tracking-wide text-zinc-600">Out-of-Band Gross Buy</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold text-green-700">{formatUSDWhole(outOfBandSummary.grossBuy)}</TableCell>
+                      <TableCell className="text-[11px] text-zinc-500">Total buys in group</TableCell>
+                    </TableRow>
+                    <TableRow className="bg-zinc-50/80">
+                      <TableCell colSpan={7} className="text-right text-xs font-semibold uppercase tracking-wide text-zinc-600">Out-of-Band Gross Sell</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold text-red-700">{formatUSDWhole(outOfBandSummary.grossSell)}</TableCell>
+                      <TableCell className="text-[11px] text-zinc-500">Total sells in group</TableCell>
+                    </TableRow>
+                    <TableRow className="bg-zinc-50/80">
+                      <TableCell colSpan={7} className="text-right text-xs font-semibold uppercase tracking-wide text-zinc-600">Out-of-Band Net Flow</TableCell>
+                      <TableCell className={cn("text-right tabular-nums font-semibold", outOfBandSummary.netFlow >= 0 ? "text-green-700" : "text-red-700")}>
+                        {formatUSDWhole(outOfBandSummary.netFlow)}
+                      </TableCell>
+                      <TableCell className="text-[11px] text-zinc-500">Gross Buy minus Gross Sell</TableCell>
+                    </TableRow>
+                    </>
+                  )}
 
                   {supportingPlanRows.length > 0 && (
                     <TableRow>
@@ -931,6 +979,27 @@ export default function RebalancingPage() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {supportingPlanRows.length > 0 && (
+                    <>
+                    <TableRow className="bg-zinc-50/80">
+                      <TableCell colSpan={7} className="text-right text-xs font-semibold uppercase tracking-wide text-zinc-600">Supporting Gross Buy</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold text-green-700">{formatUSDWhole(supportingSummary.grossBuy)}</TableCell>
+                      <TableCell className="text-[11px] text-zinc-500">Total buys in group</TableCell>
+                    </TableRow>
+                    <TableRow className="bg-zinc-50/80">
+                      <TableCell colSpan={7} className="text-right text-xs font-semibold uppercase tracking-wide text-zinc-600">Supporting Gross Sell</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold text-red-700">{formatUSDWhole(supportingSummary.grossSell)}</TableCell>
+                      <TableCell className="text-[11px] text-zinc-500">Total sells in group</TableCell>
+                    </TableRow>
+                    <TableRow className="bg-zinc-50/80">
+                      <TableCell colSpan={7} className="text-right text-xs font-semibold uppercase tracking-wide text-zinc-600">Supporting Net Flow</TableCell>
+                      <TableCell className={cn("text-right tabular-nums font-semibold", supportingSummary.netFlow >= 0 ? "text-green-700" : "text-red-700")}>
+                        {formatUSDWhole(supportingSummary.netFlow)}
+                      </TableCell>
+                      <TableCell className="text-[11px] text-zinc-500">Gross Buy minus Gross Sell</TableCell>
+                    </TableRow>
+                    </>
+                  )}
                 </TableBody>
               </Table>
             )}
