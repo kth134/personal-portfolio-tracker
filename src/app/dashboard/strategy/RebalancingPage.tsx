@@ -527,7 +527,7 @@ export default function RebalancingPage() {
     assetByTicker.set(asset.ticker, asset)
   })
 
-  const allAccountCandidates = useMemo(() => {
+  const allAccountCandidates = (() => {
     const accountTotals = new Map<string, { name: string; tax_status: string; total: number }>()
     const accountHoldings = data?.accountHoldings || {}
 
@@ -553,7 +553,7 @@ export default function RebalancingPage() {
       if (aTax !== bTax) return aTax - bTax
       return b.total - a.total
     })
-  }, [data?.accountHoldings])
+  })()
 
   const buildTaxRecommendation = (asset: any, action: 'buy' | 'sell', amount: number) => {
     const accountHoldings = data?.accountHoldings || {}
@@ -598,7 +598,7 @@ export default function RebalancingPage() {
     return { guidance, lines }
   }
 
-  const rebalancingPlanRows = useMemo(() => {
+  const rebalancingPlanRows = (() => {
     const planByTicker = new Map<string, { ticker: string; buyAmount: number; sellAmount: number; types: Set<string> }>()
 
     calculatedData.allocations.forEach((asset: any) => {
@@ -655,7 +655,7 @@ export default function RebalancingPage() {
     })
 
     return rows.filter((r) => r.amount > 0).sort((a, b) => b.amount - a.amount)
-  }, [calculatedData.allocations, actionableAssets, assetByTicker])
+  })()
 
   return (
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
