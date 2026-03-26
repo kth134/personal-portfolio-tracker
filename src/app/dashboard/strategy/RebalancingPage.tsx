@@ -518,6 +518,11 @@ export default function RebalancingPage() {
   if (loading || !calculatedData) return <div className="p-8 text-center text-lg animate-pulse">Calculating rebalancing paths...</div>
 
   const rebalanceNeeded = calculatedData.allocations.some((a: any) => a.action !== 'hold')
+  const subPortfolioCurrentValues = calculatedData.allocations.reduce((acc: Record<string, number>, item: any) => {
+    const subPortfolioId = item.sub_portfolio_id
+    acc[subPortfolioId] = (acc[subPortfolioId] || 0) + Number(item.current_value || 0)
+    return acc
+  }, {})
   const actionableAssets = [...(calculatedData.assetLevel || [])]
     .filter((a: any) => a.action !== 'hold')
     .sort((a: any, b: any) => (b.amount || 0) - (a.amount || 0));
@@ -956,17 +961,23 @@ export default function RebalancingPage() {
                   {outOfBandPlanRows.length > 0 && (
                     <TableRow className="bg-zinc-50/80">
                       <TableCell colSpan={5} className="text-right text-xs font-semibold uppercase tracking-wide text-zinc-600">Out-of-Band Summary</TableCell>
-                      <TableCell className="text-right text-[11px]">
-                        <div className="text-zinc-500">Gross Buy</div>
-                        <div className="font-semibold tabular-nums text-green-700">{formatUSDWhole(outOfBandSummary.grossBuy)}</div>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-zinc-500">Gross Buy</span>
+                          <span className="font-semibold tabular-nums text-green-700">{formatUSDWhole(outOfBandSummary.grossBuy)}</span>
+                        </div>
                       </TableCell>
-                      <TableCell className="text-right text-[11px]">
-                        <div className="text-zinc-500">Gross Sell</div>
-                        <div className="font-semibold tabular-nums text-red-700">{formatUSDWhole(outOfBandSummary.grossSell)}</div>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-zinc-500">Gross Sell</span>
+                          <span className="font-semibold tabular-nums text-red-700">{formatUSDWhole(outOfBandSummary.grossSell)}</span>
+                        </div>
                       </TableCell>
-                      <TableCell className="text-right text-[11px]">
-                        <div className="text-zinc-500">Net Flow</div>
-                        <div className={cn("font-semibold tabular-nums", outOfBandSummary.netFlow >= 0 ? "text-green-700" : "text-red-700")}>{formatUSDWhole(outOfBandSummary.netFlow)}</div>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-zinc-500">Net Flow</span>
+                          <span className={cn("font-semibold tabular-nums", outOfBandSummary.netFlow >= 0 ? "text-green-700" : "text-red-700")}>{formatUSDWhole(outOfBandSummary.netFlow)}</span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-[11px] text-zinc-500">Buy - Sell</TableCell>
                     </TableRow>
@@ -1001,17 +1012,23 @@ export default function RebalancingPage() {
                   {supportingPlanRows.length > 0 && (
                     <TableRow className="bg-zinc-50/80">
                       <TableCell colSpan={5} className="text-right text-xs font-semibold uppercase tracking-wide text-zinc-600">Supporting Transactions Summary</TableCell>
-                      <TableCell className="text-right text-[11px]">
-                        <div className="text-zinc-500">Gross Buy</div>
-                        <div className="font-semibold tabular-nums text-green-700">{formatUSDWhole(supportingSummary.grossBuy)}</div>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-zinc-500">Gross Buy</span>
+                          <span className="font-semibold tabular-nums text-green-700">{formatUSDWhole(supportingSummary.grossBuy)}</span>
+                        </div>
                       </TableCell>
-                      <TableCell className="text-right text-[11px]">
-                        <div className="text-zinc-500">Gross Sell</div>
-                        <div className="font-semibold tabular-nums text-red-700">{formatUSDWhole(supportingSummary.grossSell)}</div>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-zinc-500">Gross Sell</span>
+                          <span className="font-semibold tabular-nums text-red-700">{formatUSDWhole(supportingSummary.grossSell)}</span>
+                        </div>
                       </TableCell>
-                      <TableCell className="text-right text-[11px]">
-                        <div className="text-zinc-500">Net Flow</div>
-                        <div className={cn("font-semibold tabular-nums", supportingSummary.netFlow >= 0 ? "text-green-700" : "text-red-700")}>{formatUSDWhole(supportingSummary.netFlow)}</div>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-zinc-500">Net Flow</span>
+                          <span className={cn("font-semibold tabular-nums", supportingSummary.netFlow >= 0 ? "text-green-700" : "text-red-700")}>{formatUSDWhole(supportingSummary.netFlow)}</span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-[11px] text-zinc-500">Buy - Sell</TableCell>
                     </TableRow>
@@ -1030,7 +1047,7 @@ export default function RebalancingPage() {
 
       <details className="order-2 group rounded-xl border bg-background shadow-sm overflow-hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
-          <span className="text-xl font-bold">Asset Allocation Management</span>
+          <span className="text-xl font-bold">Allocation Strategy</span>
           <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
             <span className="hidden sm:inline">Expand / Collapse</span>
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
@@ -1038,7 +1055,9 @@ export default function RebalancingPage() {
         </summary>
         <div className="px-4 pb-4">
         <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
-          {calculatedData.subPortfolios.map((sp: any) => {
+          {[...calculatedData.subPortfolios]
+            .sort((a: any, b: any) => (subPortfolioCurrentValues[b.id] || 0) - (subPortfolioCurrentValues[a.id] || 0))
+            .map((sp: any) => {
             const items = calculatedData.allocations.filter((a: any) => a.sub_portfolio_id === sp.id)
             if (items.length === 0) return null
             const totalVal = items.reduce((s:number, i:any) => s+i.current_value, 0); const totalWeight = items.reduce((s:number, i:any) => s+(Number(i.current_in_sp)||0), 0); const totalTarget = items.reduce((s:number, i:any) => s+(Number(i.sub_portfolio_target_percentage)||0), 0); const totalImplied = items.reduce((s:number, i:any) => s+(Number(i.implied_overall_target)||0), 0); 
