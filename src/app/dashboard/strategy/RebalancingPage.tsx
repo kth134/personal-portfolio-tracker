@@ -660,7 +660,7 @@ export default function RebalancingPage() {
   return (
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
       <div className="border-b pb-4 bg-muted/10 p-4 rounded-xl">
-        <div className="flex justify-center">
+        <div className="flex justify-start">
           <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
         </div>
         <h2 className="text-xl font-bold text-center mt-4">Key KPIs</h2>
@@ -675,9 +675,9 @@ export default function RebalancingPage() {
 
       <div>
         <h2 className="text-xl font-bold text-center mb-6">Portfolio Drift Chart</h2>
-      <div className="flex flex-col items-center gap-3 mb-6">
+      <div className="flex flex-col items-start gap-3 mb-6">
         <div className="w-full max-w-xs">
-          <Label className="text-[10px] font-bold uppercase mb-1 block text-center">View Lens</Label>
+          <Label className="text-[10px] font-bold uppercase mb-1 block text-left">View Lens</Label>
           <Select value={lens} onValueChange={setLens}>
             <SelectTrigger className="bg-background focus:ring-0"><SelectValue/></SelectTrigger>
             <SelectContent>{LENSES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
@@ -685,7 +685,7 @@ export default function RebalancingPage() {
         </div>
         {lens !== 'total' && (
           <div className="w-full max-w-sm">
-            <Label className="text-[10px] font-bold uppercase mb-1 block text-center">Filter Selection</Label>
+            <Label className="text-[10px] font-bold uppercase mb-1 block text-left">Filter Selection</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-full justify-between bg-background">{selectedValues.length} selected <ChevronsUpDown className="w-4 h-4 ml-2 opacity-50" /></Button>
@@ -744,11 +744,13 @@ export default function RebalancingPage() {
                         <div className="font-semibold leading-tight">{asset.ticker}</div>
                         <div className="text-xs text-muted-foreground leading-tight">{asset.name}</div>
                       </div>
-                      <span className={cn("text-xs font-bold", asset.action === 'buy' ? "text-green-600" : "text-red-600")}>{asset.action.toUpperCase()}</span>
+                      <div className="text-right">
+                        <span className={cn("block text-xs font-bold", asset.action === 'buy' ? "text-green-600" : "text-red-600")}>{asset.action.toUpperCase()}</span>
+                        <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatUSDWhole(asset.amount)}</div>
+                      </div>
                     </div>
 
                     <div className="mt-2 flex items-center justify-between gap-2">
-                      <div className="text-sm font-semibold tabular-nums">{formatUSDWhole(asset.amount)}</div>
                       <span
                         className={cn(
                           'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
@@ -790,11 +792,13 @@ export default function RebalancingPage() {
                         <div className="font-semibold leading-tight">{row.ticker}</div>
                         <div className="text-xs text-muted-foreground leading-tight">{row.name}</div>
                       </div>
-                      <span className={cn("text-xs font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</span>
+                      <div className="text-right">
+                        <span className={cn("block text-xs font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</span>
+                        <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatUSDWhole(row.amount)}</div>
+                      </div>
                     </div>
 
                     <div className="mt-2 flex items-center justify-between gap-2 text-sm">
-                      <div className="font-semibold tabular-nums">{formatUSDWhole(row.amount)}</div>
                       <span className="text-[10px] uppercase tracking-wide text-zinc-500">{row.flowTypes}</span>
                     </div>
 
@@ -1015,7 +1019,7 @@ export default function RebalancingPage() {
                               <span className="text-zinc-500 text-center leading-tight">Overall Wt.</span>
                               <div className="flex items-center justify-center font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div>
                             </div>
-                            <div className="rounded bg-zinc-50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]">
+                            <div className="col-span-2 rounded bg-zinc-50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]">
                               <span className="text-zinc-500 text-center leading-tight">Drift</span>
                               <div className={cn("flex items-center justify-center font-semibold tabular-nums", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div>
                             </div>
