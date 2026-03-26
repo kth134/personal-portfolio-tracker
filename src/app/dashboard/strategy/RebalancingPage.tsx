@@ -664,6 +664,10 @@ export default function RebalancingPage() {
 
   return (
     <div className="space-y-4 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
+      <div className="flex justify-start">
+        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
+      </div>
+
       <details open className="group rounded-xl border bg-background shadow-sm overflow-hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
           <span className="text-xl font-bold">Key KPIs</span>
@@ -673,12 +677,6 @@ export default function RebalancingPage() {
           </span>
         </summary>
         <div className="px-4 pb-4 space-y-4">
-          <div className="border-b pb-4 bg-muted/10 p-4 rounded-xl">
-            <div className="flex justify-start">
-              <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Value</Label><div className="text-xl font-bold font-mono">{formatUSDWhole(data.totalValue)}</div></div>
             <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Sub-Portfolio Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div></div>
