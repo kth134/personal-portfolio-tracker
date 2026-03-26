@@ -663,12 +663,12 @@ export default function RebalancingPage() {
   const supportingPlanRows = rebalancingPlanRows.filter((row: any) => row.type === 'Supporting Transaction')
 
   return (
-    <div className="space-y-4 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
-      <div className="flex justify-start">
+    <div className="flex flex-col gap-4 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
+      <div className="order-0 flex justify-start">
         <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
       </div>
 
-      <details open className="group rounded-xl border bg-background shadow-sm overflow-hidden">
+      <details open className="order-1 group rounded-xl border bg-background shadow-sm overflow-hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
           <span className="text-xl font-bold">Key KPIs</span>
           <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
@@ -686,7 +686,7 @@ export default function RebalancingPage() {
         </div>
       </details>
 
-      <details className="group rounded-xl border bg-background shadow-sm overflow-hidden">
+      <details className="order-3 group rounded-xl border bg-background shadow-sm overflow-hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
           <span className="text-xl font-bold">Portfolio Drift Chart</span>
           <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
@@ -749,7 +749,7 @@ export default function RebalancingPage() {
       </div>
       </details>
 
-      <details className="group rounded-xl border bg-background shadow-sm overflow-hidden">
+      <details className="order-4 group rounded-xl border bg-background shadow-sm overflow-hidden">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
         <span className="text-xl font-bold">Rebalancing Recommendations</span>
         <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
@@ -943,7 +943,7 @@ export default function RebalancingPage() {
       </div>
       </details>
 
-      <details className="group rounded-xl border bg-background shadow-sm overflow-hidden">
+      <details className="order-2 group rounded-xl border bg-background shadow-sm overflow-hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
           <span className="text-xl font-bold">Asset Allocation Management</span>
           <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
@@ -1043,8 +1043,23 @@ export default function RebalancingPage() {
                               <span className="text-zinc-500 text-center leading-tight">Overall Wt.</span>
                               <div className="flex items-center justify-center font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div>
                             </div>
-                            <div className="col-span-2 rounded bg-zinc-50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]">
+                            <div
+                              className={cn(
+                                "col-span-2 relative rounded bg-zinc-50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]",
+                                i.action === 'sell'
+                                  ? 'border-2 border-red-300'
+                                  : i.action === 'buy'
+                                    ? 'border-2 border-green-300'
+                                    : 'border border-zinc-200'
+                              )}
+                            >
                               <span className="text-zinc-500 text-center leading-tight">Drift</span>
+                              {i.action === 'sell' && (
+                                <span className="absolute right-2 top-1 text-[10px] font-bold uppercase tracking-wide text-red-600">Sell</span>
+                              )}
+                              {i.action === 'buy' && (
+                                <span className="absolute right-2 top-1 text-[10px] font-bold uppercase tracking-wide text-green-600">Buy</span>
+                              )}
                               <div className={cn("flex items-center justify-center font-semibold tabular-nums", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div>
                             </div>
                           </div>
