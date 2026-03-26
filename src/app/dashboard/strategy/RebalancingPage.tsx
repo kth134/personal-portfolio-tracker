@@ -659,6 +659,9 @@ export default function RebalancingPage() {
     return rows.filter((r) => r.amount > 0).sort((a, b) => b.amount - a.amount)
   })()
 
+  const outOfBandPlanRows = rebalancingPlanRows.filter((row: any) => row.type === 'Out-of-Band Asset')
+  const supportingPlanRows = rebalancingPlanRows.filter((row: any) => row.type === 'Supporting Transaction')
+
   return (
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
       <div className="border-b pb-4 bg-muted/10 p-4 rounded-xl">
@@ -739,7 +742,53 @@ export default function RebalancingPage() {
             {rebalancingPlanRows.length > 0 && (
               <div className="md:hidden space-y-3">
                 <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Rebalancing Plan</div>
-                {rebalancingPlanRows.map((row, idx) => (
+                {outOfBandPlanRows.length > 0 && <div className="text-[11px] uppercase tracking-wide text-zinc-500 px-1">Out-of-Band Assets</div>}
+                {outOfBandPlanRows.map((row, idx) => (
+                  <div key={`mobile-plan-out-${idx}`} className="rounded-lg border bg-background p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-semibold leading-tight">{row.ticker}</div>
+                        <div className="text-xs text-muted-foreground leading-tight">{row.name}</div>
+                      </div>
+                      <div className="text-right">
+                        <span className={cn("block text-xs font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</span>
+                        <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatUSDWhole(row.amount)}</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between gap-2 text-sm">
+                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">{row.type}</span>
+                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">Mode: {row.rebalanceMode}</span>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                      <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                        <div className="text-zinc-500">Current</div>
+                        <div className="font-semibold tabular-nums">{row.currentPct.toFixed(1)}%</div>
+                      </div>
+                      <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                        <div className="text-zinc-500">Target</div>
+                        <div className="font-semibold tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</div>
+                      </div>
+                      <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                        <div className="text-zinc-500">Drift</div>
+                        <div className={cn("font-semibold tabular-nums", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 rounded border bg-zinc-50 px-2 py-2 text-[11px]">
+                      <div className="font-semibold text-zinc-700">Account / Tax Consideration</div>
+                      <div className="mt-1 text-zinc-600">{row.accountGuidance}</div>
+                      <div className="mt-1 space-y-0.5 text-zinc-700">
+                        {row.accountLines.map((line: string, lineIdx: number) => (
+                          <div key={`mobile-plan-out-line-${idx}-${lineIdx}`}>{line}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {supportingPlanRows.length > 0 && <div className="pt-1 text-[11px] uppercase tracking-wide text-zinc-500 px-1">Supporting Transactions</div>}
+                {supportingPlanRows.map((row, idx) => (
                   <div key={`mobile-plan-${idx}`} className="rounded-lg border bg-background p-3 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -777,7 +826,7 @@ export default function RebalancingPage() {
                       <div className="mt-1 text-zinc-600">{row.accountGuidance}</div>
                       <div className="mt-1 space-y-0.5 text-zinc-700">
                         {row.accountLines.map((line: string, lineIdx: number) => (
-                          <div key={`mobile-plan-line-${idx}-${lineIdx}`}>{line}</div>
+                          <div key={`mobile-plan-sup-line-${idx}-${lineIdx}`}>{line}</div>
                         ))}
                       </div>
                     </div>
@@ -806,8 +855,13 @@ export default function RebalancingPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rebalancingPlanRows.map((row, idx) => (
-                    <TableRow key={`plan-row-${idx}`}>
+                  {outOfBandPlanRows.length > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Out-of-Band Assets</TableCell>
+                    </TableRow>
+                  )}
+                  {outOfBandPlanRows.map((row, idx) => (
+                    <TableRow key={`plan-out-row-${idx}`}>
                       <TableCell>
                         <div className="font-semibold">{row.ticker}</div>
                         <div className="text-xs text-muted-foreground">{row.name}</div>
@@ -822,7 +876,34 @@ export default function RebalancingPage() {
                       <TableCell className="text-xs text-zinc-700">
                         <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
                         {row.accountLines.map((line: string, lineIdx: number) => (
-                          <div key={`plan-line-${idx}-${lineIdx}`}>{line}</div>
+                          <div key={`plan-out-line-${idx}-${lineIdx}`}>{line}</div>
+                        ))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+
+                  {supportingPlanRows.length > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Supporting Transactions</TableCell>
+                    </TableRow>
+                  )}
+                  {supportingPlanRows.map((row, idx) => (
+                    <TableRow key={`plan-sup-row-${idx}`}>
+                      <TableCell>
+                        <div className="font-semibold">{row.ticker}</div>
+                        <div className="text-xs text-muted-foreground">{row.name}</div>
+                      </TableCell>
+                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</TableCell>
+                      <TableCell className="text-xs tracking-wide text-zinc-500">{row.type}</TableCell>
+                      <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
+                      <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
+                      <TableCell className="text-center text-xs">{row.rebalanceMode}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
+                      <TableCell className="text-xs text-zinc-700">
+                        <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
+                        {row.accountLines.map((line: string, lineIdx: number) => (
+                          <div key={`plan-sup-line-${idx}-${lineIdx}`}>{line}</div>
                         ))}
                       </TableCell>
                     </TableRow>
