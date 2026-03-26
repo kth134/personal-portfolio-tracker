@@ -600,6 +600,7 @@ export default function RebalancingPage() {
 
   const rebalancingPlanRows = (() => {
     const planByTicker = new Map<string, { ticker: string; buyAmount: number; sellAmount: number; types: Set<string> }>()
+    const actionableTickerSet = new Set((actionableAssets || []).map((asset: any) => asset.ticker))
 
     calculatedData.allocations.forEach((asset: any) => {
       const sourceTicker = asset.ticker || 'Unknown'
@@ -645,7 +646,8 @@ export default function RebalancingPage() {
         name: metrics.name || row.ticker,
         action,
         amount,
-        flowTypes: Array.from(row.types.values()).sort().join(' + '),
+        type: actionableTickerSet.has(row.ticker) ? 'Out-of-Band Asset' : 'Supporting Transaction',
+        rebalanceMode: actionableTickerSet.has(row.ticker) ? (metrics.amount_mode || 'N/A') : 'N/A',
         currentPct: Number(metrics.current_overall_pct || 0),
         targetPct: Number(metrics.target_overall_pct || 0),
         driftPct: Number(metrics.drift_percentage || 0),
@@ -675,8 +677,8 @@ export default function RebalancingPage() {
 
       <div>
         <h2 className="text-xl font-bold text-center mb-6">Portfolio Drift Chart</h2>
-      <div className="flex flex-col items-start gap-3 mb-6">
-        <div className="w-full max-w-xs">
+      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-end md:gap-4">
+        <div className="w-full max-w-xs md:w-56 md:max-w-none">
           <Label className="text-[10px] font-bold uppercase mb-1 block text-left">View Lens</Label>
           <Select value={lens} onValueChange={setLens}>
             <SelectTrigger className="bg-background focus:ring-0"><SelectValue/></SelectTrigger>
@@ -684,7 +686,7 @@ export default function RebalancingPage() {
           </Select>
         </div>
         {lens !== 'total' && (
-          <div className="w-full max-w-sm">
+          <div className="w-full max-w-sm md:w-64 md:max-w-none">
             <Label className="text-[10px] font-bold uppercase mb-1 block text-left">Filter Selection</Label>
             <Popover>
               <PopoverTrigger asChild>
@@ -712,7 +714,7 @@ export default function RebalancingPage() {
           </div>
         )}
         {lens !== 'total' && selectedValues.length > 1 && (
-          <div className="flex items-center gap-2 p-2 border rounded-md bg-background">
+          <div className="flex items-center gap-2 rounded-md border bg-background p-2">
             <Switch checked={aggregate} onCheckedChange={setAggregate} id="agg-switch" />
             <Label htmlFor="agg-switch" className="text-xs cursor-pointer">Aggregate</Label>
           </div>
@@ -728,60 +730,12 @@ export default function RebalancingPage() {
       </div>
       </div>
 
-      {rebalanceNeeded && (actionableAssets.length > 0 || rebalancingPlanRows.length > 0) && (
+      {rebalanceNeeded && rebalancingPlanRows.length > 0 && (
       <div>
       <h2 className="text-xl font-bold text-center mb-6">Rebalancing Recommendations</h2>
       <div className="bg-card p-4 rounded-xl border shadow-sm">
         <div className="text-xs text-muted-foreground text-center mb-3">Asset-level recommendations across sub-portfolios</div>
           <div className="space-y-4">
-            {actionableAssets.length > 0 && (
-            <div className="md:hidden space-y-3">
-              <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Out-of-Band Assets</div>
-              {actionableAssets.map((asset: any) => (
-                  <div key={`mobile-explicit-${asset.asset_id}`} className="rounded-lg border bg-background p-3 shadow-sm">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-semibold leading-tight">{asset.ticker}</div>
-                        <div className="text-xs text-muted-foreground leading-tight">{asset.name}</div>
-                      </div>
-                      <div className="text-right">
-                        <span className={cn("block text-xs font-bold", asset.action === 'buy' ? "text-green-600" : "text-red-600")}>{asset.action.toUpperCase()}</span>
-                        <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatUSDWhole(asset.amount)}</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                          asset.amount_mode === 'Conservative'
-                            ? 'bg-amber-100 text-amber-800 border-amber-200'
-                            : 'bg-sky-100 text-sky-800 border-sky-200'
-                        )}
-                      >
-                        {asset.amount_mode}
-                      </span>
-                    </div>
-
-                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                      <div className="rounded bg-zinc-50 px-2 py-1 text-center">
-                        <div className="text-zinc-500">Current</div>
-                        <div className="font-semibold tabular-nums">{asset.current_overall_pct.toFixed(1)}%</div>
-                      </div>
-                      <div className="rounded bg-zinc-50 px-2 py-1 text-center">
-                        <div className="text-zinc-500">Target</div>
-                        <div className="font-semibold tabular-nums text-blue-700">{asset.target_overall_pct.toFixed(1)}%</div>
-                      </div>
-                      <div className="rounded bg-zinc-50 px-2 py-1 text-center">
-                        <div className="text-zinc-500">Drift</div>
-                        <div className={cn("font-semibold tabular-nums", asset.drift_percentage > 0 ? "text-green-600" : "text-red-600")}>{asset.drift_percentage > 0 ? '+' : ''}{asset.drift_percentage.toFixed(1)}%</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-            </div>
-            )}
-
             {rebalancingPlanRows.length > 0 && (
               <div className="md:hidden space-y-3">
                 <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Rebalancing Plan</div>
@@ -799,7 +753,8 @@ export default function RebalancingPage() {
                     </div>
 
                     <div className="mt-2 flex items-center justify-between gap-2 text-sm">
-                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">{row.flowTypes}</span>
+                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">{row.type}</span>
+                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">Mode: {row.rebalanceMode}</span>
                     </div>
 
                     <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
@@ -832,67 +787,20 @@ export default function RebalancingPage() {
             )}
 
             <div className="hidden md:block overflow-x-auto space-y-4">
-            {actionableAssets.length > 0 && (
-            <Table className="min-w-[860px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead colSpan={7} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Out-of-Band Assets</TableHead>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Asset</TableHead>
-                  <TableHead className="text-right">Current %</TableHead>
-                  <TableHead className="text-right text-blue-600">Target %</TableHead>
-                  <TableHead className="text-right">Drift %</TableHead>
-                  <TableHead className="text-center">Action</TableHead>
-                  <TableHead className="text-center">Rebalance Mode</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {actionableAssets.map((asset: any) => {
-                  return (
-                    <TableRow key={asset.asset_id}>
-                      <TableCell>
-                        <div className="font-semibold">{asset.ticker}</div>
-                        <div className="text-xs text-muted-foreground">{asset.name}</div>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{asset.current_overall_pct.toFixed(1)}%</TableCell>
-                      <TableCell className="text-right tabular-nums text-blue-700">{asset.target_overall_pct.toFixed(1)}%</TableCell>
-                      <TableCell className={cn("text-right tabular-nums font-semibold", asset.drift_percentage > 0 ? "text-green-600" : "text-red-600")}>{asset.drift_percentage > 0 ? '+' : ''}{asset.drift_percentage.toFixed(1)}%</TableCell>
-                      <TableCell className={cn("text-center font-bold", asset.action === 'buy' ? "text-green-600" : "text-red-600")}>{asset.action.toUpperCase()}</TableCell>
-                      <TableCell className="text-center">
-                        <span
-                          className={cn(
-                            'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                            asset.amount_mode === 'Conservative'
-                              ? 'bg-amber-100 text-amber-800 border-amber-200'
-                              : 'bg-sky-100 text-sky-800 border-sky-200'
-                          )}
-                        >
-                          {asset.amount_mode}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{formatUSDWhole(asset.amount)}</TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-            )}
-
             {rebalancingPlanRows.length > 0 && (
               <Table className="min-w-[860px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead colSpan={8} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Rebalancing Plan</TableHead>
+                    <TableHead colSpan={9} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Rebalancing Plan</TableHead>
                   </TableRow>
                   <TableRow>
                     <TableHead>Asset</TableHead>
                     <TableHead className="text-center">Transaction</TableHead>
-                    <TableHead>Flow Type</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead className="text-right">Current %</TableHead>
                     <TableHead className="text-right text-blue-600">Target %</TableHead>
                     <TableHead className="text-right">Drift %</TableHead>
+                    <TableHead className="text-center">Rebalance Mode</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead>Account / Tax Consideration</TableHead>
                   </TableRow>
@@ -905,10 +813,11 @@ export default function RebalancingPage() {
                         <div className="text-xs text-muted-foreground">{row.name}</div>
                       </TableCell>
                       <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</TableCell>
-                      <TableCell className="text-xs uppercase tracking-wide text-zinc-500">{row.flowTypes}</TableCell>
+                      <TableCell className="text-xs tracking-wide text-zinc-500">{row.type}</TableCell>
                       <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
                       <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
                       <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
+                      <TableCell className="text-center text-xs">{row.rebalanceMode}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
                       <TableCell className="text-xs text-zinc-700">
                         <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
@@ -935,6 +844,7 @@ export default function RebalancingPage() {
             if (items.length === 0) return null
             const totalVal = items.reduce((s:number, i:any) => s+i.current_value, 0); const totalWeight = items.reduce((s:number, i:any) => s+(Number(i.current_in_sp)||0), 0); const totalTarget = items.reduce((s:number, i:any) => s+(Number(i.sub_portfolio_target_percentage)||0), 0); const totalImplied = items.reduce((s:number, i:any) => s+(Number(i.implied_overall_target)||0), 0); 
             const absDriftWtd = totalVal > 0 ? items.reduce((s:number, i:any) => s + (Math.abs(i.drift_percentage) * i.current_value), 0) / totalVal : 0;
+            const totalActionAmount = items.reduce((s:number, i:any) => s + (i.action !== 'hold' ? Number(i.amount || 0) : 0), 0);
             const sortedItems = [...items].sort((a,b) => { const aV = sortCol === 'ticker' ? a.ticker : a[sortCol]; const bV = sortCol === 'ticker' ? b.ticker : b[sortCol]; const res = (aV || 0) < (bV || 0) ? -1 : (aV || 0) > (bV || 0) ? 1 : 0; return sortDir === 'asc' ? res : -res; });
             const hasBreach = items.some((item: any) => item.action !== 'hold');
             const portfolioTotal = data?.totalValue || 0;
@@ -1039,6 +949,8 @@ export default function RebalancingPage() {
                           <col className="w-[10%]" />
                           <col className="w-[8%]" />
                           <col className="w-[8%]" />
+                          <col className="w-[8%]" />
+                          <col className="w-[8%]" />
                         </colgroup>
                         <TableHeader className="bg-muted/30">
                           <TableRow>
@@ -1090,6 +1002,8 @@ export default function RebalancingPage() {
                                 <SortIcon col="drift_percentage" />
                               </button>
                             </TableHead>
+                            <TableHead className="px-3 sm:px-4 text-center whitespace-nowrap">Action</TableHead>
+                            <TableHead className="px-3 sm:px-4 text-right whitespace-nowrap">Amount</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1123,6 +1037,16 @@ export default function RebalancingPage() {
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.implied_overall_target.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(i.current_percentage || 0).toFixed(1)}%</TableCell>
                               <TableCell className={cn("px-3 sm:px-4 text-right tabular-nums font-bold whitespace-nowrap", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-center font-bold whitespace-nowrap">
+                                {i.action === 'hold' ? (
+                                  <span className="text-zinc-300">-</span>
+                                ) : (
+                                  <span className={cn(i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">
+                                {i.action === 'hold' ? '-' : formatUSDWhole(i.amount)}
+                              </TableCell>
                             </TableRow>
                           ))}
                           <TableRow className="bg-zinc-900 text-white font-bold h-12 shadow-inner">
@@ -1134,6 +1058,8 @@ export default function RebalancingPage() {
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalImplied.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{allocPct.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{absDriftWtd.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-center text-white">N/A</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{formatUSDWhole(totalActionAmount)}</TableCell>
                           </TableRow>
                         </TableBody>
                       </Table>
