@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Check, ChevronsUpDown, ArrowUpDown, RefreshCw, AlertTriangle } from 'lucide-react'
+import { Check, ChevronsUpDown, ArrowUpDown, RefreshCw, AlertTriangle, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { calculatePortfolioAssetAction } from '@/lib/rebalancing-logic'
 import { refreshAssetPrices } from '../portfolio/actions'
@@ -664,8 +664,14 @@ export default function RebalancingPage() {
 
   return (
     <div className="space-y-4 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
-      <details open className="rounded-xl border bg-background shadow-sm">
-        <summary className="cursor-pointer list-none px-4 py-3 text-xl font-bold">Key KPIs</summary>
+      <details open className="group rounded-xl border bg-background shadow-sm overflow-hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
+          <span className="text-xl font-bold">Key KPIs</span>
+          <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            <span className="hidden sm:inline">Expand / Collapse</span>
+            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+          </span>
+        </summary>
         <div className="px-4 pb-4 space-y-4">
           <div className="border-b pb-4 bg-muted/10 p-4 rounded-xl">
             <div className="flex justify-start">
@@ -682,8 +688,14 @@ export default function RebalancingPage() {
         </div>
       </details>
 
-      <details open className="rounded-xl border bg-background shadow-sm">
-        <summary className="cursor-pointer list-none px-4 py-3 text-xl font-bold">Portfolio Drift Chart</summary>
+      <details className="group rounded-xl border bg-background shadow-sm overflow-hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
+          <span className="text-xl font-bold">Portfolio Drift Chart</span>
+          <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            <span className="hidden sm:inline">Expand / Collapse</span>
+            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+          </span>
+        </summary>
         <div className="px-4 pb-4">
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-end md:gap-4">
         <div className="w-full max-w-xs md:w-56 md:max-w-none">
@@ -739,8 +751,14 @@ export default function RebalancingPage() {
       </div>
       </details>
 
-      <details open className="rounded-xl border bg-background shadow-sm">
-      <summary className="cursor-pointer list-none px-4 py-3 text-xl font-bold">Rebalancing Recommendations</summary>
+      <details className="group rounded-xl border bg-background shadow-sm overflow-hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
+        <span className="text-xl font-bold">Rebalancing Recommendations</span>
+        <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+          <span className="hidden sm:inline">Expand / Collapse</span>
+          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
       <div className="px-4 pb-4">
       {rebalanceNeeded && rebalancingPlanRows.length > 0 ? (
       <div className="bg-card p-4 rounded-xl border shadow-sm">
@@ -927,8 +945,14 @@ export default function RebalancingPage() {
       </div>
       </details>
 
-      <details open className="rounded-xl border bg-background shadow-sm">
-        <summary className="cursor-pointer list-none px-4 py-3 text-xl font-bold">Asset Allocation Management</summary>
+      <details className="group rounded-xl border bg-background shadow-sm overflow-hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
+          <span className="text-xl font-bold">Asset Allocation Management</span>
+          <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            <span className="hidden sm:inline">Expand / Collapse</span>
+            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+          </span>
+        </summary>
         <div className="px-4 pb-4">
         <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
           {calculatedData.subPortfolios.map((sp: any) => {
