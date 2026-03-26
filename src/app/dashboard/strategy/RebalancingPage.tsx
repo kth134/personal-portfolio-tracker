@@ -522,53 +522,140 @@ export default function RebalancingPage() {
     .filter((a: any) => a.action !== 'hold')
     .sort((a: any, b: any) => (b.amount || 0) - (a.amount || 0));
 
-  const impliedFlowRows = (() => {
-    const metricsByTicker = new Map<string, { current: number; target: number; drift: number; action: string }>();
-    (calculatedData.assetLevel || []).forEach((asset: any) => {
-      metricsByTicker.set(asset.ticker, {
-        current: Number(asset.current_overall_pct || 0),
-        target: Number(asset.target_overall_pct || 0),
-        drift: Number(asset.drift_percentage || 0),
-        action: asset.action || 'hold',
-      });
-    });
+  const assetByTicker = new Map<string, any>()
+  ;(calculatedData.assetLevel || []).forEach((asset: any) => {
+    assetByTicker.set(asset.ticker, asset)
+  })
 
-    const flowMap = new Map<string, { from: string; to: string; amount: number; current_pct: number; target_pct: number; drift_pct: number }>();
+  const allAccountCandidates = useMemo(() => {
+    const accountTotals = new Map<string, { name: string; tax_status: string; total: number }>()
+    const accountHoldings = data?.accountHoldings || {}
+
+    Object.values(accountHoldings).forEach((positions: any) => {
+      (positions || []).forEach((h: any) => {
+        if (!h?.account_id) return
+        const existing = accountTotals.get(h.account_id)
+        if (!existing) {
+          accountTotals.set(h.account_id, {
+            name: h.name || 'Unknown',
+            tax_status: h.tax_status || 'Unknown',
+            total: Number(h.value || 0),
+          })
+          return
+        }
+        existing.total += Number(h.value || 0)
+      })
+    })
+
+    return Array.from(accountTotals.values()).sort((a, b) => {
+      const aTax = a.tax_status === 'Taxable' ? 1 : 0
+      const bTax = b.tax_status === 'Taxable' ? 1 : 0
+      if (aTax !== bTax) return aTax - bTax
+      return b.total - a.total
+    })
+  }, [data?.accountHoldings])
+
+  const buildTaxRecommendation = (asset: any, action: 'buy' | 'sell', amount: number) => {
+    const accountHoldings = data?.accountHoldings || {}
+    const holdings = [...(accountHoldings[asset.asset_id] || [])].sort((a: any, b: any) => {
+      const aTax = a.tax_status === 'Taxable' ? 1 : 0
+      const bTax = b.tax_status === 'Taxable' ? 1 : 0
+      if (aTax !== bTax) return aTax - bTax
+      return Number(b.value || 0) - Number(a.value || 0)
+    })
+
+    const guidance = action === 'sell'
+      ? 'Trim tax-advantaged lots first to defer taxable gains.'
+      : 'Prefer tax-advantaged accounts for new buys; use taxable last.'
+
+    if (!holdings.length) {
+      const fallback = allAccountCandidates.slice(0, 2)
+      if (!fallback.length) {
+        return {
+          guidance,
+          lines: ['Use tax-advantaged accounts before taxable brokerage when possible.'],
+        }
+      }
+      return {
+        guidance,
+        lines: fallback.map((acc) => `${acc.name} (${acc.tax_status})`),
+      }
+    }
+
+    let remaining = amount
+    const lines: string[] = []
+    holdings.forEach((h: any) => {
+      if (remaining <= 0) return
+      const cap = Number(h.value || 0)
+      const take = cap > 0 ? Math.min(cap, remaining) : remaining
+      if (take <= 0) return
+      lines.push(`${h.name} (${h.tax_status || 'Unknown'}): ${formatUSDWhole(take)}`)
+      remaining -= take
+    })
+
+    if (!lines.length) lines.push('Use tax-advantaged accounts before taxable brokerage when possible.')
+
+    return { guidance, lines }
+  }
+
+  const rebalancingPlanRows = useMemo(() => {
+    const planByTicker = new Map<string, { ticker: string; buyAmount: number; sellAmount: number; types: Set<string> }>()
 
     calculatedData.allocations.forEach((asset: any) => {
-      const sourceTicker = asset.ticker || 'Unknown';
-      (asset.reinvestment_suggestions || []).forEach((s: any) => {
-        if (s.pair_type !== 'implied' || !s.to_ticker || !s.amount) return;
-        const key = `${sourceTicker}->${s.to_ticker}`;
-        const sourceMetrics = metricsByTicker.get(sourceTicker) || { current: 0, target: 0, drift: 0, action: 'hold' };
-        const destinationMetrics = metricsByTicker.get(s.to_ticker) || { current: 0, target: 0, drift: 0, action: 'hold' };
-        const supportingMetrics = sourceMetrics.action === 'hold' && destinationMetrics.action !== 'hold'
-          ? sourceMetrics
-          : destinationMetrics.action === 'hold' && sourceMetrics.action !== 'hold'
-            ? destinationMetrics
-            : sourceMetrics;
-        const current = flowMap.get(key);
-        if (!current) {
-          flowMap.set(key, {
-            from: sourceTicker,
-            to: s.to_ticker,
-            amount: s.amount,
-            current_pct: supportingMetrics.current,
-            target_pct: supportingMetrics.target,
-            drift_pct: supportingMetrics.drift,
-          });
-          return;
-        }
-        current.amount += s.amount;
-      });
-    });
+      const sourceTicker = asset.ticker || 'Unknown'
+      ;(asset.reinvestment_suggestions || []).forEach((s: any) => {
+        if (!s.to_ticker || !s.amount) return
+        const amount = Number(s.amount || 0)
+        if (amount <= 0) return
 
-    return Array.from(flowMap.values()).sort((a, b) => b.amount - a.amount);
-  })();
+        const source = planByTicker.get(sourceTicker) || { ticker: sourceTicker, buyAmount: 0, sellAmount: 0, types: new Set<string>() }
+        source.sellAmount += amount
+        source.types.add(s.pair_type === 'explicit' ? 'Explicit' : 'Implied')
+        planByTicker.set(sourceTicker, source)
 
-  const getPairingsForAsset = (assetId: string) => {
-    return calculatedData.allocations.find((a: any) => a.asset_id === assetId)?.reinvestment_suggestions || [];
-  };
+        const destination = planByTicker.get(s.to_ticker) || { ticker: s.to_ticker, buyAmount: 0, sellAmount: 0, types: new Set<string>() }
+        destination.buyAmount += amount
+        destination.types.add(s.pair_type === 'explicit' ? 'Explicit' : 'Implied')
+        planByTicker.set(s.to_ticker, destination)
+      })
+    })
+
+    actionableAssets.forEach((asset: any) => {
+      const row = planByTicker.get(asset.ticker) || { ticker: asset.ticker, buyAmount: 0, sellAmount: 0, types: new Set<string>() }
+      if (asset.action === 'buy') row.buyAmount = Math.max(row.buyAmount, Number(asset.amount || 0))
+      if (asset.action === 'sell') row.sellAmount = Math.max(row.sellAmount, Number(asset.amount || 0))
+      row.types.add('Explicit')
+      planByTicker.set(asset.ticker, row)
+    })
+
+    const rows = Array.from(planByTicker.values()).map((row) => {
+      const net = row.buyAmount - row.sellAmount
+      const action: 'buy' | 'sell' = net >= 0 ? 'buy' : 'sell'
+      const amount = Math.abs(net)
+      const metrics = assetByTicker.get(row.ticker) || {
+        current_overall_pct: 0,
+        target_overall_pct: 0,
+        drift_percentage: 0,
+        name: row.ticker,
+      }
+      const recommendation = buildTaxRecommendation(metrics, action, amount)
+
+      return {
+        ticker: row.ticker,
+        name: metrics.name || row.ticker,
+        action,
+        amount,
+        flowTypes: Array.from(row.types.values()).sort().join(' + '),
+        currentPct: Number(metrics.current_overall_pct || 0),
+        targetPct: Number(metrics.target_overall_pct || 0),
+        driftPct: Number(metrics.drift_percentage || 0),
+        accountGuidance: recommendation.guidance,
+        accountLines: recommendation.lines,
+      }
+    })
+
+    return rows.filter((r) => r.amount > 0).sort((a, b) => b.amount - a.amount)
+  }, [calculatedData.allocations, actionableAssets, assetByTicker])
 
   return (
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
@@ -605,18 +692,16 @@ export default function RebalancingPage() {
       </div>
       </div>
 
-      {rebalanceNeeded && (actionableAssets.length > 0 || impliedFlowRows.length > 0) && (
+      {rebalanceNeeded && (actionableAssets.length > 0 || rebalancingPlanRows.length > 0) && (
       <div>
-      <h2 className="text-xl font-bold text-center mb-6">Recommended Rebalancing Actions</h2>
+      <h2 className="text-xl font-bold text-center mb-6">Rebalancing Recommendations</h2>
       <div className="bg-card p-4 rounded-xl border shadow-sm">
         <div className="text-xs text-muted-foreground text-center mb-3">Asset-level recommendations across sub-portfolios</div>
           <div className="space-y-4">
             {actionableAssets.length > 0 && (
             <div className="md:hidden space-y-3">
-              <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Triggered Actions</div>
-              {actionableAssets.map((asset: any) => {
-                const pairings = getPairingsForAsset(asset.asset_id);
-                return (
+              <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Out-of-Band Assets</div>
+              {actionableAssets.map((asset: any) => (
                   <div key={`mobile-explicit-${asset.asset_id}`} className="rounded-lg border bg-background p-3 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -654,37 +739,54 @@ export default function RebalancingPage() {
                         <div className={cn("font-semibold tabular-nums", asset.drift_percentage > 0 ? "text-green-600" : "text-red-600")}>{asset.drift_percentage > 0 ? '+' : ''}{asset.drift_percentage.toFixed(1)}%</div>
                       </div>
                     </div>
-
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-xs font-semibold text-zinc-600">Pairings</summary>
-                      <div className="mt-2 space-y-1 text-xs text-blue-700">
-                        {pairings.length > 0 ? pairings.map((s: any, idx: number) => (
-                          <div key={`mobile-pair-${asset.asset_id}-${idx}`} className="flex items-center justify-between gap-2">
-                            <span className="truncate">{s.to_ticker ? `To ${s.to_ticker}` : `From ${s.from_ticker}`}</span>
-                            <span className="tabular-nums whitespace-nowrap">{formatUSDWhole(s.amount)}</span>
-                          </div>
-                        )) : <span className="text-muted-foreground">No pairings</span>}
-                      </div>
-                    </details>
                   </div>
-                )
-              })}
+                ))}
             </div>
             )}
 
-            {impliedFlowRows.length > 0 && (
+            {rebalancingPlanRows.length > 0 && (
               <div className="md:hidden space-y-3">
-                <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Supporting Flows</div>
-                {impliedFlowRows.map((flow, idx) => (
-                  <details key={`mobile-implied-${idx}`} className="rounded-lg border bg-background p-3 shadow-sm">
-                    <summary className="cursor-pointer list-none">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-xs text-zinc-500 truncate">{`${flow.from} -> ${flow.to}`}</div>
-                        <div className="font-semibold tabular-nums whitespace-nowrap">{formatUSDWhole(flow.amount)}</div>
+                <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Rebalancing Plan</div>
+                {rebalancingPlanRows.map((row, idx) => (
+                  <div key={`mobile-plan-${idx}`} className="rounded-lg border bg-background p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-semibold leading-tight">{row.ticker}</div>
+                        <div className="text-xs text-muted-foreground leading-tight">{row.name}</div>
                       </div>
-                    </summary>
-                    <div className="mt-2 text-xs text-zinc-600">Funds are routed from above-target assets to below-target assets without pushing either side through target boundaries.</div>
-                  </details>
+                      <span className={cn("text-xs font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</span>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between gap-2 text-sm">
+                      <div className="font-semibold tabular-nums">{formatUSDWhole(row.amount)}</div>
+                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">{row.flowTypes}</span>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                      <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                        <div className="text-zinc-500">Current</div>
+                        <div className="font-semibold tabular-nums">{row.currentPct.toFixed(1)}%</div>
+                      </div>
+                      <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                        <div className="text-zinc-500">Target</div>
+                        <div className="font-semibold tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</div>
+                      </div>
+                      <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                        <div className="text-zinc-500">Drift</div>
+                        <div className={cn("font-semibold tabular-nums", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 rounded border bg-zinc-50 px-2 py-2 text-[11px]">
+                      <div className="font-semibold text-zinc-700">Account / Tax Consideration</div>
+                      <div className="mt-1 text-zinc-600">{row.accountGuidance}</div>
+                      <div className="mt-1 space-y-0.5 text-zinc-700">
+                        {row.accountLines.map((line: string, lineIdx: number) => (
+                          <div key={`mobile-plan-line-${idx}-${lineIdx}`}>{line}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -694,7 +796,7 @@ export default function RebalancingPage() {
             <Table className="min-w-[860px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead colSpan={8} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Triggered Actions</TableHead>
+                  <TableHead colSpan={7} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Out-of-Band Assets</TableHead>
                 </TableRow>
                 <TableRow>
                   <TableHead>Asset</TableHead>
@@ -704,12 +806,10 @@ export default function RebalancingPage() {
                   <TableHead className="text-center">Action</TableHead>
                   <TableHead className="text-center">Rebalance Mode</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Suggested Pairing</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {actionableAssets.map((asset: any) => {
-                  const pairings = getPairingsForAsset(asset.asset_id);
                   return (
                     <TableRow key={asset.asset_id}>
                       <TableCell>
@@ -733,13 +833,6 @@ export default function RebalancingPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSDWhole(asset.amount)}</TableCell>
-                      <TableCell className="text-xs text-blue-700">
-                        {pairings.length > 0 ? pairings.map((s: any, idx: number) => (
-                          <div key={`${asset.asset_id}-pair-${idx}`}>
-                            {s.to_ticker ? `To ${s.to_ticker}` : `From ${s.from_ticker}`}: {formatUSDWhole(s.amount)}
-                          </div>
-                        )) : <span className="text-muted-foreground">-</span>}
-                      </TableCell>
                     </TableRow>
                   )
                 })}
@@ -747,30 +840,42 @@ export default function RebalancingPage() {
             </Table>
             )}
 
-            {impliedFlowRows.length > 0 && (
+            {rebalancingPlanRows.length > 0 && (
               <Table className="min-w-[860px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead colSpan={6} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Supporting Flows</TableHead>
+                    <TableHead colSpan={8} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Rebalancing Plan</TableHead>
                   </TableRow>
                   <TableRow>
-                    <TableHead>From</TableHead>
-                    <TableHead>To</TableHead>
+                    <TableHead>Asset</TableHead>
+                    <TableHead className="text-center">Transaction</TableHead>
+                    <TableHead>Flow Type</TableHead>
                     <TableHead className="text-right">Current %</TableHead>
                     <TableHead className="text-right text-blue-600">Target %</TableHead>
                     <TableHead className="text-right">Drift %</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Account / Tax Consideration</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {impliedFlowRows.map((flow, idx) => (
-                    <TableRow key={`implied-flow-${idx}`}>
-                      <TableCell className="font-semibold">{flow.from}</TableCell>
-                      <TableCell className="font-semibold">{flow.to}</TableCell>
-                      <TableCell className="text-right tabular-nums">{flow.current_pct.toFixed(1)}%</TableCell>
-                      <TableCell className="text-right tabular-nums text-blue-700">{flow.target_pct.toFixed(1)}%</TableCell>
-                      <TableCell className={cn("text-right tabular-nums font-semibold", flow.drift_pct > 0 ? "text-green-600" : "text-red-600")}>{flow.drift_pct > 0 ? '+' : ''}{flow.drift_pct.toFixed(1)}%</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatUSDWhole(flow.amount)}</TableCell>
+                  {rebalancingPlanRows.map((row, idx) => (
+                    <TableRow key={`plan-row-${idx}`}>
+                      <TableCell>
+                        <div className="font-semibold">{row.ticker}</div>
+                        <div className="text-xs text-muted-foreground">{row.name}</div>
+                      </TableCell>
+                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</TableCell>
+                      <TableCell className="text-xs uppercase tracking-wide text-zinc-500">{row.flowTypes}</TableCell>
+                      <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
+                      <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
+                      <TableCell className="text-xs text-zinc-700">
+                        <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
+                        {row.accountLines.map((line: string, lineIdx: number) => (
+                          <div key={`plan-line-${idx}-${lineIdx}`}>{line}</div>
+                        ))}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -878,42 +983,7 @@ export default function RebalancingPage() {
                               <span className="text-zinc-500 text-center leading-tight">Drift</span>
                               <div className={cn("flex items-center justify-center font-semibold tabular-nums", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div>
                             </div>
-                            <div className={cn("rounded px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]", i.action === 'buy' ? "bg-emerald-50" : i.action === 'sell' ? "bg-rose-50" : "bg-zinc-50")}>
-                              <span className="text-zinc-500 text-center leading-tight">Action and Amount</span>
-                              {i.action === 'hold' ? (
-                                <div className="flex items-center justify-center font-semibold text-zinc-400">No action</div>
-                              ) : (
-                                <div className="flex items-center justify-center gap-2">
-                                  <span className={cn("font-semibold", i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span>
-                                  <span className="font-semibold tabular-nums">{formatUSDWhole(i.amount)}</span>
-                                </div>
-                              )}
-                            </div>
                           </div>
-
-                          <details className="mt-2">
-                            <summary className="cursor-pointer text-xs font-semibold text-zinc-600">Details</summary>
-                            <div className="mt-2 space-y-1 text-xs text-blue-700">
-                              {i.action === 'sell' && i.recommended_accounts?.length ? i.recommended_accounts.map((s: any, idx: number) => (
-                                <div key={`mobile-sell-${i.asset_id}-${idx}`}>Sell from {s.name}: {formatUSDWhole(s.amount)}</div>
-                              )) : null}
-                              {i.reinvestment_suggestions?.length ? i.reinvestment_suggestions.map((s: any, idx: number) => {
-                                const accountLabel = s.account_name ? ` (${s.account_name}${s.tax_status ? `, ${s.tax_status}` : ''})` : ''
-                                const label = s.from_ticker ? `Fund via ${s.from_ticker} sale${accountLabel}` : s.to_ticker ? `Use Funds to Buy ${s.to_ticker}` : 'Suggested'
-                                const badgeText = s.pair_type === 'explicit' ? 'Explicit' : 'Implied'
-                                const badgeClass = s.pair_type === 'explicit'
-                                  ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                                  : 'bg-amber-100 text-amber-700 border-amber-200'
-                                return (
-                                  <div key={`mobile-re-${i.asset_id}-${idx}`} className="flex items-center justify-between gap-2">
-                                    <span className={cn('inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide', badgeClass)}>{badgeText}</span>
-                                    <span className="text-right">{label}: {formatUSDWhole(s.amount)}</span>
-                                  </div>
-                                )
-                              }) : null}
-                              {!(i.action === 'sell' && i.recommended_accounts?.length) && !i.reinvestment_suggestions?.length ? <span className="text-muted-foreground">No suggestions</span> : null}
-                            </div>
-                          </details>
                         </div>
                       ))}
                     </div>
@@ -929,8 +999,6 @@ export default function RebalancingPage() {
                           <col className="w-[10%]" />
                           <col className="w-[8%]" />
                           <col className="w-[8%]" />
-                          <col className="w-[8%]" />
-                          <col className="w-[12%]" />
                         </colgroup>
                         <TableHeader className="bg-muted/30">
                           <TableRow>
@@ -982,8 +1050,6 @@ export default function RebalancingPage() {
                                 <SortIcon col="drift_percentage" />
                               </button>
                             </TableHead>
-                            <TableHead className="px-3 sm:px-4 text-center whitespace-nowrap">Action</TableHead>
-                            <TableHead className="px-3 sm:px-4 text-right whitespace-nowrap">Suggest.</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1017,43 +1083,6 @@ export default function RebalancingPage() {
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.implied_overall_target.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(i.current_percentage || 0).toFixed(1)}%</TableCell>
                               <TableCell className={cn("px-3 sm:px-4 text-right tabular-nums font-bold whitespace-nowrap", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell>
-                              <TableCell className="px-3 sm:px-4 text-center font-bold whitespace-nowrap">
-                                {i.action === 'hold' ? (
-                                  <span className="text-zinc-300">-</span>
-                                ) : (
-                                  <div className="flex flex-col">
-                                    <span className={cn(i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span>
-                                    <span className="text-[12px] font-medium">{formatUSDWhole(i.amount)}</span>
-                                  </div>
-                                )}
-                              </TableCell>
-                              <TableCell className="px-3 sm:px-4 text-right text-[12px] italic text-zinc-600 whitespace-normal break-words">
-                                {(() => {
-                                  const lines: any[] = []
-                                  if (i.action === 'sell' && i.recommended_accounts?.length) {
-                                    i.recommended_accounts.forEach((s: any, idx: number) => {
-                                      lines.push(<div key={`sell-${idx}`} className="text-blue-700">Sell from {s.name}: {formatUSDWhole(s.amount)}</div>)
-                                    })
-                                  }
-                                  if (i.reinvestment_suggestions?.length) {
-                                    i.reinvestment_suggestions.forEach((s: any, idx: number) => {
-                                      const accountLabel = s.account_name ? ` (${s.account_name}${s.tax_status ? `, ${s.tax_status}` : ''})` : ''
-                                      const label = s.from_ticker ? `Fund via ${s.from_ticker} sale${accountLabel}` : s.to_ticker ? `Use Funds to Buy ${s.to_ticker}` : 'Suggested'
-                                      const badgeText = s.pair_type === 'explicit' ? 'Explicit' : 'Implied'
-                                      const badgeClass = s.pair_type === 'explicit'
-                                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                                        : 'bg-amber-100 text-amber-700 border-amber-200'
-                                      lines.push(
-                                        <div key={`re-${idx}`} className="text-blue-700 flex items-center justify-end gap-1.5">
-                                          <span className={cn('inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide', badgeClass)}>{badgeText}</span>
-                                          <span>{label}: {formatUSDWhole(s.amount)}</span>
-                                        </div>
-                                      )
-                                    })
-                                  }
-                                  return lines.length ? lines : <span className="opacity-40">-</span>
-                                })()}
-                              </TableCell>
                             </TableRow>
                           ))}
                           <TableRow className="bg-zinc-900 text-white font-bold h-12 shadow-inner">
@@ -1065,8 +1094,6 @@ export default function RebalancingPage() {
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalImplied.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{allocPct.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{absDriftWtd.toFixed(1)}%</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-center text-white">N/A</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-right opacity-60 text-white">N/A</TableCell>
                           </TableRow>
                         </TableBody>
                       </Table>
