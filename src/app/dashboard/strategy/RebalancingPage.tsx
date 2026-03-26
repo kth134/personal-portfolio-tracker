@@ -663,23 +663,28 @@ export default function RebalancingPage() {
   const supportingPlanRows = rebalancingPlanRows.filter((row: any) => row.type === 'Supporting Transaction')
 
   return (
-    <div className="space-y-6 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
-      <div className="border-b pb-4 bg-muted/10 p-4 rounded-xl">
-        <div className="flex justify-start">
-          <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
+    <div className="space-y-4 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
+      <details open className="rounded-xl border bg-background shadow-sm">
+        <summary className="cursor-pointer list-none px-4 py-3 text-xl font-bold">Key KPIs</summary>
+        <div className="px-4 pb-4 space-y-4">
+          <div className="border-b pb-4 bg-muted/10 p-4 rounded-xl">
+            <div className="flex justify-start">
+              <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Value</Label><div className="text-xl font-bold font-mono">{formatUSDWhole(data.totalValue)}</div></div>
+            <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Sub-Portfolio Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div></div>
+            <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Asset Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div></div>
+            <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Rebalance Needed</Label><div className={cn("text-xl font-bold flex items-center justify-center mt-1", rebalanceNeeded ? "text-red-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div></div>
+          </div>
         </div>
-        <h2 className="text-xl font-bold text-center mt-4">Key KPIs</h2>
-      </div>
+      </details>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Value</Label><div className="text-xl font-bold font-mono">{formatUSDWhole(data.totalValue)}</div></div>
-        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Sub-Portfolio Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div></div>
-        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Asset Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div></div>
-        <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Rebalance Needed</Label><div className={cn("text-xl font-bold flex items-center justify-center mt-1", rebalanceNeeded ? "text-red-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div></div>
-      </div>
-
-      <div>
-        <h2 className="text-xl font-bold text-center mb-6">Portfolio Drift Chart</h2>
+      <details open className="rounded-xl border bg-background shadow-sm">
+        <summary className="cursor-pointer list-none px-4 py-3 text-xl font-bold">Portfolio Drift Chart</summary>
+        <div className="px-4 pb-4">
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-end md:gap-4">
         <div className="w-full max-w-xs md:w-56 md:max-w-none">
           <Label className="text-[10px] font-bold uppercase mb-1 block text-left">View Lens</Label>
@@ -732,10 +737,12 @@ export default function RebalancingPage() {
         ))}
       </div>
       </div>
+      </details>
 
-      {rebalanceNeeded && rebalancingPlanRows.length > 0 && (
-      <div>
-      <h2 className="text-xl font-bold text-center mb-6">Rebalancing Recommendations</h2>
+      <details open className="rounded-xl border bg-background shadow-sm">
+      <summary className="cursor-pointer list-none px-4 py-3 text-xl font-bold">Rebalancing Recommendations</summary>
+      <div className="px-4 pb-4">
+      {rebalanceNeeded && rebalancingPlanRows.length > 0 ? (
       <div className="bg-card p-4 rounded-xl border shadow-sm">
         <div className="text-xs text-muted-foreground text-center mb-3">Asset-level recommendations across sub-portfolios</div>
           <div className="space-y-4">
@@ -914,11 +921,15 @@ export default function RebalancingPage() {
             </div>
           </div>
       </div>
-      </div>
+      ) : (
+        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">No rebalancing recommendations right now.</div>
       )}
+      </div>
+      </details>
 
-      <div className="pt-8 border-t">
-        <h2 className="text-xl font-bold text-center mb-6">Asset Allocation Management</h2>
+      <details open className="rounded-xl border bg-background shadow-sm">
+        <summary className="cursor-pointer list-none px-4 py-3 text-xl font-bold">Asset Allocation Management</summary>
+        <div className="px-4 pb-4">
         <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
           {calculatedData.subPortfolios.map((sp: any) => {
             const items = calculatedData.allocations.filter((a: any) => a.sub_portfolio_id === sp.id)
@@ -1150,7 +1161,8 @@ export default function RebalancingPage() {
             )
           })}
         </Accordion>
-      </div>
+        </div>
+      </details>
     </div>
   )
 }
