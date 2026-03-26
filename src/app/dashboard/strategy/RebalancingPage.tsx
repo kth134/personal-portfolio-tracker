@@ -801,15 +801,15 @@ export default function RebalancingPage() {
                       </div>
                     </div>
 
-                    <div className="mt-2 rounded border bg-zinc-50 px-2 py-2 text-[11px]">
-                      <div className="font-semibold text-zinc-700">Account / Tax Consideration</div>
+                    <details className="mt-2 rounded border bg-zinc-50 px-2 py-2 text-[11px]">
+                      <summary className="cursor-pointer font-semibold text-zinc-700">Account / Tax Consideration</summary>
                       <div className="mt-1 text-zinc-600">{row.accountGuidance}</div>
                       <div className="mt-1 space-y-0.5 text-zinc-700">
                         {row.accountLines.map((line: string, lineIdx: number) => (
                           <div key={`mobile-plan-out-line-${idx}-${lineIdx}`}>{line}</div>
                         ))}
                       </div>
-                    </div>
+                    </details>
                   </div>
                 ))}
                 {supportingPlanRows.length > 0 && <div className="pt-1 text-[11px] uppercase tracking-wide text-zinc-500 px-1">Supporting Transactions</div>}
@@ -846,15 +846,15 @@ export default function RebalancingPage() {
                       </div>
                     </div>
 
-                    <div className="mt-2 rounded border bg-zinc-50 px-2 py-2 text-[11px]">
-                      <div className="font-semibold text-zinc-700">Account / Tax Consideration</div>
+                    <details className="mt-2 rounded border bg-zinc-50 px-2 py-2 text-[11px]">
+                      <summary className="cursor-pointer font-semibold text-zinc-700">Account / Tax Consideration</summary>
                       <div className="mt-1 text-zinc-600">{row.accountGuidance}</div>
                       <div className="mt-1 space-y-0.5 text-zinc-700">
                         {row.accountLines.map((line: string, lineIdx: number) => (
                           <div key={`mobile-plan-sup-line-${idx}-${lineIdx}`}>{line}</div>
                         ))}
                       </div>
-                    </div>
+                    </details>
                   </div>
                 ))}
               </div>
