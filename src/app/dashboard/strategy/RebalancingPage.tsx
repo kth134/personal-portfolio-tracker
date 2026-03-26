@@ -660,17 +660,10 @@ export default function RebalancingPage() {
   return (
     <div className="space-y-6 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
       <div className="border-b pb-4 bg-muted/10 p-4 rounded-xl">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex flex-wrap gap-4 items-end lg:justify-start">
-          <div className="w-56"><Label className="text-[10px] font-bold uppercase mb-1 block">View Lens</Label><Select value={lens} onValueChange={setLens}><SelectTrigger className="bg-background focus:ring-0"><SelectValue/></SelectTrigger><SelectContent>{LENSES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent></Select></div>
-          {lens !== 'total' && (<div className="w-64"><Label className="text-[10px] font-bold uppercase mb-1 block">Filter Selection</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-between bg-background">{selectedValues.length} selected <ChevronsUpDown className="w-4 h-4 ml-2 opacity-50" /></Button></PopoverTrigger><PopoverContent className="w-64 p-0"><Command><CommandInput placeholder="Search..." /><CommandList><CommandGroup className="max-h-64 overflow-y-auto">{availableValues.map(v => { const filterValue = lens === 'sub_portfolio' ? (v.label ?? v.value) : v.value; return (<CommandItem key={v.value} onSelect={() => toggleValue(filterValue)}><Check className={cn("w-4 h-4 mr-2", selectedValues.includes(filterValue) ? "opacity-100" : "opacity-0")} />{v.label}</CommandItem>) })}</CommandGroup></CommandList></Command></PopoverContent></Popover></div>)}
-          {lens !== 'total' && selectedValues.length > 1 && (<div className="flex items-center gap-2 mb-2 p-2 border rounded-md bg-background"><Switch checked={aggregate} onCheckedChange={setAggregate} id="agg-switch" /><Label htmlFor="agg-switch" className="text-xs cursor-pointer">Aggregate</Label></div>)}
-        </div>
-        <div className="flex justify-start lg:justify-end lg:self-end">
+        <div className="flex justify-center">
           <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
         </div>
-        </div>
-        <h2 className="text-xl font-bold text-center mt-2">Key KPIs</h2>
+        <h2 className="text-xl font-bold text-center mt-4">Key KPIs</h2>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -682,6 +675,49 @@ export default function RebalancingPage() {
 
       <div>
         <h2 className="text-xl font-bold text-center mb-6">Portfolio Drift Chart</h2>
+      <div className="flex flex-col items-center gap-3 mb-6">
+        <div className="w-full max-w-xs">
+          <Label className="text-[10px] font-bold uppercase mb-1 block text-center">View Lens</Label>
+          <Select value={lens} onValueChange={setLens}>
+            <SelectTrigger className="bg-background focus:ring-0"><SelectValue/></SelectTrigger>
+            <SelectContent>{LENSES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        {lens !== 'total' && (
+          <div className="w-full max-w-sm">
+            <Label className="text-[10px] font-bold uppercase mb-1 block text-center">Filter Selection</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between bg-background">{selectedValues.length} selected <ChevronsUpDown className="w-4 h-4 ml-2 opacity-50" /></Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-0">
+                <Command>
+                  <CommandInput placeholder="Search..." />
+                  <CommandList>
+                    <CommandGroup className="max-h-64 overflow-y-auto">
+                      {availableValues.map(v => {
+                        const filterValue = lens === 'sub_portfolio' ? (v.label ?? v.value) : v.value
+                        return (
+                          <CommandItem key={v.value} onSelect={() => toggleValue(filterValue)}>
+                            <Check className={cn("w-4 h-4 mr-2", selectedValues.includes(filterValue) ? "opacity-100" : "opacity-0")} />
+                            {v.label}
+                          </CommandItem>
+                        )
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+        {lens !== 'total' && selectedValues.length > 1 && (
+          <div className="flex items-center gap-2 p-2 border rounded-md bg-background">
+            <Switch checked={aggregate} onCheckedChange={setAggregate} id="agg-switch" />
+            <Label htmlFor="agg-switch" className="text-xs cursor-pointer">Aggregate</Label>
+          </div>
+        )}
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {chartSlices.map((slice, idx) => (
           <div key={idx} className={cn("bg-card p-6 rounded-xl border shadow-sm space-y-4", chartSlices.length === 1 && "lg:col-span-2")}> 
@@ -963,7 +999,7 @@ export default function RebalancingPage() {
                                     }
                                     updateAssetTarget(i.asset_id, sp.id, parsed)
                                   }}
-                                  className="h-8 text-right w-full max-w-[130px] border-amber-300 bg-white focus:ring-0"
+                                  className="h-8 w-full border-amber-300 bg-amber-50 text-center font-semibold tabular-nums text-[11px] focus:ring-0"
                                 />
                               </div>
                             </div>
