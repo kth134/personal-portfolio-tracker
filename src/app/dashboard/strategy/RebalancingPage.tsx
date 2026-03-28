@@ -911,7 +911,16 @@ export default function RebalancingPage() {
                 <TableBody>
                   {outOfBandPlanRows.length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-xs font-semibold uppercase tracking-wide text-white bg-black">Out-of-Band Assets</TableCell>
+                      <TableCell colSpan={9} className="bg-black px-3 py-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-white">Out-of-Band Assets</span>
+                          <div className="flex items-center gap-4 text-[11px]">
+                            <span className="text-zinc-300">Gross Buy <span className="font-semibold tabular-nums text-green-300">{formatUSDWhole(outOfBandSummary.grossBuy)}</span></span>
+                            <span className="text-zinc-300">Gross Sell <span className="font-semibold tabular-nums text-red-300">{formatUSDWhole(outOfBandSummary.grossSell)}</span></span>
+                            <span className="text-zinc-300">Net Flow <span className={cn("font-semibold tabular-nums", outOfBandSummary.netFlow >= 0 ? "text-green-300" : "text-red-300")}>{formatUSDWhole(outOfBandSummary.netFlow)}</span></span>
+                          </div>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   )}
                   {outOfBandPlanRows.map((row, idx) => (
@@ -935,34 +944,18 @@ export default function RebalancingPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {outOfBandPlanRows.length > 0 && (
-                    <TableRow className="bg-zinc-50/80">
-                      <TableCell colSpan={5} className="text-right text-xs font-semibold uppercase tracking-wide text-zinc-600">Out-of-Band Summary</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="text-zinc-500">Gross Buy</span>
-                          <span className="font-semibold tabular-nums text-green-700">{formatUSDWhole(outOfBandSummary.grossBuy)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="text-zinc-500">Gross Sell</span>
-                          <span className="font-semibold tabular-nums text-red-700">{formatUSDWhole(outOfBandSummary.grossSell)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="text-zinc-500">Net Flow</span>
-                          <span className={cn("font-semibold tabular-nums", outOfBandSummary.netFlow >= 0 ? "text-green-700" : "text-red-700")}>{formatUSDWhole(outOfBandSummary.netFlow)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-[11px] text-zinc-500">Buy - Sell</TableCell>
-                    </TableRow>
-                  )}
-
                   {supportingPlanRows.length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-xs font-semibold uppercase tracking-wide text-white bg-black">Supporting Transactions</TableCell>
+                      <TableCell colSpan={9} className="bg-black px-3 py-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-white">Supporting Transactions</span>
+                          <div className="flex items-center gap-4 text-[11px]">
+                            <span className="text-zinc-300">Gross Buy <span className="font-semibold tabular-nums text-green-300">{formatUSDWhole(supportingSummary.grossBuy)}</span></span>
+                            <span className="text-zinc-300">Gross Sell <span className="font-semibold tabular-nums text-red-300">{formatUSDWhole(supportingSummary.grossSell)}</span></span>
+                            <span className="text-zinc-300">Net Flow <span className={cn("font-semibold tabular-nums", supportingSummary.netFlow >= 0 ? "text-green-300" : "text-red-300")}>{formatUSDWhole(supportingSummary.netFlow)}</span></span>
+                          </div>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   )}
                   {supportingPlanRows.map((row, idx) => (
@@ -986,30 +979,6 @@ export default function RebalancingPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {supportingPlanRows.length > 0 && (
-                    <TableRow className="bg-zinc-50/80">
-                      <TableCell colSpan={5} className="text-right text-xs font-semibold uppercase tracking-wide text-zinc-600">Supporting Transactions Summary</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="text-zinc-500">Gross Buy</span>
-                          <span className="font-semibold tabular-nums text-green-700">{formatUSDWhole(supportingSummary.grossBuy)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="text-zinc-500">Gross Sell</span>
-                          <span className="font-semibold tabular-nums text-red-700">{formatUSDWhole(supportingSummary.grossSell)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="text-zinc-500">Net Flow</span>
-                          <span className={cn("font-semibold tabular-nums", supportingSummary.netFlow >= 0 ? "text-green-700" : "text-red-700")}>{formatUSDWhole(supportingSummary.netFlow)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-[11px] text-zinc-500">Buy - Sell</TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
             )}
