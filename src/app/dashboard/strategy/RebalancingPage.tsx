@@ -1137,9 +1137,9 @@ export default function RebalancingPage() {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="p-0 bg-background">
-                    <div className="md:hidden border-b bg-slate-900 p-3">
-                      <div className="rounded-lg border border-slate-700 bg-slate-900 p-2">
-                        <div className="rounded-md bg-slate-800 px-2 py-1 text-center text-xs font-semibold uppercase tracking-wide text-white">Summary</div>
+                    <div className="md:hidden border-b bg-zinc-100/80 p-3">
+                      <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/90 p-2">
+                        <div className="rounded-md bg-slate-700 px-2 py-1 text-center text-xs font-semibold uppercase tracking-wide text-white">Summary</div>
                       <div className="grid grid-cols-3 gap-2 text-[10px]">
                         <div className="mt-2"><MetricChip label="Target Weight" value={`${targetAllocPct.toFixed(1)}%`} valueClassName="text-blue-700" /></div>
                         <div className="mt-2"><MetricChip label="Actual Weight" value={`${allocPct.toFixed(1)}%`} /></div>
@@ -1147,9 +1147,9 @@ export default function RebalancingPage() {
                       </div>
                       </div>
                     </div>
-                    <div className="hidden md:block border-b bg-slate-900 p-4">
-                      <div className="rounded-lg border border-slate-700 bg-slate-900 p-3">
-                        <div className="rounded-md bg-slate-800 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-white">Summary</div>
+                    <div className="hidden md:block border-b bg-zinc-100/80 p-4">
+                      <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/90 p-3">
+                        <div className="rounded-md bg-slate-700 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-white">Summary</div>
                         <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
                           <MetricChip label="Target Weight" value={`${targetAllocPct.toFixed(1)}%`} valueClassName="text-blue-700" />
                           <MetricChip label="Actual Weight" value={`${allocPct.toFixed(1)}%`} />
