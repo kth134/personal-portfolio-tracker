@@ -155,14 +155,28 @@ export default function RebalancingPage() {
   const updateAssetMode = async (assetId: string, spId: string, checked: boolean, targetPct?: number) => {
     const modeKey = getAssetModeKey(assetId, spId)
     const previousMode = overrideAssetModes[modeKey]
+    const previousModeFromData = (data?.currentAllocations || []).find(
+      (allocation: any) => allocation.asset_id === assetId && allocation.sub_portfolio_id === spId
+    )?.asset_band_mode
 
     setOverrideAssetModes(prev => ({ ...prev, [modeKey]: checked }))
+    setData((prev: any) => {
+      if (!prev?.currentAllocations) return prev
+
+      return {
+        ...prev,
+        currentAllocations: prev.currentAllocations.map((allocation: any) => (
+          allocation.asset_id === assetId && allocation.sub_portfolio_id === spId
+            ? { ...allocation, asset_band_mode: checked, band_mode_override: checked }
+            : allocation
+        )),
+      }
+    })
 
     try {
       const res = await fetch('/api/rebalancing/asset-mode', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        keepalive: true,
         body: JSON.stringify({
           asset_id: assetId,
           sub_portfolio_id: spId,
@@ -174,6 +188,18 @@ export default function RebalancingPage() {
       if (!res.ok) throw new Error(await res.text())
     } catch (err) {
       console.error('Save failed:', err)
+      setData((prev: any) => {
+        if (!prev?.currentAllocations) return prev
+
+        return {
+          ...prev,
+          currentAllocations: prev.currentAllocations.map((allocation: any) => (
+            allocation.asset_id === assetId && allocation.sub_portfolio_id === spId
+              ? { ...allocation, asset_band_mode: previousModeFromData, band_mode_override: previousModeFromData }
+              : allocation
+          )),
+        }
+      })
       setOverrideAssetModes(prev => {
         if (previousMode === undefined) {
           const next = { ...prev }
@@ -184,16 +210,6 @@ export default function RebalancingPage() {
         return { ...prev, [modeKey]: previousMode }
       })
       return
-    }
-
-    try {
-      const softRes = await fetch('/api/rebalancing', { cache: 'no-store' })
-      if (!softRes.ok) throw new Error(await softRes.text())
-      const softPayload = await softRes.json()
-      setData(softPayload)
-    } catch (err) {
-      // Keep the optimistic override if the write succeeded but the refresh failed.
-      console.error('Rebalancing refresh failed after saving asset mode:', err)
     }
   }
 
@@ -1133,7 +1149,7 @@ export default function RebalancingPage() {
                     </div>
                     <div className="p-4 bg-zinc-50 border-b">
                         <div className="rounded-lg border-2 border-zinc-300 bg-white p-3">
-                      <div className="rounded-md bg-black px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">Sub-Portfolio Inputs</div>
+                      <div className="rounded-md bg-amber-700 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-white">Sub-Portfolio Inputs</div>
                         <div className="mt-2 grid grid-cols-3 gap-2 sm:gap-4 items-end">
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input aria-label={`Sub-portfolio target for ${sp.name}`} defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
                           const parsed = parsePercentWithTwoDecimals(e.target.value)
