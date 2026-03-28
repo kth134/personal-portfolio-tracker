@@ -774,25 +774,23 @@ export default function RebalancingPage() {
       <div className="px-4 pb-4">
       {rebalanceNeeded && rebalancingPlanRows.length > 0 ? (
       <div className="bg-card p-4 rounded-xl border shadow-sm">
-        <div className="text-xs text-muted-foreground text-center mb-3">Asset-level recommendations across sub-portfolios</div>
           <div className="space-y-4">
             {rebalancingPlanRows.length > 0 && (
               <div className="md:hidden space-y-3">
-                <div className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50 rounded-md border px-3 py-2 font-semibold">Rebalancing Plan</div>
                 {outOfBandPlanRows.length > 0 && (
                   <div className="space-y-2">
-                    <div className="px-1">
-                      <div className="text-[11px] uppercase tracking-wide text-zinc-500">Out-of-Band Assets</div>
-                      <div className="mt-1 grid grid-cols-3 gap-2 text-[10px]">
-                        <div className="rounded border bg-zinc-50 px-2 py-1 text-center">
+                    <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
+                      <div className="rounded-md bg-black px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">Out-of-Band Assets</div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
+                        <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
                           <div className="text-zinc-500">Gross Buy</div>
                           <div className="font-semibold tabular-nums text-green-700">{formatUSDWhole(outOfBandSummary.grossBuy)}</div>
                         </div>
-                        <div className="rounded border bg-zinc-50 px-2 py-1 text-center">
+                        <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
                           <div className="text-zinc-500">Gross Sell</div>
                           <div className="font-semibold tabular-nums text-red-700">{formatUSDWhole(outOfBandSummary.grossSell)}</div>
                         </div>
-                        <div className="rounded border bg-zinc-50 px-2 py-1 text-center">
+                        <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
                           <div className="text-zinc-500">Net Flow</div>
                           <div className={cn("font-semibold tabular-nums", outOfBandSummary.netFlow >= 0 ? "text-green-700" : "text-red-700")}>{formatUSDWhole(outOfBandSummary.netFlow)}</div>
                         </div>
@@ -831,33 +829,24 @@ export default function RebalancingPage() {
                       </div>
                     </div>
 
-                    <details className="mt-2 rounded border bg-zinc-50 px-2 py-2 text-[11px]">
-                      <summary className="cursor-pointer font-semibold text-zinc-700">Account / Tax Consideration</summary>
-                      <div className="mt-1 text-zinc-600">{row.accountGuidance}</div>
-                      <div className="mt-1 space-y-0.5 text-zinc-700">
-                        {row.accountLines.map((line: string, lineIdx: number) => (
-                          <div key={`mobile-plan-out-line-${idx}-${lineIdx}`}>{line}</div>
-                        ))}
-                      </div>
-                    </details>
                   </div>
                     ))}
                   </div>
                 )}
                 {supportingPlanRows.length > 0 && (
                   <div className="space-y-2">
-                    <div className="px-1 pt-1">
-                      <div className="text-[11px] uppercase tracking-wide text-zinc-500">Supporting Transactions</div>
-                      <div className="mt-1 grid grid-cols-3 gap-2 text-[10px]">
-                        <div className="rounded border bg-zinc-50 px-2 py-1 text-center">
+                    <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
+                      <div className="rounded-md bg-black px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">Supporting Transactions</div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
+                        <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
                           <div className="text-zinc-500">Gross Buy</div>
                           <div className="font-semibold tabular-nums text-green-700">{formatUSDWhole(supportingSummary.grossBuy)}</div>
                         </div>
-                        <div className="rounded border bg-zinc-50 px-2 py-1 text-center">
+                        <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
                           <div className="text-zinc-500">Gross Sell</div>
                           <div className="font-semibold tabular-nums text-red-700">{formatUSDWhole(supportingSummary.grossSell)}</div>
                         </div>
-                        <div className="rounded border bg-zinc-50 px-2 py-1 text-center">
+                        <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
                           <div className="text-zinc-500">Net Flow</div>
                           <div className={cn("font-semibold tabular-nums", supportingSummary.netFlow >= 0 ? "text-green-700" : "text-red-700")}>{formatUSDWhole(supportingSummary.netFlow)}</div>
                         </div>
@@ -896,15 +885,6 @@ export default function RebalancingPage() {
                       </div>
                     </div>
 
-                    <details className="mt-2 rounded border bg-zinc-50 px-2 py-2 text-[11px]">
-                      <summary className="cursor-pointer font-semibold text-zinc-700">Account / Tax Consideration</summary>
-                      <div className="mt-1 text-zinc-600">{row.accountGuidance}</div>
-                      <div className="mt-1 space-y-0.5 text-zinc-700">
-                        {row.accountLines.map((line: string, lineIdx: number) => (
-                          <div key={`mobile-plan-sup-line-${idx}-${lineIdx}`}>{line}</div>
-                        ))}
-                      </div>
-                    </details>
                   </div>
                     ))}
                   </div>
@@ -916,9 +896,6 @@ export default function RebalancingPage() {
             {rebalancingPlanRows.length > 0 && (
               <Table className="min-w-[860px]">
                 <TableHeader>
-                  <TableRow>
-                    <TableHead colSpan={9} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Rebalancing Plan</TableHead>
-                  </TableRow>
                   <TableRow>
                     <TableHead>Asset</TableHead>
                     <TableHead className="text-center">Transaction</TableHead>
@@ -934,7 +911,7 @@ export default function RebalancingPage() {
                 <TableBody>
                   {outOfBandPlanRows.length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Out-of-Band Assets</TableCell>
+                      <TableCell colSpan={9} className="text-xs font-semibold uppercase tracking-wide text-white bg-black">Out-of-Band Assets</TableCell>
                     </TableRow>
                   )}
                   {outOfBandPlanRows.map((row, idx) => (
@@ -985,7 +962,7 @@ export default function RebalancingPage() {
 
                   {supportingPlanRows.length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-xs uppercase tracking-wide text-zinc-500 bg-zinc-50">Supporting Transactions</TableCell>
+                      <TableCell colSpan={9} className="text-xs font-semibold uppercase tracking-wide text-white bg-black">Supporting Transactions</TableCell>
                     </TableRow>
                   )}
                   {supportingPlanRows.map((row, idx) => (
