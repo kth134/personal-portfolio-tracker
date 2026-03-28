@@ -56,6 +56,13 @@ type PerformanceTotals = {
   dividends: number;
 };
 
+type PerformanceSummaryTotals = {
+  realized_gain: number;
+  dividends: number;
+  interest: number;
+  fees: number;
+};
+
 type Relation<T> = T | T[] | null;
 
 type AssetRelation = {
@@ -295,7 +302,7 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate }: {
     loadAllocations();
   }, [lens, selectedValues, aggregate]);
 
-  const handlePieClick = () => {
+  const handlePieClick = (_data?: unknown) => {
     // Handle pie chart clicks for drilling down
   };
 
@@ -525,7 +532,7 @@ export default function DashboardHome() {
           .eq('grouping_type', 'asset');
 
         const typedSummaries = (summaries ?? []) as PerformanceSummaryRow[];
-        const summaryTotals = typedSummaries.reduce(
+        const summaryTotals = typedSummaries.reduce<PerformanceSummaryTotals>(
           (acc, row) => ({
             realized_gain: acc.realized_gain + (row.realized_gain || 0),
             dividends: acc.dividends + (row.dividends || 0),
@@ -737,7 +744,7 @@ export default function DashboardHome() {
           .eq('grouping_type', 'asset');
 
         const typedSummaries = (summaries ?? []) as PerformanceSummaryRow[];
-        const summaryTotals = typedSummaries.reduce(
+        const summaryTotals = typedSummaries.reduce<PerformanceSummaryTotals>(
           (acc, row) => ({
             realized_gain: acc.realized_gain + (row.realized_gain || 0),
             dividends: acc.dividends + (row.dividends || 0),
@@ -987,13 +994,13 @@ export default function DashboardHome() {
           <div className="space-y-4">
             <div className="text-center rounded-lg border bg-card p-3">
               <CardTitle className="text-sm">Net Gain/Loss</CardTitle>
-              <p className={cn('text-xl font-bold mt-2 tabular-nums', performanceTotals?.net_gain >= 0 ? 'text-green-600' : 'text-red-600')}>
+              <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.net_gain ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
                 {performanceTotals ? formatUSDWhole(performanceTotals.net_gain) : 'Loading...'}
               </p>
             </div>
             <div className="text-center rounded-lg border bg-card p-3">
               <CardTitle className="text-sm">Total Return %</CardTitle>
-              <p className={cn('text-xl font-bold mt-2 tabular-nums', performanceTotals?.total_return_pct >= 0 ? 'text-green-600' : 'text-red-600')}>
+              <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
                 {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
               </p>
             </div>
@@ -1007,19 +1014,19 @@ export default function DashboardHome() {
           <div className="space-y-4">
             <div className="text-center rounded-lg border bg-card p-3">
               <CardTitle className="text-sm">Unrealized G/L</CardTitle>
-              <p className={cn('text-xl font-bold mt-2 tabular-nums', performanceTotals?.unrealized_gain >= 0 ? 'text-green-600' : 'text-red-600')}>
+              <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.unrealized_gain ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
                 {performanceTotals ? formatUSDWhole(performanceTotals.unrealized_gain) : 'Loading...'}
               </p>
             </div>
             <div className="text-center rounded-lg border bg-card p-3">
               <CardTitle className="text-sm">Realized G/L</CardTitle>
-              <p className={cn('text-xl font-bold mt-2 tabular-nums', performanceTotals?.realized_gain >= 0 ? 'text-green-600' : 'text-red-600')}>
+              <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.realized_gain ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
                 {performanceTotals ? formatUSDWhole(performanceTotals.realized_gain) : 'Loading...'}
               </p>
             </div>
             <div className="text-center rounded-lg border bg-card p-3">
               <CardTitle className="text-sm">Income</CardTitle>
-              <p className={cn('text-xl font-bold mt-2 tabular-nums', performanceTotals?.dividends >= 0 ? 'text-green-600' : 'text-red-600')}>
+              <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.dividends ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
                 {performanceTotals ? formatUSDWhole(performanceTotals.dividends) : 'Loading...'}
               </p>
             </div>
@@ -1210,7 +1217,7 @@ export default function DashboardHome() {
             <TableCell className="px-3 sm:px-4 text-left truncate">{tx.account?.name || ''}</TableCell>
             <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.asset?.ticker || ''}</TableCell>
             <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.type}</TableCell>
-            <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(tx.amount)}</TableCell>
+            <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(Number(tx.amount))}</TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -1308,13 +1315,13 @@ export default function DashboardHome() {
               </div>
               <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Net Gain/Loss</Label>
-                <div className={cn('text-xl font-bold font-mono tabular-nums mt-1', performanceTotals?.net_gain >= 0 ? 'text-green-600' : 'text-red-600')}>
+                <div className={cn('text-xl font-bold font-mono tabular-nums mt-1', Number(performanceTotals?.net_gain ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
                   {formatUSDWhole(performanceTotals?.net_gain)}
                 </div>
               </div>
               <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Return</Label>
-                <div className={cn('text-xl font-bold font-mono tabular-nums mt-1', performanceTotals?.total_return_pct >= 0 ? 'text-green-600' : 'text-red-600')}>
+                <div className={cn('text-xl font-bold font-mono tabular-nums mt-1', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
                   {formatPctTenth(performanceTotals?.total_return_pct)}
                 </div>
               </div>
