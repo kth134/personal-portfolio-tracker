@@ -236,31 +236,29 @@ function MetricChip({ label, value, valueClassName }: { label: string; value: st
   );
 }
 
+type DashboardSectionState = {
+  keyKpis: boolean;
+  performanceSnapshot: boolean;
+  strategySnapshot: boolean;
+  portfolioDetails: boolean;
+  recentActivity: boolean;
+};
+
 function DashboardSection({
   title,
-  defaultOpen = false,
-  mobileDefaultOpen,
-  desktopDefaultOpen,
+  isOpen,
+  onOpenChange,
   children,
 }: {
   title: string;
-  defaultOpen?: boolean;
-  mobileDefaultOpen?: boolean;
-  desktopDefaultOpen?: boolean;
+  isOpen: boolean;
+  onOpenChange: (nextOpen: boolean) => void;
   children: ReactNode;
 }) {
-  const [isOpen, setIsOpen] = useState(() => {
-    if (typeof window === 'undefined') return defaultOpen;
-
-    return window.matchMedia('(max-width: 767px)').matches
-      ? (mobileDefaultOpen ?? defaultOpen)
-      : (desktopDefaultOpen ?? defaultOpen);
-  });
-
   return (
     <details
       open={isOpen}
-      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      onToggle={(event) => onOpenChange(event.currentTarget.open)}
       className="group rounded-xl border bg-background shadow-sm overflow-hidden"
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-black px-4 py-3 text-white transition-colors hover:bg-zinc-900">
@@ -376,6 +374,13 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate }: {
 export default function DashboardHome() {
   const [supabase] = useState(() => createClient());
   const router = useRouter();
+  const [sectionState, setSectionState] = useState<DashboardSectionState>({
+    keyKpis: true,
+    performanceSnapshot: false,
+    strategySnapshot: false,
+    portfolioDetails: false,
+    recentActivity: false,
+  });
 
   // Core states from original
   const [lens, setLens] = useState('total');
@@ -1120,11 +1125,11 @@ export default function DashboardHome() {
                 ))}
               </div>
 
-              <div className="hidden md:block max-h-48 overflow-y-auto">
-                <Table className="w-full min-w-[760px] table-fixed" containerClassName="overscroll-x-contain">
+              <div className="hidden md:block max-h-48 overflow-y-auto overflow-x-hidden">
+                <Table className="w-full table-fixed">
                   <colgroup>
-                    <col className="w-[32%]" />
-                    <col className="w-[20%]" />
+                    <col className="w-[34%]" />
+                    <col className="w-[18%]" />
                     <col className="w-[16%]" />
                     <col className="w-[16%]" />
                     <col className="w-[16%]" />
@@ -1132,16 +1137,16 @@ export default function DashboardHome() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="px-3 sm:px-4 text-left">Sub-Portfolio</TableHead>
-                      <TableHead className="px-3 sm:px-4 text-right">Current Value</TableHead>
-                      <TableHead className="px-3 sm:px-4 text-right">Target Allocation</TableHead>
-                      <TableHead className="px-3 sm:px-4 text-right">Actual Allocation</TableHead>
-                      <TableHead className="px-3 sm:px-4 text-right">Drift</TableHead>
+                      <TableHead className="px-3 sm:px-4 text-right whitespace-normal leading-tight">Current Value</TableHead>
+                      <TableHead className="px-3 sm:px-4 text-right whitespace-normal leading-tight">Target Allocation</TableHead>
+                      <TableHead className="px-3 sm:px-4 text-right whitespace-normal leading-tight">Actual Allocation</TableHead>
+                      <TableHead className="px-3 sm:px-4 text-right whitespace-normal leading-tight">Drift</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {strategySubPortfolios.map((sp, idx) => (
                         <TableRow key={idx}>
-                          <TableCell className="px-3 sm:px-4 text-left font-medium truncate">{sp.name}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-left font-medium whitespace-normal break-words leading-snug">{sp.name}</TableCell>
                           <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(sp.currentValue)}</TableCell>
                           <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.targetAllocPct.toFixed(1)}%</TableCell>
                           <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.currentPct.toFixed(1)}%</TableCell>
@@ -1307,7 +1312,11 @@ export default function DashboardHome() {
         <div className="text-center py-12 text-muted-foreground rounded-xl border bg-background shadow-sm">Select at least one value to view data.</div>
       ) : (
         <>
-          <DashboardSection title="Key KPIs" defaultOpen desktopDefaultOpen mobileDefaultOpen>
+          <DashboardSection
+            title="Key KPIs"
+            isOpen={sectionState.keyKpis}
+            onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, keyKpis: nextOpen }))}
+          >
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Portfolio Value</Label>
@@ -1336,20 +1345,36 @@ export default function DashboardHome() {
 
           <div className="hidden md:grid md:grid-cols-2 gap-4">
             <div className="space-y-4">
-              <DashboardSection title="Performance Snapshot" defaultOpen={false} desktopDefaultOpen={false} mobileDefaultOpen={false}>
+              <DashboardSection
+                title="Performance Snapshot"
+                isOpen={sectionState.performanceSnapshot}
+                onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, performanceSnapshot: nextOpen }))}
+              >
                 {performanceCard}
               </DashboardSection>
-              <DashboardSection title="Strategy Snapshot" defaultOpen={false} desktopDefaultOpen={false} mobileDefaultOpen={false}>
+              <DashboardSection
+                title="Strategy Snapshot"
+                isOpen={sectionState.strategySnapshot}
+                onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, strategySnapshot: nextOpen }))}
+              >
                 {strategyCard}
               </DashboardSection>
             </div>
 
             <div className="space-y-4">
-              <DashboardSection title="Portfolio Details" defaultOpen={false} desktopDefaultOpen={false} mobileDefaultOpen={false}>
+              <DashboardSection
+                title="Portfolio Details"
+                isOpen={sectionState.portfolioDetails}
+                onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, portfolioDetails: nextOpen }))}
+              >
                 {chartControlsPanel}
                 <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} />
               </DashboardSection>
-              <DashboardSection title="Recent Activity" defaultOpen={false} desktopDefaultOpen={false} mobileDefaultOpen={false}>
+              <DashboardSection
+                title="Recent Activity"
+                isOpen={sectionState.recentActivity}
+                onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, recentActivity: nextOpen }))}
+              >
                 <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/activity?tab=transactions')}>
                   <CardContent>{recentTable}</CardContent>
                 </Card>
@@ -1358,20 +1383,36 @@ export default function DashboardHome() {
           </div>
 
           <div className="md:hidden space-y-4">
-            <DashboardSection title="Performance Snapshot" defaultOpen={false} mobileDefaultOpen={false} desktopDefaultOpen={false}>
+            <DashboardSection
+              title="Performance Snapshot"
+              isOpen={sectionState.performanceSnapshot}
+              onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, performanceSnapshot: nextOpen }))}
+            >
               {performanceCard}
             </DashboardSection>
 
-            <DashboardSection title="Strategy Snapshot" defaultOpen={false} mobileDefaultOpen={false} desktopDefaultOpen={false}>
+            <DashboardSection
+              title="Strategy Snapshot"
+              isOpen={sectionState.strategySnapshot}
+              onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, strategySnapshot: nextOpen }))}
+            >
               {strategyCard}
             </DashboardSection>
 
-            <DashboardSection title="Portfolio Details" defaultOpen={false} mobileDefaultOpen={false} desktopDefaultOpen={false}>
+            <DashboardSection
+              title="Portfolio Details"
+              isOpen={sectionState.portfolioDetails}
+              onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, portfolioDetails: nextOpen }))}
+            >
               {chartControlsPanel}
               <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} />
             </DashboardSection>
 
-            <DashboardSection title="Recent Activity" defaultOpen={false} mobileDefaultOpen={false} desktopDefaultOpen={false}>
+            <DashboardSection
+              title="Recent Activity"
+              isOpen={sectionState.recentActivity}
+              onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, recentActivity: nextOpen }))}
+            >
               <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/activity?tab=transactions')}>
                 <CardContent>{recentTable}</CardContent>
               </Card>
