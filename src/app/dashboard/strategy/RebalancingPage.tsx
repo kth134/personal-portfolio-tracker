@@ -51,6 +51,15 @@ const parsePercentWithTwoDecimals = (rawValue: string): number | null => {
   return Math.round(scaled) / 100
 }
 
+const normalizeBandMode = (value: unknown, fallback = false): boolean => {
+  if (typeof value === 'boolean') return value
+  if (value === 1 || value === '1' || value === 'true') return true
+  if (value === 0 || value === '0' || value === 'false') return false
+  return fallback
+}
+
+const getAssetModeKey = (assetId: string, subPortfolioId: string) => `${subPortfolioId}:${assetId}`
+
 const MetricChip = ({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) => (
   <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
     <div className="text-zinc-500">{label}</div>
@@ -144,11 +153,16 @@ export default function RebalancingPage() {
   }
 
   const updateAssetMode = async (assetId: string, spId: string, checked: boolean, targetPct?: number) => {
-    setOverrideAssetModes(prev => ({ ...prev, [assetId]: checked }))
+    const modeKey = getAssetModeKey(assetId, spId)
+    const previousMode = overrideAssetModes[modeKey]
+
+    setOverrideAssetModes(prev => ({ ...prev, [modeKey]: checked }))
+
     try {
       const res = await fetch('/api/rebalancing/asset-mode', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
         body: JSON.stringify({
           asset_id: assetId,
           sub_portfolio_id: spId,
@@ -156,11 +170,23 @@ export default function RebalancingPage() {
           target_percentage: targetPct,
         }),
       })
-      if (!res.ok) {
-        console.error('Save failed for asset mode update:', await res.text())
-      }
+
+      if (!res.ok) throw new Error(await res.text())
+
+      const softRes = await fetch('/api/rebalancing', { cache: 'no-store' })
+      const softPayload = await softRes.json()
+      setData(softPayload)
     } catch (err) {
       console.error('Save failed:', err)
+      setOverrideAssetModes(prev => {
+        if (previousMode === undefined) {
+          const next = { ...prev }
+          delete next[modeKey]
+          return next
+        }
+
+        return { ...prev, [modeKey]: previousMode }
+      })
     }
   }
 
@@ -208,10 +234,9 @@ export default function RebalancingPage() {
       const sp = subPortfolios.find((p: any) => p.id === a.sub_portfolio_id);
       const targetInGroup = overrideAssetTargets[a.asset_id] ?? a.sub_portfolio_target_percentage;
       const rawAssetBandMode = a.asset_band_mode ?? a.band_mode_override;
-      const assetBandMode = overrideAssetModes[a.asset_id]
-        ?? (typeof rawAssetBandMode === 'boolean'
-          ? rawAssetBandMode
-          : (rawAssetBandMode === 1 ? true : (rawAssetBandMode === 0 ? false : !!sp?.band_mode)));
+      const assetModeKey = getAssetModeKey(a.asset_id, a.sub_portfolio_id)
+      const assetBandMode = overrideAssetModes[assetModeKey]
+        ?? normalizeBandMode(rawAssetBandMode, !!sp?.band_mode);
       const groupVal = subIdValues[a.sub_portfolio_id] || 0;
       const impliedOverallTarget = ((sp?.target_allocation || 0) * targetInGroup) / 100;
       const currentInSPPct = groupVal > 0 ? (a.current_value / groupVal) * 100 : 0;
@@ -1075,7 +1100,7 @@ export default function RebalancingPage() {
                         <span className="block text-sm font-semibold font-mono leading-tight">{formatUSDWhole(totalVal)}</span>
                       </div>
                     </div>
-                    <div className="hidden sm:flex items-center justify-between gap-4 text-xs font-mono whitespace-nowrap">
+                    <div className="hidden sm:flex items-center justify-between gap-4 text-sm font-mono whitespace-nowrap">
                       <span className="truncate text-sm font-semibold uppercase tracking-wide">{sp.name}</span>
                       <div className="flex items-center gap-3">
                         <span className="text-white">Value: {formatUSDWhole(totalVal)}</span>
