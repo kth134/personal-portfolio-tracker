@@ -914,17 +914,7 @@ export default function RebalancingPage() {
                     </div>
 
                     <div className="mt-2 flex items-center justify-between gap-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          id={`mobile-plan-mode-sup-${idx}`}
-                          checked={row.bandMode}
-                          onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct)}
-                          disabled={!row.assetId || !row.subPortfolioId}
-                        />
-                        <Label htmlFor={`mobile-plan-mode-sup-${idx}`} className="text-[10px] uppercase tracking-wide text-zinc-500 cursor-pointer">
-                          {row.rebalanceMode}
-                        </Label>
-                      </div>
+                      <span className="text-[10px] uppercase tracking-wide text-zinc-400">Mode: N/A</span>
                     </div>
 
                     <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
@@ -1036,17 +1026,7 @@ export default function RebalancingPage() {
                       <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
                       <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
                       <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
-                      <TableCell className="text-center text-xs">
-                        <div className="inline-flex items-center justify-center gap-2">
-                          <Switch
-                            id={`desktop-plan-mode-sup-${idx}`}
-                            checked={row.bandMode}
-                            onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct)}
-                            disabled={!row.assetId || !row.subPortfolioId}
-                          />
-                          <Label htmlFor={`desktop-plan-mode-sup-${idx}`} className="cursor-pointer text-[11px]">{row.rebalanceMode}</Label>
-                        </div>
-                      </TableCell>
+                      <TableCell className="text-center text-xs text-zinc-400">N/A</TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
                       <TableCell className="text-xs text-zinc-700">
                         <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
@@ -1095,15 +1075,25 @@ export default function RebalancingPage() {
             return (
               <AccordionItem key={sp.id} value={sp.id} className="border rounded-xl mb-6 overflow-hidden shadow-sm bg-background">
                 <AccordionTrigger className="bg-black text-white px-4 sm:px-6 hover:bg-zinc-900 transition-all font-bold hover:no-underline">
-                  <div className="flex w-full items-center justify-between gap-3 pr-2 sm:pr-6">
-                    <div className="min-w-0">
-                      <span className="block truncate text-sm sm:text-base uppercase tracking-wide">{sp.name}</span>
+                  <div className="w-full pr-2 sm:pr-6">
+                    <div className="flex items-start justify-between gap-3 sm:hidden">
+                      <div className="w-1/2 min-w-0">
+                        <span className="block text-sm font-semibold uppercase tracking-wide leading-tight break-words">{sp.name}</span>
+                      </div>
+                      <div className="w-1/2 text-right">
+                        <span className="block text-sm font-semibold font-mono leading-tight">{formatUSDWhole(totalVal)}</span>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-end gap-0.5 text-[11px] sm:text-xs font-mono whitespace-nowrap">
-                      <span className="text-white">{formatUSDWhole(totalVal)}</span>
-                      <span className={cn("hidden sm:inline", subDrift > 0 ? "text-green-400" : (subDrift < 0 ? "text-red-400" : "text-zinc-300"))}>
-                        {subDrift > 0 ? '+' : ''}{subDrift.toFixed(1)}%
-                      </span>
+                    <div className="hidden sm:flex items-center justify-between gap-4 text-xs font-mono whitespace-nowrap">
+                      <span className="truncate text-sm font-semibold uppercase tracking-wide">{sp.name}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-white">Value: {formatUSDWhole(totalVal)}</span>
+                        <span className="text-blue-200">Target: {targetAllocPct.toFixed(1)}%</span>
+                        <span className="text-zinc-200">Actual: {allocPct.toFixed(1)}%</span>
+                        <span className={cn(subDrift > 0 ? "text-green-400" : (subDrift < 0 ? "text-red-400" : "text-zinc-300"))}>
+                          Drift: {subDrift > 0 ? '+' : ''}{subDrift.toFixed(1)}%
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </AccordionTrigger>
@@ -1129,7 +1119,7 @@ export default function RebalancingPage() {
                     </div>
                     <div className="p-4 bg-zinc-50 border-b">
                         <div className="rounded-lg border-2 border-zinc-300 bg-white p-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-600">Sub-Portfolio Inputs</div>
+                      <div className="rounded-md bg-black px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">Sub-Portfolio Inputs</div>
                         <div className="mt-2 grid grid-cols-3 gap-2 sm:gap-4 items-end">
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
                           const parsed = parsePercentWithTwoDecimals(e.target.value)
@@ -1164,12 +1154,12 @@ export default function RebalancingPage() {
 
                           <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
                             <div className="rounded bg-zinc-50 px-2 py-1 text-center">
-                              <div className="text-zinc-500">Current</div>
-                              <div className="font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div>
-                            </div>
-                            <div className="rounded bg-zinc-50 px-2 py-1 text-center">
                               <div className="text-zinc-500">Target</div>
                               <div className="font-semibold tabular-nums text-blue-700">{Number(i.implied_overall_target || 0).toFixed(1)}%</div>
+                            </div>
+                            <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                              <div className="text-zinc-500">Current</div>
+                              <div className="font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div>
                             </div>
                             <div className="rounded bg-zinc-50 px-2 py-1 text-center">
                               <div className="text-zinc-500">Drift</div>
