@@ -1208,7 +1208,7 @@ export default function RebalancingPage() {
                           </div>
 
                           <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                            <div className="rounded border border-amber-200 bg-amber-50/50 px-2 py-1.5">
+                            <div className="rounded border border-amber-200 bg-amber-200/60 px-2 py-1.5">
                               <div className="text-zinc-600 text-center leading-tight">Sub-Portfolio Target</div>
                               <Input
                                 aria-label={`Sub-portfolio target for ${i.ticker}`}
