@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Check, ChevronsUpDown, ArrowUpDown, RefreshCw, AlertTriangle, ChevronDown } from 'lucide-react'
+import { Check, ChevronsUpDown, ArrowUpDown, RefreshCw, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { calculatePortfolioAssetAction } from '@/lib/rebalancing-logic'
 import { refreshAssetPrices } from '../portfolio/actions'
@@ -740,9 +740,9 @@ export default function RebalancingPage() {
       </details>
 
       <details className="order-3 group rounded-xl border bg-background shadow-sm overflow-hidden">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-black px-4 py-3 text-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
             <span className="text-xl font-bold">Portfolio Drift Chart</span>
-            <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-300">
+            <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
             <span className="hidden sm:inline">Expand / Collapse</span>
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
           </span>
@@ -794,7 +794,7 @@ export default function RebalancingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {chartSlices.map((slice, idx) => (
           <div key={idx} className={cn("bg-card p-6 rounded-xl border shadow-sm space-y-4", chartSlices.length === 1 && "lg:col-span-2")}> 
-            <h3 className="font-bold text-center border-b pb-2 uppercase tracking-wide text-[10px]">{slice.key} Drift Analysis</h3>
+            <h3 className="font-bold text-center rounded-md bg-black px-3 py-2 uppercase tracking-wide text-[10px] text-white">{slice.key} Drift Analysis</h3>
             <div className="h-[380px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={slice.data} layout="vertical" margin={{ left: 10, right: 30 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" unit="%" fontSize={10} axisLine={false} tickLine={false} /><YAxis dataKey="ticker" type="category" interval={0} fontSize={9} width={40} /><RechartsTooltip formatter={(v:any) => [`${Number(v).toFixed(1)}%`, 'Drift']} /><Bar dataKey="drift_percentage">{slice.data.map((entry: any, i: number) => (<Cell key={i} fill={getDriftColor(entry.drift_percentage, slice.data)} />))}</Bar></BarChart></ResponsiveContainer></div>
           </div>
         ))}
@@ -1101,7 +1101,7 @@ export default function RebalancingPage() {
                     </div>
                     <div className="flex flex-col items-end gap-0.5 text-[11px] sm:text-xs font-mono whitespace-nowrap">
                       <span className="text-white">{formatUSDWhole(totalVal)}</span>
-                      <span className={cn(subDrift > 0 ? "text-green-400" : (subDrift < 0 ? "text-red-400" : "text-zinc-300"))}>
+                      <span className={cn("hidden sm:inline", subDrift > 0 ? "text-green-400" : (subDrift < 0 ? "text-red-400" : "text-zinc-300"))}>
                         {subDrift > 0 ? '+' : ''}{subDrift.toFixed(1)}%
                       </span>
                     </div>
@@ -1109,23 +1109,28 @@ export default function RebalancingPage() {
                 </AccordionTrigger>
                 <AccordionContent className="p-0 bg-background">
                     <div className="md:hidden border-b bg-zinc-100/80 p-3">
+                      <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/90 p-2">
+                        <div className="rounded-md bg-black px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">Sub-Portfolio Summary</div>
                       <div className="grid grid-cols-3 gap-2 text-[10px]">
-                        <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
+                        <div className="mt-2 rounded border border-zinc-300 bg-white px-2 py-1 text-center">
                           <div className="text-zinc-500">Target Weight</div>
                           <div className="font-semibold tabular-nums text-blue-700">{targetAllocPct.toFixed(1)}%</div>
                         </div>
-                        <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
+                        <div className="mt-2 rounded border border-zinc-300 bg-white px-2 py-1 text-center">
                           <div className="text-zinc-500">Actual Weight</div>
                           <div className="font-semibold tabular-nums">{allocPct.toFixed(1)}%</div>
                         </div>
-                        <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
+                        <div className="mt-2 rounded border border-zinc-300 bg-white px-2 py-1 text-center">
                           <div className="text-zinc-500">Drift</div>
                           <div className={cn("font-semibold tabular-nums", subDrift > 0 ? "text-green-600" : (subDrift < 0 ? "text-red-600" : "text-zinc-700"))}>{subDrift > 0 ? '+' : ''}{subDrift.toFixed(1)}%</div>
                         </div>
                       </div>
+                      </div>
                     </div>
                     <div className="p-4 bg-zinc-50 border-b">
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-6 items-end">
+                        <div className="rounded-lg border-2 border-zinc-300 bg-white p-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-600">Sub-Portfolio Inputs</div>
+                        <div className="mt-2 grid grid-cols-3 gap-2 sm:gap-4 items-end">
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
                           const parsed = parsePercentWithTwoDecimals(e.target.value)
                           if (parsed === null) {
@@ -1133,10 +1138,10 @@ export default function RebalancingPage() {
                             return
                           }
                           updateSubPortfolio(sp.id, 'target_allocation', parsed)
-                        }} className="h-8 w-full sm:max-w-[150px] bg-white border-zinc-300"/></div>
-                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Upside Threshold %</Label><Input defaultValue={sp.upside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'upside_threshold', parseFloat(e.target.value))} className="h-8 w-full sm:max-w-[150px] bg-white border-zinc-300"/></div>
-                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 w-full sm:max-w-[150px] bg-white border-zinc-300"/></div>
-                        <div className="col-span-3 sm:col-span-1 flex justify-center sm:justify-start items-center gap-3 pt-2 sm:pt-0"><Switch id={`band-mode-${sp.id}`} checked={sp.band_mode} onCheckedChange={(checked) => updateSubPortfolio(sp.id, 'band_mode', checked ? 1 : 0)} /><Label htmlFor={`band-mode-${sp.id}`} className="text-xs font-medium cursor-pointer">{sp.band_mode ? 'Conservative' : 'Absolute'} Mode</Label></div>
+                        }} className="h-8 w-full bg-white border-zinc-300"/></div>
+                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Upside Threshold %</Label><Input defaultValue={sp.upside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'upside_threshold', parseFloat(e.target.value))} className="h-8 w-full bg-white border-zinc-300"/></div>
+                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 w-full bg-white border-zinc-300"/></div>
+                        </div>
                         </div>
                     </div>
                     <div className="md:hidden p-3 space-y-3 bg-zinc-50 border-b">
