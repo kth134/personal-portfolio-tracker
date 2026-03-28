@@ -1137,9 +1137,9 @@ export default function RebalancingPage() {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="p-0 bg-background">
-                    <div className="md:hidden border-b bg-zinc-100/80 p-3">
-                      <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/90 p-2">
-                        <div className="rounded-md bg-slate-900 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-white">Summary</div>
+                    <div className="md:hidden border-b bg-slate-900 p-3">
+                      <div className="rounded-lg border border-slate-700 bg-slate-900 p-2">
+                        <div className="rounded-md bg-slate-800 px-2 py-1 text-center text-xs font-semibold uppercase tracking-wide text-white">Summary</div>
                       <div className="grid grid-cols-3 gap-2 text-[10px]">
                         <div className="mt-2"><MetricChip label="Target Weight" value={`${targetAllocPct.toFixed(1)}%`} valueClassName="text-blue-700" /></div>
                         <div className="mt-2"><MetricChip label="Actual Weight" value={`${allocPct.toFixed(1)}%`} /></div>
@@ -1147,9 +1147,19 @@ export default function RebalancingPage() {
                       </div>
                       </div>
                     </div>
+                    <div className="hidden md:block border-b bg-slate-900 p-4">
+                      <div className="rounded-lg border border-slate-700 bg-slate-900 p-3">
+                        <div className="rounded-md bg-slate-800 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-white">Summary</div>
+                        <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
+                          <MetricChip label="Target Weight" value={`${targetAllocPct.toFixed(1)}%`} valueClassName="text-blue-700" />
+                          <MetricChip label="Actual Weight" value={`${allocPct.toFixed(1)}%`} />
+                          <MetricChip label="Drift" value={`${subDrift > 0 ? '+' : ''}${subDrift.toFixed(1)}%`} valueClassName={subDrift > 0 ? 'text-green-600' : (subDrift < 0 ? 'text-red-600' : 'text-zinc-700')} />
+                        </div>
+                      </div>
+                    </div>
                     <div className="p-4 bg-zinc-50 border-b">
                         <div className="rounded-lg border-2 border-zinc-300 bg-white p-3">
-                      <div className="rounded-md bg-amber-400 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-black">Inputs</div>
+                      <div className="rounded-md bg-amber-200 px-2 py-1 text-center text-xs font-semibold uppercase tracking-wide text-black">Inputs</div>
                         <div className="mt-2 grid grid-cols-3 gap-2 sm:gap-4 items-end">
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input aria-label={`Sub-portfolio target for ${sp.name}`} defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
                           const parsed = parsePercentWithTwoDecimals(e.target.value)
@@ -1175,11 +1185,11 @@ export default function RebalancingPage() {
                             <div className="font-semibold leading-tight tabular-nums whitespace-nowrap">{formatUSDWhole(i.current_value)}</div>
                           </div>
 
-                          <div className="mt-2 flex items-center justify-between gap-2 text-sm">
+                          <div className="mt-2 flex items-center gap-2 text-sm">
                             <span className={cn("text-[10px] font-bold uppercase tracking-wide", i.action === 'buy' ? 'text-green-600' : i.action === 'sell' ? 'text-red-600' : 'text-zinc-500')}>
                               {i.action === 'hold' ? 'Hold' : i.action.toUpperCase()}
                             </span>
-                            <span className="text-xs font-semibold tabular-nums">{i.action === 'hold' ? '-' : formatUSDWhole(i.amount)}</span>
+                            <span className="text-xs font-semibold tabular-nums text-zinc-900">{i.action === 'hold' ? '-' : formatUSDWhole(i.amount)}</span>
                           </div>
 
                           <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
