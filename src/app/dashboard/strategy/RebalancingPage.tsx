@@ -172,10 +172,6 @@ export default function RebalancingPage() {
       })
 
       if (!res.ok) throw new Error(await res.text())
-
-      const softRes = await fetch('/api/rebalancing', { cache: 'no-store' })
-      const softPayload = await softRes.json()
-      setData(softPayload)
     } catch (err) {
       console.error('Save failed:', err)
       setOverrideAssetModes(prev => {
@@ -187,6 +183,17 @@ export default function RebalancingPage() {
 
         return { ...prev, [modeKey]: previousMode }
       })
+      return
+    }
+
+    try {
+      const softRes = await fetch('/api/rebalancing', { cache: 'no-store' })
+      if (!softRes.ok) throw new Error(await softRes.text())
+      const softPayload = await softRes.json()
+      setData(softPayload)
+    } catch (err) {
+      // Keep the optimistic override if the write succeeded but the refresh failed.
+      console.error('Rebalancing refresh failed after saving asset mode:', err)
     }
   }
 
@@ -975,7 +982,7 @@ export default function RebalancingPage() {
                       <TableCell colSpan={9} className="bg-black px-3 py-2">
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-semibold uppercase tracking-wide text-white">Out-of-Band Assets</span>
-                          <div className="flex items-center gap-4 text-[11px]">
+                          <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
                             <span className="text-zinc-300">Gross Buy <span className="font-semibold tabular-nums text-green-300">{formatUSDWhole(outOfBandSummary.grossBuy)}</span></span>
                             <span className="text-zinc-300">Gross Sell <span className="font-semibold tabular-nums text-red-300">{formatUSDWhole(outOfBandSummary.grossSell)}</span></span>
                             <span className="text-zinc-300">Net Flow <span className={cn("font-semibold tabular-nums", outOfBandSummary.netFlow >= 0 ? "text-green-300" : "text-red-300")}>{formatUSDWhole(outOfBandSummary.netFlow)}</span></span>
@@ -1022,7 +1029,7 @@ export default function RebalancingPage() {
                       <TableCell colSpan={9} className="bg-black px-3 py-2">
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-semibold uppercase tracking-wide text-white">Supporting Transactions</span>
-                          <div className="flex items-center gap-4 text-[11px]">
+                          <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
                             <span className="text-zinc-300">Gross Buy <span className="font-semibold tabular-nums text-green-300">{formatUSDWhole(supportingSummary.grossBuy)}</span></span>
                             <span className="text-zinc-300">Gross Sell <span className="font-semibold tabular-nums text-red-300">{formatUSDWhole(supportingSummary.grossSell)}</span></span>
                             <span className="text-zinc-300">Net Flow <span className={cn("font-semibold tabular-nums", supportingSummary.netFlow >= 0 ? "text-green-300" : "text-red-300")}>{formatUSDWhole(supportingSummary.netFlow)}</span></span>

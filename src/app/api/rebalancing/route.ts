@@ -108,6 +108,10 @@ export async function GET(req: NextRequest) {
         const targetRecord = assetTargets?.find(at => at.asset_id === asset.asset_id && at.sub_portfolio_id === spId)
         const assetTargetInSP = targetRecord?.target_percentage || 0
         const assetBandModeOverride = targetRecord?.band_mode_override ?? targetRecord?.band_mode ?? null
+        const sp = subPortfolios?.find(p => p.id === spId)
+        const effectiveBandMode = typeof assetBandModeOverride === 'boolean'
+          ? assetBandModeOverride
+          : (assetBandModeOverride === 1 ? true : (assetBandModeOverride === 0 ? false : !!sp?.band_mode))
         const impliedOverallTarget = (spTargetPct * assetTargetInSP) / 100
         const currentOverallPct = totalPortfolioValue > 0 ? (asset.current_value / totalPortfolioValue) * 100 : 0
         const currentInSPPct = spTotalValue > 0 ? (asset.current_value / spTotalValue) * 100 : 0
@@ -116,7 +120,6 @@ export async function GET(req: NextRequest) {
         const relativeDrift = assetTargetInSP > 0 ? ((currentInSPPct - assetTargetInSP) / assetTargetInSP) * 100 : 0
         
         let action: 'buy' | 'sell' | 'hold' = 'hold'
-        const sp = subPortfolios?.find(p => p.id === spId)
         const upThread = sp?.upside_threshold || 5
         const downThresh = sp?.downside_threshold || 5
 
@@ -126,7 +129,7 @@ export async function GET(req: NextRequest) {
         // Respect mode (Absolute vs Conservative/Band)
         let amount = 0
         if (action !== 'hold') {
-          if (sp?.band_mode) {
+          if (effectiveBandMode) {
              // Conservative: return to nearest threshold
              const targetDrift = action === 'sell' ? upThread : -downThresh
              const targetPercentage = assetTargetInSP * (1 + targetDrift / 100)
