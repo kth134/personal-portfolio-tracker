@@ -849,7 +849,6 @@ export default function RebalancingPage() {
                     </div>
 
                     <div className="mt-2 flex items-center justify-between gap-2 text-sm">
-                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">{row.type}</span>
                       <div className="flex items-center gap-2">
                         <Switch
                           id={`mobile-plan-mode-out-${idx}`}
@@ -915,7 +914,6 @@ export default function RebalancingPage() {
                     </div>
 
                     <div className="mt-2 flex items-center justify-between gap-2 text-sm">
-                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">{row.type}</span>
                       <div className="flex items-center gap-2">
                         <Switch
                           id={`mobile-plan-mode-sup-${idx}`}
