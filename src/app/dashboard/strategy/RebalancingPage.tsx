@@ -1139,7 +1139,7 @@ export default function RebalancingPage() {
                 <AccordionContent className="p-0 bg-background">
                     <div className="md:hidden border-b bg-zinc-100/80 p-3">
                       <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/90 p-2">
-                        <div className="rounded-md bg-black px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">Sub-Portfolio Summary</div>
+                        <div className="rounded-md bg-slate-900 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-white">Summary</div>
                       <div className="grid grid-cols-3 gap-2 text-[10px]">
                         <div className="mt-2"><MetricChip label="Target Weight" value={`${targetAllocPct.toFixed(1)}%`} valueClassName="text-blue-700" /></div>
                         <div className="mt-2"><MetricChip label="Actual Weight" value={`${allocPct.toFixed(1)}%`} /></div>
@@ -1149,7 +1149,7 @@ export default function RebalancingPage() {
                     </div>
                     <div className="p-4 bg-zinc-50 border-b">
                         <div className="rounded-lg border-2 border-zinc-300 bg-white p-3">
-                      <div className="rounded-md bg-amber-700 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-white">Sub-Portfolio Inputs</div>
+                      <div className="rounded-md bg-amber-400 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-black">Inputs</div>
                         <div className="mt-2 grid grid-cols-3 gap-2 sm:gap-4 items-end">
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input aria-label={`Sub-portfolio target for ${sp.name}`} defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
                           const parsed = parsePercentWithTwoDecimals(e.target.value)
