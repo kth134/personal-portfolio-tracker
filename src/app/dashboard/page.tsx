@@ -187,7 +187,6 @@ const renderPiePercentageLabel = ({
   cx = 0,
   cy = 0,
   midAngle = 0,
-  innerRadius = 0,
   outerRadius = 0,
   percent = 0,
   index = 0,
@@ -321,15 +320,13 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate }: {
   }, [lens, selectedValues, aggregate]);
 
   const handlePieClick = (_data?: unknown) => {
+    void _data;
     // Handle pie chart clicks for drilling down
   };
 
   if (allocationsLoading) {
     return (
       <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/portfolio')}>
-        <CardHeader>
-          <CardTitle className="text-center text-2xl">Portfolio Details</CardTitle>
-        </CardHeader>
         <CardContent>
           <div className="text-center py-8">Loading allocations...</div>
         </CardContent>
@@ -339,9 +336,6 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate }: {
 
   return (
     <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/portfolio')}>
-      <CardHeader>
-        <CardTitle className="text-center text-2xl">Portfolio Details</CardTitle>
-      </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 gap-8">
           {allocations.map((slice, idx) => (
@@ -984,7 +978,6 @@ export default function DashboardHome() {
   const performanceCard = (
     <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/performance')}>
       <CardHeader>
-        <CardTitle className="text-center text-2xl">Performance</CardTitle>
         <div className="text-center mt-4 rounded-lg border bg-white p-3">
           <CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Total Portfolio Value</CardTitle>
           <p className="text-2xl font-bold mt-2 font-mono tabular-nums">
@@ -1039,9 +1032,6 @@ export default function DashboardHome() {
 
   const strategyCard = (
     <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/portfolio?tab=rebalancing')}>
-      <CardHeader>
-        <CardTitle className="text-center text-2xl">Strategy</CardTitle>
-      </CardHeader>
       <CardContent>
         {rebalancingLoading ? (
           <p>Loading strategy data...</p>
@@ -1361,9 +1351,6 @@ export default function DashboardHome() {
               </DashboardSection>
               <DashboardSection title="Recent Activity" defaultOpen={false} desktopDefaultOpen={false} mobileDefaultOpen={false}>
                 <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/activity?tab=transactions')}>
-                  <CardHeader>
-                    <CardTitle className="text-center text-2xl">Recent Activity</CardTitle>
-                  </CardHeader>
                   <CardContent>{recentTable}</CardContent>
                 </Card>
               </DashboardSection>
@@ -1386,9 +1373,6 @@ export default function DashboardHome() {
 
             <DashboardSection title="Recent Activity" defaultOpen={false} mobileDefaultOpen={false} desktopDefaultOpen={false}>
               <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/activity?tab=transactions')}>
-                <CardHeader>
-                  <CardTitle className="text-center text-2xl">Recent Activity</CardTitle>
-                </CardHeader>
                 <CardContent>{recentTable}</CardContent>
               </Card>
             </DashboardSection>
