@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import type { ChangeEvent, ReactNode } from 'react';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
 } from 'recharts';
@@ -12,14 +13,13 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Check, ChevronsUpDown } from 'lucide-react';
+import { Check, ChevronsUpDown, ChevronDown, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { formatUSD } from '@/lib/formatters';
 import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, transactionFlowForIRR, netCashFlowsByDate, fetchAllUserTransactions } from '@/lib/finance';
+import { calculateIRR, calculateCashBalances, transactionFlowForIRR, netCashFlowsByDate, fetchAllUserTransactions } from '@/lib/finance';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7'];
 
@@ -34,6 +34,125 @@ const LENSES = [
   { value: 'factor_tag', label: 'Factor' },
 ];
 
+type SelectOption = { value: string; label: string };
+
+type AllocationChartPoint = {
+  value: number;
+  subkey: string;
+};
+
+type AllocationSlice = {
+  key: string;
+  data: AllocationChartPoint[];
+};
+
+type PerformanceTotals = {
+  market_value: number;
+  net_gain: number;
+  total_return_pct: number;
+  irr_pct: number;
+  unrealized_gain: number;
+  realized_gain: number;
+  dividends: number;
+};
+
+type Relation<T> = T | T[] | null;
+
+type AssetRelation = {
+  id?: string;
+  ticker?: string | null;
+  name?: string | null;
+  asset_type?: string | null;
+  asset_subtype?: string | null;
+  geography?: string | null;
+  size_tag?: string | null;
+  factor_tag?: string | null;
+  sub_portfolio_id?: string | null;
+};
+
+type AccountRelation = {
+  name?: string | null;
+};
+
+type TaxLotRow = {
+  asset_id: string;
+  account_id: string | null;
+  remaining_quantity: number | string | null;
+  cost_basis_per_unit: number | string | null;
+  quantity: number | string | null;
+  asset: Relation<AssetRelation>;
+};
+
+type AssetPriceRow = {
+  ticker: string;
+  price: number | string | null;
+  timestamp: string;
+};
+
+type PerformanceSummaryRow = {
+  realized_gain: number | null;
+  dividends: number | null;
+  interest: number | null;
+  fees: number | null;
+};
+
+type RecentTransactionRow = {
+  id: string;
+  date: string;
+  type: string;
+  amount: number | string;
+  funding_source?: string | null;
+  notes?: string | null;
+  asset: AssetRelation | null;
+  account: AccountRelation | null;
+};
+
+type RebalancingSubPortfolio = {
+  id: string;
+  name: string;
+  target_allocation: number;
+};
+
+type RebalancingCurrentAllocation = {
+  sub_portfolio_id: string | null;
+  current_value: number;
+  action: string;
+  current_percentage?: number | null;
+  implied_overall_target?: number | null;
+  drift_percentage: number;
+};
+
+type RebalancingData = {
+  totalValue: number;
+  currentAllocations: RebalancingCurrentAllocation[];
+  subPortfolios: RebalancingSubPortfolio[];
+};
+
+type IrrTransaction = Parameters<typeof transactionFlowForIRR>[0] & {
+  type: string;
+  date: string;
+};
+
+const unwrapRelation = <T,>(value: Relation<T> | undefined): T | null => {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+};
+
+const normalizeRecentTransaction = (tx: {
+  id: string;
+  date: string;
+  type: string;
+  amount: number | string;
+  funding_source?: string | null;
+  notes?: string | null;
+  asset?: Relation<AssetRelation>;
+  account?: Relation<AccountRelation>;
+}): RecentTransactionRow => ({
+  ...tx,
+  asset: unwrapRelation(tx.asset),
+  account: unwrapRelation(tx.account),
+});
+
 const formatUSDWhole = (value: number | null | undefined) => {
   const num = Math.round(Number(value) || 0);
   return new Intl.NumberFormat('en-US', {
@@ -45,16 +164,34 @@ const formatUSDWhole = (value: number | null | undefined) => {
 };
 const formatPctTenth = (value: number | null | undefined) => `${(Number(value) || 0).toFixed(1)}%`;
 
+function DashboardSection({ title, defaultOpen = false, children }: {
+  title: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details open={defaultOpen} className="group rounded-xl border bg-background shadow-sm overflow-hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
+        <span className="text-xl font-bold">{title}</span>
+        <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+          <span className="hidden sm:inline">Expand / Collapse</span>
+          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="px-4 pb-4 space-y-4">{children}</div>
+    </details>
+  );
+}
+
 // use centralized calculateIRR and normalizeTransactionToFlow from src/lib/finance
 
 // Portfolio Details Card Component - handles its own loading state
-function PortfolioDetailsCard({ lens, selectedValues, aggregate, refreshing }: {
+function PortfolioDetailsCard({ lens, selectedValues, aggregate }: {
   lens: string;
   selectedValues: string[];
   aggregate: boolean;
-  refreshing: boolean;
 }) {
-  const [allocations, setAllocations] = useState<any[]>([]);
+  const [allocations, setAllocations] = useState<AllocationSlice[]>([]);
   const [allocationsLoading, setAllocationsLoading] = useState(false);
   const router = useRouter();
 
@@ -76,7 +213,7 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate, refreshing }: {
         });
 
         if (!allocRes.ok) throw new Error(`Allocations fetch failed: ${allocRes.status}`);
-        const allocData = await allocRes.json();
+        const allocData = await allocRes.json() as { allocations?: AllocationSlice[] };
 
         setAllocations(allocData.allocations || []);
       } catch (err) {
@@ -90,16 +227,15 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate, refreshing }: {
     loadAllocations();
   }, [lens, selectedValues, aggregate]);
 
-  const handlePieClick = (data: any) => {
+  const handlePieClick = () => {
     // Handle pie chart clicks for drilling down
-    console.log('Pie clicked:', data);
   };
 
   if (allocationsLoading) {
     return (
-      <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
+      <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/portfolio')}>
         <CardHeader>
-          <CardTitle className="text-center text-4xl">Portfolio Details</CardTitle>
+          <CardTitle className="text-center text-2xl">Portfolio Details</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">Loading allocations...</div>
@@ -109,9 +245,9 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate, refreshing }: {
   }
 
   return (
-    <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio')}>
+    <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/portfolio')}>
       <CardHeader>
-        <CardTitle className="text-center text-4xl">Portfolio Details</CardTitle>
+        <CardTitle className="text-center text-2xl">Portfolio Details</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 gap-8">
@@ -128,7 +264,7 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate, refreshing }: {
                     label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
                     onClick={(data) => handlePieClick(data)}
                   >
-                    {slice.data.map((_: any, i: number) => (
+                    {slice.data.map((_, i: number) => (
                       <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
@@ -145,21 +281,21 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate, refreshing }: {
 }
 
 export default function DashboardHome() {
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
   const router = useRouter();
 
   // Core states from original
   const [lens, setLens] = useState('total');
-  const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([]);
+  const [availableValues, setAvailableValues] = useState<SelectOption[]>([]);
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
   const [aggregate, setAggregate] = useState(true);
   const [loading, setLoading] = useState(true);
   const [valuesLoading, setValuesLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
-  const [performanceTotals, setPerformanceTotals] = useState<any>(null);
-  const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
-  const [rebalancingData, setRebalancingData] = useState<any>(null);
+  const [performanceTotals, setPerformanceTotals] = useState<PerformanceTotals | null>(null);
+  const [recentTransactions, setRecentTransactions] = useState<RecentTransactionRow[]>([]);
+  const [rebalancingData, setRebalancingData] = useState<RebalancingData | null>(null);
   const [rebalancingLoading, setRebalancingLoading] = useState(true);
 
   // MFA states
@@ -171,8 +307,10 @@ export default function DashboardHome() {
   const [showMfaSetupPrompt, setShowMfaSetupPrompt] = useState(false);
   const [dontAskAgain, setDontAskAgain] = useState(false);
 
-  const getSelectionValue = (item: { value: string; label: string }) =>
-    (lens === 'account' || lens === 'sub_portfolio') ? (item.label ?? item.value) : item.value;
+  const getSelectionValue = useCallback(
+    (item: SelectOption) => ((lens === 'account' || lens === 'sub_portfolio') ? (item.label ?? item.value) : item.value),
+    [lens]
+  );
 
   // Fetch distinct values for lens
   useEffect(() => {
@@ -190,8 +328,8 @@ export default function DashboardHome() {
           body: JSON.stringify({ lens }),
         });
         if (!res.ok) throw new Error(`Failed to fetch values: ${res.status}`);
-        const data = await res.json();
-        const vals: {value: string, label: string}[] = data.values || [];
+        const data = await res.json() as { values?: SelectOption[] };
+        const vals: SelectOption[] = data.values || [];
         setAvailableValues(vals);
         setSelectedValues(Array.from(new Set(vals.map(item => getSelectionValue(item))))); // default to all
       } catch (err) {
@@ -201,7 +339,7 @@ export default function DashboardHome() {
       }
     };
     fetchValues();
-  }, [lens]);
+  }, [getSelectionValue, lens]);
 
   // MFA check on mount
   useEffect(() => {
@@ -231,16 +369,9 @@ export default function DashboardHome() {
     };
 
     checkMfa();
-  }, []);
+  }, [supabase]);
 
-  // Load data when MFA verified
-  useEffect(() => {
-    if (mfaStatus === 'verified') {
-      loadDashboardData();
-    }
-  }, [mfaStatus]);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     setLoading(true);
 
     try {
@@ -275,11 +406,12 @@ export default function DashboardHome() {
           return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
         }, 0) || 0;
 
-        const openLots = allLotsData?.filter(lot => lot.remaining_quantity > 0) || [];
+        const typedLots = (allLotsData ?? []) as TaxLotRow[];
+        const openLots = typedLots.filter(lot => Number(lot.remaining_quantity) > 0);
         const tickers = [
           ...new Set(
-            openLots.map((lot: any) => {
-              const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+            openLots.map((lot) => {
+              const asset = unwrapRelation(lot.asset);
               return asset?.ticker;
             }).filter(Boolean)
           ),
@@ -292,7 +424,8 @@ export default function DashboardHome() {
           .order('timestamp', { ascending: false });
 
         const latestPrices = new Map<string, number>();
-        pricesData?.forEach((p: any) => {
+        const typedPrices = (pricesData ?? []) as AssetPriceRow[];
+        typedPrices.forEach((p) => {
           if (!latestPrices.has(p.ticker)) {
             latestPrices.set(p.ticker, Number(p.price));
           }
@@ -300,8 +433,8 @@ export default function DashboardHome() {
 
         let marketValue = 0;
         let costBasis = 0;
-        openLots.forEach((lot: any) => {
-          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+        openLots.forEach((lot) => {
+          const asset = unwrapRelation(lot.asset);
           const qty = Number(lot.remaining_quantity);
           const price = latestPrices.get(asset?.ticker || '') || 0;
           marketValue += qty * price;
@@ -317,7 +450,8 @@ export default function DashboardHome() {
           .eq('user_id', userId)
           .eq('grouping_type', 'asset');
 
-        const summaryTotals = summaries?.reduce(
+        const typedSummaries = (summaries ?? []) as PerformanceSummaryRow[];
+        const summaryTotals = typedSummaries.reduce(
           (acc, row) => ({
             realized_gain: acc.realized_gain + (row.realized_gain || 0),
             dividends: acc.dividends + (row.dividends || 0),
@@ -325,25 +459,25 @@ export default function DashboardHome() {
             fees: acc.fees + (row.fees || 0),
           }),
           { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
-        ) || { realized_gain: 0, dividends: 0, interest: 0, fees: 0 };
+        );
 
         const net = unrealized + summaryTotals.realized_gain + summaryTotals.dividends + summaryTotals.interest;
         const totalReturnPct = totalOriginalInvestment > 0 ? (net / totalOriginalInvestment) * 100 : 0;
 
         // Calculate IRR
         let totalIrrPct = 0;
-        const transactionsData = await fetchAllUserTransactions();
+        const transactionsData = await fetchAllUserTransactions() as IrrTransaction[] | null;
 
         if (transactionsData && transactionsData.length > 0) {
           // Compute cash balances for terminal value using centralized helper
-          const { balances: cashBalances, totalCash } = calculateCashBalances(transactionsData);
+          const { totalCash } = calculateCashBalances(transactionsData);
 
           // Build external-only cash flows (Deposits/Withdrawals/Dividend/Interest)
           // using canonical IRR sign mapping and net same-day flows before solving.
           const externalTypes = ['Deposit', 'Withdrawal', 'Dividend', 'Interest'];
           const txFlows: number[] = [];
           const txDates: Date[] = [];
-          transactionsData.forEach((tx: any) => {
+          transactionsData.forEach((tx) => {
             if (!externalTypes.includes(tx.type)) return; // total IRR considers external flows only
             const date = new Date(tx.date);
             if (isNaN(date.getTime())) return;
@@ -394,9 +528,18 @@ export default function DashboardHome() {
           .limit(20); // Fetch more to account for filtering
 
         // Filter out auto-created deposits for external buys
-        const filteredTransactions = recentTransactions?.filter(tx => 
+        const filteredTransactions = ((recentTransactions ?? []) as Array<{
+          id: string;
+          date: string;
+          type: string;
+          amount: number | string;
+          funding_source?: string | null;
+          notes?: string | null;
+          asset?: Relation<AssetRelation>;
+          account?: Relation<AccountRelation>;
+        }>).filter(tx => 
           !(tx.type === 'Deposit' && tx.notes === 'Auto-deposit for external buy')
-        ).slice(0, 10) || [];
+        ).slice(0, 10).map(normalizeRecentTransaction);
 
         setRecentTransactions(filteredTransactions);
 
@@ -404,7 +547,7 @@ export default function DashboardHome() {
         try {
           const rebalancingRes = await fetch('/api/rebalancing');
           if (rebalancingRes.ok) {
-            const rebalancingData = await rebalancingRes.json();
+            const rebalancingData = await rebalancingRes.json() as RebalancingData;
             setRebalancingData(rebalancingData);
           }
         } catch (err) {
@@ -417,7 +560,14 @@ export default function DashboardHome() {
       setLoading(false);
       setRebalancingLoading(false);
     }
-  };
+  }, [supabase]);
+
+  // Load data when MFA verified
+  useEffect(() => {
+    if (mfaStatus === 'verified') {
+      loadDashboardData();
+    }
+  }, [loadDashboardData, mfaStatus]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -435,7 +585,7 @@ export default function DashboardHome() {
     }
   };
 
-  const loadDashboardDataForRefresh = async () => {
+  const loadDashboardDataForRefresh = useCallback(async () => {
     try {
       // Fetch performance totals
       const { data: { user } } = await supabase.auth.getUser();
@@ -468,11 +618,12 @@ export default function DashboardHome() {
           return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
         }, 0) || 0;
 
-        const openLots = allLotsData?.filter(lot => lot.remaining_quantity > 0) || [];
+        const typedLots = (allLotsData ?? []) as TaxLotRow[];
+        const openLots = typedLots.filter(lot => Number(lot.remaining_quantity) > 0);
         const tickers = [
           ...new Set(
-            openLots.map((lot: any) => {
-              const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+            openLots.map((lot) => {
+              const asset = unwrapRelation(lot.asset);
               return asset?.ticker;
             }).filter(Boolean)
           ),
@@ -485,7 +636,8 @@ export default function DashboardHome() {
           .order('timestamp', { ascending: false });
 
         const latestPrices = new Map<string, number>();
-        pricesData?.forEach((p: any) => {
+        const typedPrices = (pricesData ?? []) as AssetPriceRow[];
+        typedPrices.forEach((p) => {
           if (!latestPrices.has(p.ticker)) {
             latestPrices.set(p.ticker, Number(p.price));
           }
@@ -493,8 +645,8 @@ export default function DashboardHome() {
 
         let marketValue = 0;
         let costBasis = 0;
-        openLots.forEach((lot: any) => {
-          const asset = Array.isArray(lot.asset) ? lot.asset[0] : lot.asset;
+        openLots.forEach((lot) => {
+          const asset = unwrapRelation(lot.asset);
           const qty = Number(lot.remaining_quantity);
           const price = latestPrices.get(asset?.ticker || '') || 0;
           marketValue += qty * price;
@@ -510,7 +662,8 @@ export default function DashboardHome() {
           .eq('user_id', userId)
           .eq('grouping_type', 'asset');
 
-        const summaryTotals = summaries?.reduce(
+        const typedSummaries = (summaries ?? []) as PerformanceSummaryRow[];
+        const summaryTotals = typedSummaries.reduce(
           (acc, row) => ({
             realized_gain: acc.realized_gain + (row.realized_gain || 0),
             dividends: acc.dividends + (row.dividends || 0),
@@ -518,7 +671,7 @@ export default function DashboardHome() {
             fees: acc.fees + (row.fees || 0),
           }),
           { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
-        ) || { realized_gain: 0, dividends: 0, interest: 0, fees: 0 };
+        );
 
         const net = unrealized + summaryTotals.realized_gain + summaryTotals.dividends + summaryTotals.interest;
         const totalReturnPct = totalOriginalInvestment > 0 ? (net / totalOriginalInvestment) * 100 : 0;
@@ -526,18 +679,18 @@ export default function DashboardHome() {
         // Calculate IRR (use same canonical logic as PerformanceContent)
         let totalIrrPct = 0;
         const txRes = await fetch(`/api/transactions?start=&end=`);
-        const txJson = await txRes.json();
+        const txJson = await txRes.json() as { transactions?: IrrTransaction[] };
         const transactionsData = txJson?.transactions || [];
 
         if (transactionsData && transactionsData.length > 0) {
           // Compute cash balances for terminal value using centralized helper
-          const { balances: cashBalances, totalCash } = calculateCashBalances(transactionsData);
+          const { totalCash } = calculateCashBalances(transactionsData);
 
           // Build external-only cash flows (Deposits/Withdrawals/Dividend/Interest)
           const externalTypes = ['Deposit', 'Withdrawal', 'Dividend', 'Interest'];
           const txFlows: number[] = [];
           const txDates: Date[] = [];
-          transactionsData.forEach((tx: any) => {
+          transactionsData.forEach((tx) => {
             if (!externalTypes.includes(tx.type)) return; // total IRR considers external flows only
             const date = new Date(tx.date);
             if (isNaN(date.getTime())) return;
@@ -588,16 +741,25 @@ export default function DashboardHome() {
           .limit(20); // Fetch more to account for filtering
 
         // Filter out auto-created deposits for external buys
-        const filteredTransactions = recentTransactions?.filter(tx => 
+        const filteredTransactions = ((recentTransactions ?? []) as Array<{
+          id: string;
+          date: string;
+          type: string;
+          amount: number | string;
+          funding_source?: string | null;
+          notes?: string | null;
+          asset?: Relation<AssetRelation>;
+          account?: Relation<AccountRelation>;
+        }>).filter(tx => 
           !(tx.type === 'Deposit' && tx.notes === 'Auto-deposit for external buy')
-        ).slice(0, 10) || [];
+        ).slice(0, 10).map(normalizeRecentTransaction);
 
         setRecentTransactions(filteredTransactions);
       }
     } catch (err) {
       console.error('Dashboard data refresh failed:', err);
     }
-  };
+  }, [supabase]);
 
   const toggleValue = (value: string) => {
     setSelectedValues(prev =>
@@ -620,8 +782,8 @@ export default function DashboardHome() {
       if (error) throw error;
 
       setMfaStatus('verified');
-    } catch (err: any) {
-      setMfaError(err.message || 'Verification failed');
+    } catch (err: unknown) {
+      setMfaError(err instanceof Error ? err.message : 'Verification failed');
     }
   };
 
@@ -638,6 +800,301 @@ export default function DashboardHome() {
     }
     setShowMfaSetupPrompt(false);
   };
+
+  const rebalanceNeeded = !!rebalancingData?.currentAllocations?.some((item) => item.action !== 'hold');
+
+  const controlsPanel = (
+    <div className="mb-2 flex flex-col items-start gap-3 md:flex-row md:items-end md:justify-between md:gap-4">
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          size="sm"
+          className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"
+        >
+          <RefreshCw className={cn('w-4 h-4 mr-2', refreshing && 'animate-spin')} />
+          {refreshing ? 'Refreshing...' : 'Refresh Prices'}
+        </Button>
+        {refreshMessage && <span className="text-sm text-green-600">{refreshMessage}</span>}
+      </div>
+
+      <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-end md:gap-4">
+        <div className="w-full max-w-xs md:w-56 md:max-w-none">
+          <Label className="text-[10px] font-bold uppercase mb-1 block">Slice by</Label>
+          <Select value={lens} onValueChange={setLens}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LENSES.map(l => (
+                <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {lens !== 'total' && (
+          <div className="w-full max-w-sm md:w-72 md:max-w-none">
+            <Label className="text-[10px] font-bold uppercase mb-1 block">
+              Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between bg-background">
+                  {selectedValues.length === availableValues.length ? 'All selected' :
+                    selectedValues.length === 0 ? 'None selected' :
+                    `${selectedValues.length} selected`}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandInput placeholder="Search..." />
+                  <CommandList>
+                    <CommandEmpty>No values found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableValues.map(item => (
+                        <CommandItem key={item.value} onSelect={() => toggleValue(getSelectionValue(item))}>
+                          <Check className={cn('mr-2 h-4 w-4', selectedValues.includes(getSelectionValue(item)) ? 'opacity-100' : 'opacity-0')} />
+                          {item.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+
+        {lens !== 'total' && selectedValues.length > 1 && (
+          <div className="flex items-center gap-2 rounded-md border bg-background p-2">
+            <Switch checked={aggregate} onCheckedChange={setAggregate} />
+            <Label>Aggregate selected</Label>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const performanceCard = (
+    <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/performance')}>
+      <CardHeader>
+        <CardTitle className="text-center text-2xl">Performance</CardTitle>
+        <div className="text-center mt-4 rounded-lg border bg-white p-3">
+          <CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Total Portfolio Value</CardTitle>
+          <p className="text-2xl font-bold mt-2 font-mono tabular-nums">
+            {performanceTotals ? formatUSDWhole(performanceTotals.market_value) : 'Loading...'}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mt-6">
+          <div className="space-y-4">
+            <div className="text-center rounded-lg border bg-card p-3">
+              <CardTitle className="text-sm">Net Gain/Loss</CardTitle>
+              <p className={cn('text-xl font-bold mt-2 tabular-nums', performanceTotals?.net_gain >= 0 ? 'text-green-600' : 'text-red-600')}>
+                {performanceTotals ? formatUSDWhole(performanceTotals.net_gain) : 'Loading...'}
+              </p>
+            </div>
+            <div className="text-center rounded-lg border bg-card p-3">
+              <CardTitle className="text-sm">Total Return %</CardTitle>
+              <p className={cn('text-xl font-bold mt-2 tabular-nums', performanceTotals?.total_return_pct >= 0 ? 'text-green-600' : 'text-red-600')}>
+                {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
+              </p>
+            </div>
+            <div className="text-center rounded-lg border bg-card p-3">
+              <CardTitle className="text-sm">Annualized IRR</CardTitle>
+              <p className={cn('text-xl font-bold mt-2 tabular-nums', (performanceTotals?.irr_pct || 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
+                {performanceTotals ? formatPctTenth(performanceTotals.irr_pct || 0) : 'Loading...'}
+              </p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="text-center rounded-lg border bg-card p-3">
+              <CardTitle className="text-sm">Unrealized G/L</CardTitle>
+              <p className={cn('text-xl font-bold mt-2 tabular-nums', performanceTotals?.unrealized_gain >= 0 ? 'text-green-600' : 'text-red-600')}>
+                {performanceTotals ? formatUSDWhole(performanceTotals.unrealized_gain) : 'Loading...'}
+              </p>
+            </div>
+            <div className="text-center rounded-lg border bg-card p-3">
+              <CardTitle className="text-sm">Realized G/L</CardTitle>
+              <p className={cn('text-xl font-bold mt-2 tabular-nums', performanceTotals?.realized_gain >= 0 ? 'text-green-600' : 'text-red-600')}>
+                {performanceTotals ? formatUSDWhole(performanceTotals.realized_gain) : 'Loading...'}
+              </p>
+            </div>
+            <div className="text-center rounded-lg border bg-card p-3">
+              <CardTitle className="text-sm">Income</CardTitle>
+              <p className={cn('text-xl font-bold mt-2 tabular-nums', performanceTotals?.dividends >= 0 ? 'text-green-600' : 'text-red-600')}>
+                {performanceTotals ? formatUSDWhole(performanceTotals.dividends) : 'Loading...'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+    </Card>
+  );
+
+  const strategyCard = (
+    <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/portfolio?tab=rebalancing')}>
+      <CardHeader>
+        <CardTitle className="text-center text-2xl">Strategy</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {rebalancingLoading ? (
+          <p>Loading strategy data...</p>
+        ) : rebalancingData ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 items-stretch">
+              <div className="text-center h-full rounded-md border p-3">
+                <h4 className="font-semibold text-sm text-muted-foreground">Portfolio Drift</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-2 mt-2">
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground">Sub-Portfolio</p>
+                    <p className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums">
+                      {(() => {
+                        const subPortfolioAllocations: { [key: string]: number } = {}
+                        rebalancingData.currentAllocations.forEach((item) => {
+                          const subId = item.sub_portfolio_id || 'unassigned'
+                          subPortfolioAllocations[subId] = (subPortfolioAllocations[subId] || 0) + item.current_value
+                        })
+
+                        let totalWeightedDrift = 0
+                        let totalValue = 0
+
+                        rebalancingData.subPortfolios.forEach((sp) => {
+                          const currentValue = subPortfolioAllocations[sp.id] || 0
+                          const currentAllocation = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
+                          const targetAllocation = sp.target_allocation
+                          const relativeDrift = targetAllocation > 0 ? Math.abs((currentAllocation - targetAllocation) / targetAllocation) : 0
+                          totalWeightedDrift += relativeDrift * currentValue
+                          totalValue += currentValue
+                        })
+
+                        return (totalValue > 0 ? totalWeightedDrift / totalValue * 100 : 0).toFixed(1) + '%'
+                      })()}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground">Asset</p>
+                    <p className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums">
+                      {(() => {
+                        const assetDrift = rebalancingData.totalValue > 0
+                          ? rebalancingData.currentAllocations.reduce((sum: number, item) => {
+                            const weight = item.current_value / rebalancingData.totalValue
+                            const currentPct = item.current_percentage || 0
+                            const implied = item.implied_overall_target || 0
+                            const rel = implied > 0 ? Math.abs((currentPct - implied) / implied) * 100 : (currentPct === 0 ? 0 : Infinity)
+                            return sum + (rel * weight)
+                          }, 0)
+                          : 0
+                        return assetDrift.toFixed(1) + '%'
+                      })()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="text-center h-full rounded-md border p-3 flex flex-col justify-between">
+                <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>
+                <p className="text-xl font-bold">
+                  {rebalancingData.currentAllocations.some((item) => item.action !== 'hold') ? (
+                    <span className="text-red-600">Yes</span>
+                  ) : (
+                    'No'
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <div className="max-h-48 overflow-y-auto">
+                <Table className="w-full min-w-[760px] table-fixed" containerClassName="overscroll-x-contain">
+                  <colgroup>
+                    <col className="w-[32%]" />
+                    <col className="w-[20%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[16%]" />
+                  </colgroup>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="px-3 sm:px-4 text-left">Sub-Portfolio</TableHead>
+                      <TableHead className="px-3 sm:px-4 text-right">Current Value</TableHead>
+                      <TableHead className="px-3 sm:px-4 text-right">Target Allocation</TableHead>
+                      <TableHead className="px-3 sm:px-4 text-right">Actual Allocation</TableHead>
+                      <TableHead className="px-3 sm:px-4 text-right">Asset-Level Drift</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(() => {
+                      const grouped = new Map<string, RebalancingCurrentAllocation[]>()
+                      rebalancingData.currentAllocations.forEach((item) => {
+                        const key = item.sub_portfolio_id || 'unassigned'
+                        if (!grouped.has(key)) grouped.set(key, [])
+                        grouped.get(key).push(item)
+                      })
+
+                      const subPortfolios = Array.from(grouped.entries()).map(([id, allocations]) => {
+                        const subPortfolio = rebalancingData.subPortfolios.find((sp) => sp.id === id)
+                        const name = subPortfolio?.name || 'Unassigned'
+                        const target = subPortfolio?.target_allocation || 0
+                        const currentValue = allocations.reduce((sum: number, item) => sum + item.current_value, 0)
+                        const currentPct = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
+                        const assetLevelDrift = currentValue > 0 ? allocations.reduce((sum: number, item) => sum + (Math.abs(item.drift_percentage) * item.current_value), 0) / currentValue : 0
+                        return { name, target, currentValue, currentPct, assetLevelDrift }
+                      }).sort((a, b) => b.currentValue - a.currentValue)
+
+                      return subPortfolios.map((sp, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="px-3 sm:px-4 text-left font-medium truncate">{sp.name}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(sp.currentValue)}</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.target.toFixed(1)}%</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.currentPct.toFixed(1)}%</TableCell>
+                          <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.assetLevelDrift.toFixed(1)}%</TableCell>
+                        </TableRow>
+                      ))
+                    })()}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p>Failed to load strategy data</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const recentTable = (
+    <Table className="w-full min-w-[620px] table-fixed" containerClassName="overscroll-x-contain">
+      <colgroup>
+        <col className="w-[18%]" />
+        <col className="w-[26%]" />
+        <col className="w-[14%]" />
+        <col className="w-[20%]" />
+        <col className="w-[22%]" />
+      </colgroup>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="px-3 sm:px-4 text-left">Date</TableHead>
+          <TableHead className="px-3 sm:px-4 text-left">Account</TableHead>
+          <TableHead className="px-3 sm:px-4 text-left">Ticker</TableHead>
+          <TableHead className="px-3 sm:px-4 text-left">Type</TableHead>
+          <TableHead className="px-3 sm:px-4 text-right">Amount</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {recentTransactions.map((tx) => (
+          <TableRow key={tx.id}>
+            <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.date}</TableCell>
+            <TableCell className="px-3 sm:px-4 text-left truncate">{tx.account?.name || ''}</TableCell>
+            <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.asset?.ticker || ''}</TableCell>
+            <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.type}</TableCell>
+            <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(tx.amount)}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
 
   // ── Render ──────────────────────────────────────────────────────────────
 
@@ -662,7 +1119,7 @@ export default function DashboardHome() {
               className="rounded"
             />
             <label htmlFor="dont-ask-again" className="text-sm text-muted-foreground">
-              Don't ask me this again
+              Don&apos;t ask me this again
             </label>
           </div>
           <div className="flex space-x-3">
@@ -688,7 +1145,7 @@ export default function DashboardHome() {
         <Input
           placeholder="000000"
           value={mfaCode}
-          onChange={(e: any) => setMfaCode(e.target.value)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setMfaCode(e.target.value)}
           maxLength={6}
           className="text-center text-2xl tracking-widest"
         />
@@ -705,693 +1162,95 @@ export default function DashboardHome() {
 
   // Normal dashboard view (MFA cleared)
   return (
-    <main className="container mx-auto p-6">
-      <div className="mb-8">
-        <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold">Portfolio Dashboard</h1>
-        </div>
-
-        {/* Controls section - Desktop only */}
-        <div className="hidden md:flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button onClick={handleRefresh} disabled={refreshing}>
-              {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-            </Button>
-            {refreshMessage && <span className="text-sm text-green-600">{refreshMessage}</span>}
-          </div>
-
-          <div className="flex flex-wrap gap-4 items-center">
-            {/* Lens */}
-            <div>
-              <Label className="text-sm font-medium">Slice by</Label>
-              <Select value={lens} onValueChange={setLens}>
-                <SelectTrigger className="w-56">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LENSES.map(l => (
-                    <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Multi-Select Values */}
-            {lens !== 'total' && (
-              <div className="min-w-64">
-                <Label className="text-sm font-medium">
-                  Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
-                </Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-between">
-                      {selectedValues.length === availableValues.length ? 'All selected' :
-                       selectedValues.length === 0 ? 'None selected' :
-                       `${selectedValues.length} selected`}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full p-0">
-                    <Command>
-                      <CommandInput placeholder="Search..." />
-                      <CommandList>
-                        <CommandEmpty>No values found.</CommandEmpty>
-                        <CommandGroup>
-                          {availableValues.map(item => (
-                            <CommandItem key={item.value} onSelect={() => toggleValue(getSelectionValue(item))}>
-                              <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(getSelectionValue(item)) ? "opacity-100" : "opacity-0")} />
-                              {item.label}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-            )}
-
-            {/* Aggregate Toggle */}
-            {lens !== 'total' && selectedValues.length > 1 && (
-              <div className="flex items-center gap-2">
-                <Switch checked={aggregate} onCheckedChange={setAggregate} />
-                <Label>Aggregate selected</Label>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Mobile Refresh Prices Button - above Performance card */}
-        <div className="md:hidden mb-8">
-          <div className="flex items-center justify-center gap-4">
-            <Button onClick={handleRefresh} disabled={refreshing}>
-              {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-            </Button>
-            {refreshMessage && <span className="text-sm text-green-600">{refreshMessage}</span>}
-          </div>
-        </div>
+    <main className="flex flex-col gap-4 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
+      <div className="text-center py-2">
+        <h1 className="text-3xl font-bold">Portfolio Dashboard</h1>
       </div>
+
+      <DashboardSection title="Dashboard Controls" defaultOpen>
+        {controlsPanel}
+      </DashboardSection>
+
       {loading ? (
-        <div className="text-center py-12">Loading portfolio data...</div>
+        <div className="text-center py-12 rounded-xl border bg-background shadow-sm">Loading portfolio data...</div>
       ) : selectedValues.length === 0 && lens !== 'total' && !valuesLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Select at least one value to view data.</div>
+        <div className="text-center py-12 text-muted-foreground rounded-xl border bg-background shadow-sm">Select at least one value to view data.</div>
       ) : (
         <>
-          {/* Desktop Layout */}
-          <div className="hidden md:block">
-          <div className="grid grid-cols-2 gap-8">
-            <div className="space-y-8">
-              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
-                <CardHeader>
-                  <CardTitle className="text-center text-4xl">Performance</CardTitle>
-                  <div className="text-center mt-4">
-                    <CardTitle className="text-lg">Total Portfolio Value</CardTitle>
-                    <p className="text-3xl font-bold text-black mt-2">
-                      {performanceTotals ? formatUSDWhole(performanceTotals.market_value) : 'Loading...'}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-8 mt-6">
-                    <div className="space-y-6">
-                      <div className="text-center">
-                        <CardTitle>Net Gain/Loss</CardTitle>
-                        <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                          {performanceTotals ? formatUSDWhole(performanceTotals.net_gain) : 'Loading...'}
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <CardTitle>Total Return %</CardTitle>
-                        <p className={cn("text-2xl font-bold mt-2", performanceTotals?.total_return_pct >= 0 ? "text-green-600" : "text-red-600")}>
-                          {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <CardTitle>Annualized IRR</CardTitle>
-                        <p className={cn("text-2xl font-bold mt-2", (performanceTotals?.irr_pct || 0) >= 0 ? "text-green-600" : "text-red-600")}>
-                          {performanceTotals ? formatPctTenth(performanceTotals.irr_pct || 0) : 'Loading...'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="space-y-6">
-                      <div className="text-center">
-                        <CardTitle>Unrealized G/L</CardTitle>
-                        <p className={cn("text-2xl font-bold mt-2", performanceTotals?.unrealized_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                          {performanceTotals ? formatUSDWhole(performanceTotals.unrealized_gain) : 'Loading...'}
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <CardTitle>Realized G/L</CardTitle>
-                        <p className={cn("text-2xl font-bold mt-2", performanceTotals?.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                          {performanceTotals ? formatUSDWhole(performanceTotals.realized_gain) : 'Loading...'}
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <CardTitle>Income</CardTitle>
-                        <p className={cn("text-2xl font-bold mt-2", performanceTotals?.dividends >= 0 ? "text-green-600" : "text-red-600")}>
-                          {performanceTotals ? formatUSDWhole(performanceTotals.dividends) : 'Loading...'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio?tab=rebalancing')}>
-                <CardHeader>
-                  <CardTitle className="text-center text-4xl">Strategy</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {rebalancingLoading ? (
-                    <p>Loading strategy data...</p>
-                  ) : rebalancingData ? (
-                    <div className="space-y-4">
-                      {/* Top Metrics */}
-                      <div className="grid grid-cols-2 gap-4 items-stretch">
-                        <div className="text-center h-full rounded-md border p-3">
-                          <h4 className="font-semibold text-sm text-muted-foreground">Portfolio Drift</h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-2 mt-2">
-                            <div className="text-center">
-                              <p className="text-xs text-muted-foreground">Sub-Portfolio</p>
-                              <p className="text-lg sm:text-xl font-bold leading-tight break-words">
-                                {(() => {
-                                  // Calculate sub-portfolio relative drift from target allocations
-                                  const subPortfolioAllocations: { [key: string]: number } = {}
-                                  rebalancingData.currentAllocations.forEach((item: any) => {
-                                    const subId = item.sub_portfolio_id || 'unassigned'
-                                    subPortfolioAllocations[subId] = (subPortfolioAllocations[subId] || 0) + item.current_value
-                                  })
-
-                                  let totalWeightedDrift = 0
-                                  let totalValue = 0
-
-                                  rebalancingData.subPortfolios.forEach((sp: any) => {
-                                    const currentValue = subPortfolioAllocations[sp.id] || 0
-                                    const currentAllocation = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
-                                    const targetAllocation = sp.target_allocation
-                                    
-                                    // Calculate relative drift: |(actual - target) / target|
-                                    const relativeDrift = targetAllocation > 0 ? Math.abs((currentAllocation - targetAllocation) / targetAllocation) : 0
-                                    
-                                    totalWeightedDrift += relativeDrift * currentValue
-                                    totalValue += currentValue
-                                  })
-
-                                  return (totalValue > 0 ? totalWeightedDrift / totalValue * 100 : 0).toFixed(1) + '%'
-                                })()}
-                              </p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-xs text-muted-foreground">Asset</p>
-                              <p className="text-lg sm:text-xl font-bold leading-tight break-words">
-                                {(() => {
-                                  const assetDrift = rebalancingData.totalValue > 0 
-                                    ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
-                                        const weight = item.current_value / rebalancingData.totalValue
-                                        const currentPct = item.current_percentage || 0
-                                        const implied = item.implied_overall_target || 0
-                                        const rel = implied > 0 ? Math.abs((currentPct - implied) / implied) * 100 : (currentPct === 0 ? 0 : Infinity)
-                                        return sum + (rel * weight)
-                                      }, 0)
-                                    : 0
-                                  return assetDrift.toFixed(1) + '%'
-                                })()}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-center h-full rounded-md border p-3 flex flex-col justify-between">
-                          <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>
-                          <p className="text-xl font-bold">
-                            {rebalancingData.currentAllocations.some((item: any) => item.action !== 'hold') ? (
-                              <span className="text-red-600">Yes</span>
-                            ) : (
-                              'No'
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Sub-Portfolios Table */}
-                      <div>
-                        <div className="max-h-48 overflow-y-auto">
-                          <Table className="w-full min-w-[760px] table-fixed" containerClassName="overscroll-x-contain">
-                            <colgroup>
-                              <col className="w-[32%]" />
-                              <col className="w-[20%]" />
-                              <col className="w-[16%]" />
-                              <col className="w-[16%]" />
-                              <col className="w-[16%]" />
-                            </colgroup>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="px-3 sm:px-4 text-left">Sub-Portfolio</TableHead>
-                                <TableHead className="px-3 sm:px-4 text-right">Current Value</TableHead>
-                                <TableHead className="px-3 sm:px-4 text-right">Target Allocation</TableHead>
-                                <TableHead className="px-3 sm:px-4 text-right">Actual Allocation</TableHead>
-                                <TableHead className="px-3 sm:px-4 text-right">Asset-Level Drift</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {(() => {
-                                // Group allocations by sub_portfolio_id
-                                const grouped = new Map()
-                                rebalancingData.currentAllocations.forEach((item: any) => {
-                                  const key = item.sub_portfolio_id || 'unassigned'
-                                  if (!grouped.has(key)) grouped.set(key, [])
-                                  grouped.get(key).push(item)
-                                })
-
-                                // Calculate sub-portfolio data and sort by current value descending
-                                const subPortfolios = Array.from(grouped.entries()).map(([id, allocations]) => {
-                                  const subPortfolio = rebalancingData.subPortfolios.find((sp: any) => sp.id === id)
-                                  const name = subPortfolio?.name || 'Unassigned'
-                                  const target = subPortfolio?.target_allocation || 0
-                                  const currentValue = allocations.reduce((sum: number, item: any) => sum + item.current_value, 0)
-                                  const currentPct = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
-                                  const assetLevelDrift = currentValue > 0 ? allocations.reduce((sum: number, item: any) => sum + (Math.abs(item.drift_percentage) * item.current_value), 0) / currentValue : 0
-                                  return { name, target, currentValue, currentPct, assetLevelDrift }
-                                }).sort((a, b) => b.currentValue - a.currentValue)
-
-                                return subPortfolios.map((sp, idx) => (
-                                  <TableRow key={idx}>
-                                    <TableCell className="px-3 sm:px-4 text-left font-medium truncate">{sp.name}</TableCell>
-                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(sp.currentValue)}</TableCell>
-                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.target.toFixed(1)}%</TableCell>
-                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.currentPct.toFixed(1)}%</TableCell>
-                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.assetLevelDrift.toFixed(1)}%</TableCell>
-                                  </TableRow>
-                                ))
-                              })()}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <p>Failed to load strategy data</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Mobile Slicers - positioned between Strategy and Portfolio Details */}
-            <div className="md:hidden mt-8 mb-8">
-              <div className="flex flex-wrap gap-4 items-center justify-end">
-                {/* Lens */}
-                <div>
-                  <Label className="text-sm font-medium">Slice by</Label>
-                  <Select value={lens} onValueChange={setLens}>
-                    <SelectTrigger className="w-56">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LENSES.map(l => (
-                        <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          <DashboardSection title="Key KPIs" defaultOpen>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Portfolio Value</Label>
+                <div className="text-xl font-bold font-mono tabular-nums mt-1">{formatUSDWhole(performanceTotals?.market_value)}</div>
+              </div>
+              <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Net Gain/Loss</Label>
+                <div className={cn('text-xl font-bold font-mono tabular-nums mt-1', performanceTotals?.net_gain >= 0 ? 'text-green-600' : 'text-red-600')}>
+                  {formatUSDWhole(performanceTotals?.net_gain)}
                 </div>
-
-                {/* Multi-Select Values */}
-                {lens !== 'total' && (
-                  <div className="min-w-64">
-                    <Label className="text-sm font-medium">
-                      Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
-                    </Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-between">
-                          {selectedValues.length === availableValues.length ? 'All selected' :
-                           selectedValues.length === 0 ? 'None selected' :
-                           `${selectedValues.length} selected`}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0">
-                        <Command>
-                          <CommandInput placeholder="Search..." />
-                          <CommandList>
-                            <CommandEmpty>No values found.</CommandEmpty>
-                            <CommandGroup>
-                              {availableValues.map(item => (
-                                <CommandItem key={item.value} onSelect={() => toggleValue(getSelectionValue(item))}>
-                                  <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(getSelectionValue(item)) ? "opacity-100" : "opacity-0")} />
-                                {item.label}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+              </div>
+              <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Return</Label>
+                <div className={cn('text-xl font-bold font-mono tabular-nums mt-1', performanceTotals?.total_return_pct >= 0 ? 'text-green-600' : 'text-red-600')}>
+                  {formatPctTenth(performanceTotals?.total_return_pct)}
                 </div>
-              )}
-
-              {/* Aggregate Toggle */}
-              {lens !== 'total' && selectedValues.length > 1 && (
-                <div className="flex items-center gap-2">
-                  <Switch checked={aggregate} onCheckedChange={setAggregate} />
-                  <Label>Aggregate selected</Label>
+              </div>
+              <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Rebalance Needed</Label>
+                <div className={cn('text-xl font-bold tabular-nums mt-1', rebalanceNeeded ? 'text-red-600' : 'text-green-600')}>
+                  {rebalanceNeeded ? 'Yes' : 'No'}
                 </div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-8">
-            <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} refreshing={refreshing} />
-              <Card className="cursor-pointer" onClick={() => router.push('/dashboard/transactions')}>
-                <CardHeader>
-                  <CardTitle className="text-center text-4xl">Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Table className="w-full min-w-[620px] table-fixed" containerClassName="overscroll-x-contain">
-                    <colgroup>
-                      <col className="w-[18%]" />
-                      <col className="w-[26%]" />
-                      <col className="w-[14%]" />
-                      <col className="w-[20%]" />
-                      <col className="w-[22%]" />
-                    </colgroup>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="px-3 sm:px-4 text-left">Date</TableHead>
-                        <TableHead className="px-3 sm:px-4 text-left">Account</TableHead>
-                        <TableHead className="px-3 sm:px-4 text-left">Ticker</TableHead>
-                        <TableHead className="px-3 sm:px-4 text-left">Type</TableHead>
-                        <TableHead className="px-3 sm:px-4 text-right">Amount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentTransactions.map((tx) => (
-                        <TableRow key={tx.id}>
-                          <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.date}</TableCell>
-                          <TableCell className="px-3 sm:px-4 text-left truncate">{tx.account?.name || ''}</TableCell>
-                          <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.asset?.ticker || ''}</TableCell>
-                          <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.type}</TableCell>
-                          <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(tx.amount)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Layout */}
-        <div className="md:hidden">
-          <div className="space-y-8">
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/performance')}>
-              <CardHeader>
-                <CardTitle className="text-center text-4xl">Performance</CardTitle>
-                <div className="text-center mt-4">
-                  <CardTitle className="text-lg">Total Portfolio Value</CardTitle>
-                  <p className="text-3xl font-bold text-black mt-2">
-                    {performanceTotals ? formatUSDWhole(performanceTotals.market_value) : 'Loading...'}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-8 mt-6">
-                  <div className="space-y-6">
-                    <div className="text-center">
-                      <CardTitle>Net Gain/Loss</CardTitle>
-                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.net_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatUSDWhole(performanceTotals.net_gain) : 'Loading...'}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <CardTitle>Total Return %</CardTitle>
-                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.total_return_pct >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <CardTitle>Annualized IRR</CardTitle>
-                      <p className={cn("text-2xl font-bold mt-2", (performanceTotals?.irr_pct || 0) >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatPctTenth(performanceTotals.irr_pct || 0) : 'Loading...'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-6">
-                    <div className="text-center">
-                      <CardTitle>Unrealized G/L</CardTitle>
-                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.unrealized_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatUSDWhole(performanceTotals.unrealized_gain) : 'Loading...'}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <CardTitle>Realized G/L</CardTitle>
-                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatUSDWhole(performanceTotals.realized_gain) : 'Loading...'}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <CardTitle>Income</CardTitle>
-                      <p className={cn("text-2xl font-bold mt-2", performanceTotals?.dividends >= 0 ? "text-green-600" : "text-red-600")}>
-                        {performanceTotals ? formatUSDWhole(performanceTotals.dividends) : 'Loading...'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/portfolio?tab=rebalancing')}>
-              <CardHeader>
-                <CardTitle className="text-center text-4xl">Strategy</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {rebalancingLoading ? (
-                  <p>Loading strategy data...</p>
-                ) : rebalancingData ? (
-                  <div className="space-y-4">
-                    {/* Top Metrics */}
-                    <div className="grid grid-cols-2 gap-4 items-stretch">
-                      <div className="text-center h-full rounded-md border p-3">
-                        <h4 className="font-semibold text-sm text-muted-foreground">Portfolio Drift</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-2 mt-2">
-                          <div className="text-center">
-                            <p className="text-xs text-muted-foreground">Sub-Portfolio</p>
-                            <p className="text-lg sm:text-xl font-bold leading-tight break-words">
-                              {(() => {
-                                // Calculate sub-portfolio relative drift from target allocations
-                                const subPortfolioAllocations: { [key: string]: number } = {}
-                                rebalancingData.currentAllocations.forEach((item: any) => {
-                                  const subId = item.sub_portfolio_id || 'unassigned'
-                                  subPortfolioAllocations[subId] = (subPortfolioAllocations[subId] || 0) + item.current_value
-                                })
-
-                                let totalWeightedDrift = 0
-                                let totalValue = 0
-
-                                rebalancingData.subPortfolios.forEach((sp: any) => {
-                                  const currentValue = subPortfolioAllocations[sp.id] || 0
-                                  const currentAllocation = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
-                                  const targetAllocation = sp.target_allocation
-                                  
-                                  // Calculate relative drift: |(actual - target) / target|
-                                  const relativeDrift = targetAllocation > 0 ? Math.abs((currentAllocation - targetAllocation) / targetAllocation) : 0
-                                  
-                                  totalWeightedDrift += relativeDrift * currentValue
-                                  totalValue += currentValue
-                                })
-
-                                return (totalValue > 0 ? totalWeightedDrift / totalValue * 100 : 0).toFixed(1) + '%'
-                              })()}
-                            </p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-xs text-muted-foreground">Asset</p>
-                            <p className="text-lg sm:text-xl font-bold leading-tight break-words">
-                              {(() => {
-                                const assetDrift = rebalancingData.totalValue > 0 
-                                  ? rebalancingData.currentAllocations.reduce((sum: number, item: any) => {
-                                      const weight = item.current_value / rebalancingData.totalValue
-                                      const currentPct = item.current_percentage || 0
-                                      const implied = item.implied_overall_target || 0
-                                      const rel = implied > 0 ? Math.abs((currentPct - implied) / implied) * 100 : (currentPct === 0 ? 0 : Infinity)
-                                      return sum + (rel * weight)
-                                    }, 0)
-                                  : 0
-                                return assetDrift.toFixed(1) + '%'
-                              })()}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-center h-full rounded-md border p-3 flex flex-col justify-between">
-                        <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>
-                        <p className="text-xl font-bold">
-                          {rebalancingData.currentAllocations.some((item: any) => item.action !== 'hold') ? (
-                            <span className="text-red-600">Yes</span>
-                          ) : (
-                            'No'
-                          )}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Sub-Portfolios Table */}
-                      <div>
-                        <div className="max-h-48 overflow-y-auto">
-                          <Table className="w-full min-w-[760px] table-fixed" containerClassName="overscroll-x-contain">
-                            <colgroup>
-                              <col className="w-[32%]" />
-                              <col className="w-[20%]" />
-                              <col className="w-[16%]" />
-                              <col className="w-[16%]" />
-                              <col className="w-[16%]" />
-                            </colgroup>
-                          <TableHeader>
-                            <TableRow>
-                                <TableHead className="px-3 sm:px-4 text-left">Sub-Portfolio</TableHead>
-                                <TableHead className="px-3 sm:px-4 text-right">Current Value</TableHead>
-                                <TableHead className="px-3 sm:px-4 text-right">Target Allocation</TableHead>
-                                <TableHead className="px-3 sm:px-4 text-right">Actual Allocation</TableHead>
-                                <TableHead className="px-3 sm:px-4 text-right">Asset-Level Drift</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {(() => {
-                              // Group allocations by sub_portfolio_id
-                              const grouped = new Map()
-                              rebalancingData.currentAllocations.forEach((item: any) => {
-                                const key = item.sub_portfolio_id || 'unassigned'
-                                if (!grouped.has(key)) grouped.set(key, [])
-                                grouped.get(key).push(item)
-                              })
-
-                              // Calculate sub-portfolio data and sort by current value descending
-                              const subPortfolios = Array.from(grouped.entries()).map(([id, allocations]) => {
-                                const subPortfolio = rebalancingData.subPortfolios.find((sp: any) => sp.id === id)
-                                const name = subPortfolio?.name || 'Unassigned'
-                                const target = subPortfolio?.target_allocation || 0
-                                const currentValue = allocations.reduce((sum: number, item: any) => sum + item.current_value, 0)
-                                const currentPct = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
-                                const assetLevelDrift = currentValue > 0 ? allocations.reduce((sum: number, item: any) => sum + (Math.abs(item.drift_percentage) * item.current_value), 0) / currentValue : 0
-                                return { name, target, currentValue, currentPct, assetLevelDrift }
-                              }).sort((a, b) => b.currentValue - a.currentValue)
-
-                              return subPortfolios.map((sp, idx) => (
-                                <TableRow key={idx}>
-                                    <TableCell className="px-3 sm:px-4 text-left font-medium truncate">{sp.name}</TableCell>
-                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(sp.currentValue)}</TableCell>
-                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.target.toFixed(1)}%</TableCell>
-                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.currentPct.toFixed(1)}%</TableCell>
-                                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.assetLevelDrift.toFixed(1)}%</TableCell>
-                                </TableRow>
-                              ))
-                            })()}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p>Failed to load strategy data</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Mobile Slicers - positioned between Strategy and Portfolio Details */}
-            <div className="mt-8 mb-8">
-              <div className="flex flex-wrap gap-4 items-center justify-center">
-                {/* Lens */}
-                <div>
-                  <Label className="text-sm font-medium">Slice by</Label>
-                  <Select value={lens} onValueChange={setLens}>
-                    <SelectTrigger className="w-56">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LENSES.map(l => (
-                        <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Multi-Select Values */}
-                {lens !== 'total' && (
-                  <div className="min-w-64">
-                    <Label className="text-sm font-medium">
-                      Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}
-                    </Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-between">
-                          {selectedValues.length === availableValues.length ? 'All selected' :
-                           selectedValues.length === 0 ? 'None selected' :
-                           `${selectedValues.length} selected`}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0">
-                        <Command>
-                          <CommandInput placeholder="Search..." />
-                          <CommandList>
-                            <CommandEmpty>No values found.</CommandEmpty>
-                            <CommandGroup>
-                              {availableValues.map(item => (
-                                <CommandItem key={item.value} onSelect={() => toggleValue(getSelectionValue(item))}>
-                                  <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(getSelectionValue(item)) ? "opacity-100" : "opacity-0")} />
-                                  {item.label}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                )}
-
-                {/* Aggregate Toggle */}
-                {lens !== 'total' && selectedValues.length > 1 && (
-                  <div className="flex items-center gap-2">
-                    <Switch checked={aggregate} onCheckedChange={setAggregate} />
-                    <Label>Aggregate selected</Label>
-                  </div>
-                )}
               </div>
             </div>
+          </DashboardSection>
 
-            <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} refreshing={refreshing} />
-            <Card className="cursor-pointer" onClick={() => router.push('/dashboard/activity?tab=transactions')}>
-              <CardHeader>
-                <CardTitle className="text-center text-4xl">Recent Activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                  <Table className="w-full min-w-[620px] table-fixed" containerClassName="overscroll-x-contain">
-                    <colgroup>
-                      <col className="w-[18%]" />
-                      <col className="w-[26%]" />
-                      <col className="w-[14%]" />
-                      <col className="w-[20%]" />
-                      <col className="w-[22%]" />
-                    </colgroup>
-                  <TableHeader>
-                    <TableRow>
-                        <TableHead className="px-3 sm:px-4 text-left">Date</TableHead>
-                        <TableHead className="px-3 sm:px-4 text-left">Account</TableHead>
-                        <TableHead className="px-3 sm:px-4 text-left">Ticker</TableHead>
-                        <TableHead className="px-3 sm:px-4 text-left">Type</TableHead>
-                        <TableHead className="px-3 sm:px-4 text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentTransactions.map((tx) => (
-                      <TableRow key={tx.id}>
-                          <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.date}</TableCell>
-                          <TableCell className="px-3 sm:px-4 text-left truncate">{tx.account?.name || ''}</TableCell>
-                          <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.asset?.ticker || ''}</TableCell>
-                          <TableCell className="px-3 sm:px-4 text-left whitespace-nowrap">{tx.type}</TableCell>
-                          <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(tx.amount)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+          <div className="hidden md:grid md:grid-cols-2 gap-4">
+            <div className="space-y-4">
+              <DashboardSection title="Performance Snapshot" defaultOpen>
+                {performanceCard}
+              </DashboardSection>
+              <DashboardSection title="Strategy Snapshot" defaultOpen>
+                {strategyCard}
+              </DashboardSection>
+            </div>
+
+            <div className="space-y-4">
+              <DashboardSection title="Portfolio Details" defaultOpen>
+                <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} />
+              </DashboardSection>
+              <DashboardSection title="Recent Activity" defaultOpen>
+                <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/activity?tab=transactions')}>
+                  <CardHeader>
+                    <CardTitle className="text-center text-2xl">Recent Activity</CardTitle>
+                  </CardHeader>
+                  <CardContent>{recentTable}</CardContent>
+                </Card>
+              </DashboardSection>
+            </div>
           </div>
-        </div>
+
+          <div className="md:hidden space-y-4">
+            <DashboardSection title="Performance Snapshot" defaultOpen>
+              {performanceCard}
+            </DashboardSection>
+
+            <DashboardSection title="Strategy Snapshot" defaultOpen>
+              {strategyCard}
+            </DashboardSection>
+
+            <DashboardSection title="Portfolio Details" defaultOpen>
+              <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} />
+            </DashboardSection>
+
+            <DashboardSection title="Recent Activity" defaultOpen>
+              <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/activity?tab=transactions')}>
+                <CardHeader>
+                  <CardTitle className="text-center text-2xl">Recent Activity</CardTitle>
+                </CardHeader>
+                <CardContent>{recentTable}</CardContent>
+              </Card>
+            </DashboardSection>
+          </div>
         </>
       )}
     </main>
