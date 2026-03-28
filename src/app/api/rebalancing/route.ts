@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
       spMetrics.assets.forEach((asset: any) => {
         const targetRecord = assetTargets?.find(at => at.asset_id === asset.asset_id && at.sub_portfolio_id === spId)
         const assetTargetInSP = targetRecord?.target_percentage || 0
-        const assetBandModeOverride = targetRecord?.band_mode_override ?? targetRecord?.band_mode ?? null
+        const assetBandModeOverride = targetRecord?.band_mode_override ?? null
         const sp = subPortfolios?.find(p => p.id === spId)
         const effectiveBandMode = typeof assetBandModeOverride === 'boolean'
           ? assetBandModeOverride

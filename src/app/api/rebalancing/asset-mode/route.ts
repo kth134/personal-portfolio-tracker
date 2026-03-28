@@ -2,13 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 
-const isMissingColumnError = (error: unknown, columnName: string) => {
-  const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : ''
-  const message = typeof error === 'object' && error !== null && 'message' in error ? String(error.message) : ''
-
-  return code === 'PGRST204' && message.includes(`'${columnName}'`)
-}
-
 const writeAssetMode = async (
   supabase: Awaited<ReturnType<typeof createClient>>,
   payload: {
@@ -20,43 +13,28 @@ const writeAssetMode = async (
   },
   bandMode: boolean
 ) => {
-  const modeColumns = ['band_mode_override', 'band_mode'] as const
-  const errors: unknown[] = []
-
-  for (let index = 0; index < modeColumns.length; index += 1) {
-    const modeColumn = modeColumns[index]
-    const writePayload = {
-      target_percentage: payload.target_percentage,
-      [modeColumn]: bandMode,
-    }
-
-    const write = payload.id
-      ? await supabase
-          .from('asset_targets')
-          .update(writePayload)
-          .eq('id', payload.id)
-          .eq('user_id', payload.user_id)
-      : await supabase
-          .from('asset_targets')
-          .insert({
-            id: randomUUID(),
-            asset_id: payload.asset_id,
-            sub_portfolio_id: payload.sub_portfolio_id,
-            user_id: payload.user_id,
-            ...writePayload,
-          })
-
-    if (!write.error) return null
-
-    errors.push(write.error)
-
-    const hasFallback = index < modeColumns.length - 1
-    if (!hasFallback || !isMissingColumnError(write.error, modeColumn)) {
-      return write.error
-    }
+  const writePayload = {
+    target_percentage: payload.target_percentage,
+    band_mode_override: bandMode,
   }
 
-  return errors[errors.length - 1] ?? null
+  const write = payload.id
+    ? await supabase
+        .from('asset_targets')
+        .update(writePayload)
+        .eq('id', payload.id)
+        .eq('user_id', payload.user_id)
+    : await supabase
+        .from('asset_targets')
+        .insert({
+          id: randomUUID(),
+          asset_id: payload.asset_id,
+          sub_portfolio_id: payload.sub_portfolio_id,
+          user_id: payload.user_id,
+          ...writePayload,
+        })
+
+  return write.error
 }
 
 export async function PUT(request: NextRequest) {
