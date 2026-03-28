@@ -1,6 +1,37 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+const writeAssetMode = async (
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  payload: {
+    asset_id: string
+    sub_portfolio_id: string
+    user_id: string
+    target_percentage: number
+  },
+  bandMode: boolean
+) => {
+  const modeColumns = ['band_mode_override', 'band_mode'] as const
+  let lastError: unknown = null
+
+  for (const modeColumn of modeColumns) {
+    const write = await supabase
+      .from('asset_targets')
+      .upsert(
+        {
+          ...payload,
+          [modeColumn]: bandMode,
+        },
+        { onConflict: 'asset_id,sub_portfolio_id,user_id' }
+      )
+
+    if (!write.error) return null
+    lastError = write.error
+  }
+
+  return lastError
+}
+
 export async function PUT(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -52,37 +83,16 @@ export async function PUT(request: NextRequest) {
 
     const upsertTarget = existingTarget?.target_percentage ?? fallbackTarget
 
-    const primaryWrite = await supabase
-      .from('asset_targets')
-      .upsert(
-        {
-          asset_id,
-          sub_portfolio_id,
-          user_id: user.id,
-          target_percentage: upsertTarget,
-          band_mode_override: band_mode,
-        },
-        { onConflict: 'asset_id,sub_portfolio_id,user_id' }
-      )
-
-    let writeError = primaryWrite.error
-
-    if (writeError && /band_mode_override/i.test(String(writeError.message || ''))) {
-      const fallbackWrite = await supabase
-        .from('asset_targets')
-        .upsert(
-          {
-            asset_id,
-            sub_portfolio_id,
-            user_id: user.id,
-            target_percentage: upsertTarget,
-            band_mode,
-          },
-          { onConflict: 'asset_id,sub_portfolio_id,user_id' }
-        )
-
-      writeError = fallbackWrite.error
-    }
+    const writeError = await writeAssetMode(
+      supabase,
+      {
+        asset_id,
+        sub_portfolio_id,
+        user_id: user.id,
+        target_percentage: upsertTarget,
+      },
+      band_mode
+    )
 
     if (writeError) throw writeError
 
