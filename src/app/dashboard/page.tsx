@@ -164,13 +164,81 @@ const formatUSDWhole = (value: number | null | undefined) => {
 };
 const formatPctTenth = (value: number | null | undefined) => `${(Number(value) || 0).toFixed(1)}%`;
 
-function DashboardSection({ title, defaultOpen = false, children }: {
+const RADIAN = Math.PI / 180;
+
+type PiePercentageLabelProps = {
+  cx?: number;
+  cy?: number;
+  midAngle?: number;
+  innerRadius?: number;
+  outerRadius?: number;
+  percent?: number;
+};
+
+const renderPiePercentageLabel = ({
+  cx = 0,
+  cy = 0,
+  midAngle = 0,
+  innerRadius = 0,
+  outerRadius = 0,
+  percent = 0,
+}: PiePercentageLabelProps) => {
+  if (!percent || percent < 0.04) return null;
+
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.58;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="white"
+      textAnchor={x > cx ? 'start' : 'end'}
+      dominantBaseline="central"
+      className="text-[11px] font-semibold"
+    >
+      {`${(percent * 100).toFixed(1)}%`}
+    </text>
+  );
+};
+
+function MetricChip({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {
+  return (
+    <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
+      <div className="text-zinc-500">{label}</div>
+      <div className={cn('font-semibold tabular-nums leading-tight', valueClassName)}>{value}</div>
+    </div>
+  );
+}
+
+function DashboardSection({
+  title,
+  defaultOpen = false,
+  mobileDefaultOpen,
+  desktopDefaultOpen,
+  children,
+}: {
   title: string;
   defaultOpen?: boolean;
+  mobileDefaultOpen?: boolean;
+  desktopDefaultOpen?: boolean;
   children: ReactNode;
 }) {
+  const [isOpen, setIsOpen] = useState(() => {
+    if (typeof window === 'undefined') return defaultOpen;
+
+    return window.matchMedia('(max-width: 767px)').matches
+      ? (mobileDefaultOpen ?? defaultOpen)
+      : (desktopDefaultOpen ?? defaultOpen);
+  });
+
   return (
-    <details open={defaultOpen} className="group rounded-xl border bg-background shadow-sm overflow-hidden">
+    <details
+      open={isOpen}
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      className="group rounded-xl border bg-background shadow-sm overflow-hidden"
+    >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
         <span className="text-xl font-bold">{title}</span>
         <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
@@ -254,14 +322,15 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate }: {
           {allocations.map((slice, idx) => (
             <div key={idx} className="space-y-4">
               <h4 className="font-medium text-center">{slice.key}</h4>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
+              <ResponsiveContainer width="100%" height={320}>
+                <PieChart margin={{ top: 8, right: 12, left: 12, bottom: 28 }}>
                   <Pie
                     data={slice.data}
                     dataKey="value"
                     nameKey="subkey"
-                    outerRadius={100}
-                    label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
+                    outerRadius={88}
+                    label={renderPiePercentageLabel}
+                    labelLine={false}
                     onClick={(data) => handlePieClick(data)}
                   >
                     {slice.data.map((_, i: number) => (
@@ -269,7 +338,12 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate }: {
                     ))}
                   </Pie>
                   <Tooltip formatter={(v: number | undefined) => v !== undefined ? formatUSDWhole(v) : ''} />
-                  <Legend />
+                  <Legend
+                    verticalAlign="bottom"
+                    align="center"
+                    iconSize={10}
+                    wrapperStyle={{ paddingTop: 14, fontSize: '12px', lineHeight: '16px' }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -802,6 +876,28 @@ export default function DashboardHome() {
   };
 
   const rebalanceNeeded = !!rebalancingData?.currentAllocations?.some((item) => item.action !== 'hold');
+  const strategySubPortfolios = rebalancingData ? (() => {
+    const grouped = new Map<string, RebalancingCurrentAllocation[]>();
+
+    rebalancingData.currentAllocations.forEach((item) => {
+      const key = item.sub_portfolio_id || 'unassigned';
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)?.push(item);
+    });
+
+    return Array.from(grouped.entries()).map(([id, allocations]) => {
+      const subPortfolio = rebalancingData.subPortfolios.find((sp) => sp.id === id);
+      const name = subPortfolio?.name || 'Unassigned';
+      const target = subPortfolio?.target_allocation || 0;
+      const currentValue = allocations.reduce((sum: number, item) => sum + item.current_value, 0);
+      const currentPct = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0;
+      const assetLevelDrift = currentValue > 0
+        ? allocations.reduce((sum: number, item) => sum + (Math.abs(item.drift_percentage) * item.current_value), 0) / currentValue
+        : 0;
+
+      return { id, name, target, currentValue, currentPct, assetLevelDrift };
+    }).sort((a, b) => b.currentValue - a.currentValue);
+  })() : [];
 
   const controlsPanel = (
     <div className="mb-2 flex flex-col items-start gap-3 md:flex-row md:items-end md:justify-between md:gap-4">
@@ -992,9 +1088,9 @@ export default function DashboardHome() {
                   </div>
                 </div>
               </div>
-              <div className="text-center h-full rounded-md border p-3 flex flex-col justify-between">
+              <div className="text-center h-full rounded-md border p-3 flex min-h-[132px] flex-col items-center justify-center gap-3">
                 <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>
-                <p className="text-xl font-bold">
+                <p className="flex min-h-[2rem] items-center justify-center text-xl font-bold">
                   {rebalancingData.currentAllocations.some((item) => item.action !== 'hold') ? (
                     <span className="text-red-600">Yes</span>
                   ) : (
@@ -1005,7 +1101,28 @@ export default function DashboardHome() {
             </div>
 
             <div>
-              <div className="max-h-48 overflow-y-auto">
+              <div className="md:hidden space-y-3">
+                {strategySubPortfolios.map((sp) => (
+                  <div key={sp.id} className="rounded-lg border bg-background p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-semibold leading-tight break-words">{sp.name}</div>
+                        <div className="text-xs text-muted-foreground">Current Value</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-semibold tabular-nums">{formatUSDWhole(sp.currentValue)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                      <MetricChip label="Target" value={`${sp.target.toFixed(1)}%`} valueClassName="text-blue-700" />
+                      <MetricChip label="Actual" value={`${sp.currentPct.toFixed(1)}%`} />
+                      <MetricChip label="Asset Drift" value={`${sp.assetLevelDrift.toFixed(1)}%`} valueClassName={sp.assetLevelDrift > 0 ? 'text-red-600' : 'text-zinc-700'} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden md:block max-h-48 overflow-y-auto">
                 <Table className="w-full min-w-[760px] table-fixed" containerClassName="overscroll-x-contain">
                   <colgroup>
                     <col className="w-[32%]" />
@@ -1024,25 +1141,7 @@ export default function DashboardHome() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(() => {
-                      const grouped = new Map<string, RebalancingCurrentAllocation[]>()
-                      rebalancingData.currentAllocations.forEach((item) => {
-                        const key = item.sub_portfolio_id || 'unassigned'
-                        if (!grouped.has(key)) grouped.set(key, [])
-                        grouped.get(key).push(item)
-                      })
-
-                      const subPortfolios = Array.from(grouped.entries()).map(([id, allocations]) => {
-                        const subPortfolio = rebalancingData.subPortfolios.find((sp) => sp.id === id)
-                        const name = subPortfolio?.name || 'Unassigned'
-                        const target = subPortfolio?.target_allocation || 0
-                        const currentValue = allocations.reduce((sum: number, item) => sum + item.current_value, 0)
-                        const currentPct = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
-                        const assetLevelDrift = currentValue > 0 ? allocations.reduce((sum: number, item) => sum + (Math.abs(item.drift_percentage) * item.current_value), 0) / currentValue : 0
-                        return { name, target, currentValue, currentPct, assetLevelDrift }
-                      }).sort((a, b) => b.currentValue - a.currentValue)
-
-                      return subPortfolios.map((sp, idx) => (
+                    {strategySubPortfolios.map((sp, idx) => (
                         <TableRow key={idx}>
                           <TableCell className="px-3 sm:px-4 text-left font-medium truncate">{sp.name}</TableCell>
                           <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(sp.currentValue)}</TableCell>
@@ -1050,8 +1149,7 @@ export default function DashboardHome() {
                           <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.currentPct.toFixed(1)}%</TableCell>
                           <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.assetLevelDrift.toFixed(1)}%</TableCell>
                         </TableRow>
-                      ))
-                    })()}
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -1065,6 +1163,29 @@ export default function DashboardHome() {
   );
 
   const recentTable = (
+    <>
+      <div className="md:hidden space-y-3">
+        {recentTransactions.map((tx) => (
+          <div key={tx.id} className="rounded-lg border bg-background p-3 shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-semibold leading-tight">{tx.asset?.ticker || tx.type}</div>
+                <div className="text-xs text-muted-foreground truncate">{tx.account?.name || 'External / Cash Flow'}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-semibold tabular-nums">{formatUSDWhole(Number(tx.amount))}</div>
+                <div className="text-[11px] text-muted-foreground">{tx.date}</div>
+              </div>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+              <MetricChip label="Type" value={tx.type} valueClassName="text-xs leading-tight break-words" />
+              <MetricChip label="Date" value={tx.date} valueClassName="text-xs" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden md:block">
     <Table className="w-full min-w-[620px] table-fixed" containerClassName="overscroll-x-contain">
       <colgroup>
         <col className="w-[18%]" />
@@ -1094,6 +1215,8 @@ export default function DashboardHome() {
         ))}
       </TableBody>
     </Table>
+      </div>
+    </>
   );
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -1167,7 +1290,7 @@ export default function DashboardHome() {
         <h1 className="text-3xl font-bold">Portfolio Dashboard</h1>
       </div>
 
-      <DashboardSection title="Dashboard Controls" defaultOpen>
+      <DashboardSection title="Dashboard Controls" defaultOpen desktopDefaultOpen mobileDefaultOpen={false}>
         {controlsPanel}
       </DashboardSection>
 
@@ -1177,7 +1300,7 @@ export default function DashboardHome() {
         <div className="text-center py-12 text-muted-foreground rounded-xl border bg-background shadow-sm">Select at least one value to view data.</div>
       ) : (
         <>
-          <DashboardSection title="Key KPIs" defaultOpen>
+          <DashboardSection title="Key KPIs" defaultOpen desktopDefaultOpen mobileDefaultOpen={false}>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Portfolio Value</Label>
@@ -1206,19 +1329,19 @@ export default function DashboardHome() {
 
           <div className="hidden md:grid md:grid-cols-2 gap-4">
             <div className="space-y-4">
-              <DashboardSection title="Performance Snapshot" defaultOpen>
+              <DashboardSection title="Performance Snapshot" defaultOpen desktopDefaultOpen mobileDefaultOpen>
                 {performanceCard}
               </DashboardSection>
-              <DashboardSection title="Strategy Snapshot" defaultOpen>
+              <DashboardSection title="Strategy Snapshot" defaultOpen desktopDefaultOpen mobileDefaultOpen={false}>
                 {strategyCard}
               </DashboardSection>
             </div>
 
             <div className="space-y-4">
-              <DashboardSection title="Portfolio Details" defaultOpen>
+              <DashboardSection title="Portfolio Details" defaultOpen desktopDefaultOpen mobileDefaultOpen={false}>
                 <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} />
               </DashboardSection>
-              <DashboardSection title="Recent Activity" defaultOpen>
+              <DashboardSection title="Recent Activity" defaultOpen desktopDefaultOpen mobileDefaultOpen={false}>
                 <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/activity?tab=transactions')}>
                   <CardHeader>
                     <CardTitle className="text-center text-2xl">Recent Activity</CardTitle>
@@ -1230,19 +1353,19 @@ export default function DashboardHome() {
           </div>
 
           <div className="md:hidden space-y-4">
-            <DashboardSection title="Performance Snapshot" defaultOpen>
+            <DashboardSection title="Performance Snapshot" defaultOpen mobileDefaultOpen desktopDefaultOpen>
               {performanceCard}
             </DashboardSection>
 
-            <DashboardSection title="Strategy Snapshot" defaultOpen>
+            <DashboardSection title="Strategy Snapshot" defaultOpen={false} mobileDefaultOpen={false} desktopDefaultOpen>
               {strategyCard}
             </DashboardSection>
 
-            <DashboardSection title="Portfolio Details" defaultOpen>
+            <DashboardSection title="Portfolio Details" defaultOpen={false} mobileDefaultOpen={false} desktopDefaultOpen>
               <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} />
             </DashboardSection>
 
-            <DashboardSection title="Recent Activity" defaultOpen>
+            <DashboardSection title="Recent Activity" defaultOpen={false} mobileDefaultOpen={false} desktopDefaultOpen>
               <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/activity?tab=transactions')}>
                 <CardHeader>
                   <CardTitle className="text-center text-2xl">Recent Activity</CardTitle>
