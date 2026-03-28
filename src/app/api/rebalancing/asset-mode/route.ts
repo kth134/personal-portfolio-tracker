@@ -1,9 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
+
+const isMissingColumnError = (error: unknown, columnName: string) => {
+  const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : ''
+  const message = typeof error === 'object' && error !== null && 'message' in error ? String(error.message) : ''
+
+  return code === 'PGRST204' && message.includes(`'${columnName}'`)
+}
 
 const writeAssetMode = async (
   supabase: Awaited<ReturnType<typeof createClient>>,
   payload: {
+    id?: string
     asset_id: string
     sub_portfolio_id: string
     user_id: string
@@ -12,24 +21,42 @@ const writeAssetMode = async (
   bandMode: boolean
 ) => {
   const modeColumns = ['band_mode_override', 'band_mode'] as const
-  let lastError: unknown = null
+  const errors: unknown[] = []
 
-  for (const modeColumn of modeColumns) {
-    const write = await supabase
-      .from('asset_targets')
-      .upsert(
-        {
-          ...payload,
-          [modeColumn]: bandMode,
-        },
-        { onConflict: 'asset_id,sub_portfolio_id,user_id' }
-      )
+  for (let index = 0; index < modeColumns.length; index += 1) {
+    const modeColumn = modeColumns[index]
+    const writePayload = {
+      target_percentage: payload.target_percentage,
+      [modeColumn]: bandMode,
+    }
+
+    const write = payload.id
+      ? await supabase
+          .from('asset_targets')
+          .update(writePayload)
+          .eq('id', payload.id)
+          .eq('user_id', payload.user_id)
+      : await supabase
+          .from('asset_targets')
+          .insert({
+            id: randomUUID(),
+            asset_id: payload.asset_id,
+            sub_portfolio_id: payload.sub_portfolio_id,
+            user_id: payload.user_id,
+            ...writePayload,
+          })
 
     if (!write.error) return null
-    lastError = write.error
+
+    errors.push(write.error)
+
+    const hasFallback = index < modeColumns.length - 1
+    if (!hasFallback || !isMissingColumnError(write.error, modeColumn)) {
+      return write.error
+    }
   }
 
-  return lastError
+  return errors[errors.length - 1] ?? null
 }
 
 export async function PUT(request: NextRequest) {
@@ -71,7 +98,7 @@ export async function PUT(request: NextRequest) {
 
     const { data: existingTarget } = await supabase
       .from('asset_targets')
-      .select('target_percentage')
+      .select('id, target_percentage')
       .eq('asset_id', asset_id)
       .eq('sub_portfolio_id', sub_portfolio_id)
       .eq('user_id', user.id)
@@ -86,6 +113,7 @@ export async function PUT(request: NextRequest) {
     const writeError = await writeAssetMode(
       supabase,
       {
+        id: existingTarget?.id,
         asset_id,
         sub_portfolio_id,
         user_id: user.id,
