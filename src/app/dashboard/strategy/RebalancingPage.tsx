@@ -67,6 +67,7 @@ export default function RebalancingPage() {
   // Local overrides for instant updates (Rule #8)
   const [overrideSubSettings, setOverrideSubSettings] = useState<Record<string, { target?: number, upside?: number, downside?: number, bandMode?: boolean }>>({})
   const [overrideAssetTargets, setOverrideAssetTargets] = useState<Record<string, number>>({})
+  const [overrideAssetModes, setOverrideAssetModes] = useState<Record<string, boolean>>({})
 
   const fetchData = async () => {
     setLoading(true)
@@ -131,6 +132,27 @@ export default function RebalancingPage() {
     } catch (err) { console.error(err) }
   }
 
+  const updateAssetMode = async (assetId: string, spId: string, checked: boolean, targetPct?: number) => {
+    setOverrideAssetModes(prev => ({ ...prev, [assetId]: checked }))
+    try {
+      const res = await fetch('/api/rebalancing/asset-mode', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asset_id: assetId,
+          sub_portfolio_id: spId,
+          band_mode: checked,
+          target_percentage: targetPct,
+        }),
+      })
+      if (!res.ok) {
+        console.error('Save failed for asset mode update:', await res.text())
+      }
+    } catch (err) {
+      console.error('Save failed:', err)
+    }
+  }
+
   useEffect(() => {
     if (lens === 'total') { setAvailableValues([]); setSelectedValues([]); return; }
     const fetchVals = async () => {
@@ -174,6 +196,11 @@ export default function RebalancingPage() {
     const allocations = data.currentAllocations.map((a: any) => {
       const sp = subPortfolios.find((p: any) => p.id === a.sub_portfolio_id);
       const targetInGroup = overrideAssetTargets[a.asset_id] ?? a.sub_portfolio_target_percentage;
+      const rawAssetBandMode = a.asset_band_mode ?? a.band_mode_override;
+      const assetBandMode = overrideAssetModes[a.asset_id]
+        ?? (typeof rawAssetBandMode === 'boolean'
+          ? rawAssetBandMode
+          : (rawAssetBandMode === 1 ? true : (rawAssetBandMode === 0 ? false : !!sp?.band_mode)));
       const groupVal = subIdValues[a.sub_portfolio_id] || 0;
       const impliedOverallTarget = ((sp?.target_allocation || 0) * targetInGroup) / 100;
       const currentInSPPct = groupVal > 0 ? (a.current_value / groupVal) * 100 : 0;
@@ -182,6 +209,7 @@ export default function RebalancingPage() {
       return {
         ...a,
         sub_portfolio_target_percentage: targetInGroup,
+        asset_band_mode: assetBandMode,
         implied_overall_target: impliedOverallTarget,
         current_in_sp: currentInSPPct,
         drift_percentage_in_sp: driftInSP,
@@ -193,22 +221,26 @@ export default function RebalancingPage() {
     const portfolioAssetActions = new Map<string, any>();
     allocations.forEach((row: any) => {
       const sp = subPortfolios.find((p: any) => p.id === row.sub_portfolio_id);
+      const effectiveBandMode = !!row.asset_band_mode;
       const res = calculatePortfolioAssetAction({
         currentValue: row.current_value,
         totalPortfolioValue: data.totalValue,
         targetOverallPct: row.implied_overall_target || 0,
         upsideThreshold: Math.abs(sp?.upside_threshold ?? 5),
         downsideThreshold: Math.abs(sp?.downside_threshold ?? 5),
-        bandMode: !!sp?.band_mode,
+        bandMode: effectiveBandMode,
       });
 
       portfolioAssetActions.set(row.asset_id, {
         asset_id: row.asset_id,
+        sub_portfolio_id: row.sub_portfolio_id,
         ticker: row.ticker,
         name: row.name,
         current_value: row.current_value,
+        sub_portfolio_target_percentage: row.sub_portfolio_target_percentage,
         target_overall_pct: row.implied_overall_target || 0,
-        amount_mode: sp?.band_mode ? 'Conservative' : 'Absolute',
+        amount_mode: effectiveBandMode ? 'Conservative' : 'Absolute',
+        band_mode: effectiveBandMode,
         current_overall_pct: res.currentOverallPct,
         drift_percentage: res.driftPercentage,
         action: res.action,
@@ -446,7 +478,7 @@ export default function RebalancingPage() {
       totalWeightedSubDrift,
       netImpact,
     };
-  }, [data, overrideSubSettings, overrideAssetTargets]);
+  }, [data, overrideSubSettings, overrideAssetTargets, overrideAssetModes]);
 
   const chartSlices = useMemo(() => {
     if (!calculatedData) return [];
@@ -639,20 +671,27 @@ export default function RebalancingPage() {
       const action: 'buy' | 'sell' = net >= 0 ? 'buy' : 'sell'
       const amount = Math.abs(net)
       const metrics = assetByTicker.get(row.ticker) || {
+        asset_id: null,
         current_overall_pct: 0,
         target_overall_pct: 0,
         drift_percentage: 0,
         name: row.ticker,
+        amount_mode: 'Absolute',
+        band_mode: false,
       }
       const recommendation = buildTaxRecommendation(metrics, action, amount)
 
       return {
+        assetId: metrics.asset_id,
+        subPortfolioId: metrics.sub_portfolio_id,
+        subPortfolioTargetPct: Number(metrics.sub_portfolio_target_percentage || 0),
         ticker: row.ticker,
         name: metrics.name || row.ticker,
         action,
         amount,
         type: actionableTickerSet.has(row.ticker) ? 'Out-of-Band Asset' : 'Supporting Transaction',
-        rebalanceMode: actionableTickerSet.has(row.ticker) ? (metrics.amount_mode || 'N/A') : 'N/A',
+        rebalanceMode: metrics.amount_mode || 'Absolute',
+        bandMode: !!metrics.band_mode,
         currentPct: Number(metrics.current_overall_pct || 0),
         targetPct: Number(metrics.target_overall_pct || 0),
         driftPct: Number(metrics.drift_percentage || 0),
@@ -701,9 +740,9 @@ export default function RebalancingPage() {
       </details>
 
       <details className="order-3 group rounded-xl border bg-background shadow-sm overflow-hidden">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
-          <span className="text-xl font-bold">Portfolio Drift Chart</span>
-          <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-black px-4 py-3 text-white">
+            <span className="text-xl font-bold">Portfolio Drift Chart</span>
+            <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-300">
             <span className="hidden sm:inline">Expand / Collapse</span>
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
           </span>
@@ -811,7 +850,17 @@ export default function RebalancingPage() {
 
                     <div className="mt-2 flex items-center justify-between gap-2 text-sm">
                       <span className="text-[10px] uppercase tracking-wide text-zinc-500">{row.type}</span>
-                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">Mode: {row.rebalanceMode}</span>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id={`mobile-plan-mode-out-${idx}`}
+                          checked={row.bandMode}
+                          onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct)}
+                          disabled={!row.assetId || !row.subPortfolioId}
+                        />
+                        <Label htmlFor={`mobile-plan-mode-out-${idx}`} className="text-[10px] uppercase tracking-wide text-zinc-500 cursor-pointer">
+                          {row.rebalanceMode}
+                        </Label>
+                      </div>
                     </div>
 
                     <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
@@ -867,7 +916,17 @@ export default function RebalancingPage() {
 
                     <div className="mt-2 flex items-center justify-between gap-2 text-sm">
                       <span className="text-[10px] uppercase tracking-wide text-zinc-500">{row.type}</span>
-                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">Mode: {row.rebalanceMode}</span>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id={`mobile-plan-mode-sup-${idx}`}
+                          checked={row.bandMode}
+                          onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct)}
+                          disabled={!row.assetId || !row.subPortfolioId}
+                        />
+                        <Label htmlFor={`mobile-plan-mode-sup-${idx}`} className="text-[10px] uppercase tracking-wide text-zinc-500 cursor-pointer">
+                          {row.rebalanceMode}
+                        </Label>
+                      </div>
                     </div>
 
                     <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
@@ -934,7 +993,17 @@ export default function RebalancingPage() {
                       <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
                       <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
                       <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
-                      <TableCell className="text-center text-xs">{row.rebalanceMode}</TableCell>
+                      <TableCell className="text-center text-xs">
+                        <div className="inline-flex items-center justify-center gap-2">
+                          <Switch
+                            id={`desktop-plan-mode-out-${idx}`}
+                            checked={row.bandMode}
+                            onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct)}
+                            disabled={!row.assetId || !row.subPortfolioId}
+                          />
+                          <Label htmlFor={`desktop-plan-mode-out-${idx}`} className="cursor-pointer text-[11px]">{row.rebalanceMode}</Label>
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
                       <TableCell className="text-xs text-zinc-700">
                         <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
@@ -969,7 +1038,17 @@ export default function RebalancingPage() {
                       <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
                       <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
                       <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
-                      <TableCell className="text-center text-xs">{row.rebalanceMode}</TableCell>
+                      <TableCell className="text-center text-xs">
+                        <div className="inline-flex items-center justify-center gap-2">
+                          <Switch
+                            id={`desktop-plan-mode-sup-${idx}`}
+                            checked={row.bandMode}
+                            onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct)}
+                            disabled={!row.assetId || !row.subPortfolioId}
+                          />
+                          <Label htmlFor={`desktop-plan-mode-sup-${idx}`} className="cursor-pointer text-[11px]">{row.rebalanceMode}</Label>
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
                       <TableCell className="text-xs text-zinc-700">
                         <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
@@ -1010,7 +1089,6 @@ export default function RebalancingPage() {
             const absDriftWtd = totalVal > 0 ? items.reduce((s:number, i:any) => s + (Math.abs(i.drift_percentage) * i.current_value), 0) / totalVal : 0;
             const totalActionAmount = items.reduce((s:number, i:any) => s + (i.action !== 'hold' ? Number(i.amount || 0) : 0), 0);
             const sortedItems = [...items].sort((a,b) => { const aV = sortCol === 'ticker' ? a.ticker : a[sortCol]; const bV = sortCol === 'ticker' ? b.ticker : b[sortCol]; const res = (aV || 0) < (bV || 0) ? -1 : (aV || 0) > (bV || 0) ? 1 : 0; return sortDir === 'asc' ? res : -res; });
-            const hasBreach = items.some((item: any) => item.action !== 'hold');
             const portfolioTotal = data?.totalValue || 0;
             const allocPct = portfolioTotal > 0 ? (totalVal / portfolioTotal) * 100 : 0;
             const targetAllocPct = totalImplied;
@@ -1018,24 +1096,38 @@ export default function RebalancingPage() {
 
             return (
               <AccordionItem key={sp.id} value={sp.id} className="border rounded-xl mb-6 overflow-hidden shadow-sm bg-background">
-                <AccordionTrigger className="bg-black text-white px-6 hover:bg-zinc-900 transition-all font-bold uppercase hover:no-underline">
-                  <div className="flex justify-between w-full mr-6 items-center">
-                    <div className="flex flex-1 min-w-0 items-center gap-1">
-                        <span>{sp.name}</span>
-                        {hasBreach && <AlertTriangle className="w-3 h-3 ml-0.5 flex-shrink-0 text-yellow-400" />}
+                <AccordionTrigger className="bg-black text-white px-4 sm:px-6 hover:bg-zinc-900 transition-all font-bold hover:no-underline">
+                  <div className="flex w-full items-center justify-between gap-3 pr-2 sm:pr-6">
+                    <div className="min-w-0">
+                      <span className="block truncate text-sm sm:text-base uppercase tracking-wide">{sp.name}</span>
                     </div>
-                    <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-3 text-[10px] sm:text-sm font-mono opacity-90 font-bold sm:items-center items-end">
-                      <span>Value: {formatUSDWhole(totalVal)}</span>
-                      <span>Alloc: {allocPct.toFixed(1)}%</span>
-                      <span className="text-blue-200">Target: {targetAllocPct.toFixed(1)}%</span>
-                      <span className={cn(subDrift > 0 ? "text-green-400" : (subDrift < 0 ? "text-red-400" : ""))}>
-                        Drift: {subDrift.toFixed(1)}%
+                    <div className="flex flex-col items-end gap-0.5 text-[11px] sm:text-xs font-mono whitespace-nowrap">
+                      <span className="text-white">{formatUSDWhole(totalVal)}</span>
+                      <span className={cn(subDrift > 0 ? "text-green-400" : (subDrift < 0 ? "text-red-400" : "text-zinc-300"))}>
+                        {subDrift > 0 ? '+' : ''}{subDrift.toFixed(1)}%
                       </span>
                     </div>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="p-0 bg-background">
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 p-4 bg-zinc-50 border-b">
+                    <div className="md:hidden border-b bg-zinc-100/80 p-3">
+                      <div className="grid grid-cols-3 gap-2 text-[10px]">
+                        <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
+                          <div className="text-zinc-500">Target Weight</div>
+                          <div className="font-semibold tabular-nums text-blue-700">{targetAllocPct.toFixed(1)}%</div>
+                        </div>
+                        <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
+                          <div className="text-zinc-500">Actual Weight</div>
+                          <div className="font-semibold tabular-nums">{allocPct.toFixed(1)}%</div>
+                        </div>
+                        <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
+                          <div className="text-zinc-500">Drift</div>
+                          <div className={cn("font-semibold tabular-nums", subDrift > 0 ? "text-green-600" : (subDrift < 0 ? "text-red-600" : "text-zinc-700"))}>{subDrift > 0 ? '+' : ''}{subDrift.toFixed(1)}%</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-zinc-50 border-b">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-6 items-end">
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
                           const parsed = parsePercentWithTwoDecimals(e.target.value)
                           if (parsed === null) {
@@ -1043,10 +1135,11 @@ export default function RebalancingPage() {
                             return
                           }
                           updateSubPortfolio(sp.id, 'target_allocation', parsed)
-                        }} className="h-8 max-w-[150px] bg-white border-zinc-300"/></div>
-                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Upside Threshold %</Label><Input defaultValue={sp.upside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'upside_threshold', parseFloat(e.target.value))} className="h-8 max-w-[150px] bg-white border-zinc-300"/></div>
-                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 max-w-[150px] bg-white border-zinc-300"/></div>
-                        <div className="flex items-center gap-3 pt-4 sm:pt-0"><Switch id={`band-mode-${sp.id}`} checked={sp.band_mode} onCheckedChange={(checked) => updateSubPortfolio(sp.id, 'band_mode', checked ? 1 : 0)} /><Label htmlFor={`band-mode-${sp.id}`} className="text-xs font-medium cursor-pointer">{sp.band_mode ? 'Conservative' : 'Absolute'} Mode</Label></div>
+                        }} className="h-8 w-full sm:max-w-[150px] bg-white border-zinc-300"/></div>
+                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Upside Threshold %</Label><Input defaultValue={sp.upside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'upside_threshold', parseFloat(e.target.value))} className="h-8 w-full sm:max-w-[150px] bg-white border-zinc-300"/></div>
+                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 w-full sm:max-w-[150px] bg-white border-zinc-300"/></div>
+                        <div className="col-span-3 sm:col-span-1 flex justify-center sm:justify-start items-center gap-3 pt-2 sm:pt-0"><Switch id={`band-mode-${sp.id}`} checked={sp.band_mode} onCheckedChange={(checked) => updateSubPortfolio(sp.id, 'band_mode', checked ? 1 : 0)} /><Label htmlFor={`band-mode-${sp.id}`} className="text-xs font-medium cursor-pointer">{sp.band_mode ? 'Conservative' : 'Absolute'} Mode</Label></div>
+                        </div>
                     </div>
                     <div className="md:hidden p-3 space-y-3 bg-zinc-50 border-b">
                       {sortedItems.map((i: any) => (
@@ -1059,58 +1152,67 @@ export default function RebalancingPage() {
                             <div className="font-semibold leading-tight tabular-nums whitespace-nowrap">{formatUSDWhole(i.current_value)}</div>
                           </div>
 
+                          <div className="mt-2 flex items-center justify-between gap-2 text-sm">
+                            <span className={cn("text-[10px] font-bold uppercase tracking-wide", i.action === 'buy' ? 'text-green-600' : i.action === 'sell' ? 'text-red-600' : 'text-zinc-500')}>
+                              {i.action === 'hold' ? 'Hold' : i.action.toUpperCase()}
+                            </span>
+                            <span className="text-xs font-semibold tabular-nums">{i.action === 'hold' ? '-' : formatUSDWhole(i.amount)}</span>
+                          </div>
+
+                          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                            <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                              <div className="text-zinc-500">Current</div>
+                              <div className="font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div>
+                            </div>
+                            <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                              <div className="text-zinc-500">Target</div>
+                              <div className="font-semibold tabular-nums text-blue-700">{Number(i.implied_overall_target || 0).toFixed(1)}%</div>
+                            </div>
+                            <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                              <div className="text-zinc-500">Drift</div>
+                              <div className={cn("font-semibold tabular-nums", i.drift_percentage > 0 ? "text-green-600" : (i.drift_percentage < 0 ? "text-red-600" : "text-zinc-700"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div>
+                            </div>
+                          </div>
+
                           <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                            <div className="rounded border border-amber-200 bg-amber-50/50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]">
-                              <span className="text-zinc-600 text-center leading-tight">Sub-Portfolio Target</span>
-                              <div className="flex items-center justify-center">
-                                <Input
-                                  defaultValue={i.sub_portfolio_target_percentage}
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  step="0.01"
-                                  onBlur={(e) => {
-                                    const parsed = parsePercentWithTwoDecimals(e.target.value)
-                                    if (parsed === null) {
-                                      alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
-                                      return
-                                    }
-                                    updateAssetTarget(i.asset_id, sp.id, parsed)
-                                  }}
-                                  className="h-8 w-full border-amber-300 bg-amber-50 text-center font-semibold tabular-nums text-[11px] focus:ring-0"
+                            <div className="rounded border border-amber-200 bg-amber-50/50 px-2 py-1.5">
+                              <div className="text-zinc-600 text-center leading-tight">Sub-Portfolio Target</div>
+                              <Input
+                                defaultValue={i.sub_portfolio_target_percentage}
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                onBlur={(e) => {
+                                  const parsed = parsePercentWithTwoDecimals(e.target.value)
+                                  if (parsed === null) {
+                                    alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
+                                    return
+                                  }
+                                  updateAssetTarget(i.asset_id, sp.id, parsed)
+                                }}
+                                className="mt-1 h-8 w-full border-amber-300 bg-amber-50 text-center font-semibold tabular-nums text-[11px] focus:ring-0"
+                              />
+                            </div>
+                            <div className="rounded border border-zinc-200 bg-zinc-50 px-2 py-1.5">
+                              <div className="text-zinc-500 text-center leading-tight">Sub-Portfolio Weight</div>
+                              <div className="mt-2 text-center font-semibold tabular-nums">{Number(i.current_in_sp || 0).toFixed(1)}%</div>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 rounded border border-zinc-200 bg-zinc-50 px-2 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-zinc-500">Asset Rebalance Mode</span>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  id={`mobile-asset-mode-${i.asset_id}`}
+                                  checked={!!i.asset_band_mode}
+                                  onCheckedChange={(checked) => updateAssetMode(i.asset_id, sp.id, checked, Number(i.sub_portfolio_target_percentage || 0))}
                                 />
+                                <Label htmlFor={`mobile-asset-mode-${i.asset_id}`} className="cursor-pointer font-semibold text-zinc-700">
+                                  {i.asset_band_mode ? 'Conservative' : 'Absolute'}
+                                </Label>
                               </div>
-                            </div>
-                            <div className="rounded bg-zinc-50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]">
-                              <span className="text-zinc-500 text-center leading-tight">Sub-Portfolio Weight</span>
-                              <div className="flex items-center justify-center font-semibold tabular-nums">{Number(i.current_in_sp || 0).toFixed(1)}%</div>
-                            </div>
-                            <div className="rounded bg-zinc-50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]">
-                              <span className="text-zinc-500 text-center leading-tight">Overall Target</span>
-                              <div className="flex items-center justify-center font-semibold tabular-nums">{Number(i.implied_overall_target || 0).toFixed(1)}%</div>
-                            </div>
-                            <div className="rounded bg-zinc-50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]">
-                              <span className="text-zinc-500 text-center leading-tight">Overall Wt.</span>
-                              <div className="flex items-center justify-center font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div>
-                            </div>
-                            <div
-                              className={cn(
-                                "col-span-2 relative rounded bg-zinc-50 px-2 py-1.5 min-h-[76px] grid grid-rows-[auto_1fr]",
-                                i.action === 'sell'
-                                  ? 'border-2 border-red-300'
-                                  : i.action === 'buy'
-                                    ? 'border-2 border-green-300'
-                                    : 'border border-zinc-200'
-                              )}
-                            >
-                              <span className="text-zinc-500 text-center leading-tight">Drift</span>
-                              {i.action === 'sell' && (
-                                <span className="absolute right-2 top-1 text-[10px] font-bold uppercase tracking-wide text-red-600">Sell</span>
-                              )}
-                              {i.action === 'buy' && (
-                                <span className="absolute right-2 top-1 text-[10px] font-bold uppercase tracking-wide text-green-600">Buy</span>
-                              )}
-                              <div className={cn("flex items-center justify-center font-semibold tabular-nums", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div>
                             </div>
                           </div>
                         </div>
@@ -1128,6 +1230,7 @@ export default function RebalancingPage() {
                           <col className="w-[10%]" />
                           <col className="w-[8%]" />
                           <col className="w-[8%]" />
+                          <col className="w-[10%]" />
                           <col className="w-[8%]" />
                           <col className="w-[8%]" />
                         </colgroup>
@@ -1181,6 +1284,7 @@ export default function RebalancingPage() {
                                 <SortIcon col="drift_percentage" />
                               </button>
                             </TableHead>
+                            <TableHead className="px-3 sm:px-4 text-center whitespace-nowrap">Asset Mode</TableHead>
                             <TableHead className="px-3 sm:px-4 text-center whitespace-nowrap">Action</TableHead>
                             <TableHead className="px-3 sm:px-4 text-right whitespace-nowrap">Amount</TableHead>
                           </TableRow>
@@ -1216,6 +1320,18 @@ export default function RebalancingPage() {
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.implied_overall_target.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(i.current_percentage || 0).toFixed(1)}%</TableCell>
                               <TableCell className={cn("px-3 sm:px-4 text-right tabular-nums font-bold whitespace-nowrap", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell>
+                              <TableCell className="px-3 sm:px-4 text-center whitespace-nowrap">
+                                <div className="inline-flex items-center justify-center gap-2">
+                                  <Switch
+                                    id={`desktop-asset-mode-${i.asset_id}`}
+                                    checked={!!i.asset_band_mode}
+                                    onCheckedChange={(checked) => updateAssetMode(i.asset_id, sp.id, checked, Number(i.sub_portfolio_target_percentage || 0))}
+                                  />
+                                  <Label htmlFor={`desktop-asset-mode-${i.asset_id}`} className="cursor-pointer text-xs">
+                                    {i.asset_band_mode ? 'Conservative' : 'Absolute'}
+                                  </Label>
+                                </div>
+                              </TableCell>
                               <TableCell className="px-3 sm:px-4 text-center font-bold whitespace-nowrap">
                                 {i.action === 'hold' ? (
                                   <span className="text-zinc-300">-</span>
@@ -1237,6 +1353,7 @@ export default function RebalancingPage() {
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalImplied.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{allocPct.toFixed(1)}%</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{absDriftWtd.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-center text-white text-xs">Mixed</TableCell>
                             <TableCell className="px-3 sm:px-4 text-center text-white">N/A</TableCell>
                             <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{formatUSDWhole(totalActionAmount)}</TableCell>
                           </TableRow>

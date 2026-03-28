@@ -105,7 +105,9 @@ export async function GET(req: NextRequest) {
       const spTargetPct = spMetrics.targetPct
 
       spMetrics.assets.forEach((asset: any) => {
-        const assetTargetInSP = assetTargets?.find(at => at.asset_id === asset.asset_id && at.sub_portfolio_id === spId)?.target_percentage || 0
+        const targetRecord = assetTargets?.find(at => at.asset_id === asset.asset_id && at.sub_portfolio_id === spId)
+        const assetTargetInSP = targetRecord?.target_percentage || 0
+        const assetBandModeOverride = targetRecord?.band_mode_override ?? targetRecord?.band_mode ?? null
         const impliedOverallTarget = (spTargetPct * assetTargetInSP) / 100
         const currentOverallPct = totalPortfolioValue > 0 ? (asset.current_value / totalPortfolioValue) * 100 : 0
         const currentInSPPct = spTotalValue > 0 ? (asset.current_value / spTotalValue) * 100 : 0
@@ -144,6 +146,7 @@ export async function GET(req: NextRequest) {
           implied_overall_target: impliedOverallTarget,
           target_in_sp: assetTargetInSP,
           sub_portfolio_target_percentage: assetTargetInSP,
+          asset_band_mode: assetBandModeOverride,
           current_in_sp: currentInSPPct,
           sub_portfolio_percentage: currentInSPPct,
           drift_percentage: relativeDrift,
