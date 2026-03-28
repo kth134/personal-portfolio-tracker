@@ -51,21 +51,12 @@ const parsePercentWithTwoDecimals = (rawValue: string): number | null => {
   return Math.round(scaled) / 100
 }
 
-type SaveState = 'idle' | 'saving' | 'saved' | 'error'
-
 const MetricChip = ({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) => (
   <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
     <div className="text-zinc-500">{label}</div>
     <div className={cn('font-semibold tabular-nums', valueClassName)}>{value}</div>
   </div>
 )
-
-const SaveIndicator = ({ state }: { state: SaveState }) => {
-  if (state === 'idle') return null
-  if (state === 'saving') return <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Saving...</span>
-  if (state === 'saved') return <span className="text-[10px] font-medium uppercase tracking-wide text-green-600">Saved</span>
-  return <span className="text-[10px] font-medium uppercase tracking-wide text-red-600">Error</span>
-}
 
 export default function RebalancingPage() {
   const [lens, setLens] = useState('total')
@@ -84,17 +75,6 @@ export default function RebalancingPage() {
   const [overrideSubSettings, setOverrideSubSettings] = useState<Record<string, { target?: number, upside?: number, downside?: number, bandMode?: boolean }>>({})
   const [overrideAssetTargets, setOverrideAssetTargets] = useState<Record<string, number>>({})
   const [overrideAssetModes, setOverrideAssetModes] = useState<Record<string, boolean>>({})
-  const [controlSaveState, setControlSaveState] = useState<Record<string, SaveState>>({})
-
-  const setControlState = (key: string | undefined, state: SaveState) => {
-    if (!key) return
-    setControlSaveState(prev => ({ ...prev, [key]: state }))
-    if (state === 'saved' || state === 'error') {
-      setTimeout(() => {
-        setControlSaveState(prev => ({ ...prev, [key]: 'idle' }))
-      }, 1800)
-    }
-  }
 
   const fetchData = async () => {
     setLoading(true)
@@ -108,7 +88,7 @@ export default function RebalancingPage() {
 
   useEffect(() => { fetchData() }, [])
 
-  const updateSubPortfolio = async (id: string, field: string, value: any, controlKey?: string) => {
+  const updateSubPortfolio = async (id: string, field: string, value: any) => {
     // Rule #8: Update local state immediately for instant math refresh
     const key = field === 'target_allocation' ? 'target' : 
                 field === 'upside_threshold' ? 'upside' :
@@ -118,7 +98,6 @@ export default function RebalancingPage() {
       ...prev,
       [id]: { ...(prev[id] || {}), [key]: value }
     }));
-    setControlState(controlKey, 'saving')
 
     try {
       const endpoint = field === 'target_allocation' ? '/api/rebalancing/sub-portfolio-target' : '/api/rebalancing/thresholds';
@@ -142,39 +121,30 @@ export default function RebalancingPage() {
         const softRes = await fetch('/api/rebalancing', { cache: 'no-store' });
         const softPayload = await softRes.json();
         setData(softPayload);
-        setControlState(controlKey, 'saved')
       } else {
         console.error('Save failed for sub-portfolio update:', await res.text());
-        setControlState(controlKey, 'error')
       }
     } catch (err) {
       console.error('Save failed:', err)
-      setControlState(controlKey, 'error')
     }
   }
 
-  const updateAssetTarget = async (assetId: string, spId: string, value: number, controlKey?: string) => {
+  const updateAssetTarget = async (assetId: string, spId: string, value: number) => {
     setOverrideAssetTargets(p => ({...p, [assetId]: value}));
-    setControlState(controlKey, 'saving')
     try {
       const res = await fetch('/api/rebalancing/asset-target', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_id: assetId, sub_portfolio_id: spId, target_percentage: value }) });
       if (res.ok) {
         const softRes = await fetch('/api/rebalancing', { cache: 'no-store' });
         const softPayload = await softRes.json();
         setData(softPayload);
-        setControlState(controlKey, 'saved')
-      } else {
-        setControlState(controlKey, 'error')
       }
     } catch (err) {
       console.error(err)
-      setControlState(controlKey, 'error')
     }
   }
 
-  const updateAssetMode = async (assetId: string, spId: string, checked: boolean, targetPct?: number, controlKey?: string) => {
+  const updateAssetMode = async (assetId: string, spId: string, checked: boolean, targetPct?: number) => {
     setOverrideAssetModes(prev => ({ ...prev, [assetId]: checked }))
-    setControlState(controlKey, 'saving')
     try {
       const res = await fetch('/api/rebalancing/asset-mode', {
         method: 'PUT',
@@ -188,33 +158,10 @@ export default function RebalancingPage() {
       })
       if (!res.ok) {
         console.error('Save failed for asset mode update:', await res.text())
-        setControlState(controlKey, 'error')
-      } else {
-        setControlState(controlKey, 'saved')
       }
     } catch (err) {
       console.error('Save failed:', err)
-      setControlState(controlKey, 'error')
     }
-  }
-
-  const resetSubPortfolioOverrides = async (spId: string, assetIds: string[]) => {
-    setOverrideSubSettings(prev => {
-      const next = { ...prev }
-      delete next[spId]
-      return next
-    })
-    setOverrideAssetTargets(prev => {
-      const next = { ...prev }
-      assetIds.forEach(id => delete next[id])
-      return next
-    })
-    setOverrideAssetModes(prev => {
-      const next = { ...prev }
-      assetIds.forEach(id => delete next[id])
-      return next
-    })
-    await fetchData()
   }
 
   useEffect(() => {
@@ -904,18 +851,17 @@ export default function RebalancingPage() {
                     </div>
 
                     <div className="mt-2 flex items-center justify-between gap-2 text-sm">
-                      <div className="flex items-center gap-2 rounded border border-zinc-200 bg-zinc-50 px-2 py-1">
-                        <span className={cn('text-[10px] uppercase tracking-wide', !row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Absolute</span>
+                      <div className="flex max-w-full items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1 overflow-hidden">
+                        <span className={cn('text-[9px] uppercase tracking-wide', !row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Abs</span>
                         <Switch
                           id={`mobile-plan-mode-out-${idx}`}
                           checked={row.bandMode}
                           aria-label={`Set rebalance mode for ${row.ticker}`}
-                          onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct, `plan-mobile-mode-${row.assetId}`)}
+                          onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct)}
                           disabled={!row.assetId || !row.subPortfolioId}
                         />
-                        <span className={cn('text-[10px] uppercase tracking-wide', row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Conservative</span>
+                        <span className={cn('text-[9px] uppercase tracking-wide', row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Cons</span>
                       </div>
-                      <SaveIndicator state={controlSaveState[`plan-mobile-mode-${row.assetId}`] || 'idle'} />
                     </div>
 
                     <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
@@ -1024,18 +970,18 @@ export default function RebalancingPage() {
                       <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
                       <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
                       <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
-                      <TableCell className="text-center text-xs">
-                        <div className="inline-flex items-center justify-center gap-2">
+                      <TableCell className="text-center text-xs whitespace-nowrap overflow-hidden">
+                        <div className="mx-auto inline-flex max-w-full items-center justify-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1 overflow-hidden">
+                          <span className={cn('text-[9px] uppercase tracking-wide', !row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Abs</span>
                           <Switch
                             id={`desktop-plan-mode-out-${idx}`}
                             checked={row.bandMode}
                             aria-label={`Set rebalance mode for ${row.ticker}`}
-                            onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct, `plan-desktop-mode-${row.assetId}`)}
+                            onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct)}
                             disabled={!row.assetId || !row.subPortfolioId}
                           />
-                          <Label htmlFor={`desktop-plan-mode-out-${idx}`} className="cursor-pointer text-[11px]">{row.rebalanceMode}</Label>
+                          <span className={cn('text-[9px] uppercase tracking-wide', row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Cons</span>
                         </div>
-                        <SaveIndicator state={controlSaveState[`plan-desktop-mode-${row.assetId}`] || 'idle'} />
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
                       <TableCell className="text-xs text-zinc-700 whitespace-normal break-words leading-snug align-top">
@@ -1156,10 +1102,6 @@ export default function RebalancingPage() {
                     <div className="p-4 bg-zinc-50 border-b">
                         <div className="rounded-lg border-2 border-zinc-300 bg-white p-3">
                       <div className="rounded-md bg-black px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">Sub-Portfolio Inputs</div>
-                        <div className="mt-1 flex items-center justify-between">
-                          <SaveIndicator state={controlSaveState[`sub-${sp.id}-group`] || 'idle'} />
-                          <Button variant="outline" size="sm" className="h-6 px-2 text-[10px]" onClick={() => resetSubPortfolioOverrides(sp.id, items.map((it: any) => it.asset_id))}>Reset Overrides</Button>
-                        </div>
                         <div className="mt-2 grid grid-cols-3 gap-2 sm:gap-4 items-end">
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input aria-label={`Sub-portfolio target for ${sp.name}`} defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
                           const parsed = parsePercentWithTwoDecimals(e.target.value)
@@ -1167,10 +1109,10 @@ export default function RebalancingPage() {
                             alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
                             return
                           }
-                          updateSubPortfolio(sp.id, 'target_allocation', parsed, `sub-${sp.id}-group`)
+                          updateSubPortfolio(sp.id, 'target_allocation', parsed)
                         }} className="h-8 w-full bg-amber-50 border-amber-300 focus-visible:ring-amber-300"/></div>
-                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Upside Threshold %</Label><Input aria-label={`Upside threshold for ${sp.name}`} defaultValue={sp.upside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'upside_threshold', parseFloat(e.target.value), `sub-${sp.id}-group`)} className="h-8 w-full bg-amber-50 border-amber-300 focus-visible:ring-amber-300"/></div>
-                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input aria-label={`Downside threshold for ${sp.name}`} defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value), `sub-${sp.id}-group`)} className="h-8 w-full bg-amber-50 border-amber-300 focus-visible:ring-amber-300"/></div>
+                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Upside Threshold %</Label><Input aria-label={`Upside threshold for ${sp.name}`} defaultValue={sp.upside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'upside_threshold', parseFloat(e.target.value))} className="h-8 w-full bg-amber-50 border-amber-300 focus-visible:ring-amber-300"/></div>
+                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input aria-label={`Downside threshold for ${sp.name}`} defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 w-full bg-amber-50 border-amber-300 focus-visible:ring-amber-300"/></div>
                         </div>
                         </div>
                     </div>
@@ -1223,11 +1165,10 @@ export default function RebalancingPage() {
                                     alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
                                     return
                                   }
-                                  updateAssetTarget(i.asset_id, sp.id, parsed, `asset-target-mobile-${i.asset_id}`)
+                                  updateAssetTarget(i.asset_id, sp.id, parsed)
                                 }}
                                 className="mt-1 h-8 w-full border-amber-300 bg-amber-50 text-center font-semibold tabular-nums text-[11px] focus:ring-0"
                               />
-                              <SaveIndicator state={controlSaveState[`asset-target-mobile-${i.asset_id}`] || 'idle'} />
                             </div>
                             <div className="rounded border border-zinc-200 bg-zinc-50 px-2 py-1.5">
                               <div className="text-zinc-500 text-center leading-tight">Sub-Portfolio Weight</div>
@@ -1238,18 +1179,17 @@ export default function RebalancingPage() {
                           <div className="mt-2 rounded border border-zinc-200 bg-zinc-50 px-2 py-2">
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-zinc-500">Rebalance Mode</span>
-                              <div className="flex items-center gap-2 rounded border border-zinc-200 bg-white px-2 py-1">
-                                <span className={cn('text-[10px] uppercase tracking-wide', !i.asset_band_mode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Absolute</span>
+                              <div className="flex max-w-full items-center gap-1 rounded border border-zinc-200 bg-white px-2 py-1 overflow-hidden">
+                                <span className={cn('text-[9px] uppercase tracking-wide', !i.asset_band_mode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Abs</span>
                                 <Switch
                                   id={`mobile-asset-mode-${i.asset_id}`}
                                   checked={!!i.asset_band_mode}
                                   aria-label={`Set rebalance mode for ${i.ticker}`}
-                                  onCheckedChange={(checked) => updateAssetMode(i.asset_id, sp.id, checked, Number(i.sub_portfolio_target_percentage || 0), `asset-mode-mobile-${i.asset_id}`)}
+                                  onCheckedChange={(checked) => updateAssetMode(i.asset_id, sp.id, checked, Number(i.sub_portfolio_target_percentage || 0))}
                                 />
-                                <span className={cn('text-[10px] uppercase tracking-wide', i.asset_band_mode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Conservative</span>
+                                <span className={cn('text-[9px] uppercase tracking-wide', i.asset_band_mode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Cons</span>
                               </div>
                             </div>
-                            <SaveIndicator state={controlSaveState[`asset-mode-mobile-${i.asset_id}`] || 'idle'} />
                           </div>
                         </div>
                       ))}
@@ -1351,28 +1291,26 @@ export default function RebalancingPage() {
                                       alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
                                       return
                                     }
-                                    updateAssetTarget(i.asset_id, sp.id, parsed, `asset-target-desktop-${i.asset_id}`)
+                                    updateAssetTarget(i.asset_id, sp.id, parsed)
                                   }}
                                   className="h-8 text-right w-20 ml-auto border-amber-300 bg-amber-50/70 focus:ring-0"
                                 />
-                                <SaveIndicator state={controlSaveState[`asset-target-desktop-${i.asset_id}`] || 'idle'} />
                               </TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.current_in_sp.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.implied_overall_target.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(i.current_percentage || 0).toFixed(1)}%</TableCell>
                               <TableCell className={cn("px-3 sm:px-4 text-right tabular-nums font-bold whitespace-nowrap", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell>
-                              <TableCell className="px-3 sm:px-4 text-center whitespace-nowrap">
-                                <div className="inline-flex items-center justify-center gap-2 rounded border border-zinc-200 bg-zinc-50 px-2 py-1">
-                                  <span className={cn('text-[10px] uppercase tracking-wide', !i.asset_band_mode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Absolute</span>
+                              <TableCell className="px-3 sm:px-4 text-center whitespace-nowrap overflow-hidden">
+                                <div className="inline-flex max-w-full items-center justify-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1 overflow-hidden">
+                                  <span className={cn('text-[9px] uppercase tracking-wide', !i.asset_band_mode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Abs</span>
                                   <Switch
                                     id={`desktop-asset-mode-${i.asset_id}`}
                                     checked={!!i.asset_band_mode}
                                     aria-label={`Set rebalance mode for ${i.ticker}`}
-                                    onCheckedChange={(checked) => updateAssetMode(i.asset_id, sp.id, checked, Number(i.sub_portfolio_target_percentage || 0), `asset-mode-desktop-${i.asset_id}`)}
+                                    onCheckedChange={(checked) => updateAssetMode(i.asset_id, sp.id, checked, Number(i.sub_portfolio_target_percentage || 0))}
                                   />
-                                  <span className={cn('text-[10px] uppercase tracking-wide', i.asset_band_mode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Conservative</span>
+                                  <span className={cn('text-[9px] uppercase tracking-wide', i.asset_band_mode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Cons</span>
                                 </div>
-                                <SaveIndicator state={controlSaveState[`asset-mode-desktop-${i.asset_id}`] || 'idle'} />
                               </TableCell>
                               <TableCell className="px-3 sm:px-4 text-center font-bold whitespace-nowrap">
                                 {i.action === 'hold' ? (
