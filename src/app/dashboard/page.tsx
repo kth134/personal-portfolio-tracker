@@ -1346,29 +1346,11 @@ export default function DashboardHome() {
           <div className="hidden md:grid md:grid-cols-2 gap-4">
             <div className="space-y-4">
               <DashboardSection
-                title="Performance Snapshot"
+                title="Performance"
                 isOpen={sectionState.performanceSnapshot}
                 onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, performanceSnapshot: nextOpen }))}
               >
                 {performanceCard}
-              </DashboardSection>
-              <DashboardSection
-                title="Strategy Snapshot"
-                isOpen={sectionState.strategySnapshot}
-                onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, strategySnapshot: nextOpen }))}
-              >
-                {strategyCard}
-              </DashboardSection>
-            </div>
-
-            <div className="space-y-4">
-              <DashboardSection
-                title="Portfolio Details"
-                isOpen={sectionState.portfolioDetails}
-                onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, portfolioDetails: nextOpen }))}
-              >
-                {chartControlsPanel}
-                <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} />
               </DashboardSection>
               <DashboardSection
                 title="Recent Activity"
@@ -1380,11 +1362,29 @@ export default function DashboardHome() {
                 </Card>
               </DashboardSection>
             </div>
+
+            <div className="space-y-4">
+              <DashboardSection
+                title="Portfolio Allocation"
+                isOpen={sectionState.portfolioDetails}
+                onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, portfolioDetails: nextOpen }))}
+              >
+                {chartControlsPanel}
+                <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} />
+              </DashboardSection>
+              <DashboardSection
+                title="Portfolio Drift"
+                isOpen={sectionState.strategySnapshot}
+                onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, strategySnapshot: nextOpen }))}
+              >
+                {strategyCard}
+              </DashboardSection>
+            </div>
           </div>
 
           <div className="md:hidden space-y-4">
             <DashboardSection
-              title="Performance Snapshot"
+              title="Performance"
               isOpen={sectionState.performanceSnapshot}
               onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, performanceSnapshot: nextOpen }))}
             >
@@ -1392,20 +1392,20 @@ export default function DashboardHome() {
             </DashboardSection>
 
             <DashboardSection
-              title="Strategy Snapshot"
-              isOpen={sectionState.strategySnapshot}
-              onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, strategySnapshot: nextOpen }))}
-            >
-              {strategyCard}
-            </DashboardSection>
-
-            <DashboardSection
-              title="Portfolio Details"
+              title="Portfolio Allocation"
               isOpen={sectionState.portfolioDetails}
               onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, portfolioDetails: nextOpen }))}
             >
               {chartControlsPanel}
               <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} />
+            </DashboardSection>
+
+            <DashboardSection
+              title="Portfolio Drift"
+              isOpen={sectionState.strategySnapshot}
+              onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, strategySnapshot: nextOpen }))}
+            >
+              {strategyCard}
             </DashboardSection>
 
             <DashboardSection
