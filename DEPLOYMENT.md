@@ -6,6 +6,9 @@
   - `RAINVEST_EMAIL`, `RAINVEST_PASSWORD`
   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
   - `SUPABASE_SERVICE_ROLE_KEY`
+  - `GROK_API_KEY`
+- Optional env vars:
+  - `GROK_MODEL` (defaults to `grok-4.20-0309-reasoning`; also pinned in `vercel.json` for deployments)
 - Re-seed **test3** only if seed data changed:
   - `npx tsx scripts/seed_test3.ts`
 

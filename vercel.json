@@ -1,4 +1,7 @@
 {
+  "env": {
+    "GROK_MODEL": "grok-4.20-0309-reasoning"
+  },
   "crons": [
     {
       "path": "/api/fetch-prices",

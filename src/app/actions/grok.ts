@@ -8,6 +8,7 @@ import { calculateCashBalances, fetchAllUserTransactionsServer } from '@/lib/fin
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const grokApiKey = process.env.GROK_API_KEY!;
+const grokModel = process.env.GROK_MODEL?.trim() || 'grok-4.20-0309-reasoning';
 
 interface GlidePathItem {
   age: number;
@@ -586,7 +587,7 @@ Respond conversationally but professionally—no fluff.`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${grokApiKey}` },
         body: JSON.stringify({
-          model: "grok-4-1-fast-reasoning",
+          model: grokModel,
           messages,
           temperature: 0.6,
           max_tokens: 1000,
