@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { calculateIRR, calculateCashBalances, transactionFlowForIRR, netCashFlowsByDate, fetchAllUserTransactions } from '@/lib/finance';
+import { DashboardPageShell } from '@/components/dashboard-shell';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7'];
 
@@ -1288,11 +1289,12 @@ export default function DashboardHome() {
 
   // Normal dashboard view (MFA cleared)
   return (
-    <main className="flex flex-col gap-4 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
-      <div className="text-center py-2">
-        <h1 className="text-3xl font-bold">Portfolio Dashboard</h1>
-      </div>
-
+    <DashboardPageShell
+      eyebrow="Overview"
+      title="Portfolio Dashboard"
+      description="Monitor portfolio value, performance, allocation, drift, and recent activity from a single overview."
+      className="overflow-x-hidden"
+    >
       <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-background px-4 py-3 shadow-sm">
         <Button
           onClick={handleRefresh}
@@ -1420,6 +1422,6 @@ export default function DashboardHome() {
           </div>
         </>
       )}
-    </main>
+    </DashboardPageShell>
   );
 }

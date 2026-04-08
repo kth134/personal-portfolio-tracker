@@ -29,7 +29,7 @@ export function DashboardPageShell({
 }: DashboardPageShellProps) {
   return (
     <main className={cn('mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 pb-8 pt-4 sm:px-6 lg:px-8', className)}>
-      <section className="overflow-hidden rounded-[28px] border border-zinc-200/70 bg-[linear-gradient(135deg,rgba(9,9,11,0.96),rgba(24,24,27,0.94)_58%,rgba(63,63,70,0.88))] px-5 py-6 text-white shadow-[0_28px_80px_-40px_rgba(9,9,11,0.85)] sm:px-7 sm:py-8">
+      <section className="dashboard-page-banner">
         <div className="max-w-3xl space-y-3">
           {eyebrow ? (
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/60">{eyebrow}</p>
@@ -37,7 +37,7 @@ export function DashboardPageShell({
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">{title}</h1>
             {description ? (
-              <p className="max-w-2xl text-sm leading-6 text-zinc-300 sm:text-base">{description}</p>
+              <p className="max-w-2xl text-sm leading-6 text-white/78 sm:text-base">{description}</p>
             ) : null}
           </div>
         </div>
