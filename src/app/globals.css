@@ -151,7 +151,7 @@
 
   .dashboard-contrast-header {
     @apply text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-[filter,box-shadow] hover:brightness-110;
-    background-color: var(--brand-emerald);
+    background-color: rgb(9, 9, 11);
   }
 
   .dashboard-contrast-pill {
@@ -237,26 +237,11 @@
   }
 
   .dashboard-table-shell [data-slot='table-header'] [data-slot='table-row'] {
-    border-color: rgba(63, 63, 70, 0.9);
-    background-color: rgb(9, 9, 11);
+    @apply border-zinc-200 bg-zinc-50/85;
   }
 
   .dashboard-table-shell [data-slot='table-head'] {
-    @apply h-12 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] sm:px-4;
-    color: rgba(255, 255, 255, 0.88);
-  }
-
-  main [data-slot='table-header'] [data-slot='table-row'] {
-    border-color: rgba(63, 63, 70, 0.9);
-    background-color: rgb(9, 9, 11);
-  }
-
-  main [data-slot='table-head'] {
-    color: rgba(255, 255, 255, 0.88);
-  }
-
-  main [data-slot='table-head'] svg {
-    color: rgba(255, 255, 255, 0.72);
+    @apply h-12 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 sm:px-4;
   }
 
   .dashboard-table-shell [data-slot='table-body'] [data-slot='table-row'] {
