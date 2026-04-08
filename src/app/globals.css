@@ -147,6 +147,7 @@
 
   .dashboard-tabs [data-slot='tabs-trigger'][data-state='active'] {
     @apply border-zinc-950 bg-[linear-gradient(180deg,rgba(39,39,42,1),rgba(9,9,11,1))] text-white shadow-[0_18px_30px_-22px_rgba(9,9,11,0.95)];
+    color: white;
   }
 
   .dashboard-tabs [data-slot='tabs-content'] {
