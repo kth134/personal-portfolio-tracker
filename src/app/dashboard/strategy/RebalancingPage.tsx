@@ -606,6 +606,21 @@ export default function RebalancingPage() {
 
   const toggleValue = (v: string) => setSelectedValues(p => p.includes(v) ? p.filter(it => it !== v) : [...p, v])
 
+  useEffect(() => {
+    const handleBannerRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ register?: (promise: Promise<unknown>) => void }>).detail
+      detail?.register?.((async () => {
+        setRefreshing(true)
+        await refreshAssetPrices()
+        await fetchData()
+        setRefreshing(false)
+      })())
+    }
+
+    window.addEventListener('dashboard:portfolio-refresh', handleBannerRefresh)
+    return () => window.removeEventListener('dashboard:portfolio-refresh', handleBannerRefresh)
+  }, [])
+
   if (loading || !calculatedData) return <div className="rounded-[26px] border border-zinc-200/80 bg-white px-6 py-12 text-center text-lg shadow-sm animate-pulse">Calculating rebalancing paths...</div>
 
   const rebalanceNeeded = calculatedData.allocations.some((a: any) => a.action !== 'hold')
@@ -773,21 +788,6 @@ export default function RebalancingPage() {
 
   const outOfBandSummary = summarizePlanRows(outOfBandPlanRows)
   const supportingSummary = summarizePlanRows(supportingPlanRows)
-
-  useEffect(() => {
-    const handleBannerRefresh = (event: Event) => {
-      const detail = (event as CustomEvent<{ register?: (promise: Promise<unknown>) => void }>).detail
-      detail?.register?.((async () => {
-        setRefreshing(true)
-        await refreshAssetPrices()
-        await fetchData()
-        setRefreshing(false)
-      })())
-    }
-
-    window.addEventListener('dashboard:portfolio-refresh', handleBannerRefresh)
-    return () => window.removeEventListener('dashboard:portfolio-refresh', handleBannerRefresh)
-  }, [])
 
   return (
     <div className="flex flex-col gap-6 overflow-x-hidden">
