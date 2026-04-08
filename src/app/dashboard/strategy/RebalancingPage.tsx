@@ -889,7 +889,7 @@ export default function RebalancingPage() {
                 {outOfBandPlanRows.length > 0 && (
                   <div className="space-y-2">
                     <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
-                      <div className="dashboard-contrast-pill px-2 py-1 text-[11px]">Out-of-Band Assets</div>
+                      <div className="dashboard-contrast-pill bg-zinc-950 px-2 py-1 text-[11px]">Out-of-Band Assets</div>
                       <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
                         <MetricChip label="Gross Buy" value={formatUSDWhole(outOfBandSummary.grossBuy)} valueClassName="text-green-700" />
                         <MetricChip label="Gross Sell" value={formatUSDWhole(outOfBandSummary.grossSell)} valueClassName="text-red-700" />
@@ -936,7 +936,7 @@ export default function RebalancingPage() {
                 {supportingPlanRows.length > 0 && (
                   <div className="space-y-2">
                     <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
-                      <div className="dashboard-contrast-pill px-2 py-1 text-[11px]">Supporting Transactions</div>
+                      <div className="dashboard-contrast-pill bg-zinc-950 px-2 py-1 text-[11px]">Supporting Transactions</div>
                       <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
                         <MetricChip label="Gross Buy" value={formatUSDWhole(supportingSummary.grossBuy)} valueClassName="text-green-700" />
                         <MetricChip label="Gross Sell" value={formatUSDWhole(supportingSummary.grossSell)} valueClassName="text-red-700" />
