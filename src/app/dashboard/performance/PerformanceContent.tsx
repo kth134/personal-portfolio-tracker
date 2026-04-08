@@ -32,6 +32,10 @@ import {
 import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, formatCashFlowsDebug, netCashFlowsByDate, transactionFlowForIRR, fetchAllUserTransactions } from '@/lib/finance';
 import { DashboardSurface } from '@/components/dashboard-shell';
 
+type RefreshEventDetail = {
+  register?: (promise: Promise<unknown>) => void
+}
+
 // use centralized calculateIRR and normalizeTransactionToFlow from src/lib/finance
 
 const LENSES = [
@@ -149,6 +153,16 @@ function PerformanceContent() {
       setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    const handleBannerRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<RefreshEventDetail>).detail
+      detail?.register?.(handleRefreshPrices())
+    }
+
+    window.addEventListener('dashboard:performance-refresh', handleBannerRefresh)
+    return () => window.removeEventListener('dashboard:performance-refresh', handleBannerRefresh)
+  }, [handleRefreshPrices]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -666,15 +680,6 @@ function PerformanceContent() {
             </SelectContent>
           </Select>
         </div>
-        <Button
-          onClick={handleRefreshPrices}
-          disabled={refreshing || loading}
-          variant="refresh"
-          size="sm"
-          className="h-10"
-        >
-          {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-        </Button>
         {refreshMessage && (
           <span className={cn("text-sm", refreshMessage.includes('failed') ? "text-red-600" : "text-green-600")}>
             {refreshMessage}

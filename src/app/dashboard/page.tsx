@@ -1293,21 +1293,21 @@ export default function DashboardHome() {
       eyebrow="Overview"
       title="Portfolio Dashboard"
       description="Monitor portfolio value, performance, allocation, drift, and recent activity from a single overview."
-      className="overflow-x-hidden"
-    >
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-background px-4 py-3 shadow-sm">
+      action={(
         <Button
           onClick={handleRefresh}
           disabled={refreshing}
           variant="refresh"
           size="sm"
-          className="h-9"
+          className="h-10 min-w-[180px]"
         >
           <RefreshCw className={cn('w-4 h-4 mr-2', refreshing && 'animate-spin')} />
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}
         </Button>
-        {refreshMessage && <span className="text-sm text-green-600">{refreshMessage}</span>}
-      </div>
+      )}
+      className="overflow-x-hidden"
+    >
+      {refreshMessage ? <div className="text-sm text-green-600">{refreshMessage}</div> : null}
 
       {loading ? (
         <div className="text-center py-12 rounded-xl border bg-background shadow-sm">Loading portfolio data...</div>

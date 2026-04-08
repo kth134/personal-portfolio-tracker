@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import PortfolioHoldingsWithSlicers from './PortfolioHoldingsWithSlicers'
 import RebalancingPage from '../strategy/RebalancingPage'
 import { DashboardPageShell } from '@/components/dashboard-shell'
+import { BannerRefreshButton } from '@/components/BannerRefreshButton'
 
 // Types (simplified for this page)
 type TaxLot = {
@@ -77,6 +78,7 @@ export default async function PortfolioPage({
       eyebrow="Portfolio"
       title="Portfolio Management"
       description="Review current holdings, inspect allocation slices, and switch into rebalancing decisions from one portfolio workspace."
+      action={<BannerRefreshButton eventName="dashboard:portfolio-refresh" />}
     >
       <Tabs key={initialTab} defaultValue={initialTab} className="dashboard-tabs">
         <TabsList className="w-full sm:w-auto">

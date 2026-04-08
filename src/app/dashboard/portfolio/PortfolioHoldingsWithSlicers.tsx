@@ -18,6 +18,10 @@ import { cn } from '@/lib/utils'
 import { refreshAssetPrices } from './actions'
 import { DashboardSurface } from '@/components/dashboard-shell'
 
+type RefreshEventDetail = {
+  register?: (promise: Promise<unknown>) => void
+}
+
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7']
 
 const LENSES = [
@@ -114,6 +118,23 @@ export default function PortfolioHoldingsWithSlicers({
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [openItems, setOpenItems] = useState<string[]>([])
   const [itemSorts, setItemSorts] = useState<Record<string, { key: string; dir: 'asc' | 'desc' }>>({})
+
+  const handleRefreshPrices = async () => {
+    setRefreshing(true)
+    await refreshAssetPrices()
+    setRefreshTrigger(t => t + 1)
+    setRefreshing(false)
+  }
+
+  useEffect(() => {
+    const handleBannerRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<RefreshEventDetail>).detail
+      detail?.register?.(handleRefreshPrices())
+    }
+
+    window.addEventListener('dashboard:portfolio-refresh', handleBannerRefresh)
+    return () => window.removeEventListener('dashboard:portfolio-refresh', handleBannerRefresh)
+  }, [])
 
   const toggleItemSort = (groupKey: string, sortKey: string) => {
     setItemSorts((prev) => {
@@ -291,14 +312,6 @@ export default function PortfolioHoldingsWithSlicers({
           </div>
         )}
 
-        <Button onClick={async () => {
-          setRefreshing(true);
-          await refreshAssetPrices();
-          setRefreshTrigger(t => t + 1);
-          setRefreshing(false);
-        }} disabled={refreshing} variant="refresh" className="h-10">
-          {refreshing ? 'Refreshing...' : 'Refresh Prices'}
-        </Button>
       </div>
 
       <div className="flex flex-wrap gap-8 justify-center">

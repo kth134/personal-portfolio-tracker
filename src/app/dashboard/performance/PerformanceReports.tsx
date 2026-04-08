@@ -126,6 +126,10 @@ type ReportsResponse = {
   assetBreakdown?: Record<string, ReportPoint[]> // asset -> data (for total portfolio non-aggregate)
 }
 
+type RefreshEventDetail = {
+  register?: (promise: Promise<unknown>) => void
+}
+
 export default function PerformanceReports() {
   const [lens, setLens] = useState('total')
   const [availableValues, setAvailableValues] = useState<{ value: string, label: string }[]>([])
@@ -261,6 +265,16 @@ export default function PerformanceReports() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    const handleBannerRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<RefreshEventDetail>).detail
+      detail?.register?.(refreshPrices())
+    }
+
+    window.addEventListener('dashboard:performance-refresh', handleBannerRefresh)
+    return () => window.removeEventListener('dashboard:performance-refresh', handleBannerRefresh)
+  }, [refreshPrices])
 
   const toggleValue = (value: string) => {
     setSelectedValues(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value])
@@ -612,21 +626,6 @@ export default function PerformanceReports() {
             </PopoverContent>
           </Popover>
         </div>
-
-        <div>
-          <Label className="invisible">Refresh</Label>
-          <Button 
-            onClick={refreshPrices} 
-            disabled={loading} 
-            variant="refresh"
-            size="sm" 
-            className="ml-auto h-10"
-          >
-            <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-            {loading ? 'Hold...' : 'Refresh Prices'}
-          </Button>
-        </div>
-
         {lastRefreshLabel && (
           <div className="w-full text-xs text-muted-foreground">
             Last price refresh: {lastRefreshLabel} (US Central)
