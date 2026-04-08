@@ -701,7 +701,7 @@ function PerformanceContent() {
                     <p className="text-sm font-semibold text-zinc-950 break-words">{row.display_name}</p>
                   )}
                 </div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="dashboard-metric-label">Market Value</p>
                     <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(row.market_value)}</p>
@@ -730,7 +730,7 @@ function PerformanceContent() {
             ))}
             <div className="dashboard-mobile-card space-y-4 border-zinc-300 bg-zinc-50/80">
               <p className="text-sm font-semibold text-zinc-950">Total</p>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="dashboard-metric-label">Market Value</p>
                   <p className="mt-1 text-sm font-semibold text-zinc-900 tabular-nums">{formatUSD(totals.market_value)}</p>

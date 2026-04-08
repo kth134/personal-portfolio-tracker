@@ -421,7 +421,7 @@ export default function PortfolioHoldingsWithSlicers({
                               <p className="text-sm font-semibold text-zinc-950 break-words">{item.ticker}</p>
                               <p className="mt-1 text-sm text-zinc-500 break-words">{item.name}</p>
                             </div>
-                            <div className="grid grid-cols-4 gap-2">
+                            <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <p className="dashboard-metric-label">Quantity</p>
                                 <p className="mt-1 text-sm text-zinc-700 tabular-nums">{itemQuantity.toLocaleString(undefined, { maximumFractionDigits: 6 })}</p>
