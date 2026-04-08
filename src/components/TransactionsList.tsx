@@ -1339,10 +1339,6 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                     <p className="mt-1 text-sm text-zinc-700 break-words">{tx.asset?.ticker || '-'}</p>
                   </div>
                   <div>
-                    <p className="dashboard-metric-label">Funding</p>
-                    <p className="mt-1 text-sm text-zinc-700 break-words">{tx.funding_source || '-'}</p>
-                  </div>
-                  <div>
                     <p className="dashboard-metric-label">Quantity</p>
                     <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.quantity != null ? Number(tx.quantity).toFixed(8) : '-'}</p>
                   </div>
@@ -1358,19 +1354,6 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                     <p className="dashboard-metric-label">Fees</p>
                     <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.fees != null ? formatUSD(tx.fees) : '-'}</p>
                   </div>
-                  <div>
-                    <p className="dashboard-metric-label">Realized G/L</p>
-                    <p className={cn(
-                      'mt-1 text-sm tabular-nums',
-                      tx.realized_gain != null && tx.realized_gain > 0 ? 'text-green-600' : tx.realized_gain != null && tx.realized_gain < 0 ? 'text-red-600' : 'text-zinc-700'
-                    )}>
-                      {tx.realized_gain != null ? formatUSD(tx.realized_gain) : '-'}
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  <p className="dashboard-metric-label">Notes</p>
-                  <p className="mt-1 text-sm text-zinc-700 break-words">{tx.notes || '-'}</p>
                 </div>
                 <div className="flex items-center justify-end gap-2">
                   <Button variant="ghost" size="sm" onClick={() => openEdit(tx)}>

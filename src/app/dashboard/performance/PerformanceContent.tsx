@@ -701,38 +701,10 @@ function PerformanceContent() {
                     <p className="text-sm font-semibold text-zinc-950 break-words">{row.display_name}</p>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {lens === 'asset' && (
-                    <>
-                      <div>
-                        <p className="dashboard-metric-label">Quantity</p>
-                        <p className="mt-1 text-sm text-zinc-700 tabular-nums">{Number(row.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</p>
-                      </div>
-                      <div>
-                        <p className="dashboard-metric-label">Current Price</p>
-                        <p className="mt-1 text-sm text-zinc-700 tabular-nums">{row.current_price != null ? formatUSD(row.current_price) : '-'}</p>
-                      </div>
-                    </>
-                  )}
+                <div className="grid grid-cols-4 gap-2">
                   <div>
                     <p className="dashboard-metric-label">Market Value</p>
                     <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(row.market_value)}</p>
-                  </div>
-                  <div>
-                    <p className="dashboard-metric-label">Unrealized G/L</p>
-                    <p className={cn('mt-1 text-sm tabular-nums', row.unrealized_gain > 0 ? 'text-green-600' : row.unrealized_gain < 0 ? 'text-red-600' : 'text-zinc-700')}>
-                      {formatUSD(row.unrealized_gain)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="dashboard-metric-label">Realized G/L</p>
-                    <p className={cn('mt-1 text-sm tabular-nums', row.realized_gain > 0 ? 'text-green-600' : row.realized_gain < 0 ? 'text-red-600' : 'text-zinc-700')}>
-                      {formatUSD(row.realized_gain)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="dashboard-metric-label">Dividends</p>
-                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(row.dividends)}</p>
                   </div>
                   <div>
                     <p className="dashboard-metric-label">Net Gain/Loss</p>
@@ -758,24 +730,10 @@ function PerformanceContent() {
             ))}
             <div className="dashboard-mobile-card space-y-4 border-zinc-300 bg-zinc-50/80">
               <p className="text-sm font-semibold text-zinc-950">Total</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-4 gap-2">
                 <div>
                   <p className="dashboard-metric-label">Market Value</p>
                   <p className="mt-1 text-sm font-semibold text-zinc-900 tabular-nums">{formatUSD(totals.market_value)}</p>
-                </div>
-                <div>
-                  <p className="dashboard-metric-label">Unrealized G/L</p>
-                  <p className={cn('mt-1 text-sm font-semibold tabular-nums', totals.unrealized_gain > 0 ? 'text-green-600' : totals.unrealized_gain < 0 ? 'text-red-600' : 'text-zinc-900')}>
-                    {formatUSD(totals.unrealized_gain)}
-                  </p>
-                </div>
-                <div>
-                  <p className="dashboard-metric-label">Realized G/L</p>
-                  <p className="mt-1 text-sm font-semibold text-zinc-900 tabular-nums">{formatUSD(totals.realized_gain)}</p>
-                </div>
-                <div>
-                  <p className="dashboard-metric-label">Dividends</p>
-                  <p className="mt-1 text-sm font-semibold text-zinc-900 tabular-nums">{formatUSD(totals.dividends)}</p>
                 </div>
                 <div>
                   <p className="dashboard-metric-label">Net Gain/Loss</p>
