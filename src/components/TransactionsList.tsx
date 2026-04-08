@@ -814,7 +814,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
       )}
       <DashboardSurface
         title="Transactions"
-        description="Manage, filter, import, and review transaction history in the same dashboard tile system and responsive table style used for rebalancing."
+        description="Filter, import, add, and review portfolio transactions, including buys, sells, income, deposits, and withdrawals."
         contentClassName="space-y-4"
       >
       <div className="dashboard-toolbar">

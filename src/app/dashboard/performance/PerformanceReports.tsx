@@ -473,7 +473,7 @@ export default function PerformanceReports() {
     <div className="space-y-8 w-full min-w-0">
       <DashboardSurface
         title="Performance Reports"
-        description="Use the same tile-based dashboard layout for benchmark comparisons, rolling return charts, and combined report metrics."
+        description="Analyze performance over time with benchmark comparisons, grouped return views, and combined gain and income charts."
         contentClassName="space-y-6"
       >
       <div className="dashboard-toolbar">

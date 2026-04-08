@@ -16,7 +16,7 @@ export default async function AssetsPage() {
     <DashboardPageShell
       eyebrow="Construction"
       title="Assets"
-      description="Keep the asset registry in sync inside the same dashboard-style workspace used for metrics, charts, and rebalancing."
+      description="Manage the asset master list, classification tags, and sub-portfolio assignments used throughout the portfolio."
     >
       <Tabs value="assets" className="dashboard-tabs">
         <PortfolioTabNavigation />

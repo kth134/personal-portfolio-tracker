@@ -49,7 +49,7 @@ export default async function ActivityPage({
     <DashboardPageShell
       eyebrow="Activity"
       title="Transactions And Tax Lots"
-      description="Manage transaction history and lot-level records with the same tile-based layout and table treatment used across the dashboard."
+      description="Review transaction history, filter activity, and manage tax lots used to track basis and remaining shares."
     >
       {debug && diagnostics && (
         <div className="rounded-[22px] border border-yellow-300 bg-yellow-50 p-4 text-yellow-800 shadow-sm">

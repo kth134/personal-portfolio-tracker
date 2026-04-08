@@ -41,6 +41,61 @@ const formatUSDWhole = (value: number | null | undefined) => {
   }).format(num)
 }
 
+const RADIAN = Math.PI / 180
+
+type PiePercentageLabelProps = {
+  cx?: number
+  cy?: number
+  midAngle?: number
+  outerRadius?: number
+  percent?: number
+  index?: number
+}
+
+const renderPiePercentageLabel = ({
+  cx = 0,
+  cy = 0,
+  midAngle = 0,
+  outerRadius = 0,
+  percent = 0,
+  index = 0,
+}: PiePercentageLabelProps) => {
+  if (!percent || percent < 0.04) return null
+
+  const isRightSide = Math.cos(-midAngle * RADIAN) >= 0
+  const startRadius = outerRadius
+  const midRadius = outerRadius + 12
+  const labelRadius = outerRadius + 28 + (index % 2) * 6
+  const startX = cx + startRadius * Math.cos(-midAngle * RADIAN)
+  const startY = cy + startRadius * Math.sin(-midAngle * RADIAN)
+  const midX = cx + midRadius * Math.cos(-midAngle * RADIAN)
+  const midY = cy + midRadius * Math.sin(-midAngle * RADIAN)
+  const labelX = cx + labelRadius * Math.cos(-midAngle * RADIAN) + (isRightSide ? 14 : -14)
+  const labelY = cy + labelRadius * Math.sin(-midAngle * RADIAN)
+  const lineEndX = labelX + (isRightSide ? -4 : 4)
+
+  return (
+    <g>
+      <path
+        d={`M ${startX} ${startY} L ${midX} ${midY} L ${lineEndX} ${labelY}`}
+        stroke="#71717a"
+        strokeWidth="1"
+        fill="none"
+      />
+      <text
+        x={labelX}
+        y={labelY}
+        fill="#18181b"
+        textAnchor={isRightSide ? 'start' : 'end'}
+        dominantBaseline="central"
+        className="text-[11px] font-semibold"
+      >
+        {`${(percent * 100).toFixed(1)}%`}
+      </text>
+    </g>
+  )
+}
+
 export default function PortfolioHoldingsWithSlicers({
   cash,
   cashByAccountName,
@@ -215,7 +270,7 @@ export default function PortfolioHoldingsWithSlicers({
     <div className="space-y-6">
       <DashboardSurface
         title="Holdings Snapshot"
-        description="Slice the portfolio, refresh market values, and compare allocation segments in the same dashboard tile format used on the home screen."
+        description="Slice holdings by portfolio dimension, refresh prices, and compare how value is distributed across the current portfolio."
         contentClassName="space-y-6"
       >
       <div className="dashboard-toolbar">
@@ -253,13 +308,18 @@ export default function PortfolioHoldingsWithSlicers({
           return (
             <div key={idx} className={cn("dashboard-chart-panel space-y-4 min-w-[300px] flex-1", normalizedPieSlices.length === 1 ? "w-full max-w-none" : "max-w-[500px]")}> 
               <h4 className="rounded-2xl bg-zinc-950 px-4 py-3 text-center text-sm font-semibold uppercase tracking-[0.16em] text-white">{slice.key}</h4>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie data={sliceData} dataKey="value" nameKey="subkey" outerRadius={100} label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}>
+              <ResponsiveContainer width="100%" height={360}>
+                <PieChart margin={{ top: 8, right: 34, left: 34, bottom: 58 }}>
+                  <Pie data={sliceData} dataKey="value" nameKey="subkey" outerRadius={82} label={renderPiePercentageLabel} labelLine={false}>
                     {sliceData.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
                   </Pie>
                   <Tooltip formatter={(v: any) => formatUSDWhole(Number(v))} />
-                  <Legend />
+                  <Legend
+                    verticalAlign="bottom"
+                    align="center"
+                    iconSize={10}
+                    wrapperStyle={{ paddingTop: 18, fontSize: '12px', lineHeight: '16px' }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -270,7 +330,7 @@ export default function PortfolioHoldingsWithSlicers({
 
       <DashboardSurface
         title="Allocation Breakdown"
-        description="Expand any slice to see the underlying positions using the same responsive table language as the rebalancing page."
+        description="Expand any group to inspect the positions, values, and portfolio weights that make up that slice of the portfolio."
         contentClassName="space-y-4 px-0 py-0"
       >
       <Accordion type="multiple" value={openItems} onValueChange={setOpenItems} className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">

@@ -7,7 +7,7 @@ export default function PerformancePage() {
     <DashboardPageShell
       eyebrow="Performance"
       title="Performance"
-      description="Track point-in-time performance data and reports in the same dashboard tile language used on the home screen."
+      description="Review portfolio performance snapshots, grouped attribution, and report views across your holdings and cash flows."
     >
       <Suspense fallback={<div className="p-8">Loading...</div>}>
         <PerformanceTabs />

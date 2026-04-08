@@ -341,7 +341,7 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
 
       <DashboardSurface
         title="Accounts Registry"
-        description="Edit account details with the same elevated tile and table treatment used across portfolio management."
+        description="Search, edit, and bulk-manage accounts, including institution, account type, and tax status."
         contentClassName="space-y-4"
       >
         <div className="dashboard-toolbar">

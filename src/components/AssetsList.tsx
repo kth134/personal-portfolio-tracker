@@ -494,7 +494,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
 
       <DashboardSurface
         title="Asset Registry"
-        description="Keep the asset catalog aligned with the rest of the dashboard using the same table and surface language."
+        description="Search, edit, and bulk-update assets, tags, notes, and sub-portfolio assignments."
         contentClassName="space-y-4"
       >
         <div className="dashboard-toolbar">

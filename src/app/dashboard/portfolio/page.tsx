@@ -76,7 +76,7 @@ export default async function PortfolioPage({
     <DashboardPageShell
       eyebrow="Portfolio"
       title="Portfolio Management"
-      description="Review holdings, drill into allocation slices, and move into rebalancing from the same dashboard-style workspace."
+      description="Review current holdings, inspect allocation slices, and switch into rebalancing decisions from one portfolio workspace."
     >
       <Tabs key={initialTab} defaultValue={initialTab} className="dashboard-tabs">
         <TabsList className="w-full sm:w-auto">

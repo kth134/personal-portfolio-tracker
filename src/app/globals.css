@@ -130,15 +130,15 @@
   }
 
   .dashboard-tabs [data-slot='tabs-list'] {
-    @apply h-auto w-full flex-wrap justify-start gap-2 rounded-[22px] border border-zinc-200/80 bg-zinc-100/85 p-2 text-zinc-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)];
+    @apply h-auto w-full flex-wrap justify-start gap-2 rounded-[22px] border border-zinc-300/90 bg-zinc-200/80 p-2 text-zinc-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)];
   }
 
   .dashboard-tabs [data-slot='tabs-trigger'] {
-    @apply min-h-10 flex-none rounded-2xl border border-transparent px-4 py-2 text-sm font-semibold tracking-tight text-zinc-600 transition-all;
+    @apply min-h-10 flex-none rounded-2xl border border-zinc-300/60 bg-zinc-100/80 px-4 py-2 text-sm font-semibold tracking-tight text-zinc-700 transition-all;
   }
 
   .dashboard-tabs [data-slot='tabs-trigger'][data-state='active'] {
-    @apply border-zinc-200 bg-white text-zinc-950 shadow-sm;
+    @apply border-zinc-950 bg-zinc-950 text-white shadow-[0_10px_30px_-18px_rgba(9,9,11,0.9)];
   }
 
   .dashboard-tabs [data-slot='tabs-content'] {

@@ -296,7 +296,7 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
 
       <DashboardSurface
         title="Sub-Portfolio Registry"
-        description="Review allocation groups with the same card hierarchy and rebalancing-style table treatment used elsewhere in the dashboard."
+        description="Manage sub-portfolio names, target allocations, objectives, and manager ownership settings."
         contentClassName="space-y-4"
       >
         <div className="dashboard-toolbar">

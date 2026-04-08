@@ -16,7 +16,7 @@ export default async function AccountsPage() {
     <DashboardPageShell
       eyebrow="Construction"
       title="Accounts"
-      description="Manage account inventory with the same elevated cards and table layout used throughout the dashboard experience."
+      description="Create and maintain the account list used for holdings, transactions, cash balances, and reporting."
     >
       <Tabs value="accounts" className="dashboard-tabs">
         <PortfolioTabNavigation />

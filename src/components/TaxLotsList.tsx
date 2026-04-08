@@ -325,7 +325,7 @@ const handleSort = (key: SortKey) => {
     <main className="space-y-6">
       <DashboardSurface
         title="Tax Lots"
-        description="Inspect, filter, and manage lot-level records in the same card and responsive table system used throughout the portfolio workspace."
+        description="Inspect purchase lots, cost basis, and remaining share balances used for realized and unrealized gain tracking."
         contentClassName="space-y-4"
       >
       <div className="dashboard-toolbar">

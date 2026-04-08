@@ -27,7 +27,7 @@ export default async function StrategyPage({
     <DashboardPageShell
       eyebrow="Construction"
       title="Sub-Portfolios"
-      description="Review and edit sub-portfolio configuration in the same polished tile-based frame used across portfolio construction and analytics."
+      description="Define allocation groups, targets, and ownership structure for the sub-portfolios that organize the account and asset mix."
     >
       <Suspense fallback={<div className="p-8">Loading...</div>}>
         <StrategyTabs initialSubPortfolios={initialSubPortfolios || []} />
