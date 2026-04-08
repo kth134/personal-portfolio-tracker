@@ -312,6 +312,7 @@ const handleSort = (key: SortKey) => {
   }, [selectedLots, displayTaxLots, currentPage, pageSize])
 
   const totalPages = Math.ceil(displayTaxLots.length / pageSize)
+  const paginatedTaxLots = displayTaxLots.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   // Adjust currentPage if out of bounds
   useEffect(() => {
@@ -597,13 +598,82 @@ const handleSort = (key: SortKey) => {
       {/* Tax Lots Table */}
       {taxLots.length > 0 ? (
         <div className="dashboard-table-shell">
+          <div className="space-y-3 md:hidden">
+            {paginatedTaxLots.map((lot) => (
+              <div key={lot.id} className={cn('dashboard-mobile-card space-y-4', lot.remaining_quantity === 0 && 'opacity-60 bg-muted/20')}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-zinc-950 break-words">{lot.asset?.ticker || '-'}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.16em] text-zinc-500">{lot.purchase_date}</p>
+                  </div>
+                  <Checkbox
+                    checked={selectedLots.includes(lot.id)}
+                    onCheckedChange={(checked) => handleSelectLot(lot.id, checked as boolean)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="dashboard-metric-label">Account</p>
+                    <p className="mt-1 text-sm text-zinc-700 break-words">{lot.account?.name || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Status</p>
+                    <span className={cn(
+                      'mt-1 inline-flex rounded-full px-2 py-1 text-xs font-medium',
+                      lot.remaining_quantity === 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                    )}>
+                      {lot.remaining_quantity === 0 ? 'Depleted' : 'Active'}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Original Qty</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{Number(lot.quantity).toFixed(8)}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Basis / Unit</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(Number(lot.cost_basis_per_unit))}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Remaining Qty</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{Number(lot.remaining_quantity).toFixed(8)}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Remaining Basis</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(Number(lot.remaining_quantity) * Number(lot.cost_basis_per_unit))}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(lot)}>
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Tax Lot?</AlertDialogTitle>
+                        <AlertDialogDescription>This permanently removes the lot.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => setDeleteId(lot.id)}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            ))}
+          </div>
           <div className="flex justify-end text-sm text-muted-foreground mb-2">
             {(() => {
               const totalCount = total || 0
               return `Total: ${totalCount}`
             })()}
           </div>
-          <Table className="min-w-[1320px] table-fixed">
+          <Table className="hidden min-w-[1320px] table-fixed md:table">
           <colgroup>
             <col className="w-12" />
             <col className="w-[16%]" />
@@ -636,7 +706,7 @@ const handleSort = (key: SortKey) => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {displayTaxLots.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((lot) => (
+            {paginatedTaxLots.map((lot) => (
               <TableRow key={lot.id} className={cn(lot.remaining_quantity === 0 && "opacity-60 bg-muted/20")}>
                 <TableCell className="px-3">
                   <Checkbox
@@ -701,7 +771,7 @@ const handleSort = (key: SortKey) => {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-4">
         <div className="text-sm text-muted-foreground">
           {(() => {
-            const itemsOnPage = displayTaxLots.slice((currentPage - 1) * pageSize, currentPage * pageSize).length
+            const itemsOnPage = paginatedTaxLots.length
             const start = ((currentPage - 1) * pageSize) + (itemsOnPage > 0 ? 1 : 0)
             const end = start + Math.max(0, itemsOnPage - 1)
             const totalCount = total || 0

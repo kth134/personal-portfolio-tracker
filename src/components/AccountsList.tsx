@@ -369,7 +369,42 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
           )}
         </div>
 
-        <div className="dashboard-table-shell">
+        <div className="space-y-3 md:hidden">
+          {sortedAccounts.map((acc) => (
+            <div key={acc.id} className="dashboard-mobile-card space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-zinc-950 break-words">{acc.name}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-zinc-500">{acc.type}</p>
+                </div>
+                <Checkbox
+                  checked={selectedAccounts.includes(acc.id)}
+                  onCheckedChange={(checked) => handleSelectAccount(acc.id, checked as boolean)}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="dashboard-metric-label">Institution</p>
+                  <p className="mt-1 text-sm text-zinc-700 break-words">{acc.institution || '-'}</p>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Tax Status</p>
+                  <p className="mt-1 text-sm text-zinc-700 break-words">{acc.tax_status || '-'}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50" onClick={() => handleEdit(acc)}>
+                  Edit
+                </Button>
+                <Button variant="outline" className="border-red-600 text-red-600 hover:bg-red-50" onClick={() => handleDelete(acc.id)}>
+                  Delete
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="dashboard-table-shell hidden md:block">
           <Table className="min-w-[760px] table-fixed">
         <colgroup>
           <col className="w-12" />

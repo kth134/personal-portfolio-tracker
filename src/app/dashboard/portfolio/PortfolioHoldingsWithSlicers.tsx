@@ -367,7 +367,92 @@ export default function PortfolioHoldingsWithSlicers({
                 </div>
               </AccordionTrigger>
               <AccordionContent className="border-t border-zinc-200/70 bg-white p-0">
-                <div className="dashboard-table-shell rounded-none border-0 shadow-none">
+                <div className="space-y-3 p-4 md:hidden">
+                  {(() => {
+                    const sortSpec = itemSorts[group.key] || { key: 'value', dir: 'desc' }
+                    const dirMul = sortSpec.dir === 'asc' ? 1 : -1
+                    return [...(group.items || [])]
+                      .slice()
+                      .sort((a: any, b: any) => {
+                        const k = sortSpec.key
+                        if (k === 'ticker') {
+                          const aa = (a.ticker || '').toLowerCase()
+                          const bb = (b.ticker || '').toLowerCase()
+                          return aa.localeCompare(bb) * dirMul
+                        }
+                        if (k === 'quantity') {
+                          const qa = getItemRemainingQuantity(a)
+                          const qb = getItemRemainingQuantity(b)
+                          return (qa - qb) * dirMul
+                        }
+                        if (k === 'cost_basis_per_share') {
+                          const qa = getItemRemainingQuantity(a)
+                          const qb = getItemRemainingQuantity(b)
+                          const cpa = qa > 0 ? getItemRemainingCostBasis(a) / qa : 0
+                          const cpb = qb > 0 ? getItemRemainingCostBasis(b) / qb : 0
+                          return (cpa - cpb) * dirMul
+                        }
+                        if (k === 'current_price') {
+                          const qa = getItemRemainingQuantity(a)
+                          const qb = getItemRemainingQuantity(b)
+                          const cpa = qa > 0 ? (Number(a.value) || 0) / qa : 0
+                          const cpb = qb > 0 ? (Number(b.value) || 0) / qb : 0
+                          return (cpa - cpb) * dirMul
+                        }
+                        if (k === 'weight') {
+                          const wa = totalValueAcrossSelection > 0 ? ((Number(a.value) || 0) / totalValueAcrossSelection) * 100 : 0
+                          const wb = totalValueAcrossSelection > 0 ? ((Number(b.value) || 0) / totalValueAcrossSelection) * 100 : 0
+                          return (wa - wb) * dirMul
+                        }
+                        const va = Number(k === 'cost_basis' ? (a.cost_basis ?? 0) : (a.value ?? 0)) || 0
+                        const vb = Number(k === 'cost_basis' ? (b.cost_basis ?? 0) : (b.value ?? 0)) || 0
+                        return (va - vb) * dirMul
+                      })
+                      .map((item: any, idx: number) => {
+                        const itemValue = Number(item.value) || 0
+                        const itemWeight = totalValueAcrossSelection > 0 ? (itemValue / totalValueAcrossSelection) * 100 : 0
+                        const itemQuantity = getItemRemainingQuantity(item)
+                        const itemRemainingCostBasis = getItemRemainingCostBasis(item)
+                        const itemCostBasisPerShare = itemQuantity > 0 ? itemRemainingCostBasis / itemQuantity : 0
+                        const itemCurrentPrice = itemQuantity > 0 ? itemValue / itemQuantity : 0
+                        return (
+                          <div key={`${item.ticker ?? item.name ?? idx}-mobile`} className="dashboard-mobile-card space-y-4">
+                            <div>
+                              <p className="text-sm font-semibold text-zinc-950 break-words">{item.ticker}</p>
+                              <p className="mt-1 text-sm text-zinc-500 break-words">{item.name}</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <p className="dashboard-metric-label">Quantity</p>
+                                <p className="mt-1 text-sm text-zinc-700 tabular-nums">{itemQuantity.toLocaleString(undefined, { maximumFractionDigits: 6 })}</p>
+                              </div>
+                              <div>
+                                <p className="dashboard-metric-label">Cost Basis / Share</p>
+                                <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(itemCostBasisPerShare)}</p>
+                              </div>
+                              <div>
+                                <p className="dashboard-metric-label">Current Price</p>
+                                <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(itemCurrentPrice)}</p>
+                              </div>
+                              <div>
+                                <p className="dashboard-metric-label">Total Cost Basis</p>
+                                <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(item.cost_basis)}</p>
+                              </div>
+                              <div>
+                                <p className="dashboard-metric-label">Current Value</p>
+                                <p className="mt-1 text-sm font-semibold text-zinc-900 tabular-nums">{formatUSD(itemValue)}</p>
+                              </div>
+                              <div>
+                                <p className="dashboard-metric-label">Portfolio Weight</p>
+                                <p className="mt-1 text-sm text-zinc-700 tabular-nums">{itemWeight.toFixed(2)}%</p>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })
+                  })()}
+                </div>
+                <div className="dashboard-table-shell hidden rounded-none border-0 shadow-none md:block">
                 <Table className="w-full min-w-[760px] table-fixed">
                   <colgroup>
                     <col className="w-[26%]" />

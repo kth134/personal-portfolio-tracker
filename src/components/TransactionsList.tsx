@@ -308,6 +308,9 @@ export default function TransactionsList({ initialTransactions, total, currentPa
   }, [selectedTransactions, displayTransactions, transactions, isSearchMode, currentPage, pageSize])
 
   const totalPages = isSearchMode ? Math.ceil(displayTransactions.length / pageSize) : Math.ceil((total || 0) / pageSize)
+  const paginatedTransactions = isSearchMode
+    ? displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    : transactions
 
   // Adjust currentPage if out of bounds
   useEffect(() => {
@@ -1313,7 +1316,74 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
               return `Total: ${totalCount}`
             })()}
           </div>
-          <Table className="min-w-[1700px] table-fixed">
+          <div className="space-y-3 md:hidden">
+            {paginatedTransactions.map((tx) => (
+              <div key={tx.id} className="dashboard-mobile-card space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-zinc-950">{tx.type}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.16em] text-zinc-500">{tx.date}</p>
+                  </div>
+                  <Checkbox
+                    checked={selectedTransactions.includes(tx.id)}
+                    onCheckedChange={(checked) => handleSelectTransaction(tx.id, checked as boolean)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="dashboard-metric-label">Account</p>
+                    <p className="mt-1 text-sm text-zinc-700 break-words">{tx.account?.name || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Asset</p>
+                    <p className="mt-1 text-sm text-zinc-700 break-words">{tx.asset?.ticker || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Funding</p>
+                    <p className="mt-1 text-sm text-zinc-700 break-words">{tx.funding_source || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Quantity</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.quantity != null ? Number(tx.quantity).toFixed(8) : '-'}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Price / Unit</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.price_per_unit != null ? formatUSD(tx.price_per_unit) : '-'}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Amount</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.amount != null ? formatUSD(tx.amount) : '-'}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Fees</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.fees != null ? formatUSD(tx.fees) : '-'}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Realized G/L</p>
+                    <p className={cn(
+                      'mt-1 text-sm tabular-nums',
+                      tx.realized_gain != null && tx.realized_gain > 0 ? 'text-green-600' : tx.realized_gain != null && tx.realized_gain < 0 ? 'text-red-600' : 'text-zinc-700'
+                    )}>
+                      {tx.realized_gain != null ? formatUSD(tx.realized_gain) : '-'}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Notes</p>
+                  <p className="mt-1 text-sm text-zinc-700 break-words">{tx.notes || '-'}</p>
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(tx)}>
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDeletingTx(tx)}>
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <Table className="hidden min-w-[1700px] table-fixed md:table">
           <colgroup>
             <col className="w-12" />
             <col className="w-[10%]" />
@@ -1370,7 +1440,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             </TableRow>
           </TableHeader>
           <TableBody>
-            {displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((tx) => (
+            {paginatedTransactions.map((tx) => (
               <TableRow key={tx.id}>
                 <TableCell className="px-3">
                   <Checkbox
@@ -1430,7 +1500,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         <div className="text-sm text-muted-foreground">
           {(() => {
             const itemsOnPage = isSearchMode
-              ? displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize).length
+              ? paginatedTransactions.length
               : transactions.length
             const start = ((currentPage - 1) * pageSize) + (itemsOnPage > 0 ? 1 : 0)
             const end = start + Math.max(0, itemsOnPage - 1)

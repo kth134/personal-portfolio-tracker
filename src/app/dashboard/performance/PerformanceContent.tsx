@@ -683,7 +683,123 @@ function PerformanceContent() {
         )}
       </div>
       <div className="dashboard-table-shell">
-        <Table className="w-full min-w-[1080px] table-fixed">
+        {loading ? (
+          <div className="py-8 text-center text-sm text-muted-foreground md:hidden">Loading...</div>
+        ) : sortedSummaries.length === 0 ? (
+          <div className="py-8 text-center text-sm text-muted-foreground md:hidden">No data yet for this lens. Add transactions to populate performance.</div>
+        ) : (
+          <div className="space-y-3 md:hidden">
+            {sortedSummaries.map((row) => (
+              <div key={row.grouping_id} className={cn('dashboard-mobile-card space-y-4', lens === 'asset' && row.market_value === 0 ? 'opacity-50' : '')}>
+                <div>
+                  {lens === 'asset' ? (
+                    <>
+                      <p className="text-sm font-semibold text-zinc-950 break-words">{row.display_name.split(' - ')[0]}</p>
+                      {row.display_name.includes(' - ') && <p className="mt-1 text-sm text-zinc-500 break-words">{row.display_name.split(' - ')[1]}</p>}
+                    </>
+                  ) : (
+                    <p className="text-sm font-semibold text-zinc-950 break-words">{row.display_name}</p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {lens === 'asset' && (
+                    <>
+                      <div>
+                        <p className="dashboard-metric-label">Quantity</p>
+                        <p className="mt-1 text-sm text-zinc-700 tabular-nums">{Number(row.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</p>
+                      </div>
+                      <div>
+                        <p className="dashboard-metric-label">Current Price</p>
+                        <p className="mt-1 text-sm text-zinc-700 tabular-nums">{row.current_price != null ? formatUSD(row.current_price) : '-'}</p>
+                      </div>
+                    </>
+                  )}
+                  <div>
+                    <p className="dashboard-metric-label">Market Value</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(row.market_value)}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Unrealized G/L</p>
+                    <p className={cn('mt-1 text-sm tabular-nums', row.unrealized_gain > 0 ? 'text-green-600' : row.unrealized_gain < 0 ? 'text-red-600' : 'text-zinc-700')}>
+                      {formatUSD(row.unrealized_gain)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Realized G/L</p>
+                    <p className={cn('mt-1 text-sm tabular-nums', row.realized_gain > 0 ? 'text-green-600' : row.realized_gain < 0 ? 'text-red-600' : 'text-zinc-700')}>
+                      {formatUSD(row.realized_gain)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Dividends</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(row.dividends)}</p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Net Gain/Loss</p>
+                    <p className={cn('mt-1 text-sm font-medium tabular-nums', row.net_gain > 0 ? 'text-green-600' : row.net_gain < 0 ? 'text-red-600' : 'text-zinc-700')}>
+                      {formatUSD(row.net_gain)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Total Return %</p>
+                    <p className={cn('mt-1 text-sm font-medium tabular-nums', row.total_return_pct > 0 ? 'text-green-600' : row.total_return_pct < 0 ? 'text-red-600' : 'text-zinc-700')}>
+                      {row.total_return_pct.toFixed(2)}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="dashboard-metric-label">Annualized IRR</p>
+                    <p className={cn('mt-1 text-sm font-medium tabular-nums', row.annualized_return_pct > 0 ? 'text-green-600' : row.annualized_return_pct < 0 ? 'text-red-600' : 'text-zinc-700')}>
+                      {row.irrSkipped ? 'N/A' : `${row.annualized_return_pct.toFixed(2)}%`}
+                    </p>
+                    {row.irrSkipped && <p className="mt-1 text-xs text-zinc-500">Insufficient cash flows to calculate IRR.</p>}
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div className="dashboard-mobile-card space-y-4 border-zinc-300 bg-zinc-50/80">
+              <p className="text-sm font-semibold text-zinc-950">Total</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="dashboard-metric-label">Market Value</p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-900 tabular-nums">{formatUSD(totals.market_value)}</p>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Unrealized G/L</p>
+                  <p className={cn('mt-1 text-sm font-semibold tabular-nums', totals.unrealized_gain > 0 ? 'text-green-600' : totals.unrealized_gain < 0 ? 'text-red-600' : 'text-zinc-900')}>
+                    {formatUSD(totals.unrealized_gain)}
+                  </p>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Realized G/L</p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-900 tabular-nums">{formatUSD(totals.realized_gain)}</p>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Dividends</p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-900 tabular-nums">{formatUSD(totals.dividends)}</p>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Net Gain/Loss</p>
+                  <p className={cn('mt-1 text-sm font-semibold tabular-nums', totals.net_gain > 0 ? 'text-green-600' : totals.net_gain < 0 ? 'text-red-600' : 'text-zinc-900')}>
+                    {formatUSD(totals.net_gain)}
+                  </p>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Total Return %</p>
+                  <p className={cn('mt-1 text-sm font-semibold tabular-nums', totalReturnPct > 0 ? 'text-green-600' : totalReturnPct < 0 ? 'text-red-600' : 'text-zinc-900')}>
+                    {totalReturnPct.toFixed(2)}%
+                  </p>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Annualized IRR</p>
+                  <p className={cn('mt-1 text-sm font-semibold tabular-nums', totalAnnualizedReturnPct > 0 ? 'text-green-600' : totalAnnualizedReturnPct < 0 ? 'text-red-600' : 'text-zinc-900')}>
+                    {totalAnnualizedReturnPct.toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <Table className="hidden w-full min-w-[1080px] table-fixed md:table">
           {lens === 'asset' ? (
             <colgroup>
               <col className="w-[22%]" />

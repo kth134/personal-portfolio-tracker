@@ -320,7 +320,36 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
           )}
         </div>
 
-        <div className="dashboard-table-shell">
+        <div className="space-y-3 md:hidden">
+          {sortedSubs.map((sub) => (
+            <div key={sub.id} className="dashboard-mobile-card space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-zinc-950 break-words">{sub.name}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-zinc-500">{sub.manager || '-'}</p>
+                </div>
+                <Checkbox
+                  checked={selectedSubs.includes(sub.id)}
+                  onCheckedChange={(checked) => handleSelectSub(sub.id, checked as boolean)}
+                />
+              </div>
+              <div>
+                <p className="dashboard-metric-label">Objective</p>
+                <p className="mt-1 text-sm text-zinc-700 break-words">{sub.objective || '-'}</p>
+              </div>
+              <div>
+                <p className="dashboard-metric-label">Notes</p>
+                <p className="mt-1 text-sm text-zinc-700 break-words">{sub.notes || '-'}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" onClick={() => setEditingSub(sub)}>Edit</Button>
+                <Button variant="destructive" onClick={() => handleDelete(sub.id)}>Delete</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="dashboard-table-shell hidden md:block">
           <Table className="min-w-[900px] table-fixed">
         <colgroup>
           <col className="w-12" />

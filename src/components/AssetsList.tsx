@@ -522,7 +522,62 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
           )}
         </div>
 
-        <div className="dashboard-table-shell">
+        <div className="space-y-3 md:hidden">
+          {sortedAssets.map((asset) => (
+            <div key={asset.id} className="dashboard-mobile-card space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-zinc-950 break-words">{asset.ticker}</p>
+                  <p className="mt-1 text-sm text-zinc-700 break-words">{asset.name || '-'}</p>
+                </div>
+                <Checkbox
+                  checked={selectedAssets.includes(asset.id)}
+                  onCheckedChange={(checked) => handleSelectAsset(asset.id, checked as boolean)}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="dashboard-metric-label">Sub-Portfolio</p>
+                  <p className="mt-1 text-sm text-zinc-700 break-words">{subMap.get(asset.sub_portfolio_id || '') || '-'}</p>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Asset Type</p>
+                  <p className="mt-1 text-sm text-zinc-700 break-words">{asset.asset_type || '-'}</p>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Sub-Type</p>
+                  <p className="mt-1 text-sm text-zinc-700 break-words">{asset.asset_subtype || '-'}</p>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Geography</p>
+                  <p className="mt-1 text-sm text-zinc-700 break-words">{asset.geography || '-'}</p>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Factor</p>
+                  <p className="mt-1 text-sm text-zinc-700 break-words">{asset.factor_tag || '-'}</p>
+                </div>
+                <div>
+                  <p className="dashboard-metric-label">Size</p>
+                  <p className="mt-1 text-sm text-zinc-700 break-words">{asset.size_tag || '-'}</p>
+                </div>
+              </div>
+              <div>
+                <p className="dashboard-metric-label">Notes</p>
+                <p className="mt-1 text-sm text-zinc-700 break-words">{asset.notes || '-'}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50" onClick={() => handleEdit(asset)}>
+                  Edit
+                </Button>
+                <Button variant="outline" className="border-red-600 text-red-600 hover:bg-red-50" onClick={() => handleDelete(asset.id)}>
+                  Delete
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="dashboard-table-shell hidden md:block">
           <Table className="min-w-[1320px] table-fixed">
         <colgroup>
           <col className="w-12" />
