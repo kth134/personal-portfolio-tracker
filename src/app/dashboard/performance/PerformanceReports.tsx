@@ -618,9 +618,9 @@ export default function PerformanceReports() {
           <Button 
             onClick={refreshPrices} 
             disabled={loading} 
+            variant="refresh"
             size="sm" 
-            variant="default" 
-            className="dashboard-refresh-button ml-auto h-10"
+            className="ml-auto h-10"
           >
             <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
             {loading ? 'Hold...' : 'Refresh Prices'}

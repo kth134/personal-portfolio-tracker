@@ -296,7 +296,7 @@ export default function PortfolioHoldingsWithSlicers({
           await refreshAssetPrices();
           setRefreshTrigger(t => t + 1);
           setRefreshing(false);
-        }} disabled={refreshing} className="dashboard-refresh-button h-10">
+        }} disabled={refreshing} variant="refresh" className="h-10">
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}
         </Button>
       </div>

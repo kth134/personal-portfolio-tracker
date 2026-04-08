@@ -163,8 +163,7 @@ export default function PortfolioHoldingsClient({
         <Button 
           onClick={handleRefreshPrices} 
           disabled={refreshing}
-          variant="default"
-          className="dashboard-refresh-button"
+          variant="refresh"
         >
           {refreshing ? 'Refreshing...' : 'Refresh Asset Prices'}
         </Button>

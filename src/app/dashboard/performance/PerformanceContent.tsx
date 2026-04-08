@@ -669,8 +669,9 @@ function PerformanceContent() {
         <Button
           onClick={handleRefreshPrices}
           disabled={refreshing || loading}
+          variant="refresh"
           size="sm"
-          className="dashboard-refresh-button h-10"
+          className="h-10"
         >
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}
         </Button>

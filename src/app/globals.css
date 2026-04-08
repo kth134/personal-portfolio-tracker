@@ -127,19 +127,21 @@
 @layer components {
   .dashboard-page-banner {
     @apply overflow-hidden rounded-[28px] border border-zinc-200/70 px-5 py-6 text-white shadow-[0_28px_80px_-40px_rgba(15,23,42,0.48)] sm:px-7 sm:py-8;
-    background-image: linear-gradient(135deg, rgba(9, 9, 11, 0.96) 0%, rgba(24, 24, 27, 0.94) 58%, rgba(63, 63, 70, 0.88) 100%);
+    background-image: linear-gradient(135deg, rgba(9, 9, 11, 0.96) 0%, rgba(24, 24, 27, 0.93) 52%, rgba(113, 113, 122, 0.84) 100%);
   }
 
   .dashboard-section-header {
-    @apply flex cursor-pointer list-none items-center justify-between gap-3 border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))] px-4 py-4 sm:px-6;
+    @apply flex cursor-pointer list-none items-center justify-between gap-3 border-b border-zinc-500/60 px-4 py-4 sm:px-6;
+    background-image: linear-gradient(135deg, rgba(63, 63, 70, 0.98) 0%, rgba(82, 82, 91, 0.94) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
 
   .dashboard-section-header-title {
-    @apply text-xl font-bold tracking-tight text-zinc-950;
+    @apply text-xl font-bold tracking-tight text-white;
   }
 
   .dashboard-section-header-meta {
-    @apply inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500;
+    @apply inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-300;
   }
 
   .dashboard-contrast-header {
@@ -150,16 +152,15 @@
     @apply rounded-md bg-[linear-gradient(135deg,rgba(9,9,11,0.96),rgba(39,39,42,0.94))] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white;
   }
 
-  .dashboard-refresh-button {
-    @apply inline-flex items-center justify-center rounded-2xl bg-blue-700 px-4 font-bold text-white shadow-[0_14px_30px_-18px_rgba(29,78,216,0.9)] transition-[background-color,box-shadow,transform] hover:bg-blue-800 hover:shadow-[0_18px_34px_-18px_rgba(30,64,175,0.95)] focus-visible:ring-4 focus-visible:ring-blue-200 disabled:bg-blue-400 disabled:shadow-none;
-  }
-
   .dashboard-tabs {
     @apply w-full;
   }
 
   .dashboard-tabs [data-slot='tabs-list'] {
-    @apply h-auto w-full flex-wrap justify-start gap-2 rounded-none border-0 bg-transparent p-0 text-zinc-700 shadow-none;
+    @apply h-auto w-full flex-wrap justify-start gap-2 rounded-none border-0 p-0 text-zinc-700;
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
   }
 
   .dashboard-tabs [data-slot='tabs-trigger'] {
@@ -175,8 +176,21 @@
   }
 
   .dashboard-tabs [data-slot='tabs-trigger'][data-state='active'] {
-    @apply border-green-700 bg-[linear-gradient(180deg,rgba(34,197,94,1),rgba(21,128,61,1))] shadow-[0_18px_30px_-22px_rgba(21,128,61,0.55)];
+    @apply border-green-700 shadow-[0_18px_30px_-22px_rgba(21,128,61,0.45)];
+    background-color: rgb(34, 197, 94) !important;
+    background-image: none !important;
+    border-color: rgb(34, 197, 94) !important;
     color: #ffffff !important;
+  }
+
+  .dashboard-surface-header {
+    @apply grid gap-3 border-b border-zinc-500/60 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:px-6;
+    background-image: linear-gradient(135deg, rgba(63, 63, 70, 0.98) 0%, rgba(82, 82, 91, 0.94) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .dashboard-surface-description {
+    @apply text-sm leading-6 text-zinc-300;
   }
 
   .dashboard-tabs [data-slot='tabs-trigger'][data-state='active'] * {

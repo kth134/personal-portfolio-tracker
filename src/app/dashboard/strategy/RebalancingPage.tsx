@@ -777,7 +777,7 @@ export default function RebalancingPage() {
   return (
     <div className="flex flex-col gap-6 overflow-x-hidden">
       <div className="order-0 flex justify-start">
-        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="dashboard-refresh-button h-10"><RefreshCw className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
+        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="refresh" className="h-10"><RefreshCw className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
       </div>
 
       <details open className="order-1 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">

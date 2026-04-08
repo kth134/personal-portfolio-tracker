@@ -1299,8 +1299,9 @@ export default function DashboardHome() {
         <Button
           onClick={handleRefresh}
           disabled={refreshing}
+          variant="refresh"
           size="sm"
-          className="dashboard-refresh-button h-9"
+          className="h-9"
         >
           <RefreshCw className={cn('w-4 h-4 mr-2', refreshing && 'animate-spin')} />
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}

@@ -58,10 +58,10 @@ export function DashboardSurface({
   return (
     <Card className={cn('overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white/95 py-0 shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)] backdrop-blur', className)}>
       {title || description || action ? (
-        <CardHeader className="grid gap-3 border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))] px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:px-6">
+        <CardHeader className="dashboard-surface-header">
           <div className="space-y-1">
             {title ? <CardTitle className="dashboard-section-header-title text-lg">{title}</CardTitle> : null}
-            {description ? <CardDescription className="text-sm leading-6 text-zinc-500">{description}</CardDescription> : null}
+            {description ? <CardDescription className="dashboard-surface-description">{description}</CardDescription> : null}
           </div>
           {action ? <div className="flex items-center justify-start sm:justify-end">{action}</div> : null}
         </CardHeader>
