@@ -49,11 +49,13 @@ export async function GET(req: NextRequest) {
     const latestPrices = new Map<string, number>()
     prices?.forEach(p => { if (!latestPrices.has(p.ticker)) latestPrices.set(p.ticker, p.price) })
 
-    // Calculate total value (Holdings + Cash)
+    // Match the dashboard/performance definition of portfolio value: open holdings only.
+    // Keep inferred cash separate for funding/IRR use cases, but do not include it in
+    // the rebalancing page's top-line portfolio value or allocation denominators.
     const holdingsValue = holdingsWithAssets.reduce((sum, lot) => {
       return sum + (lot.remaining_quantity * (latestPrices.get(lot.asset?.ticker) || 0))
     }, 0) || 0
-    const totalPortfolioValue = holdingsValue + totalCash
+    const totalPortfolioValue = holdingsValue
 
     // 3. Process Allocations by Lens (Supports Bug #36 - Multi-lens charts)
     const subPortfolioMetrics = new Map<string, any>()
