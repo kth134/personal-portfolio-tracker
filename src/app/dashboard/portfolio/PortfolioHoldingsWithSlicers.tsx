@@ -16,6 +16,7 @@ import { Check, ChevronsUpDown, ArrowUpDown, RefreshCw } from 'lucide-react'
 import { formatUSD } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 import { refreshAssetPrices } from './actions'
+import { DashboardSurface } from '@/components/dashboard-shell'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7']
 
@@ -212,11 +213,16 @@ export default function PortfolioHoldingsWithSlicers({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-4 items-end mb-4 bg-muted/20 p-4 rounded-lg">
+      <DashboardSurface
+        title="Holdings Snapshot"
+        description="Slice the portfolio, refresh market values, and compare allocation segments in the same dashboard tile format used on the home screen."
+        contentClassName="space-y-6"
+      >
+      <div className="dashboard-toolbar">
         <div className="flex-1 min-w-[200px]">
-          <Label className="text-xs uppercase font-bold mb-1 block">Slice by</Label>
+          <Label className="dashboard-metric-label mb-2 block">Slice by</Label>
           <Select value={lens} onValueChange={setLens}>
-            <SelectTrigger className="w-full md:w-56 bg-background"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full rounded-2xl bg-white md:w-56"><SelectValue /></SelectTrigger>
             <SelectContent>{LENSES.map(l => (
               <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
             ))}</SelectContent>
@@ -224,7 +230,7 @@ export default function PortfolioHoldingsWithSlicers({
         </div>
 
         {lens !== 'total' && selectedValues.length > 1 && (
-          <div className="flex items-center gap-2 mb-2 p-2 border rounded bg-background">
+          <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2">
             <Switch checked={aggregate} onCheckedChange={setAggregate} />
             <Label className="text-sm cursor-pointer whitespace-nowrap">Aggregate</Label>
           </div>
@@ -235,7 +241,7 @@ export default function PortfolioHoldingsWithSlicers({
           await refreshAssetPrices();
           setRefreshTrigger(t => t + 1);
           setRefreshing(false);
-        }} disabled={refreshing}>
+        }} disabled={refreshing} className="h-10 rounded-2xl px-4">
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}
         </Button>
       </div>
@@ -245,8 +251,8 @@ export default function PortfolioHoldingsWithSlicers({
           const sliceData = Array.isArray(slice.data) ? slice.data : [];
           if (!sliceData || sliceData.length === 0) return null;
           return (
-            <div key={idx} className={cn("bg-card p-4 rounded-xl border shadow-sm space-y-4 min-w-[300px] flex-1", normalizedPieSlices.length === 1 ? "w-full max-w-none" : "max-w-[500px]")}> 
-              <h4 className="font-bold text-center border-b pb-2 text-sm uppercase">{slice.key}</h4>
+            <div key={idx} className={cn("dashboard-chart-panel space-y-4 min-w-[300px] flex-1", normalizedPieSlices.length === 1 ? "w-full max-w-none" : "max-w-[500px]")}> 
+              <h4 className="rounded-2xl bg-zinc-950 px-4 py-3 text-center text-sm font-semibold uppercase tracking-[0.16em] text-white">{slice.key}</h4>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie data={sliceData} dataKey="value" nameKey="subkey" outerRadius={100} label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}>
@@ -260,8 +266,14 @@ export default function PortfolioHoldingsWithSlicers({
           )
         })}
       </div>
+      </DashboardSurface>
 
-      <Accordion type="multiple" value={openItems} onValueChange={setOpenItems} className="space-y-4">
+      <DashboardSurface
+        title="Allocation Breakdown"
+        description="Expand any slice to see the underlying positions using the same responsive table language as the rebalancing page."
+        contentClassName="space-y-4 px-0 py-0"
+      >
+      <Accordion type="multiple" value={openItems} onValueChange={setOpenItems} className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">
         {[...allocations]
            .map(g => {
              let cashVal = 0
@@ -281,8 +293,8 @@ export default function PortfolioHoldingsWithSlicers({
           const groupWeight = totalValueAcrossSelection > 0 ? (group.totalGroupVal / totalValueAcrossSelection) * 100 : 0
 
           return (
-            <AccordionItem key={String(group.key)} value={String(group.key)} className="border rounded-lg overflow-hidden shadow-sm">
-              <AccordionTrigger className="bg-black text-white px-4 py-4 hover:bg-zinc-900 transition-colors">
+            <AccordionItem key={String(group.key)} value={String(group.key)} className="overflow-hidden rounded-[24px] border border-zinc-200/80 bg-white shadow-sm">
+              <AccordionTrigger className="bg-[linear-gradient(135deg,rgba(9,9,11,0.96),rgba(39,39,42,0.94))] px-4 py-4 text-white transition-colors hover:bg-zinc-900">
                 <div className="flex justify-between w-full mr-4 text-left">
                   <span className="font-bold text-white uppercase">{group.key}</span>
                   <div className="flex gap-4 text-xs sm:text-sm font-bold text-white">
@@ -294,7 +306,8 @@ export default function PortfolioHoldingsWithSlicers({
                   </div>
                 </div>
               </AccordionTrigger>
-              <AccordionContent className="p-0 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+              <AccordionContent className="border-t border-zinc-200/70 bg-white p-0">
+                <div className="dashboard-table-shell rounded-none border-0 shadow-none">
                 <Table className="w-full min-w-[760px] table-fixed">
                   <colgroup>
                     <col className="w-[26%]" />
@@ -423,11 +436,13 @@ export default function PortfolioHoldingsWithSlicers({
                     })()}
                   </TableBody>
                 </Table>
+                </div>
               </AccordionContent>
             </AccordionItem>
           )
         })}
       </Accordion>
+      </DashboardSurface>
     </div>
   )
 }

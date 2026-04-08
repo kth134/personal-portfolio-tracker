@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import { fetchAllUserTransactionsServer } from '@/lib/finance'
 import ActivityTabs from './ActivityTabs'
+import { DashboardPageShell } from '@/components/dashboard-shell'
 
 export default async function ActivityPage({
   searchParams,
@@ -45,14 +46,17 @@ export default async function ActivityPage({
     .order('purchase_date', { ascending: false })
 
   return (
-    <main className="p-8">
+    <DashboardPageShell
+      eyebrow="Activity"
+      title="Transactions And Tax Lots"
+      description="Manage transaction history and lot-level records with the same tile-based layout and table treatment used across the dashboard."
+    >
       {debug && diagnostics && (
-        <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
+        <div className="rounded-[22px] border border-yellow-300 bg-yellow-50 p-4 text-yellow-800 shadow-sm">
           <strong>Diagnostics:</strong><br />
           <pre>{diagnostics}</pre>
         </div>
       )}
-      <h1 className="text-3xl font-bold mb-8">Activity</h1>
       <Suspense fallback={<div className="p-8">Loading...</div>}>
         <ActivityTabs 
           initialTransactions={transactions} 
@@ -64,6 +68,6 @@ export default async function ActivityPage({
           diagnostics={debug ? diagnostics : undefined}
         />
       </Suspense>
-    </main>
+    </DashboardPageShell>
   )
 }

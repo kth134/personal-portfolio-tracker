@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { Tabs } from '@/components/ui/tabs'
 import AccountsList from '@/components/AccountsList'
 import PortfolioTabNavigation from '@/components/PortfolioTabs'
+import { DashboardPageShell } from '@/components/dashboard-shell'
 
 export default async function AccountsPage() {
   const supabase = await createClient()
@@ -12,14 +13,17 @@ export default async function AccountsPage() {
   const { data: accounts } = await supabase.from('accounts').select('*').eq('user_id', user.id)
 
   return (
-    <main className="p-8">
-      <h1 className="text-3xl font-bold mb-8">Portfolio Construction</h1>
-      <Tabs value="accounts">
+    <DashboardPageShell
+      eyebrow="Construction"
+      title="Accounts"
+      description="Manage account inventory with the same elevated cards and table layout used throughout the dashboard experience."
+    >
+      <Tabs value="accounts" className="dashboard-tabs">
         <PortfolioTabNavigation />
-        <div className="mt-6">
+        <div>
           <AccountsList initialAccounts={accounts || []} />
         </div>
       </Tabs>
-    </main>
+    </DashboardPageShell>
   )
 }

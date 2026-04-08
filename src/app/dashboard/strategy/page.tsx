@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react';
 import StrategyTabs from './StrategyTabs';
+import { DashboardPageShell } from '@/components/dashboard-shell';
 
 export default async function StrategyPage({
   searchParams,
@@ -23,11 +24,14 @@ export default async function StrategyPage({
     .eq('user_id', user.id)
 
   return (
-    <main className="p-8">
-      <h1 className="text-3xl font-bold mb-8">Portfolio Construction</h1>
+    <DashboardPageShell
+      eyebrow="Construction"
+      title="Sub-Portfolios"
+      description="Review and edit sub-portfolio configuration in the same polished tile-based frame used across portfolio construction and analytics."
+    >
       <Suspense fallback={<div className="p-8">Loading...</div>}>
         <StrategyTabs initialSubPortfolios={initialSubPortfolios || []} />
       </Suspense>
-    </main>
+    </DashboardPageShell>
   );
 }

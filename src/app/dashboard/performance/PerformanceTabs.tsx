@@ -16,15 +16,15 @@ export default function PerformanceTabs() {
   };
 
   return (
-    <Tabs value={tab} onValueChange={handleTabChange} className="w-full">
-      <TabsList>
+    <Tabs value={tab} onValueChange={handleTabChange} className="dashboard-tabs w-full">
+      <TabsList className="w-full sm:w-auto">
         <TabsTrigger value="data">Data</TabsTrigger>
         <TabsTrigger value="reports">Reports</TabsTrigger>
       </TabsList>
-      <TabsContent value="data">
+      <TabsContent value="data" className="mt-0">
         <PerformanceContent />
       </TabsContent>
-      <TabsContent value="reports">
+      <TabsContent value="reports" className="mt-0">
         <PerformanceReports />
       </TabsContent>
     </Tabs>

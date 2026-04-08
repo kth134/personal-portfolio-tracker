@@ -20,6 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { formatUSD } from '@/lib/formatters'
 import Papa from 'papaparse'
 import { serverCreateBuyWithLot, serverProcessSellFifo, serverBulkImportTransactions } from '@/app/actions/transactionactions'
+import { DashboardSurface } from '@/components/dashboard-shell'
 
 type Account = { id: string; name: string; type: string }
 type Asset = { id: string; ticker: string; name?: string }
@@ -805,36 +806,40 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
   }
 
   return (
-    <main className="container mx-auto py-8">
+    <main className="space-y-6">
       {diagnostics && (
-        <div className="mb-4">
+        <div>
           <pre className="text-xs bg-yellow-50 border border-yellow-200 p-2 rounded overflow-auto">{diagnostics}</pre>
         </div>
       )}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Transactions</h1>
-        <div className="flex gap-4 items-center flex-wrap">
+      <DashboardSurface
+        title="Transactions"
+        description="Manage, filter, import, and review transaction history in the same dashboard tile system and responsive table style used for rebalancing."
+        contentClassName="space-y-4"
+      >
+      <div className="dashboard-toolbar">
+        <div className="dashboard-toolbar-group">
           <Input
             placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-64"
+            className="h-10 w-full rounded-2xl bg-white sm:max-w-xs"
           />
 
-          <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+          <Button variant="outline" className="rounded-2xl" onClick={() => setShowFilters(!showFilters)}>
             <Filter className="h-4 w-4 mr-2" />
             Filters
           </Button>
 
           {selectedTransactions.length > 0 && (
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-muted-foreground">
                 {selectedTransactions.length} selected
               </span>
-              <Button variant="outline" size="sm" onClick={handleBulkEdit}>
+              <Button variant="outline" size="sm" className="rounded-xl" onClick={handleBulkEdit}>
                 Edit Selected
               </Button>
-              <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+              <Button variant="destructive" size="sm" className="rounded-xl" onClick={handleBulkDelete}>
                 Delete Selected
               </Button>
             </div>
@@ -844,6 +849,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             variant="outline"
             onClick={handleImportClick}
             disabled={isImporting}
+            className="rounded-2xl"
           >
             Import CSV
           </Button>
@@ -856,244 +862,16 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             onChange={handleCsvImport}
           />
 
-          <Button variant="outline" onClick={handleDownloadTemplate}>
+          <Button variant="outline" className="rounded-2xl" onClick={handleDownloadTemplate}>
             Download CSV Template
           </Button>
-
-      {showFilters && (
-        <div className="mb-4 p-4 border rounded-lg bg-muted/20">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <Label>Type</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between">
-                    {filterType.length > 0 ? `${filterType.length} selected` : 'All types'}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
-                  <Command>
-                    <CommandInput placeholder="Search types..." />
-                    <CommandList>
-                      <CommandEmpty>No types found.</CommandEmpty>
-                      <CommandGroup>
-                        {['Buy', 'Sell', 'Dividend', 'Deposit', 'Withdrawal', 'Interest'].map((type) => (
-                          <CommandItem
-                            key={type}
-                            onSelect={() => {
-                              if (filterType.includes(type)) {
-                                setFilterType(filterType.filter(t => t !== type))
-                              } else {
-                                setFilterType([...filterType, type])
-                              }
-                            }}
-                          >
-                            <Checkbox
-                              checked={filterType.includes(type)}
-                              className="mr-2"
-                            />
-                            {type}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label>Account</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between">
-                    {filterAccount.length > 0 ? `${filterAccount.length} selected` : 'All accounts'}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
-                  <Command>
-                    <CommandInput placeholder="Search accounts..." />
-                    <CommandList>
-                      <CommandEmpty>No accounts found.</CommandEmpty>
-                      <CommandGroup>
-                        {accounts.map((acc) => (
-                          <CommandItem
-                            key={acc.id}
-                            onSelect={() => {
-                              if (filterAccount.includes(acc.name)) {
-                                setFilterAccount(filterAccount.filter(a => a !== acc.name))
-                              } else {
-                                setFilterAccount([...filterAccount, acc.name])
-                              }
-                            }}
-                          >
-                            <Checkbox
-                              checked={filterAccount.includes(acc.name)}
-                              className="mr-2"
-                            />
-                            {acc.name} ({acc.type})
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label>Asset</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between">
-                    {filterAsset.length > 0 ? `${filterAsset.length} selected` : 'All assets'}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
-                  <Command>
-                    <CommandInput placeholder="Search assets..." />
-                    <CommandList>
-                      <CommandEmpty>No assets found.</CommandEmpty>
-                      <CommandGroup>
-                        {assets.map((ast) => (
-                          <CommandItem
-                            key={ast.id}
-                            onSelect={() => {
-                              const assetValue = ast.ticker
-                              if (filterAsset.includes(assetValue)) {
-                                setFilterAsset(filterAsset.filter(a => a !== assetValue))
-                              } else {
-                                setFilterAsset([...filterAsset, assetValue])
-                              }
-                            }}
-                          >
-                            <Checkbox
-                              checked={filterAsset.includes(ast.ticker)}
-                              className="mr-2"
-                            />
-                            {ast.ticker}{ast.name ? ` - ${ast.name}` : ''}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label>Funding Source</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between">
-                    {filterFundingSource.length > 0 ? `${filterFundingSource.length} selected` : 'All sources'}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
-                  <Command>
-                    <CommandInput placeholder="Search funding sources..." />
-                    <CommandList>
-                      <CommandEmpty>No funding sources found.</CommandEmpty>
-                      <CommandGroup>
-                        {['cash', 'external'].map((source) => (
-                          <CommandItem
-                            key={source}
-                            onSelect={() => {
-                              if (filterFundingSource.includes(source)) {
-                                setFilterFundingSource(filterFundingSource.filter(f => f !== source))
-                              } else {
-                                setFilterFundingSource([...filterFundingSource, source])
-                              }
-                            }}
-                          >
-                            <Checkbox
-                              checked={filterFundingSource.includes(source)}
-                              className="mr-2"
-                            />
-                            {source === 'cash' ? 'Cash Balance' : 'External'}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label>Date From</Label>
-              <Input
-                type="date"
-                value={filterDateFrom}
-                onChange={(e) => setFilterDateFrom(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Date To</Label>
-              <Input
-                type="date"
-                value={filterDateTo}
-                onChange={(e) => setFilterDateTo(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Amount Min</Label>
-              <Input
-                type="number"
-                value={filterAmountMin}
-                onChange={(e) => setFilterAmountMin(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Amount Max</Label>
-              <Input
-                type="number"
-                value={filterAmountMax}
-                onChange={(e) => setFilterAmountMax(e.target.value)}
-              />
-            </div>
-            <div className="md:col-span-2 lg:col-span-4">
-              <Label>Notes</Label>
-              <Input
-                placeholder="Filter by notes"
-                value={filterNotes}
-                onChange={(e) => setFilterNotes(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <Button variant="outline" onClick={() => {
-              setFilterType([])
-              setFilterAccount([])
-              setFilterAsset([])
-              setFilterFundingSource([])
-              setFilterDateFrom('')
-              setFilterDateTo('')
-              setFilterAmountMin('')
-              setFilterAmountMax('')
-              setFilterNotes('')
-            }}>
-              Clear Filters
-            </Button>
-          </div>
-        </div>
-      )}
-
-            {isImporting && (
-              <div className="mt-4 p-4 bg-muted rounded-lg text-center">
-                <p className="text-sm font-medium">Processing import on server...</p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  This can take 30–90 seconds for large files. Do not refresh or close the tab.
-                </p>
-              </div>
-            )}
 
           <Dialog open={open} onOpenChange={(isOpen) => {
             setOpen(isOpen)
             if (!isOpen) resetForm()
           }}>
             <DialogTrigger asChild>
-              <Button>Add Transaction</Button>
+              <Button className="rounded-2xl">Add Transaction</Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -1296,10 +1074,239 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             </DialogContent>
           </Dialog>
         </div>
+
+      {showFilters && (
+        <div className="dashboard-filter-panel">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <Label>Type</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {filterType.length > 0 ? `${filterType.length} selected` : 'All types'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search types..." />
+                    <CommandList>
+                      <CommandEmpty>No types found.</CommandEmpty>
+                      <CommandGroup>
+                        {['Buy', 'Sell', 'Dividend', 'Deposit', 'Withdrawal', 'Interest'].map((type) => (
+                          <CommandItem
+                            key={type}
+                            onSelect={() => {
+                              if (filterType.includes(type)) {
+                                setFilterType(filterType.filter(t => t !== type))
+                              } else {
+                                setFilterType([...filterType, type])
+                              }
+                            }}
+                          >
+                            <Checkbox
+                              checked={filterType.includes(type)}
+                              className="mr-2"
+                            />
+                            {type}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <Label>Account</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {filterAccount.length > 0 ? `${filterAccount.length} selected` : 'All accounts'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search accounts..." />
+                    <CommandList>
+                      <CommandEmpty>No accounts found.</CommandEmpty>
+                      <CommandGroup>
+                        {accounts.map((acc) => (
+                          <CommandItem
+                            key={acc.id}
+                            onSelect={() => {
+                              if (filterAccount.includes(acc.name)) {
+                                setFilterAccount(filterAccount.filter(a => a !== acc.name))
+                              } else {
+                                setFilterAccount([...filterAccount, acc.name])
+                              }
+                            }}
+                          >
+                            <Checkbox
+                              checked={filterAccount.includes(acc.name)}
+                              className="mr-2"
+                            />
+                            {acc.name} ({acc.type})
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <Label>Asset</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {filterAsset.length > 0 ? `${filterAsset.length} selected` : 'All assets'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search assets..." />
+                    <CommandList>
+                      <CommandEmpty>No assets found.</CommandEmpty>
+                      <CommandGroup>
+                        {assets.map((ast) => (
+                          <CommandItem
+                            key={ast.id}
+                            onSelect={() => {
+                              const assetValue = ast.ticker
+                              if (filterAsset.includes(assetValue)) {
+                                setFilterAsset(filterAsset.filter(a => a !== assetValue))
+                              } else {
+                                setFilterAsset([...filterAsset, assetValue])
+                              }
+                            }}
+                          >
+                            <Checkbox
+                              checked={filterAsset.includes(ast.ticker)}
+                              className="mr-2"
+                            />
+                            {ast.ticker}{ast.name ? ` - ${ast.name}` : ''}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <Label>Funding Source</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {filterFundingSource.length > 0 ? `${filterFundingSource.length} selected` : 'All sources'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Search funding sources..." />
+                    <CommandList>
+                      <CommandEmpty>No funding sources found.</CommandEmpty>
+                      <CommandGroup>
+                        {['cash', 'external'].map((source) => (
+                          <CommandItem
+                            key={source}
+                            onSelect={() => {
+                              if (filterFundingSource.includes(source)) {
+                                setFilterFundingSource(filterFundingSource.filter(f => f !== source))
+                              } else {
+                                setFilterFundingSource([...filterFundingSource, source])
+                              }
+                            }}
+                          >
+                            <Checkbox
+                              checked={filterFundingSource.includes(source)}
+                              className="mr-2"
+                            />
+                            {source === 'cash' ? 'Cash Balance' : 'External'}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <Label>Date From</Label>
+              <Input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Date To</Label>
+              <Input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Amount Min</Label>
+              <Input
+                type="number"
+                value={filterAmountMin}
+                onChange={(e) => setFilterAmountMin(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Amount Max</Label>
+              <Input
+                type="number"
+                value={filterAmountMax}
+                onChange={(e) => setFilterAmountMax(e.target.value)}
+              />
+            </div>
+            <div className="md:col-span-2 lg:col-span-4">
+              <Label>Notes</Label>
+              <Input
+                placeholder="Filter by notes"
+                value={filterNotes}
+                onChange={(e) => setFilterNotes(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button variant="outline" className="rounded-xl" onClick={() => {
+              setFilterType([])
+              setFilterAccount([])
+              setFilterAsset([])
+              setFilterFundingSource([])
+              setFilterDateFrom('')
+              setFilterDateTo('')
+              setFilterAmountMin('')
+              setFilterAmountMax('')
+              setFilterNotes('')
+            }}>
+              Clear Filters
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {isImporting && (
+              <div className="rounded-[22px] border border-zinc-200 bg-zinc-50 p-4 text-center shadow-sm">
+                <p className="text-sm font-medium">Processing import on server...</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  This can take 30–90 seconds for large files. Do not refresh or close the tab.
+                </p>
+              </div>
+            )}
+
       </div>
 
       {displayTransactions.length > 0 ? (
-        <div className="-mx-4 overflow-x-auto px-4 overscroll-x-contain sm:mx-0 sm:px-0">
+        <div className="dashboard-table-shell">
           <div className="flex justify-end text-sm text-muted-foreground mb-2">
             {(() => {
               const totalCount = isSearchMode ? displayTransactions.length : (total || 0)
@@ -1416,10 +1423,10 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         </Table>
         </div>
       ) : (
-        <p className="text-muted-foreground">No transactions yet. Add one to get started!</p>
+        <p className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-muted-foreground">No transactions yet. Add one to get started!</p>
       )}
 
-      <div className="flex items-center justify-between mt-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-4">
         <div className="text-sm text-muted-foreground">
           {(() => {
             const itemsOnPage = isSearchMode
@@ -1440,6 +1447,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         }}
         />
       </div>
+      </DashboardSurface>
 
       <AlertDialog open={!!deletingTx} onOpenChange={(o) => !o && setDeletingTx(null)}>
         <AlertDialogContent>
@@ -1521,7 +1529,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
 
 function PaginationControls({ currentPage, totalPages, onPageChange }: { currentPage: number, totalPages: number, onPageChange: (page: number) => void }) {
   return (
-    <div className="flex items-center justify-center gap-2 mt-4">
+    <div className="flex items-center justify-center gap-2 mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2">
       <Button
         variant="outline"
         onClick={() => onPageChange(1)}

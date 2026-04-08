@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox'
 import { Check, ChevronsUpDown, ArrowUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DashboardSurface } from '@/components/dashboard-shell'
 
 type Asset = { 
   id: string; 
@@ -251,7 +252,7 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
         if (!isOpen) setEditingAsset(null)
       }}>
         <DialogTrigger asChild>
-          <Button className="mb-4">Add Asset</Button>
+          <Button className="h-10 rounded-2xl px-4">Add Asset</Button>
         </DialogTrigger>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingAsset ? 'Edit Asset' : 'Add Asset'}</DialogTitle></DialogHeader>
@@ -491,31 +492,38 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
         </DialogContent>
       </Dialog>
 
-      <div className="flex gap-4 items-center mb-4">
-        <Input
-          placeholder="Search assets..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-64"
-        />
-
-        {selectedAssets.length > 0 && (
-          <div className="flex gap-2 items-center">
-            <span className="text-sm text-muted-foreground">
-              {selectedAssets.length} selected
-            </span>
-            <Button variant="outline" size="sm" onClick={handleBulkEdit}>
-              Edit Selected
-            </Button>
-            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
-              Delete Selected
-            </Button>
+      <DashboardSurface
+        title="Asset Registry"
+        description="Keep the asset catalog aligned with the rest of the dashboard using the same table and surface language."
+        contentClassName="space-y-4"
+      >
+        <div className="dashboard-toolbar">
+          <div className="dashboard-toolbar-group">
+            <Input
+              placeholder="Search assets..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-10 w-full rounded-2xl bg-white sm:max-w-xs"
+            />
           </div>
-        )}
-      </div>
 
-      <div className="-mx-4 overflow-x-auto px-4 overscroll-x-contain sm:mx-0 sm:px-0">
-        <Table className="min-w-[1320px] table-fixed">
+          {selectedAssets.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                {selectedAssets.length} selected
+              </span>
+              <Button variant="outline" size="sm" className="rounded-xl" onClick={handleBulkEdit}>
+                Edit Selected
+              </Button>
+              <Button variant="destructive" size="sm" className="rounded-xl" onClick={handleBulkDelete}>
+                Delete Selected
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="dashboard-table-shell">
+          <Table className="min-w-[1320px] table-fixed">
         <colgroup>
           <col className="w-12" />
           <col className="w-[7%]" />
@@ -605,7 +613,8 @@ export default function AssetsList({ initialAssets }: { initialAssets: Asset[] }
           ))}
         </TableBody>
       </Table>
-      </div>
+        </div>
+      </DashboardSurface>
     </>
   )
 }

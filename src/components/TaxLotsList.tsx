@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DashboardSurface } from '@/components/dashboard-shell'
 
 type Account = { id: string; name: string; type: string }
 type Asset = { id: string; ticker: string; name?: string }
@@ -321,15 +322,20 @@ const handleSort = (key: SortKey) => {
   }, [displayTaxLots, pageSize, currentPage, totalPages, router])
 
   return (
-    <main className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold">Tax Lots</h1>
+    <main className="space-y-6">
+      <DashboardSurface
+        title="Tax Lots"
+        description="Inspect, filter, and manage lot-level records in the same card and responsive table system used throughout the portfolio workspace."
+        contentClassName="space-y-4"
+      >
+      <div className="dashboard-toolbar">
+      <div className="flex justify-end sm:hidden">
             <Dialog open={open} onOpenChange={(isOpen) => {
               setOpen(isOpen)
               if (!isOpen) resetForm()
             }}>
           <DialogTrigger asChild>
-            <Button>{editingLot ? 'Edit' : 'Add'} Tax Lot</Button>
+            <Button className="rounded-2xl">{editingLot ? 'Edit' : 'Add'} Tax Lot</Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
@@ -432,33 +438,34 @@ const handleSort = (key: SortKey) => {
         </Dialog>
       </div>
 
-      <div className="flex gap-4 items-center mb-4">
+      <div className="dashboard-toolbar-group">
         <Input
           placeholder="Search tax lots..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-64"
+          className="h-10 w-full rounded-2xl bg-white sm:max-w-xs"
         />
 
-        <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+        <Button variant="outline" className="rounded-2xl" onClick={() => setShowFilters(!showFilters)}>
           <Filter className="h-4 w-4 mr-2" />
           Filters
         </Button>
 
         {selectedLots.length > 0 && (
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted-foreground">
               {selectedLots.length} selected
             </span>
-            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+            <Button variant="destructive" size="sm" className="rounded-xl" onClick={handleBulkDelete}>
               Delete Selected
             </Button>
           </div>
         )}
       </div>
+      </div>
 
       {showFilters && (
-        <div className="mb-4 p-4 border rounded-lg bg-muted/20">
+        <div className="dashboard-filter-panel">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <Label>Account</Label>
@@ -573,7 +580,7 @@ const handleSort = (key: SortKey) => {
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <Button variant="outline" onClick={() => {
+            <Button variant="outline" className="rounded-xl" onClick={() => {
               setFilterAccount([])
               setFilterAsset([])
               setFilterDateFrom('')
@@ -589,7 +596,7 @@ const handleSort = (key: SortKey) => {
 
       {/* Tax Lots Table */}
       {taxLots.length > 0 ? (
-        <div className="-mx-4 overflow-x-auto px-4 overscroll-x-contain sm:mx-0 sm:px-0">
+        <div className="dashboard-table-shell">
           <div className="flex justify-end text-sm text-muted-foreground mb-2">
             {(() => {
               const totalCount = total || 0
@@ -688,10 +695,10 @@ const handleSort = (key: SortKey) => {
         </Table>
         </div>
       ) : (
-        <p className="text-muted-foreground">No tax lots yet—add buys to create them.</p>
+        <p className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-muted-foreground">No tax lots yet—add buys to create them.</p>
       )}
 
-      <div className="flex items-center justify-between mt-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-4">
         <div className="text-sm text-muted-foreground">
           {(() => {
             const itemsOnPage = displayTaxLots.slice((currentPage - 1) * pageSize, currentPage * pageSize).length
@@ -710,6 +717,7 @@ const handleSort = (key: SortKey) => {
           }}
         />
       </div>
+      </DashboardSurface>
 
       {/* Confirm delete */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
@@ -729,7 +737,7 @@ const handleSort = (key: SortKey) => {
 
 function PaginationControls({ currentPage, totalPages, onPageChange }: { currentPage: number, totalPages: number, onPageChange: (page: number) => void }) {
   return (
-    <div className="flex items-center justify-center gap-2 mt-4">
+    <div className="flex items-center justify-center gap-2 mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2">
       <Button
         variant="outline"
         onClick={() => onPageChange(1)}

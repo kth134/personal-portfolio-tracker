@@ -38,7 +38,7 @@ export default function PortfolioTabNavigation() {
   }
 
   return (
-    <TabsList>
+    <TabsList className="w-full sm:w-auto">
       <TabsTrigger
         value="accounts"
         data-state={activeTab === 'accounts' ? 'active' : 'inactive'}

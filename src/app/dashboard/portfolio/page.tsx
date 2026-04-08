@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import PortfolioHoldingsWithSlicers from './PortfolioHoldingsWithSlicers'
 import RebalancingPage from '../strategy/RebalancingPage'
+import { DashboardPageShell } from '@/components/dashboard-shell'
 
 // Types (simplified for this page)
 type TaxLot = {
@@ -72,32 +73,35 @@ export default async function PortfolioPage({
   })
 
   return (
-    <main className="p-8">
-      <h1 className="text-3xl font-bold mb-8">Portfolio Management</h1>
-      <Tabs key={initialTab} defaultValue={initialTab}>
-        <TabsList>
+    <DashboardPageShell
+      eyebrow="Portfolio"
+      title="Portfolio Management"
+      description="Review holdings, drill into allocation slices, and move into rebalancing from the same dashboard-style workspace."
+    >
+      <Tabs key={initialTab} defaultValue={initialTab} className="dashboard-tabs">
+        <TabsList className="w-full sm:w-auto">
           <TabsTrigger value="holdings">Holdings</TabsTrigger>
           <TabsTrigger value="rebalancing">Rebalancing</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="holdings">
+        <TabsContent value="holdings" className="mt-0">
           {lots?.length ? (
             <PortfolioHoldingsWithSlicers
               cash={totalCash}
               cashByAccountName={cashByAccountName}
             />
           ) : (
-            <div className="text-center py-12 text-muted-foreground">
+            <div className="rounded-[26px] border border-zinc-200/80 bg-white px-6 py-12 text-center text-muted-foreground shadow-sm">
               <p className="text-lg mb-2">No holdings yet</p>
               <p>Add a Buy transaction to see positions here.</p>
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="rebalancing">
+        <TabsContent value="rebalancing" className="mt-0">
           <RebalancingPage />
         </TabsContent>
       </Tabs>
-    </main>
+    </DashboardPageShell>
   )
 }

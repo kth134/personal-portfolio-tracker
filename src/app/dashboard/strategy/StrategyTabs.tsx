@@ -35,18 +35,18 @@ export default function StrategyTabs({ initialSubPortfolios }: StrategyTabsProps
   };
 
   return (
-    <Tabs value={tab} onValueChange={handleTabChange} className="w-full">
-      <TabsList>
+    <Tabs value={tab} onValueChange={handleTabChange} className="dashboard-tabs w-full">
+      <TabsList className="w-full sm:w-auto">
         <TabsTrigger value="accounts">Accounts</TabsTrigger>
         <TabsTrigger value="assets">Assets</TabsTrigger>
         <TabsTrigger value="sub-portfolios">Sub-Portfolios</TabsTrigger>
         <TabsTrigger value="glide-path">Glide Path</TabsTrigger>
       </TabsList>
-      <TabsContent value="sub-portfolios">
+      <TabsContent value="sub-portfolios" className="mt-0">
         <SubPortfoliosList initialSubPortfolios={initialSubPortfolios} />
       </TabsContent>
-      <TabsContent value="glide-path">
-        <div className="text-center text-red-600 font-semibold text-lg bg-red-50 p-4 rounded-md border border-red-200">
+      <TabsContent value="glide-path" className="mt-0">
+        <div className="rounded-[24px] border border-red-200 bg-red-50 px-6 py-8 text-center text-lg font-semibold text-red-600 shadow-sm">
           Under Construction
         </div>
       </TabsContent>

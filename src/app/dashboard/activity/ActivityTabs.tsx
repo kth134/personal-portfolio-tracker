@@ -34,12 +34,12 @@ export default function ActivityTabs({
   };
 
   return (
-    <Tabs value={tab} onValueChange={handleTabChange} className="w-full">
-      <TabsList>
+    <Tabs value={tab} onValueChange={handleTabChange} className="dashboard-tabs w-full">
+      <TabsList className="w-full sm:w-auto">
         <TabsTrigger value="transactions">Transactions</TabsTrigger>
         <TabsTrigger value="tax-lots">Tax Lots</TabsTrigger>
       </TabsList>
-      <TabsContent value="transactions">
+      <TabsContent value="transactions" className="mt-0">
         <TransactionsList 
           initialTransactions={initialTransactions} 
           total={transactionsTotal}
@@ -48,7 +48,7 @@ export default function ActivityTabs({
           diagnostics={diagnostics}
         />
       </TabsContent>
-      <TabsContent value="tax-lots">
+      <TabsContent value="tax-lots" className="mt-0">
         <TaxLotsList 
           initialTaxLots={initialTaxLots}
           total={taxLotsTotal}

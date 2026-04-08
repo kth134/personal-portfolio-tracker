@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ArrowUpDown } from 'lucide-react'
+import { DashboardSurface } from '@/components/dashboard-shell'
 
 type SubPortfolio = {
   id: string
@@ -215,7 +216,7 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button className="mb-4">Add Sub-Portfolio</Button>
+          <Button className="h-10 rounded-2xl px-4">Add Sub-Portfolio</Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader><DialogTitle>{editingSub ? 'Edit' : 'Add'} Sub-Portfolio</DialogTitle></DialogHeader>
@@ -293,27 +294,34 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
         </DialogContent>
       </Dialog>
 
-      <div className="flex gap-4 mb-4">
-        <Input
-          placeholder="Search sub-portfolios..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
-        {selectedSubs.length > 0 && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleBulkEdit}>
-              Edit Selected ({selectedSubs.length})
-            </Button>
-            <Button variant="destructive" onClick={handleBulkDelete}>
-              Delete Selected ({selectedSubs.length})
-            </Button>
+      <DashboardSurface
+        title="Sub-Portfolio Registry"
+        description="Review allocation groups with the same card hierarchy and rebalancing-style table treatment used elsewhere in the dashboard."
+        contentClassName="space-y-4"
+      >
+        <div className="dashboard-toolbar">
+          <div className="dashboard-toolbar-group">
+            <Input
+              placeholder="Search sub-portfolios..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-10 w-full rounded-2xl bg-white sm:max-w-sm"
+            />
           </div>
-        )}
-      </div>
+          {selectedSubs.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" className="rounded-xl" onClick={handleBulkEdit}>
+                Edit Selected ({selectedSubs.length})
+              </Button>
+              <Button variant="destructive" className="rounded-xl" onClick={handleBulkDelete}>
+                Delete Selected ({selectedSubs.length})
+              </Button>
+            </div>
+          )}
+        </div>
 
-      <div className="-mx-4 overflow-x-auto px-4 overscroll-x-contain sm:mx-0 sm:px-0">
-        <Table className="min-w-[900px] table-fixed">
+        <div className="dashboard-table-shell">
+          <Table className="min-w-[900px] table-fixed">
         <colgroup>
           <col className="w-12" />
           <col className="w-[20%]" />
@@ -366,7 +374,8 @@ export default function SubPortfoliosList({ initialSubPortfolios }: { initialSub
           ))}
         </TableBody>
       </Table>
-      </div>
+        </div>
+      </DashboardSurface>
     </>
   )
 }

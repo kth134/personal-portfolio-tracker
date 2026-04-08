@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox'
 import { Check, ChevronsUpDown, ArrowUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DashboardSurface } from '@/components/dashboard-shell'
 
 type Account = { id: string; name: string; type: string; institution?: string; tax_status?: string }
 
@@ -210,7 +211,7 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
         if (!isOpen) setEditingAccount(null)
       }}>
         <DialogTrigger asChild>
-          <Button className="mb-4">Add Account</Button>
+          <Button className="h-10 rounded-2xl px-4">Add Account</Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader><DialogTitle>{editingAccount ? 'Edit Account' : 'Add Account'}</DialogTitle></DialogHeader>
@@ -338,31 +339,38 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
         </DialogContent>
       </Dialog>
 
-      <div className="flex gap-4 items-center mb-4">
-        <Input
-          placeholder="Search accounts..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-64"
-        />
-
-        {selectedAccounts.length > 0 && (
-          <div className="flex gap-2 items-center">
-            <span className="text-sm text-muted-foreground">
-              {selectedAccounts.length} selected
-            </span>
-            <Button variant="outline" size="sm" onClick={handleBulkEdit}>
-              Edit Selected
-            </Button>
-            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
-              Delete Selected
-            </Button>
+      <DashboardSurface
+        title="Accounts Registry"
+        description="Edit account details with the same elevated tile and table treatment used across portfolio management."
+        contentClassName="space-y-4"
+      >
+        <div className="dashboard-toolbar">
+          <div className="dashboard-toolbar-group">
+            <Input
+              placeholder="Search accounts..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-10 w-full rounded-2xl bg-white sm:max-w-xs"
+            />
           </div>
-        )}
-      </div>
 
-      <div className="-mx-4 overflow-x-auto px-4 overscroll-x-contain sm:mx-0 sm:px-0">
-        <Table className="min-w-[760px] table-fixed">
+          {selectedAccounts.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                {selectedAccounts.length} selected
+              </span>
+              <Button variant="outline" size="sm" className="rounded-xl" onClick={handleBulkEdit}>
+                Edit Selected
+              </Button>
+              <Button variant="destructive" size="sm" className="rounded-xl" onClick={handleBulkDelete}>
+                Delete Selected
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="dashboard-table-shell">
+          <Table className="min-w-[760px] table-fixed">
         <colgroup>
           <col className="w-12" />
           <col className="w-[24%]" />
@@ -425,7 +433,8 @@ export default function AccountsList({ initialAccounts }: { initialAccounts: Acc
           ))}
         </TableBody>
       </Table>
-      </div>
+        </div>
+      </DashboardSurface>
     </>
   )
 }

@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Check, ChevronsUpDown, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DashboardSurface } from '@/components/dashboard-shell'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7']
 
@@ -470,11 +471,16 @@ export default function PerformanceReports() {
 
   return (
     <div className="space-y-8 w-full min-w-0">
-      <div className="flex flex-wrap gap-4 items-end rounded-xl border bg-muted/20 p-4">
+      <DashboardSurface
+        title="Performance Reports"
+        description="Use the same tile-based dashboard layout for benchmark comparisons, rolling return charts, and combined report metrics."
+        contentClassName="space-y-6"
+      >
+      <div className="dashboard-toolbar">
         <div>
-          <Label>Slice by</Label>
+          <Label className="dashboard-metric-label mb-2 block">Slice by</Label>
           <Select value={lens} onValueChange={setLens}>
-            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-56 rounded-2xl bg-white"><SelectValue /></SelectTrigger>
             <SelectContent>
               {LENSES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
             </SelectContent>
@@ -483,10 +489,10 @@ export default function PerformanceReports() {
 
         {lens !== 'total' && (
           <div className="w-full sm:w-auto sm:min-w-64">
-            <Label>Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}</Label>
+            <Label className="dashboard-metric-label mb-2 block">Select {LENSES.find(l => l.value === lens)?.label}s {valuesLoading && '(loading...)'}</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-between">
+                <Button variant="outline" className="w-full justify-between rounded-2xl bg-white">
                   {selectedValues.length === availableValues.length ? 'All selected' :
                    selectedValues.length === 0 ? 'None selected' :
                    `${selectedValues.length} selected`}
@@ -514,21 +520,21 @@ export default function PerformanceReports() {
         )}
 
         {lens === 'total' ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2">
             <Switch checked={aggregate} onCheckedChange={setAggregate} />
             <Label>Aggregate</Label>
           </div>
         ) : selectedValues.length > 1 && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2">
             <Switch checked={aggregate} onCheckedChange={setAggregate} />
             <Label>Aggregate selected</Label>
           </div>
         )}
 
         <div>
-          <Label>Period</Label>
+          <Label className="dashboard-metric-label mb-2 block">Period</Label>
           <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-32 rounded-2xl bg-white"><SelectValue /></SelectTrigger>
             <SelectContent>
               {PERIODS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
             </SelectContent>
@@ -536,17 +542,17 @@ export default function PerformanceReports() {
         </div>
 
         {period === 'custom' && (
-          <div className="flex items-center gap-2">
-            <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="border rounded px-2 py-1" />
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2">
+            <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="rounded-xl border border-zinc-200 px-3 py-2 text-sm" />
             <span>to</span>
-            <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="border rounded px-2 py-1" />
+            <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="rounded-xl border border-zinc-200 px-3 py-2 text-sm" />
           </div>
         )}
 
         <div>
-          <Label>Granularity</Label>
+          <Label className="dashboard-metric-label mb-2 block">Granularity</Label>
           <Select value={granularity} onValueChange={(val) => setGranularity(val as 'daily' | 'monthly')}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-32 rounded-2xl bg-white"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="daily">Daily</SelectItem>
               <SelectItem value="monthly">Monthly</SelectItem>
@@ -555,9 +561,9 @@ export default function PerformanceReports() {
         </div>
 
         <div>
-          <Label>Value</Label>
+          <Label className="dashboard-metric-label mb-2 block">Value</Label>
           <Select value={valueMode} onValueChange={(val) => setValueMode(val as 'percent' | 'dollar')}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-32 rounded-2xl bg-white"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="percent">% Return</SelectItem>
               <SelectItem value="dollar">$ Return</SelectItem>
@@ -566,9 +572,9 @@ export default function PerformanceReports() {
         </div>
 
         <div>
-          <Label>Return Type</Label>
+          <Label className="dashboard-metric-label mb-2 block">Return Type</Label>
           <Select value={returnMode} onValueChange={(val) => setReturnMode(val as 'both' | 'twr' | 'mwr')}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-32 rounded-2xl bg-white"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="both">MWR + TWR</SelectItem>
               <SelectItem value="twr">TWR only</SelectItem>
@@ -578,10 +584,10 @@ export default function PerformanceReports() {
         </div>
 
         <div className="w-full sm:w-auto sm:min-w-64">
-          <Label>Benchmarks</Label>
+          <Label className="dashboard-metric-label mb-2 block">Benchmarks</Label>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-between">
+              <Button variant="outline" className="w-full justify-between rounded-2xl bg-white">
                 {selectedBenchmarks.length === BENCHMARKS.length ? 'All selected' :
                  selectedBenchmarks.length === 0 ? 'None selected' :
                  `${selectedBenchmarks.length} selected`}
@@ -614,7 +620,7 @@ export default function PerformanceReports() {
             disabled={loading} 
             size="sm" 
             variant="default" 
-            className="bg-black text-white hover:bg-zinc-800 ml-auto flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"
+            className="ml-auto flex h-10 items-center rounded-2xl bg-black px-4 font-bold text-white shadow-black/20 transition-all hover:bg-zinc-800"
           >
             <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
             {loading ? 'Hold...' : 'Refresh Prices'}
@@ -635,9 +641,9 @@ export default function PerformanceReports() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
             {METRIC_CARDS.map(card => (
-              <div key={card.key} className="border rounded-lg p-4 min-w-0">
-                <div className="text-sm text-muted-foreground">{card.label}</div>
-                <div className="text-xl font-semibold">
+              <div key={card.key} className="dashboard-metric-tile min-w-0">
+                <div className="dashboard-metric-label">{card.label}</div>
+                <div className="dashboard-metric-value text-xl">
                   {card.type === 'percent'
                     ? `${(totals?.[card.key] || 0).toFixed(1)}%`
                     : formatUSDWhole(totals?.[card.key] || 0)}
@@ -648,7 +654,7 @@ export default function PerformanceReports() {
 
           {/* Aggregate Mode: Single chart with group-level lines */}
           {aggregate && (
-            <div className="space-y-4 rounded-xl border bg-card p-4 sm:p-5 shadow-sm overflow-hidden min-w-0">
+            <div className="dashboard-chart-panel space-y-4 overflow-hidden min-w-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">MWR / TWR Performance</h3>
                 <div className="text-sm text-muted-foreground">(MWR = IRR, TWR = time‑weighted)</div>
@@ -712,7 +718,7 @@ export default function PerformanceReports() {
                 {Object.entries(assetChartSeries).map(([groupKey, seriesData]) => {
                   const assetKeys = Object.keys(data?.assetSeries?.[groupKey] || {})
                   return (
-                    <div key={groupKey} className="space-y-3 rounded-xl border bg-card p-4 shadow-sm overflow-hidden min-w-0">
+                    <div key={groupKey} className="dashboard-chart-panel space-y-3 overflow-hidden min-w-0">
                       <h4 className="font-semibold text-center border-b pb-2 truncate">{groupKey}</h4>
                       <div className="h-[320px] w-full min-w-0">
                       <ResponsiveContainer width="100%" height="100%">
@@ -763,7 +769,7 @@ export default function PerformanceReports() {
 
           {/* Total Portfolio Non-Aggregate: Single chart with asset lines */}
           {!aggregate && lens === 'total' && (
-            <div className="space-y-4 rounded-xl border bg-card p-4 sm:p-5 shadow-sm overflow-hidden min-w-0">
+            <div className="dashboard-chart-panel space-y-4 overflow-hidden min-w-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">MWR / TWR Performance by Asset</h3>
                 <div className="text-sm text-muted-foreground">Individual asset performance</div>
@@ -811,7 +817,7 @@ export default function PerformanceReports() {
               <h3 className="text-lg font-semibold">Combined Metrics by Asset</h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {Object.keys(data?.assetSeries || {}).map(groupKey => (
-                  <div key={groupKey} className="space-y-4 border rounded-xl bg-card p-4 shadow-sm overflow-hidden min-w-0">
+                  <div key={groupKey} className="dashboard-chart-panel space-y-4 overflow-hidden min-w-0">
                     <h4 className="font-semibold text-center border-b pb-2 truncate">{groupKey}</h4>
                     <CombinedMetricsCharts data={data ? getGroupMetricsData(groupKey, data) : null} />
                   </div>
@@ -826,6 +832,7 @@ export default function PerformanceReports() {
           )}
         </>
       )}
+      </DashboardSurface>
     </div>
   )
 }

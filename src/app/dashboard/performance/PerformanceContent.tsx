@@ -31,6 +31,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, formatCashFlowsDebug, netCashFlowsByDate, transactionFlowForIRR, fetchAllUserTransactions } from '@/lib/finance';
+import { DashboardSurface } from '@/components/dashboard-shell';
 
 // use centralized calculateIRR and normalizeTransactionToFlow from src/lib/finance
 
@@ -589,57 +590,58 @@ function PerformanceContent() {
 
   return (
     <TooltipProvider>
-      <main className="p-4 md:p-8">
+      <div className="space-y-6">
       {refreshMessage && (
-        <div className="mb-4 p-2 bg-green-100 text-green-800 rounded">
+        <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-green-800 shadow-sm">
           {refreshMessage}
         </div>
       )}
-      <Card className="mb-8">
+      <Card className="overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white/95 py-0 shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
+        <div className="border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))]">
         <CardHeader>
-          <CardTitle className="text-center text-4xl">Portfolio Performance Summary</CardTitle>
-          <div className="grid grid-cols-1 md:grid-cols-4 items-center mt-6 gap-8">
-            <div className="text-center">
-              <CardTitle className="break-words">Total Portfolio Value</CardTitle>
-              <p className="text-2xl font-bold text-black mt-2 break-words">
+          <CardTitle className="text-center text-3xl tracking-tight sm:text-4xl">Portfolio Performance Summary</CardTitle>
+          <div className="dashboard-metric-grid mt-6 gap-4">
+            <div className="dashboard-metric-tile text-center">
+              <p className="dashboard-metric-label">Total Portfolio Value</p>
+              <p className="dashboard-metric-value break-words">
                 {formatUSDWhole(totals.market_value)}
               </p>
             </div>
-            <div className="text-center">
-              <CardTitle className="break-words">Net Gain/Loss</CardTitle>
-              <p className={cn("text-2xl font-bold mt-2 break-words", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
+            <div className="dashboard-metric-tile text-center">
+              <p className="dashboard-metric-label">Net Gain/Loss</p>
+              <p className={cn("dashboard-metric-value break-words", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
                 {formatUSDWhole(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
               </p>
             </div>
-            <div className="text-center space-y-2 text-lg">
+            <div className="dashboard-metric-tile text-center space-y-3 text-lg">
               <div>
-                <p className="text-sm text-muted-foreground break-words">Unrealized G/L</p>
+                <p className="dashboard-metric-label break-words">Unrealized G/L</p>
                 <p className={cn("font-bold break-words", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSDWhole(totalUnrealized)}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground break-words">Realized G/L</p>
+                <p className="dashboard-metric-label break-words">Realized G/L</p>
                 <p className={cn("font-bold break-words", totals.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSDWhole(totals.realized_gain)}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground break-words">Income</p>
+                <p className="dashboard-metric-label break-words">Income</p>
                 <p className={cn("font-bold break-words", totals.dividends >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSDWhole(totals.dividends)}
                 </p>
               </div>
             </div>
-            <div className="text-center space-y-2 text-lg">
+            <div className="dashboard-metric-tile text-center space-y-3 text-lg">
               <div>
-                <p className="text-sm text-muted-foreground break-words">Total Return %</p>
+                <p className="dashboard-metric-label break-words">Total Return %</p>
                 <p className={cn("font-bold break-words", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatPctTenth(totalReturnPct)}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground break-words">Annualized IRR</p>
+                <p className="dashboard-metric-label break-words">Annualized IRR</p>
                 <p className={cn("font-bold break-words", totalAnnualizedReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatPctTenth(totalAnnualizedReturnPct)}
                 </p>
@@ -647,12 +649,14 @@ function PerformanceContent() {
             </div>
           </div>
         </CardHeader>
+        </div>
       </Card>
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
+      <DashboardSurface title="Performance Data" description="Switch lenses and compare grouped performance metrics without changing any underlying calculations." contentClassName="space-y-4">
+      <div className="dashboard-toolbar">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">View by:</span>
+          <span className="dashboard-metric-label">View by</span>
           <Select value={lens} onValueChange={setLens}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[180px] rounded-2xl bg-white">
               <SelectValue placeholder="Select lens" />
             </SelectTrigger>
             <SelectContent>
@@ -668,6 +672,7 @@ function PerformanceContent() {
           onClick={handleRefreshPrices}
           disabled={refreshing || loading}
           size="sm"
+          className="rounded-2xl"
         >
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}
         </Button>
@@ -677,7 +682,7 @@ function PerformanceContent() {
           </span>
         )}
       </div>
-      <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+      <div className="dashboard-table-shell">
         <Table className="w-full min-w-[1080px] table-fixed">
           {lens === 'asset' ? (
             <colgroup>
@@ -957,7 +962,8 @@ function PerformanceContent() {
           </TableBody>
         </Table>
       </div>
-    </main>
+      </DashboardSurface>
+      </div>
     </TooltipProvider>
   );
 }

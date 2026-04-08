@@ -606,7 +606,7 @@ export default function RebalancingPage() {
 
   const toggleValue = (v: string) => setSelectedValues(p => p.includes(v) ? p.filter(it => it !== v) : [...p, v])
 
-  if (loading || !calculatedData) return <div className="p-8 text-center text-lg animate-pulse">Calculating rebalancing paths...</div>
+  if (loading || !calculatedData) return <div className="rounded-[26px] border border-zinc-200/80 bg-white px-6 py-12 text-center text-lg shadow-sm animate-pulse">Calculating rebalancing paths...</div>
 
   const rebalanceNeeded = calculatedData.allocations.some((a: any) => a.action !== 'hold')
   const subPortfolioCurrentValues = calculatedData.allocations.reduce((acc: Record<string, number>, item: any) => {
@@ -775,38 +775,38 @@ export default function RebalancingPage() {
   const supportingSummary = summarizePlanRows(supportingPlanRows)
 
   return (
-    <div className="flex flex-col gap-4 p-4 max-w-[1600px] mx-auto overflow-x-hidden">
+    <div className="flex flex-col gap-6 overflow-x-hidden">
       <div className="order-0 flex justify-start">
-        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"><RefreshCw className={cn("w-4 h-4 mr-2", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
+        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="h-10 rounded-2xl bg-black px-4 font-bold text-white shadow-black/20 transition-all hover:bg-zinc-800"><RefreshCw className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
       </div>
 
-      <details open className="order-1 group rounded-xl border bg-background shadow-sm overflow-hidden">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
+      <details open className="order-1 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))] px-4 py-4 sm:px-6">
           <span className="text-xl font-bold">Key KPIs</span>
           <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
             <span className="hidden sm:inline">Expand / Collapse</span>
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
           </span>
         </summary>
-        <div className="px-4 pb-4 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Value</Label><div className="text-xl font-bold font-mono">{formatUSDWhole(data.totalValue)}</div></div>
-            <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Sub-Portfolio Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div></div>
-            <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Asset Drift</Label><div className="text-xl font-bold mt-1 font-mono">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div></div>
-            <div className="bg-card p-4 rounded-lg border text-center shadow-sm"><Label className="text-[10px] uppercase font-bold text-muted-foreground leading-none">Rebalance Needed</Label><div className={cn("text-xl font-bold flex items-center justify-center mt-1", rebalanceNeeded ? "text-red-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div></div>
+        <div className="space-y-4 px-4 pb-4 pt-4 sm:px-6 sm:pb-6">
+          <div className="dashboard-metric-grid">
+            <div className="dashboard-metric-tile text-center"><Label className="dashboard-metric-label">Value</Label><div className="dashboard-metric-value font-mono">{formatUSDWhole(data.totalValue)}</div></div>
+            <div className="dashboard-metric-tile text-center"><Label className="dashboard-metric-label leading-none">Sub-Portfolio Drift</Label><div className="dashboard-metric-value mt-1 font-mono">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div></div>
+            <div className="dashboard-metric-tile text-center"><Label className="dashboard-metric-label leading-none">Asset Drift</Label><div className="dashboard-metric-value mt-1 font-mono">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div></div>
+            <div className="dashboard-metric-tile text-center"><Label className="dashboard-metric-label leading-none">Rebalance Needed</Label><div className={cn("dashboard-metric-value mt-1 flex items-center justify-center", rebalanceNeeded ? "text-red-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div></div>
           </div>
         </div>
       </details>
 
-      <details className="order-3 group rounded-xl border bg-background shadow-sm overflow-hidden">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
+      <details className="order-3 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))] px-4 py-4 sm:px-6">
             <span className="text-xl font-bold">Portfolio Drift Chart</span>
             <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
             <span className="hidden sm:inline">Expand / Collapse</span>
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
           </span>
         </summary>
-        <div className="px-4 pb-4">
+        <div className="px-4 pb-4 pt-4 sm:px-6 sm:pb-6">
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-end md:gap-4">
         <div className="w-full max-w-xs md:w-56 md:max-w-none">
           <Label className="text-[10px] font-bold uppercase mb-1 block text-left">View Lens</Label>
@@ -852,7 +852,7 @@ export default function RebalancingPage() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {chartSlices.map((slice, idx) => (
-          <div key={idx} className={cn("bg-card p-6 rounded-xl border shadow-sm space-y-4", chartSlices.length === 1 && "lg:col-span-2")}> 
+          <div key={idx} className={cn("dashboard-chart-panel space-y-4 p-6", chartSlices.length === 1 && "lg:col-span-2")}> 
             <h3 className="text-xs font-semibold text-center rounded-md bg-black px-3 py-2 uppercase tracking-wide text-white">{slice.key} Drift Analysis</h3>
             <div className="h-[380px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={slice.data} layout="vertical" margin={{ left: 10, right: 30 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" unit="%" fontSize={10} axisLine={false} tickLine={false} /><YAxis dataKey="ticker" type="category" interval={0} fontSize={9} width={40} /><RechartsTooltip formatter={(v:any) => [`${Number(v).toFixed(1)}%`, 'Drift']} /><Bar dataKey="drift_percentage">{slice.data.map((entry: any, i: number) => (<Cell key={i} fill={getDriftColor(entry.drift_percentage, slice.data)} />))}</Bar></BarChart></ResponsiveContainer></div>
           </div>
@@ -861,17 +861,17 @@ export default function RebalancingPage() {
       </div>
       </details>
 
-      <details className="order-4 group rounded-xl border bg-background shadow-sm overflow-hidden">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
+      <details className="order-4 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))] px-4 py-4 sm:px-6">
         <span className="text-xl font-bold">Rebalancing Recommendations</span>
         <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
           <span className="hidden sm:inline">Expand / Collapse</span>
           <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
         </span>
       </summary>
-      <div className="px-4 pb-4">
+      <div className="px-4 pb-4 pt-4 sm:px-6 sm:pb-6">
       {rebalanceNeeded && rebalancingPlanRows.length > 0 ? (
-      <div className="bg-card p-4 rounded-xl border shadow-sm">
+      <div className="dashboard-chart-panel p-4">
           <div className="space-y-4">
             {rebalancingPlanRows.length > 0 && (
               <div className="md:hidden space-y-3">
@@ -1087,15 +1087,15 @@ export default function RebalancingPage() {
       </div>
       </details>
 
-      <details className="order-2 group rounded-xl border bg-background shadow-sm overflow-hidden">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-zinc-50/70 px-4 py-3">
+      <details className="order-2 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))] px-4 py-4 sm:px-6">
           <span className="text-xl font-bold">Allocation Strategy</span>
           <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
             <span className="hidden sm:inline">Expand / Collapse</span>
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
           </span>
         </summary>
-        <div className="px-4 pb-4">
+        <div className="px-4 pb-4 pt-4 sm:px-6 sm:pb-6">
         <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
           {[...calculatedData.subPortfolios]
             .sort((a: any, b: any) => (subPortfolioCurrentValues[b.id] || 0) - (subPortfolioCurrentValues[a.id] || 0))
