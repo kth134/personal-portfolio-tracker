@@ -427,6 +427,10 @@ export default function PortfolioHoldingsWithSlicers({
                                 <p className="mt-1 text-sm text-zinc-700 tabular-nums">{itemQuantity.toLocaleString(undefined, { maximumFractionDigits: 6 })}</p>
                               </div>
                               <div>
+                                <p className="dashboard-metric-label">Portfolio Weight</p>
+                                <p className="mt-1 text-sm text-zinc-700 tabular-nums">{itemWeight.toFixed(2)}%</p>
+                              </div>
+                              <div>
                                 <p className="dashboard-metric-label">Cost Basis / Share</p>
                                 <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(itemCostBasisPerShare)}</p>
                               </div>
@@ -441,10 +445,6 @@ export default function PortfolioHoldingsWithSlicers({
                               <div>
                                 <p className="dashboard-metric-label">Current Value</p>
                                 <p className="mt-1 text-sm font-semibold text-zinc-900 tabular-nums">{formatUSD(itemValue)}</p>
-                              </div>
-                              <div>
-                                <p className="dashboard-metric-label">Portfolio Weight</p>
-                                <p className="mt-1 text-sm text-zinc-700 tabular-nums">{itemWeight.toFixed(2)}%</p>
                               </div>
                             </div>
                           </div>
