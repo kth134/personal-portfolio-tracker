@@ -262,9 +262,9 @@ function DashboardSection({
       onToggle={(event) => onOpenChange(event.currentTarget.open)}
       className="group rounded-xl border bg-background shadow-sm overflow-hidden"
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-black px-4 py-3 text-white transition-colors hover:bg-zinc-900">
-        <span className="text-xl font-bold">{title}</span>
-        <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-300">
+      <summary className="dashboard-section-header">
+        <span className="dashboard-section-header-title">{title}</span>
+        <span className="dashboard-section-header-meta">
           <span className="hidden sm:inline">Expand / Collapse</span>
           <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
         </span>
@@ -1300,7 +1300,7 @@ export default function DashboardHome() {
           onClick={handleRefresh}
           disabled={refreshing}
           size="sm"
-          className="bg-black text-white hover:bg-zinc-800 flex items-center h-9 px-4 transition-all shadow-black/20 font-bold"
+          className="dashboard-refresh-button h-9"
         >
           <RefreshCw className={cn('w-4 h-4 mr-2', refreshing && 'animate-spin')} />
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}

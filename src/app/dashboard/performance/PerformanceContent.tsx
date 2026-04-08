@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatUSD } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
@@ -596,11 +595,12 @@ function PerformanceContent() {
           {refreshMessage}
         </div>
       )}
-      <Card className="overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white/95 py-0 shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
-        <div className="border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))]">
-        <CardHeader>
-          <CardTitle className="text-center text-3xl tracking-tight sm:text-4xl">Portfolio Performance Summary</CardTitle>
-          <div className="dashboard-metric-grid mt-6 gap-4">
+      <DashboardSurface
+        title="Portfolio Performance Summary"
+        description="Review the portfolio-wide totals for value, realized and unrealized gains, income, and overall return in the same shared section frame used across the dashboard."
+        contentClassName="space-y-0"
+      >
+          <div className="dashboard-metric-grid gap-4">
             <div className="dashboard-metric-tile text-center">
               <p className="dashboard-metric-label">Total Portfolio Value</p>
               <p className="dashboard-metric-value break-words">
@@ -648,9 +648,7 @@ function PerformanceContent() {
               </div>
             </div>
           </div>
-        </CardHeader>
-        </div>
-      </Card>
+      </DashboardSurface>
       <DashboardSurface title="Performance Data" description="Switch lenses and compare grouped performance metrics without changing any underlying calculations." contentClassName="space-y-4">
       <div className="dashboard-toolbar">
         <div className="flex items-center gap-2">
@@ -672,7 +670,7 @@ function PerformanceContent() {
           onClick={handleRefreshPrices}
           disabled={refreshing || loading}
           size="sm"
-          className="rounded-2xl"
+          className="dashboard-refresh-button h-10"
         >
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}
         </Button>

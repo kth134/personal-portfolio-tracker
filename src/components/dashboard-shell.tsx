@@ -60,7 +60,7 @@ export function DashboardSurface({
       {title || description || action ? (
         <CardHeader className="grid gap-3 border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))] px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:px-6">
           <div className="space-y-1">
-            {title ? <CardTitle className="text-lg font-semibold tracking-tight text-zinc-950">{title}</CardTitle> : null}
+            {title ? <CardTitle className="dashboard-section-header-title text-lg">{title}</CardTitle> : null}
             {description ? <CardDescription className="text-sm leading-6 text-zinc-500">{description}</CardDescription> : null}
           </div>
           {action ? <div className="flex items-center justify-start sm:justify-end">{action}</div> : null}

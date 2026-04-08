@@ -620,7 +620,7 @@ export default function PerformanceReports() {
             disabled={loading} 
             size="sm" 
             variant="default" 
-            className="ml-auto flex h-10 items-center rounded-2xl bg-black px-4 font-bold text-white shadow-black/20 transition-all hover:bg-zinc-800"
+            className="dashboard-refresh-button ml-auto h-10"
           >
             <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
             {loading ? 'Hold...' : 'Refresh Prices'}

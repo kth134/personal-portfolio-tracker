@@ -777,13 +777,13 @@ export default function RebalancingPage() {
   return (
     <div className="flex flex-col gap-6 overflow-x-hidden">
       <div className="order-0 flex justify-start">
-        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="h-10 rounded-2xl bg-black px-4 font-bold text-white shadow-black/20 transition-all hover:bg-zinc-800"><RefreshCw className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
+        <Button onClick={async () => { setRefreshing(true); await refreshAssetPrices(); fetchData(); setRefreshing(false); }} disabled={refreshing} size="sm" variant="default" className="dashboard-refresh-button h-10"><RefreshCw className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")} /> {refreshing ? 'Hold...' : 'Refresh Prices'}</Button>
       </div>
 
       <details open className="order-1 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))] px-4 py-4 sm:px-6">
-          <span className="text-xl font-bold">Key KPIs</span>
-          <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+        <summary className="dashboard-section-header">
+          <span className="dashboard-section-header-title">Key KPIs</span>
+          <span className="dashboard-section-header-meta">
             <span className="hidden sm:inline">Expand / Collapse</span>
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
           </span>
@@ -799,9 +799,9 @@ export default function RebalancingPage() {
       </details>
 
       <details className="order-3 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))] px-4 py-4 sm:px-6">
-            <span className="text-xl font-bold">Portfolio Drift Chart</span>
-            <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+        <summary className="dashboard-section-header">
+            <span className="dashboard-section-header-title">Portfolio Drift Chart</span>
+            <span className="dashboard-section-header-meta">
             <span className="hidden sm:inline">Expand / Collapse</span>
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
           </span>
@@ -853,7 +853,7 @@ export default function RebalancingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {chartSlices.map((slice, idx) => (
           <div key={idx} className={cn("dashboard-chart-panel space-y-4 p-6", chartSlices.length === 1 && "lg:col-span-2")}> 
-            <h3 className="text-xs font-semibold text-center rounded-md bg-black px-3 py-2 uppercase tracking-wide text-white">{slice.key} Drift Analysis</h3>
+            <h3 className="dashboard-contrast-pill text-center">{slice.key} Drift Analysis</h3>
             <div className="h-[380px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={slice.data} layout="vertical" margin={{ left: 10, right: 30 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" unit="%" fontSize={10} axisLine={false} tickLine={false} /><YAxis dataKey="ticker" type="category" interval={0} fontSize={9} width={40} /><RechartsTooltip formatter={(v:any) => [`${Number(v).toFixed(1)}%`, 'Drift']} /><Bar dataKey="drift_percentage">{slice.data.map((entry: any, i: number) => (<Cell key={i} fill={getDriftColor(entry.drift_percentage, slice.data)} />))}</Bar></BarChart></ResponsiveContainer></div>
           </div>
         ))}
@@ -862,9 +862,9 @@ export default function RebalancingPage() {
       </details>
 
       <details className="order-4 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))] px-4 py-4 sm:px-6">
-        <span className="text-xl font-bold">Rebalancing Recommendations</span>
-        <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+      <summary className="dashboard-section-header">
+        <span className="dashboard-section-header-title">Rebalancing Recommendations</span>
+        <span className="dashboard-section-header-meta">
           <span className="hidden sm:inline">Expand / Collapse</span>
           <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
         </span>
@@ -878,7 +878,7 @@ export default function RebalancingPage() {
                 {outOfBandPlanRows.length > 0 && (
                   <div className="space-y-2">
                     <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
-                      <div className="rounded-md bg-black px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">Out-of-Band Assets</div>
+                      <div className="dashboard-contrast-pill px-2 py-1 text-[11px]">Out-of-Band Assets</div>
                       <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
                         <MetricChip label="Gross Buy" value={formatUSDWhole(outOfBandSummary.grossBuy)} valueClassName="text-green-700" />
                         <MetricChip label="Gross Sell" value={formatUSDWhole(outOfBandSummary.grossSell)} valueClassName="text-red-700" />
@@ -886,7 +886,7 @@ export default function RebalancingPage() {
                       </div>
                     </div>
                     {outOfBandPlanRows.map((row, idx) => (
-                  <div key={`mobile-plan-out-${idx}`} className="rounded-lg border bg-background p-3 shadow-sm">
+                  <div key={`mobile-plan-out-${idx}`} className="dashboard-mobile-card space-y-4">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="font-semibold leading-tight">{row.ticker}</div>
@@ -925,7 +925,7 @@ export default function RebalancingPage() {
                 {supportingPlanRows.length > 0 && (
                   <div className="space-y-2">
                     <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
-                      <div className="rounded-md bg-black px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">Supporting Transactions</div>
+                      <div className="dashboard-contrast-pill px-2 py-1 text-[11px]">Supporting Transactions</div>
                       <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
                         <MetricChip label="Gross Buy" value={formatUSDWhole(supportingSummary.grossBuy)} valueClassName="text-green-700" />
                         <MetricChip label="Gross Sell" value={formatUSDWhole(supportingSummary.grossSell)} valueClassName="text-red-700" />
@@ -933,7 +933,7 @@ export default function RebalancingPage() {
                       </div>
                     </div>
                     {supportingPlanRows.map((row, idx) => (
-                  <div key={`mobile-plan-${idx}`} className="rounded-lg border bg-background p-3 shadow-sm">
+                  <div key={`mobile-plan-${idx}`} className="dashboard-mobile-card space-y-4">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="font-semibold leading-tight">{row.ticker}</div>
@@ -995,7 +995,7 @@ export default function RebalancingPage() {
                 <TableBody>
                   {outOfBandPlanRows.length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="bg-black px-3 py-2">
+                      <TableCell colSpan={9} className="bg-[linear-gradient(135deg,rgba(9,9,11,0.96),rgba(39,39,42,0.94))] px-3 py-2">
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-semibold uppercase tracking-wide text-white">Out-of-Band Assets</span>
                           <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
@@ -1042,7 +1042,7 @@ export default function RebalancingPage() {
                   ))}
                   {supportingPlanRows.length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="bg-black px-3 py-2">
+                      <TableCell colSpan={9} className="bg-[linear-gradient(135deg,rgba(9,9,11,0.96),rgba(39,39,42,0.94))] px-3 py-2">
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-semibold uppercase tracking-wide text-white">Supporting Transactions</span>
                           <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
@@ -1082,15 +1082,15 @@ export default function RebalancingPage() {
           </div>
       </div>
       ) : (
-        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">No rebalancing recommendations right now. Current allocations are within your configured thresholds.</div>
+        <div className="dashboard-mobile-card text-sm text-muted-foreground">No rebalancing recommendations right now. Current allocations are within your configured thresholds.</div>
       )}
       </div>
       </details>
 
       <details className="order-2 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-zinc-200/70 bg-[linear-gradient(180deg,rgba(250,250,250,0.98),rgba(244,244,245,0.92))] px-4 py-4 sm:px-6">
-          <span className="text-xl font-bold">Allocation Strategy</span>
-          <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+        <summary className="dashboard-section-header">
+          <span className="dashboard-section-header-title">Allocation Strategy</span>
+          <span className="dashboard-section-header-meta">
             <span className="hidden sm:inline">Expand / Collapse</span>
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
           </span>
@@ -1113,7 +1113,7 @@ export default function RebalancingPage() {
 
             return (
               <AccordionItem key={sp.id} value={sp.id} className="border rounded-xl mb-6 overflow-hidden shadow-sm bg-background">
-                <AccordionTrigger className="bg-black text-white px-4 sm:px-6 hover:bg-zinc-900 transition-all font-bold hover:no-underline">
+                <AccordionTrigger className="dashboard-contrast-header px-4 sm:px-6 font-bold hover:no-underline">
                   <div className="w-full pr-2 sm:pr-6">
                     <div className="flex items-center justify-between gap-3 sm:hidden">
                       <div className="w-1/2 min-w-0">
@@ -1137,10 +1137,10 @@ export default function RebalancingPage() {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="p-0 bg-background">
-                    <div className="md:hidden border-b bg-zinc-100/80 p-3">
-                      <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/90 p-2">
-                        <div className="rounded-md bg-slate-700 px-2 py-1 text-center text-xs font-semibold uppercase tracking-wide text-white">Summary</div>
-                      <div className="grid grid-cols-3 gap-2 text-[10px]">
+                    <div className="md:hidden border-b bg-zinc-50/70 p-3">
+                      <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-summary">
+                        <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-summary">Summary</div>
+                      <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
                         <div className="mt-2"><MetricChip label="Target Weight" value={`${targetAllocPct.toFixed(1)}%`} valueClassName="text-blue-700" /></div>
                         <div className="mt-2"><MetricChip label="Actual Weight" value={`${allocPct.toFixed(1)}%`} /></div>
                         <div className="mt-2"><MetricChip label="Drift" value={`${subDrift > 0 ? '+' : ''}${subDrift.toFixed(1)}%`} valueClassName={subDrift > 0 ? 'text-green-600' : (subDrift < 0 ? 'text-red-600' : 'text-zinc-700')} /></div>
@@ -1157,10 +1157,10 @@ export default function RebalancingPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="p-4 bg-zinc-50 border-b">
-                        <div className="rounded-lg border-2 border-zinc-300 bg-white p-3">
-                      <div className="rounded-md bg-amber-200 px-2 py-1 text-center text-xs font-semibold uppercase tracking-wide text-black">Inputs</div>
-                        <div className="mt-2 grid grid-cols-3 gap-2 sm:gap-4 items-end">
+                    <div className="border-b bg-zinc-50/80 p-4">
+                        <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-input">
+                      <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-input">Inputs</div>
+                        <div className="mt-3 grid grid-cols-3 gap-2 sm:gap-4 items-end">
                         <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input aria-label={`Sub-portfolio target for ${sp.name}`} defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
                           const parsed = parsePercentWithTwoDecimals(e.target.value)
                           if (parsed === null) {
@@ -1176,7 +1176,7 @@ export default function RebalancingPage() {
                     </div>
                     <div className="md:hidden p-3 space-y-3 bg-zinc-50 border-b">
                       {sortedItems.map((i: any) => (
-                        <div key={`mobile-${i.asset_id}`} className="rounded-lg border bg-background p-3 shadow-sm">
+                        <div key={`mobile-${i.asset_id}`} className="dashboard-mobile-card space-y-4">
                           <div className="flex items-start justify-between gap-2 min-w-0">
                             <div className="min-w-0">
                               <div className="font-semibold leading-tight truncate">{i.ticker}</div>
@@ -1192,23 +1192,28 @@ export default function RebalancingPage() {
                             <span className="text-xs font-semibold tabular-nums text-zinc-900">{i.action === 'hold' ? '-' : formatUSDWhole(i.amount)}</span>
                           </div>
 
-                          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                            <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                          <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-summary mt-2">
+                            <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-summary">Allocation Snapshot</div>
+                            <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+                            <div className="dashboard-mobile-subpanel-cell">
                               <div className="text-zinc-500">Target</div>
                               <div className="font-semibold tabular-nums text-blue-700">{Number(i.implied_overall_target || 0).toFixed(1)}%</div>
                             </div>
-                            <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                            <div className="dashboard-mobile-subpanel-cell">
                               <div className="text-zinc-500">Current</div>
                               <div className="font-semibold tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</div>
                             </div>
-                            <div className="rounded bg-zinc-50 px-2 py-1 text-center">
+                            <div className="dashboard-mobile-subpanel-cell">
                               <div className="text-zinc-500">Drift</div>
                               <div className={cn("font-semibold tabular-nums", i.drift_percentage > 0 ? "text-green-600" : (i.drift_percentage < 0 ? "text-red-600" : "text-zinc-700"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</div>
                             </div>
                           </div>
+                          </div>
 
-                          <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                            <div className="rounded border border-amber-200 bg-amber-200/60 px-2 py-1.5">
+                          <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-input mt-2">
+                            <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-input">Adjustments</div>
+                            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                            <div className="dashboard-mobile-subpanel-cell-input">
                               <div className="text-zinc-600 text-center leading-tight">Sub-Portfolio Target</div>
                               <Input
                                 aria-label={`Sub-portfolio target for ${i.ticker}`}
@@ -1228,15 +1233,15 @@ export default function RebalancingPage() {
                                 className="mt-1 h-8 w-full border-amber-300 bg-amber-50 text-center font-semibold tabular-nums text-[11px] focus:ring-0"
                               />
                             </div>
-                            <div className="rounded border border-zinc-200 bg-zinc-50 px-2 py-1.5">
+                            <div className="dashboard-mobile-subpanel-cell bg-white/80 text-center">
                               <div className="text-zinc-500 text-center leading-tight">Sub-Portfolio Weight</div>
                               <div className="mt-2 text-center font-semibold tabular-nums">{Number(i.current_in_sp || 0).toFixed(1)}%</div>
                             </div>
                           </div>
 
-                          <div className="mt-2 rounded border border-zinc-200 bg-zinc-50 px-2 py-2">
+                          <div className="dashboard-mobile-subpanel-toggle mt-2">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-zinc-500">Rebalance Mode</span>
+                              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Rebalance Mode</span>
                               <div className="flex max-w-full items-center gap-1 rounded border border-zinc-200 bg-white px-2 py-1 overflow-hidden">
                                 <span className={cn('text-[9px] uppercase tracking-wide', !i.asset_band_mode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Abs</span>
                                 <Switch
@@ -1248,6 +1253,7 @@ export default function RebalancingPage() {
                                 <span className={cn('text-[9px] uppercase tracking-wide', i.asset_band_mode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Cons</span>
                               </div>
                             </div>
+                          </div>
                           </div>
                         </div>
                       ))}

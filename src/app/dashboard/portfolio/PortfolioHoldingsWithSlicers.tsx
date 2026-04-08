@@ -296,7 +296,7 @@ export default function PortfolioHoldingsWithSlicers({
           await refreshAssetPrices();
           setRefreshTrigger(t => t + 1);
           setRefreshing(false);
-        }} disabled={refreshing} className="h-10 rounded-2xl px-4">
+        }} disabled={refreshing} className="dashboard-refresh-button h-10">
           {refreshing ? 'Refreshing...' : 'Refresh Prices'}
         </Button>
       </div>
@@ -354,7 +354,7 @@ export default function PortfolioHoldingsWithSlicers({
 
           return (
             <AccordionItem key={String(group.key)} value={String(group.key)} className="overflow-hidden rounded-[24px] border border-zinc-200/80 bg-white shadow-sm">
-              <AccordionTrigger className="bg-[linear-gradient(135deg,rgba(9,9,11,0.96),rgba(39,39,42,0.94))] px-4 py-4 text-white transition-colors hover:bg-zinc-900">
+              <AccordionTrigger className="dashboard-contrast-header px-4 py-4">
                 <div className="flex justify-between w-full mr-4 text-left">
                   <span className="font-bold text-white uppercase">{group.key}</span>
                   <div className="flex gap-4 text-xs sm:text-sm font-bold text-white">
