@@ -1158,16 +1158,6 @@ export default function RebalancingPage() {
                       </div>
                       </div>
                     </div>
-                    <div className="hidden md:block border-b bg-zinc-100/80 p-4">
-                      <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/90 p-3">
-                        <div className="rounded-md bg-zinc-950 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-white">Summary</div>
-                        <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
-                          <MetricChip label="Target Weight" value={`${targetAllocPct.toFixed(1)}%`} valueClassName="text-blue-700" />
-                          <MetricChip label="Actual Weight" value={`${allocPct.toFixed(1)}%`} />
-                          <MetricChip label="Drift" value={`${subDrift > 0 ? '+' : ''}${subDrift.toFixed(1)}%`} valueClassName={subDrift > 0 ? 'text-green-600' : (subDrift < 0 ? 'text-red-600' : 'text-zinc-700')} />
-                        </div>
-                      </div>
-                    </div>
                     <div className="border-b bg-zinc-50/80 p-4">
                         <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-input">
                       <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-input">Inputs</div>
