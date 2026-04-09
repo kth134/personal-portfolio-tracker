@@ -1219,21 +1219,21 @@ export default function DashboardHome() {
     <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/performance')}>
       <CardHeader className="space-y-4 p-4 sm:p-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="text-center rounded-lg border bg-white px-3 py-2.5">
-            <CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Total Portfolio Value</CardTitle>
-            <p className="text-2xl font-bold mt-1.5 font-mono tabular-nums">
+          <div className="rounded-lg border bg-white px-3 py-2.5 text-center">
+            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Portfolio Value</Label>
+            <p className="mt-1 text-xl font-bold font-mono tabular-nums">
               {performanceTotals ? formatUSDWhole(performanceTotals.market_value) : 'Loading...'}
             </p>
           </div>
-          <div className="text-center rounded-lg border bg-card px-3 py-2.5">
-            <CardTitle className="text-sm">Total Return %</CardTitle>
-            <p className={cn('text-xl font-bold mt-1.5 tabular-nums', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
+          <div className="flex min-h-[88px] flex-col items-center justify-center rounded-lg border bg-card px-3 py-2.5 text-center">
+            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Return %</Label>
+            <p className={cn('mt-1 text-xl font-bold font-mono tabular-nums', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
               {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
             </p>
           </div>
-          <div className="text-center rounded-lg border bg-card px-3 py-2.5">
-            <CardTitle className="text-sm">Annualized IRR</CardTitle>
-            <p className={cn('text-xl font-bold mt-1.5 tabular-nums', Number(performanceTotals?.irr_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
+          <div className="flex min-h-[88px] flex-col items-center justify-center rounded-lg border bg-card px-3 py-2.5 text-center">
+            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Annualized IRR</Label>
+            <p className={cn('mt-1 text-xl font-bold font-mono tabular-nums', Number(performanceTotals?.irr_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
               {performanceTotals ? formatPctTenth(performanceTotals.irr_pct) : 'Loading...'}
             </p>
           </div>
@@ -1264,11 +1264,11 @@ export default function DashboardHome() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4 items-stretch">
               <div className="text-center h-full rounded-md border px-3 py-2.5">
-                <h4 className="font-semibold text-sm text-muted-foreground">Portfolio Drift</h4>
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Portfolio Drift</Label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2 mt-1.5">
                   <div className="text-center">
-                    <p className="text-xs text-muted-foreground">Sub-Portfolio</p>
-                    <p className="mt-1 text-lg sm:text-xl font-bold leading-tight break-words tabular-nums">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Sub-Portfolio</p>
+                    <p className="mt-1 text-xl font-bold font-mono leading-tight break-words tabular-nums">
                       {(() => {
                         const subPortfolioAllocations: { [key: string]: number } = {}
                         rebalancingData.currentAllocations.forEach((item) => {
@@ -1293,8 +1293,8 @@ export default function DashboardHome() {
                     </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-xs text-muted-foreground">Asset</p>
-                    <p className="mt-1 text-lg sm:text-xl font-bold leading-tight break-words tabular-nums">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Asset</p>
+                    <p className="mt-1 text-xl font-bold font-mono leading-tight break-words tabular-nums">
                       {(() => {
                         const assetDrift = rebalancingData.totalValue > 0
                           ? rebalancingData.currentAllocations.reduce((sum: number, item) => {
@@ -1312,8 +1312,8 @@ export default function DashboardHome() {
                 </div>
               </div>
               <div className="text-center h-full rounded-md border px-3 py-2.5 flex min-h-[96px] flex-col items-center justify-center gap-1.5">
-                <h4 className="font-semibold text-sm text-muted-foreground">Rebalance Needed</h4>
-                <p className="flex items-center justify-center text-xl font-bold leading-none">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Rebalance Needed</Label>
+                <p className="mt-1 flex items-center justify-center text-xl font-bold tabular-nums leading-none">
                   {rebalancingData.currentAllocations.some((item) => item.action !== 'hold') ? (
                     <span className="text-red-600">Yes</span>
                   ) : (
