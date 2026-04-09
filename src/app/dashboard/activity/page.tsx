@@ -48,7 +48,7 @@ export default async function ActivityPage({
   return (
     <DashboardPageShell
       eyebrow="Activity"
-      title="Transactions And Tax Lots"
+      title="Activity"
       description="Review transaction history, filter activity, and manage tax lots used to track basis and remaining shares."
     >
       {debug && diagnostics && (
