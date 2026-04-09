@@ -941,7 +941,7 @@ export default function RebalancingPage() {
                       <div className="flex items-center gap-3">
                         <span className="text-zinc-950">Value: {formatUSDWhole(totalVal)}</span>
                         <span className="text-zinc-950">Target: {formatPctTenth(targetAllocPct)}</span>
-                        <span className="text-zinc-800">Actual: {formatPctTenth(allocPct)}</span>
+                        <span className="text-zinc-950">Actual: {formatPctTenth(allocPct)}</span>
                         <span className={cn(subDrift > 0 ? 'value-positive' : (subDrift < 0 ? 'value-negative' : 'text-zinc-700'))}>
                           Drift: {subDrift > 0 ? '+' : ''}{formatPctTenth(subDrift)}
                         </span>
