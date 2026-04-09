@@ -616,44 +616,44 @@ function PerformanceContent() {
         contentClassName="space-y-0"
       >
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:items-stretch">
-            <div className="dashboard-metric-tile flex min-h-[168px] flex-col items-center justify-center text-center md:h-full">
+            <div className="dashboard-metric-tile flex min-h-[132px] flex-col items-center justify-center text-center md:h-full md:min-h-[168px]">
               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Portfolio Value</Label>
               <p className="mt-1 text-xl font-bold font-mono tabular-nums break-words">
                 {formatUSDWhole(totals.market_value)}
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="dashboard-metric-tile text-center">
+              <div className="dashboard-metric-tile order-1 flex min-h-[132px] flex-col items-center justify-center text-center lg:order-1">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground break-words">Net Gain / Loss</Label>
                 <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSDWhole(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
                 </p>
               </div>
-              <div className="dashboard-metric-tile text-center">
+              <div className="dashboard-metric-tile order-2 flex min-h-[132px] flex-col items-center justify-center text-center lg:order-2">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground break-words">Realized Gain / Loss</Label>
                 <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totals.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSDWhole(totals.realized_gain)}
                 </p>
               </div>
-              <div className="dashboard-metric-tile text-center">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground break-words">Total Return</Label>
-                <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
-                  {formatPctTenth(totalReturnPct)}
-                </p>
-              </div>
-              <div className="dashboard-metric-tile text-center">
+              <div className="dashboard-metric-tile order-4 flex min-h-[132px] flex-col items-center justify-center text-center lg:order-4">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground break-words">Income</Label>
                 <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totals.dividends >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSDWhole(totals.dividends)}
                 </p>
               </div>
-              <div className="dashboard-metric-tile text-center">
+              <div className="dashboard-metric-tile order-3 flex min-h-[132px] flex-col items-center justify-center text-center lg:order-5">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground break-words">Unrealized Gain / Loss</Label>
                 <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSDWhole(totalUnrealized)}
                 </p>
               </div>
-              <div className="dashboard-metric-tile text-center">
+              <div className="dashboard-metric-tile order-5 flex min-h-[132px] flex-col items-center justify-center text-center lg:order-3">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground break-words">Total Return</Label>
+                <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
+                  {formatPctTenth(totalReturnPct)}
+                </p>
+              </div>
+              <div className="dashboard-metric-tile order-6 flex min-h-[132px] flex-col items-center justify-center text-center lg:order-6">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground break-words">Annualized IRR</Label>
                 <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totalAnnualizedReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatPctTenth(totalAnnualizedReturnPct)}
