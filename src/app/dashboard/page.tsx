@@ -1379,7 +1379,7 @@ export default function DashboardHome() {
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                             <XAxis type="number" unit="%" fontSize={10} axisLine={false} tickLine={false} />
                             <YAxis dataKey="ticker" type="category" interval={0} fontSize={9} width={56} />
-                            <Tooltip formatter={(value: number | string) => [`${Number(value).toFixed(1)}%`, 'Drift']} />
+                            <Tooltip formatter={(value: number | string | undefined) => [`${Number(value ?? 0).toFixed(1)}%`, 'Drift']} />
                             <Bar dataKey="drift_percentage">
                               {slice.data.map((entry, entryIndex) => (
                                 <Cell key={`${slice.key}-${entry.ticker}-${entryIndex}`} fill={getDriftColor(entry.drift_percentage, slice.data)} />
