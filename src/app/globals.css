@@ -264,15 +264,15 @@
   }
 
   .dashboard-metric-tile {
-    @apply flex min-h-[88px] flex-col items-center justify-center rounded-lg border bg-card px-3 py-2.5 text-center shadow-sm;
+    @apply grid min-h-[75px] grid-rows-[auto_1fr] items-stretch rounded-lg border bg-card px-3 py-2.5 text-center shadow-sm;
   }
 
   .dashboard-metric-label {
-    @apply text-[10px] font-bold uppercase text-muted-foreground;
+    @apply self-start text-[10px] font-bold uppercase text-muted-foreground;
   }
 
   .dashboard-metric-value {
-    @apply mt-1 text-xl font-bold font-mono leading-none text-zinc-950 tabular-nums;
+    @apply flex min-h-0 items-center justify-center text-xl font-bold font-mono leading-none text-zinc-950 tabular-nums;
   }
 
   .dashboard-chart-panel {
