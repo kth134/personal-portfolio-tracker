@@ -139,7 +139,7 @@ export default function PortfolioHoldingsClient({
         {holding.asset_id === 'cash' || isClosed ? '-' : formatUSD(holding.current_price || 0)}
       </TableCell>
       <TableCell className="text-right w-24">{formatUSD(holding.current_value || 0)}</TableCell>
-      <TableCell className={cn("text-right w-28", (holding.unrealized_gain ?? 0) > 0 ? "text-green-600" : "text-red-600")}>
+      <TableCell className={cn("text-right w-28", (holding.unrealized_gain ?? 0) > 0 ? "value-positive" : "value-negative")}>
         {formatUSD(holding.unrealized_gain ?? 0)}
       </TableCell>
     </TableRow>
@@ -180,7 +180,7 @@ export default function PortfolioHoldingsClient({
                 <span className="ml-auto flex space-x-4 text-sm">
                   <span>Total Basis: {formatUSD(group.total_basis)}</span>
                   <span>Total Value: {formatUSD(group.total_value)}</span>
-                  <span className={cn(group.unrealized_gain > 0 ? "text-green-600" : "text-red-600")}>
+                  <span className={cn(group.unrealized_gain > 0 ? "value-positive" : "value-negative")}>
                     Unreal Gain/Loss: {formatUSD(group.unrealized_gain)}
                   </span>
                 </span>
@@ -208,7 +208,7 @@ export default function PortfolioHoldingsClient({
                       <TableCell className="text-right w-24">{formatUSD(group.total_basis)}</TableCell>
                       <TableCell className="text-right w-20" /> {/* Blank for Curr Price */}
                       <TableCell className="text-right w-24">{formatUSD(group.total_value)}</TableCell>
-                      <TableCell className={cn("text-right w-28", group.unrealized_gain > 0 ? "text-green-600" : "text-red-600")}>
+                      <TableCell className={cn("text-right w-28", group.unrealized_gain > 0 ? "value-positive" : "value-negative")}>
                         {formatUSD(group.unrealized_gain)}
                       </TableCell>
                     </TableRow>
@@ -245,7 +245,7 @@ export default function PortfolioHoldingsClient({
             <TableCell className="text-right w-24">{formatUSD(grandTotalValue)}</TableCell>
             <TableCell className={cn(
               "text-right w-28",
-              overallUnrealized > 0 ? "text-green-600" : overallUnrealized < 0 ? "text-red-600" : ""
+              overallUnrealized > 0 ? "value-positive" : overallUnrealized < 0 ? "value-negative" : ""
             )}>
               {formatUSD(overallUnrealized)}
             </TableCell>

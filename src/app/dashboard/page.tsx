@@ -1195,13 +1195,13 @@ export default function DashboardHome() {
           </div>
           <div className="dashboard-metric-tile">
             <Label className="dashboard-metric-label">Total Return %</Label>
-            <p className={cn('dashboard-metric-value', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-500' : 'text-red-500')}>
+            <p className={cn('dashboard-metric-value', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'value-positive' : 'value-negative')}>
               {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
             </p>
           </div>
           <div className="dashboard-metric-tile">
             <Label className="dashboard-metric-label">Annualized IRR</Label>
-            <p className={cn('dashboard-metric-value', Number(performanceTotals?.irr_pct ?? 0) >= 0 ? 'text-green-500' : 'text-red-500')}>
+            <p className={cn('dashboard-metric-value', Number(performanceTotals?.irr_pct ?? 0) >= 0 ? 'value-positive' : 'value-negative')}>
               {performanceTotals ? formatPctTenth(performanceTotals.irr_pct) : 'Loading...'}
             </p>
           </div>
@@ -1275,7 +1275,7 @@ export default function DashboardHome() {
               </div>
               <div className="dashboard-metric-tile h-full">
                 <Label className="dashboard-metric-label">Rebalance Needed</Label>
-                <p className={cn('dashboard-metric-value', normalizedRebalancingAllocations.some((item) => item.action !== 'hold') ? 'text-red-500' : 'text-green-500')}>
+                <p className={cn('dashboard-metric-value', normalizedRebalancingAllocations.some((item) => item.action !== 'hold') ? 'value-negative' : 'value-positive')}>
                   {normalizedRebalancingAllocations.some((item) => item.action !== 'hold') ? (
                     <span>Yes</span>
                   ) : (
@@ -1380,19 +1380,19 @@ export default function DashboardHome() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="dashboard-metric-tile">
             <Label className="dashboard-metric-label">Total Buys</Label>
-            <p className="dashboard-metric-value text-red-500">
+            <p className="dashboard-metric-value value-negative">
               {formatUSDWhole(recentActivityTotals.buys)}
             </p>
           </div>
           <div className="dashboard-metric-tile">
             <Label className="dashboard-metric-label">Total Sells</Label>
-            <p className="dashboard-metric-value text-green-500">
+            <p className="dashboard-metric-value value-positive">
               {formatUSDWhole(recentActivityTotals.sells)}
             </p>
           </div>
           <div className="dashboard-metric-tile">
             <Label className="dashboard-metric-label">Income</Label>
-            <p className="dashboard-metric-value text-green-500">
+            <p className="dashboard-metric-value value-positive">
               {formatUSDWhole(recentActivityTotals.income)}
             </p>
           </div>
@@ -1559,19 +1559,19 @@ export default function DashboardHome() {
               </div>
               <div className="dashboard-metric-tile">
                 <Label className="dashboard-metric-label">Net Gain/Loss</Label>
-                <div className={cn('dashboard-metric-value', Number(performanceTotals?.net_gain ?? 0) >= 0 ? 'text-green-500' : 'text-red-500')}>
+                <div className={cn('dashboard-metric-value', Number(performanceTotals?.net_gain ?? 0) >= 0 ? 'value-positive' : 'value-negative')}>
                   {formatUSDWhole(performanceTotals?.net_gain)}
                 </div>
               </div>
               <div className="dashboard-metric-tile">
                 <Label className="dashboard-metric-label">Total Return</Label>
-                <div className={cn('dashboard-metric-value', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-500' : 'text-red-500')}>
+                <div className={cn('dashboard-metric-value', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'value-positive' : 'value-negative')}>
                   {formatPctTenth(performanceTotals?.total_return_pct)}
                 </div>
               </div>
               <div className="dashboard-metric-tile">
                 <Label className="dashboard-metric-label">Rebalance Needed</Label>
-                <div className={cn('dashboard-metric-value', rebalanceNeeded ? 'text-red-500' : 'text-green-500')}>
+                <div className={cn('dashboard-metric-value', rebalanceNeeded ? 'value-negative' : 'value-positive')}>
                   {rebalanceNeeded ? 'Yes' : 'No'}
                 </div>
               </div>

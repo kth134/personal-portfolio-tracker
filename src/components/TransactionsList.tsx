@@ -1462,8 +1462,8 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                 </TableCell>
                 <TableCell className={cn(
                   "px-3 text-right font-medium tabular-nums whitespace-nowrap",
-                  tx.realized_gain != null && tx.realized_gain > 0 ? 'text-green-500' :
-                  tx.realized_gain != null && tx.realized_gain < 0 ? 'text-red-500' : ''
+                  tx.realized_gain != null && tx.realized_gain > 0 ? 'value-positive' :
+                  tx.realized_gain != null && tx.realized_gain < 0 ? 'value-negative' : ''
                 )}>
                   {tx.realized_gain != null ? formatUSD(tx.realized_gain) : '-'}
                 </TableCell>
