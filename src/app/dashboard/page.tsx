@@ -69,18 +69,9 @@ type PerformanceTotals = {
   dividends: number;
 };
 
-type PerformanceReportPoint = {
-  date: string;
-  marketValue?: number;
-  portfolioValue?: number;
-  netContributions?: number;
-  income?: number;
-  realized?: number;
-  unrealized?: number;
-};
-
-type PerformanceReportsResponse = {
-  series?: Record<string, PerformanceReportPoint[]>;
+type AllTimePerformanceSnapshot = {
+  totals: PerformanceTotals;
+  bridgeInput: PortfolioValueBridgeInput | null;
 };
 
 type PortfolioValueBridgeInput = {
@@ -261,26 +252,33 @@ const formatUSDWhole = (value: number | null | undefined) => {
 };
 const formatPctTenth = (value: number | null | undefined) => `${(Number(value) || 0).toFixed(1)}%`;
 
-const getPortfolioValueBridgeInput = (reportData: PerformanceReportsResponse | null): PortfolioValueBridgeInput | null => {
-  const aggregatedSeries = reportData?.series?.aggregated;
-  if (!aggregatedSeries?.length) return null;
+const getAllTimePortfolioValueBridgeInput = ({
+  terminalValue,
+  income,
+  realized,
+  unrealized,
+}: {
+  terminalValue: number;
+  income: number;
+  realized: number;
+  unrealized: number;
+}): PortfolioValueBridgeInput | null => {
+  const apiTerminalValue = Number(terminalValue) || 0;
+  const normalizedIncome = Number(income) || 0;
+  const normalizedRealized = Number(realized) || 0;
+  const normalizedUnrealized = Number(unrealized) || 0;
 
-  const firstPoint = aggregatedSeries[0];
-  const lastPoint = aggregatedSeries[aggregatedSeries.length - 1];
-
-  const startValue = Number(firstPoint?.marketValue ?? 0);
-  const apiTerminalValue = Number(lastPoint?.marketValue ?? 0);
-  const netContributions = Number(lastPoint?.netContributions ?? 0);
-  const income = Number(lastPoint?.income ?? 0);
-  const realized = Number(lastPoint?.realized ?? 0);
+  if (apiTerminalValue === 0 && normalizedIncome === 0 && normalizedRealized === 0 && normalizedUnrealized === 0) {
+    return null;
+  }
 
   return {
-    startValue,
+    startValue: 0,
     apiTerminalValue,
-    netContributions,
-    income,
-    realized,
-    unrealized: apiTerminalValue - startValue - netContributions - income - realized,
+    netContributions: apiTerminalValue - normalizedIncome - normalizedRealized - normalizedUnrealized,
+    income: normalizedIncome,
+    realized: normalizedRealized,
+    unrealized: normalizedUnrealized,
   };
 };
 
@@ -592,175 +590,150 @@ export default function DashboardHome() {
     checkMfa();
   }, [supabase]);
 
-  const loadPerformanceBridgeData = useCallback(async () => {
-    try {
-      const response = await fetch('/api/performance/reports', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          lens: 'total',
-          selectedValues: [],
-          aggregate: true,
-          period: 'inception',
-          granularity: 'monthly',
-          benchmarks: [],
-        }),
+  const fetchAllTimePerformanceSnapshot = useCallback(async (userId: string): Promise<AllTimePerformanceSnapshot> => {
+    const { data: allLotsData } = await supabase
+      .from('tax_lots')
+      .select(`
+        asset_id,
+        account_id,
+        remaining_quantity,
+        cost_basis_per_unit,
+        quantity,
+        asset:assets (
+          id,
+          ticker,
+          name,
+          asset_type,
+          asset_subtype,
+          geography,
+          size_tag,
+          factor_tag,
+          sub_portfolio_id
+        )
+      `)
+      .eq('user_id', userId);
+
+    const totalOriginalInvestment = allLotsData?.reduce((sum, lot) => {
+      return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
+    }, 0) || 0;
+
+    const typedLots = (allLotsData ?? []) as TaxLotRow[];
+    const openLots = typedLots.filter(lot => Number(lot.remaining_quantity) > 0);
+    const tickers = [
+      ...new Set(
+        openLots.map((lot) => {
+          const asset = unwrapRelation(lot.asset);
+          return asset?.ticker;
+        }).filter(Boolean)
+      ),
+    ];
+
+    const { data: pricesData } = await supabase
+      .from('asset_prices')
+      .select('ticker, price, timestamp')
+      .in('ticker', tickers)
+      .order('timestamp', { ascending: false });
+
+    const latestPrices = new Map<string, number>();
+    const typedPrices = (pricesData ?? []) as AssetPriceRow[];
+    typedPrices.forEach((p) => {
+      if (!latestPrices.has(p.ticker)) {
+        latestPrices.set(p.ticker, Number(p.price));
+      }
+    });
+
+    let marketValue = 0;
+    let costBasis = 0;
+    openLots.forEach((lot) => {
+      const asset = unwrapRelation(lot.asset);
+      const qty = Number(lot.remaining_quantity);
+      const price = latestPrices.get(asset?.ticker || '') || 0;
+      marketValue += qty * price;
+      costBasis += qty * Number(lot.cost_basis_per_unit);
+    });
+
+    const unrealized = marketValue - costBasis;
+
+    const { data: summaries } = await supabase
+      .from('performance_summaries')
+      .select('realized_gain, dividends, interest, fees')
+      .eq('user_id', userId)
+      .eq('grouping_type', 'asset');
+
+    const typedSummaries = (summaries ?? []) as PerformanceSummaryRow[];
+    const summaryTotals = typedSummaries.reduce<PerformanceSummaryTotals>(
+      (acc, row) => ({
+        realized_gain: acc.realized_gain + (row.realized_gain || 0),
+        dividends: acc.dividends + (row.dividends || 0),
+        interest: acc.interest + (row.interest || 0),
+        fees: acc.fees + (row.fees || 0),
+      }),
+      { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
+    );
+
+    const income = summaryTotals.dividends + summaryTotals.interest;
+    const net = unrealized + summaryTotals.realized_gain + income;
+    const totalReturnPct = totalOriginalInvestment > 0 ? (net / totalOriginalInvestment) * 100 : 0;
+
+    let totalIrrPct = 0;
+    const transactionsData = await fetchAllUserTransactions() as IrrTransaction[] | null;
+
+    if (transactionsData && transactionsData.length > 0) {
+      const { totalCash } = calculateCashBalances(transactionsData);
+      const externalTypes = ['Deposit', 'Withdrawal', 'Dividend', 'Interest'];
+      const txFlows: number[] = [];
+      const txDates: Date[] = [];
+
+      transactionsData.forEach((tx) => {
+        if (!externalTypes.includes(tx.type)) return;
+        const date = new Date(tx.date);
+        if (isNaN(date.getTime())) return;
+        txFlows.push(transactionFlowForIRR(tx));
+        txDates.push(date);
       });
 
-      if (!response.ok) {
-        throw new Error(`Performance reports fetch failed: ${response.status}`);
+      const { netFlows, netDates } = netCashFlowsByDate(txFlows, txDates);
+
+      if (marketValue + totalCash > 0) {
+        netFlows.push(marketValue + totalCash);
+        netDates.push(new Date());
       }
 
-      const reports = await response.json() as PerformanceReportsResponse;
-      setPerformanceBridgeInput(getPortfolioValueBridgeInput(reports));
-    } catch (err) {
-      console.error('Performance bridge fetch failed:', err);
-      setPerformanceBridgeInput(null);
+      if (netFlows.length >= 2 && netDates.every(d => !isNaN(d.getTime()))) {
+        const irr = calculateIRR(netFlows, netDates);
+        totalIrrPct = isNaN(irr) ? 0 : irr * 100;
+      }
     }
-  }, []);
+
+    return {
+      totals: {
+        market_value: marketValue,
+        net_gain: net,
+        total_return_pct: totalReturnPct,
+        irr_pct: totalIrrPct,
+        unrealized_gain: unrealized,
+        realized_gain: summaryTotals.realized_gain,
+        dividends: summaryTotals.dividends,
+      },
+      bridgeInput: getAllTimePortfolioValueBridgeInput({
+        terminalValue: marketValue,
+        income,
+        realized: summaryTotals.realized_gain,
+        unrealized,
+      }),
+    };
+  }, [supabase]);
 
   const loadDashboardData = useCallback(async () => {
     setLoading(true);
 
     try {
-      await loadPerformanceBridgeData();
-
-      // Fetch performance totals
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
       if (userId) {
-        // Fetch all tax lots to calculate total original investment and market values
-        const { data: allLotsData } = await supabase
-          .from('tax_lots')
-          .select(`
-            asset_id,
-            account_id,
-            remaining_quantity,
-            cost_basis_per_unit,
-            quantity,
-            asset:assets (
-              id,
-              ticker,
-              name,
-              asset_type,
-              asset_subtype,
-              geography,
-              size_tag,
-              factor_tag,
-              sub_portfolio_id
-            )
-          `)
-          .eq('user_id', userId);
-
-        const totalOriginalInvestment = allLotsData?.reduce((sum, lot) => {
-          return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
-        }, 0) || 0;
-
-        const typedLots = (allLotsData ?? []) as TaxLotRow[];
-        const openLots = typedLots.filter(lot => Number(lot.remaining_quantity) > 0);
-        const tickers = [
-          ...new Set(
-            openLots.map((lot) => {
-              const asset = unwrapRelation(lot.asset);
-              return asset?.ticker;
-            }).filter(Boolean)
-          ),
-        ];
-
-        const { data: pricesData } = await supabase
-          .from('asset_prices')
-          .select('ticker, price, timestamp')
-          .in('ticker', tickers)
-          .order('timestamp', { ascending: false });
-
-        const latestPrices = new Map<string, number>();
-        const typedPrices = (pricesData ?? []) as AssetPriceRow[];
-        typedPrices.forEach((p) => {
-          if (!latestPrices.has(p.ticker)) {
-            latestPrices.set(p.ticker, Number(p.price));
-          }
-        });
-
-        let marketValue = 0;
-        let costBasis = 0;
-        openLots.forEach((lot) => {
-          const asset = unwrapRelation(lot.asset);
-          const qty = Number(lot.remaining_quantity);
-          const price = latestPrices.get(asset?.ticker || '') || 0;
-          marketValue += qty * price;
-          costBasis += qty * Number(lot.cost_basis_per_unit);
-        });
-
-        const unrealized = marketValue - costBasis;
-
-        // Fetch performance summaries for all assets to sum realized, dividends, etc.
-        const { data: summaries } = await supabase
-          .from('performance_summaries')
-          .select('realized_gain, dividends, interest, fees')
-          .eq('user_id', userId)
-          .eq('grouping_type', 'asset');
-
-        const typedSummaries = (summaries ?? []) as PerformanceSummaryRow[];
-        const summaryTotals = typedSummaries.reduce<PerformanceSummaryTotals>(
-          (acc, row) => ({
-            realized_gain: acc.realized_gain + (row.realized_gain || 0),
-            dividends: acc.dividends + (row.dividends || 0),
-            interest: acc.interest + (row.interest || 0),
-            fees: acc.fees + (row.fees || 0),
-          }),
-          { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
-        );
-
-        const net = unrealized + summaryTotals.realized_gain + summaryTotals.dividends + summaryTotals.interest;
-        const totalReturnPct = totalOriginalInvestment > 0 ? (net / totalOriginalInvestment) * 100 : 0;
-
-        // Calculate IRR
-        let totalIrrPct = 0;
-        const transactionsData = await fetchAllUserTransactions() as IrrTransaction[] | null;
-
-        if (transactionsData && transactionsData.length > 0) {
-          // Compute cash balances for terminal value using centralized helper
-          const { totalCash } = calculateCashBalances(transactionsData);
-
-          // Build external-only cash flows (Deposits/Withdrawals/Dividend/Interest)
-          // using canonical IRR sign mapping and net same-day flows before solving.
-          const externalTypes = ['Deposit', 'Withdrawal', 'Dividend', 'Interest'];
-          const txFlows: number[] = [];
-          const txDates: Date[] = [];
-          transactionsData.forEach((tx) => {
-            if (!externalTypes.includes(tx.type)) return; // total IRR considers external flows only
-            const date = new Date(tx.date);
-            if (isNaN(date.getTime())) return;
-            txFlows.push(transactionFlowForIRR(tx));
-            txDates.push(date);
-          });
-
-          // Net same-day flows to reduce noise and match PerformanceContent behavior
-          const { netFlows, netDates } = netCashFlowsByDate(txFlows, txDates);
-
-          // Terminal value (what everything is worth today)
-          if (marketValue + totalCash > 0) {
-            netFlows.push(marketValue + totalCash);
-            netDates.push(new Date());
-          }
-
-          if (netFlows.length >= 2 && netDates.every(d => !isNaN(d.getTime()))) {
-            const irr = calculateIRR(netFlows, netDates);
-            totalIrrPct = isNaN(irr) ? 0 : irr * 100;
-          }
-        }
-
-        setPerformanceTotals({
-          market_value: marketValue,
-          net_gain: net,
-          total_return_pct: totalReturnPct,
-          irr_pct: totalIrrPct,
-          unrealized_gain: unrealized,
-          realized_gain: summaryTotals.realized_gain,
-          dividends: summaryTotals.dividends,
-        });
+        const performanceSnapshot = await fetchAllTimePerformanceSnapshot(userId);
+        setPerformanceTotals(performanceSnapshot.totals);
+        setPerformanceBridgeInput(performanceSnapshot.bridgeInput);
 
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -827,7 +800,7 @@ export default function DashboardHome() {
       setLoading(false);
       setRebalancingLoading(false);
     }
-  }, [loadPerformanceBridgeData, supabase]);
+  }, [fetchAllTimePerformanceSnapshot, supabase]);
 
   // Load data when MFA verified
   useEffect(() => {
@@ -854,143 +827,12 @@ export default function DashboardHome() {
 
   const loadDashboardDataForRefresh = useCallback(async () => {
     try {
-      await loadPerformanceBridgeData();
-
-      // Fetch performance totals
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
       if (userId) {
-        // Fetch all tax lots to calculate total original investment and market values
-        const { data: allLotsData } = await supabase
-          .from('tax_lots')
-          .select(`
-            asset_id,
-            account_id,
-            remaining_quantity,
-            cost_basis_per_unit,
-            quantity,
-            asset:assets (
-              id,
-              ticker,
-              name,
-              asset_type,
-              asset_subtype,
-              geography,
-              size_tag,
-              factor_tag,
-              sub_portfolio_id
-            )
-          `)
-          .eq('user_id', userId);
-
-        const totalOriginalInvestment = allLotsData?.reduce((sum, lot) => {
-          return sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity || lot.remaining_quantity));
-        }, 0) || 0;
-
-        const typedLots = (allLotsData ?? []) as TaxLotRow[];
-        const openLots = typedLots.filter(lot => Number(lot.remaining_quantity) > 0);
-        const tickers = [
-          ...new Set(
-            openLots.map((lot) => {
-              const asset = unwrapRelation(lot.asset);
-              return asset?.ticker;
-            }).filter(Boolean)
-          ),
-        ];
-
-        const { data: pricesData } = await supabase
-          .from('asset_prices')
-          .select('ticker, price, timestamp')
-          .in('ticker', tickers)
-          .order('timestamp', { ascending: false });
-
-        const latestPrices = new Map<string, number>();
-        const typedPrices = (pricesData ?? []) as AssetPriceRow[];
-        typedPrices.forEach((p) => {
-          if (!latestPrices.has(p.ticker)) {
-            latestPrices.set(p.ticker, Number(p.price));
-          }
-        });
-
-        let marketValue = 0;
-        let costBasis = 0;
-        openLots.forEach((lot) => {
-          const asset = unwrapRelation(lot.asset);
-          const qty = Number(lot.remaining_quantity);
-          const price = latestPrices.get(asset?.ticker || '') || 0;
-          marketValue += qty * price;
-          costBasis += qty * Number(lot.cost_basis_per_unit);
-        });
-
-        const unrealized = marketValue - costBasis;
-
-        // Fetch performance summaries for all assets to sum realized, dividends, etc.
-        const { data: summaries } = await supabase
-          .from('performance_summaries')
-          .select('realized_gain, dividends, interest, fees')
-          .eq('user_id', userId)
-          .eq('grouping_type', 'asset');
-
-        const typedSummaries = (summaries ?? []) as PerformanceSummaryRow[];
-        const summaryTotals = typedSummaries.reduce<PerformanceSummaryTotals>(
-          (acc, row) => ({
-            realized_gain: acc.realized_gain + (row.realized_gain || 0),
-            dividends: acc.dividends + (row.dividends || 0),
-            interest: acc.interest + (row.interest || 0),
-            fees: acc.fees + (row.fees || 0),
-          }),
-          { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
-        );
-
-        const net = unrealized + summaryTotals.realized_gain + summaryTotals.dividends + summaryTotals.interest;
-        const totalReturnPct = totalOriginalInvestment > 0 ? (net / totalOriginalInvestment) * 100 : 0;
-
-        // Calculate IRR (use same canonical logic as PerformanceContent)
-        let totalIrrPct = 0;
-        const txRes = await fetch(`/api/transactions?start=&end=`);
-        const txJson = await txRes.json() as { transactions?: IrrTransaction[] };
-        const transactionsData = txJson?.transactions || [];
-
-        if (transactionsData && transactionsData.length > 0) {
-          // Compute cash balances for terminal value using centralized helper
-          const { totalCash } = calculateCashBalances(transactionsData);
-
-          // Build external-only cash flows (Deposits/Withdrawals/Dividend/Interest)
-          const externalTypes = ['Deposit', 'Withdrawal', 'Dividend', 'Interest'];
-          const txFlows: number[] = [];
-          const txDates: Date[] = [];
-          transactionsData.forEach((tx) => {
-            if (!externalTypes.includes(tx.type)) return; // total IRR considers external flows only
-            const date = new Date(tx.date);
-            if (isNaN(date.getTime())) return;
-            txFlows.push(transactionFlowForIRR(tx));
-            txDates.push(date);
-          });
-
-          // Net same-day flows
-          const { netFlows, netDates } = netCashFlowsByDate(txFlows, txDates);
-
-          // Terminal value
-          if (marketValue + totalCash > 0) {
-            netFlows.push(marketValue + totalCash);
-            netDates.push(new Date());
-          }
-
-          if (netFlows.length >= 2 && netDates.every((d: Date) => !isNaN(d.getTime()))) {
-            const irr = calculateIRR(netFlows, netDates);
-            totalIrrPct = isNaN(irr) ? 0 : irr * 100;
-          }
-        }
-
-        setPerformanceTotals({
-          market_value: marketValue,
-          net_gain: net,
-          total_return_pct: totalReturnPct,
-          irr_pct: totalIrrPct,
-          unrealized_gain: unrealized,
-          realized_gain: summaryTotals.realized_gain,
-          dividends: summaryTotals.dividends,
-        });
+        const performanceSnapshot = await fetchAllTimePerformanceSnapshot(userId);
+        setPerformanceTotals(performanceSnapshot.totals);
+        setPerformanceBridgeInput(performanceSnapshot.bridgeInput);
 
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -1043,7 +885,7 @@ export default function DashboardHome() {
     } catch (err) {
       console.error('Dashboard data refresh failed:', err);
     }
-  }, [loadPerformanceBridgeData, supabase]);
+  }, [fetchAllTimePerformanceSnapshot, supabase]);
 
   const toggleValue = (value: string) => {
     setSelectedValues(prev =>
