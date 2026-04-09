@@ -1174,21 +1174,21 @@ export default function DashboardHome() {
     <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/performance')}>
       <CardHeader className="space-y-3 p-4 sm:p-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border bg-white px-3 py-2.5 text-center">
-            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Portfolio Value</Label>
-            <p className="mt-1 text-xl font-bold font-mono tabular-nums">
+          <div className="dashboard-metric-tile">
+            <Label className="dashboard-metric-label">Total Portfolio Value</Label>
+            <p className="dashboard-metric-value">
               {performanceTotals ? formatUSDWhole(performanceTotals.market_value) : 'Loading...'}
             </p>
           </div>
-          <div className="flex min-h-[88px] flex-col items-center justify-center rounded-lg border bg-card px-3 py-2.5 text-center">
-            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Return %</Label>
-            <p className={cn('mt-1 text-xl font-bold font-mono tabular-nums', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
+          <div className="dashboard-metric-tile">
+            <Label className="dashboard-metric-label">Total Return %</Label>
+            <p className={cn('dashboard-metric-value', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
               {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
             </p>
           </div>
-          <div className="flex min-h-[88px] flex-col items-center justify-center rounded-lg border bg-card px-3 py-2.5 text-center">
-            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Annualized IRR</Label>
-            <p className={cn('mt-1 text-xl font-bold font-mono tabular-nums', Number(performanceTotals?.irr_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
+          <div className="dashboard-metric-tile">
+            <Label className="dashboard-metric-label">Annualized IRR</Label>
+            <p className={cn('dashboard-metric-value', Number(performanceTotals?.irr_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
               {performanceTotals ? formatPctTenth(performanceTotals.irr_pct) : 'Loading...'}
             </p>
           </div>
@@ -1218,9 +1218,9 @@ export default function DashboardHome() {
         ) : rebalancingData ? (
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 items-stretch sm:grid-cols-3">
-              <div className="text-center h-full rounded-md border px-3 py-2.5 flex min-h-[96px] flex-col items-center justify-center gap-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Sub-Portfolio Drift</Label>
-                <p className="mt-1 text-xl font-bold font-mono tabular-nums leading-none">
+              <div className="dashboard-metric-tile h-full">
+                <Label className="dashboard-metric-label">Sub-Portfolio Drift</Label>
+                <p className="dashboard-metric-value">
                   {(() => {
                     const subPortfolioAllocations: { [key: string]: number } = {}
                     normalizedRebalancingAllocations.forEach((item) => {
@@ -1244,9 +1244,9 @@ export default function DashboardHome() {
                   })()}
                 </p>
               </div>
-              <div className="text-center h-full rounded-md border px-3 py-2.5 flex min-h-[96px] flex-col items-center justify-center gap-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Asset Drift</Label>
-                <p className="mt-1 text-xl font-bold font-mono tabular-nums leading-none">
+              <div className="dashboard-metric-tile h-full">
+                <Label className="dashboard-metric-label">Asset Drift</Label>
+                <p className="dashboard-metric-value">
                   {(() => {
                     const assetDrift = rebalancingData.totalValue > 0
                       ? normalizedRebalancingAllocations.reduce((sum: number, item) => {
@@ -1261,11 +1261,11 @@ export default function DashboardHome() {
                   })()}
                 </p>
               </div>
-              <div className="text-center h-full rounded-md border px-3 py-2.5 flex min-h-[96px] flex-col items-center justify-center gap-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Rebalance Needed</Label>
-                <p className="mt-1 flex items-center justify-center text-xl font-bold tabular-nums leading-none">
+              <div className="dashboard-metric-tile h-full">
+                <Label className="dashboard-metric-label">Rebalance Needed</Label>
+                <p className={cn('dashboard-metric-value', normalizedRebalancingAllocations.some((item) => item.action !== 'hold') ? 'text-red-600' : 'text-green-600')}>
                   {normalizedRebalancingAllocations.some((item) => item.action !== 'hold') ? (
-                    <span className="text-red-600">Yes</span>
+                    <span>Yes</span>
                   ) : (
                     'No'
                   )}
@@ -1366,21 +1366,21 @@ export default function DashboardHome() {
     <>
       <div className="space-y-2 mb-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border bg-card px-3 py-2.5 text-center">
-            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Buys</Label>
-            <p className="mt-1 text-xl font-bold font-mono tabular-nums text-red-600">
+          <div className="dashboard-metric-tile">
+            <Label className="dashboard-metric-label">Total Buys</Label>
+            <p className="dashboard-metric-value text-red-600">
               {formatUSDWhole(recentActivityTotals.buys)}
             </p>
           </div>
-          <div className="rounded-lg border bg-card px-3 py-2.5 text-center">
-            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Sells</Label>
-            <p className="mt-1 text-xl font-bold font-mono tabular-nums text-green-600">
+          <div className="dashboard-metric-tile">
+            <Label className="dashboard-metric-label">Total Sells</Label>
+            <p className="dashboard-metric-value text-green-600">
               {formatUSDWhole(recentActivityTotals.sells)}
             </p>
           </div>
-          <div className="rounded-lg border bg-card px-3 py-2.5 text-center">
-            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Income</Label>
-            <p className="mt-1 text-xl font-bold font-mono tabular-nums text-green-600">
+          <div className="dashboard-metric-tile">
+            <Label className="dashboard-metric-label">Income</Label>
+            <p className="dashboard-metric-value text-green-600">
               {formatUSDWhole(recentActivityTotals.income)}
             </p>
           </div>
@@ -1541,25 +1541,25 @@ export default function DashboardHome() {
             onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, keyKpis: nextOpen }))}
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Portfolio Value</Label>
-                <div className="text-xl font-bold font-mono tabular-nums mt-1">{formatUSDWhole(performanceTotals?.market_value)}</div>
+              <div className="dashboard-metric-tile">
+                <Label className="dashboard-metric-label">Portfolio Value</Label>
+                <div className="dashboard-metric-value">{formatUSDWhole(performanceTotals?.market_value)}</div>
               </div>
-              <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Net Gain/Loss</Label>
-                <div className={cn('text-xl font-bold font-mono tabular-nums mt-1', Number(performanceTotals?.net_gain ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
+              <div className="dashboard-metric-tile">
+                <Label className="dashboard-metric-label">Net Gain/Loss</Label>
+                <div className={cn('dashboard-metric-value', Number(performanceTotals?.net_gain ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
                   {formatUSDWhole(performanceTotals?.net_gain)}
                 </div>
               </div>
-              <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Return</Label>
-                <div className={cn('text-xl font-bold font-mono tabular-nums mt-1', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
+              <div className="dashboard-metric-tile">
+                <Label className="dashboard-metric-label">Total Return</Label>
+                <div className={cn('dashboard-metric-value', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
                   {formatPctTenth(performanceTotals?.total_return_pct)}
                 </div>
               </div>
-              <div className="bg-card p-4 rounded-lg border text-center shadow-sm">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Rebalance Needed</Label>
-                <div className={cn('text-xl font-bold tabular-nums mt-1', rebalanceNeeded ? 'text-red-600' : 'text-green-600')}>
+              <div className="dashboard-metric-tile">
+                <Label className="dashboard-metric-label">Rebalance Needed</Label>
+                <div className={cn('dashboard-metric-value', rebalanceNeeded ? 'text-red-600' : 'text-green-600')}>
                   {rebalanceNeeded ? 'Yes' : 'No'}
                 </div>
               </div>
