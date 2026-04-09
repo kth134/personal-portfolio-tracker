@@ -864,7 +864,7 @@ export default function RebalancingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {chartSlices.map((slice, idx) => (
           <div key={idx} className={cn("dashboard-chart-panel space-y-4 p-6", chartSlices.length === 1 && "lg:col-span-2")}> 
-            <h3 className="dashboard-contrast-pill text-center">{slice.key} Drift Analysis</h3>
+            <h3 className="dashboard-contrast-pill bg-zinc-950 text-center">{slice.key} Drift Analysis</h3>
             <div className="h-[380px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={slice.data} layout="vertical" margin={{ left: 10, right: 30 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" unit="%" fontSize={10} axisLine={false} tickLine={false} /><YAxis dataKey="ticker" type="category" interval={0} fontSize={9} width={40} /><RechartsTooltip formatter={(v:any) => [`${Number(v).toFixed(1)}%`, 'Drift']} /><Bar dataKey="drift_percentage">{slice.data.map((entry: any, i: number) => (<Cell key={i} fill={getDriftColor(entry.drift_percentage, slice.data)} />))}</Bar></BarChart></ResponsiveContainer></div>
           </div>
         ))}
@@ -1160,7 +1160,7 @@ export default function RebalancingPage() {
                     </div>
                     <div className="hidden md:block border-b bg-zinc-100/80 p-4">
                       <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/90 p-3">
-                        <div className="rounded-md bg-slate-700 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-white">Summary</div>
+                        <div className="rounded-md bg-zinc-950 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-white">Summary</div>
                         <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
                           <MetricChip label="Target Weight" value={`${targetAllocPct.toFixed(1)}%`} valueClassName="text-blue-700" />
                           <MetricChip label="Actual Weight" value={`${allocPct.toFixed(1)}%`} />
