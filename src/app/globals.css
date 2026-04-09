@@ -51,9 +51,9 @@
   --brand-emerald: rgb(34, 168, 80);
   --brand-emerald-dark: rgb(26, 127, 61);
   --brand-emerald-soft: rgba(34, 168, 80, 0.18);
-  --brand-emerald-header: rgb(175, 178, 181);
-  --brand-emerald-header-dark: rgb(148, 152, 156);
-  --brand-emerald-header-soft: rgba(175, 178, 181, 0.28);
+  --brand-emerald-header: rgb(215, 217, 220);
+  --brand-emerald-header-dark: rgb(188, 191, 195);
+  --brand-emerald-header-soft: rgba(215, 217, 220, 0.32);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -139,17 +139,17 @@
   .dashboard-section-header {
     @apply flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 sm:px-6;
     border-bottom: 1px solid var(--brand-emerald-header-dark);
-    background-color: var(--brand-emerald-header);
+    background-color: rgb(9, 9, 11);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 40px -34px var(--brand-emerald-header-soft);
   }
 
   .dashboard-section-header-title {
-    @apply text-xl font-bold tracking-tight text-zinc-950;
+    @apply text-xl font-bold tracking-tight text-white;
   }
 
   .dashboard-section-header-meta {
-    @apply inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-950;
-    color: rgb(24 24 27 / 0.92);
+    @apply inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-white;
+    color: rgba(255, 255, 255, 0.95);
   }
 
   .dashboard-contrast-header {
@@ -198,17 +198,17 @@
   .dashboard-surface-header {
     @apply grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:px-6;
     border-bottom: 1px solid var(--brand-emerald-header-dark);
-    background-color: var(--brand-emerald-header);
+    background-color: rgb(9, 9, 11);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 40px -34px var(--brand-emerald-header-soft);
   }
 
   .dashboard-surface-description {
-    @apply text-sm leading-6 text-zinc-900;
-    color: rgb(24 24 27 / 0.92) !important;
+    @apply text-sm leading-6 text-white;
+    color: rgba(255, 255, 255, 0.96) !important;
   }
 
   .dashboard-surface-header [data-slot='card-description'] {
-    color: rgb(24 24 27 / 0.92) !important;
+    color: rgba(255, 255, 255, 0.96) !important;
   }
 
   .dashboard-tabs [data-slot='tabs-trigger'][data-state='active'] * {
