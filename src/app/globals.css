@@ -51,9 +51,9 @@
   --brand-emerald: rgb(34, 168, 80);
   --brand-emerald-dark: rgb(26, 127, 61);
   --brand-emerald-soft: rgba(34, 168, 80, 0.18);
-  --brand-emerald-header: rgb(94, 100, 107);
-  --brand-emerald-header-dark: rgb(72, 77, 83);
-  --brand-emerald-header-soft: rgba(94, 100, 107, 0.2);
+  --brand-emerald-header: rgb(118, 124, 132);
+  --brand-emerald-header-dark: rgb(96, 102, 109);
+  --brand-emerald-header-soft: rgba(118, 124, 132, 0.24);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);

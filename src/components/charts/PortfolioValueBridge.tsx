@@ -6,8 +6,8 @@ import type { TooltipContentProps } from 'recharts'
 
 const BRIDGE_COLORS = {
   anchor: '#334155',
-  positive: '#10b981',
-  negative: '#ef4444',
+  positive: '#16a34a',
+  negative: '#dc2626',
 }
 
 type RawBridgeInput = {
