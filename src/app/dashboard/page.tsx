@@ -1262,54 +1262,49 @@ export default function DashboardHome() {
           <p>Loading strategy data...</p>
         ) : rebalancingData ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 items-stretch">
-              <div className="text-center h-full rounded-md border px-3 py-2.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Portfolio Drift</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2 mt-1.5">
-                  <div className="text-center">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Sub-Portfolio</p>
-                    <p className="mt-1 text-xl font-bold font-mono leading-tight break-words tabular-nums">
-                      {(() => {
-                        const subPortfolioAllocations: { [key: string]: number } = {}
-                        rebalancingData.currentAllocations.forEach((item) => {
-                          const subId = item.sub_portfolio_id || 'unassigned'
-                          subPortfolioAllocations[subId] = (subPortfolioAllocations[subId] || 0) + item.current_value
-                        })
+            <div className="grid grid-cols-1 gap-4 items-stretch sm:grid-cols-3">
+              <div className="text-center h-full rounded-md border px-3 py-2.5 flex min-h-[96px] flex-col items-center justify-center gap-1.5">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Sub-Portfolio Drift</Label>
+                <p className="mt-1 text-xl font-bold font-mono tabular-nums leading-none">
+                  {(() => {
+                    const subPortfolioAllocations: { [key: string]: number } = {}
+                    rebalancingData.currentAllocations.forEach((item) => {
+                      const subId = item.sub_portfolio_id || 'unassigned'
+                      subPortfolioAllocations[subId] = (subPortfolioAllocations[subId] || 0) + item.current_value
+                    })
 
-                        let totalWeightedDrift = 0
-                        let totalValue = 0
+                    let totalWeightedDrift = 0
+                    let totalValue = 0
 
-                        rebalancingData.subPortfolios.forEach((sp) => {
-                          const currentValue = subPortfolioAllocations[sp.id] || 0
-                          const currentAllocation = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
-                          const targetAllocation = sp.target_allocation
-                          const relativeDrift = targetAllocation > 0 ? Math.abs((currentAllocation - targetAllocation) / targetAllocation) : 0
-                          totalWeightedDrift += relativeDrift * currentValue
-                          totalValue += currentValue
-                        })
+                    rebalancingData.subPortfolios.forEach((sp) => {
+                      const currentValue = subPortfolioAllocations[sp.id] || 0
+                      const currentAllocation = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0
+                      const targetAllocation = sp.target_allocation
+                      const relativeDrift = targetAllocation > 0 ? Math.abs((currentAllocation - targetAllocation) / targetAllocation) : 0
+                      totalWeightedDrift += relativeDrift * currentValue
+                      totalValue += currentValue
+                    })
 
-                        return (totalValue > 0 ? totalWeightedDrift / totalValue * 100 : 0).toFixed(1) + '%'
-                      })()}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Asset</p>
-                    <p className="mt-1 text-xl font-bold font-mono leading-tight break-words tabular-nums">
-                      {(() => {
-                        const assetDrift = rebalancingData.totalValue > 0
-                          ? rebalancingData.currentAllocations.reduce((sum: number, item) => {
-                            const weight = item.current_value / rebalancingData.totalValue
-                            const currentPct = item.current_percentage || 0
-                            const implied = item.implied_overall_target || 0
-                            const rel = implied > 0 ? Math.abs((currentPct - implied) / implied) * 100 : (currentPct === 0 ? 0 : Infinity)
-                            return sum + (rel * weight)
-                          }, 0)
-                          : 0
-                        return assetDrift.toFixed(1) + '%'
-                      })()}
-                    </p>
-                  </div>
-                </div>
+                    return (totalValue > 0 ? totalWeightedDrift / totalValue * 100 : 0).toFixed(1) + '%'
+                  })()}
+                </p>
+              </div>
+              <div className="text-center h-full rounded-md border px-3 py-2.5 flex min-h-[96px] flex-col items-center justify-center gap-1.5">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Asset Drift</Label>
+                <p className="mt-1 text-xl font-bold font-mono tabular-nums leading-none">
+                  {(() => {
+                    const assetDrift = rebalancingData.totalValue > 0
+                      ? rebalancingData.currentAllocations.reduce((sum: number, item) => {
+                        const weight = item.current_value / rebalancingData.totalValue
+                        const currentPct = item.current_percentage || 0
+                        const implied = item.implied_overall_target || 0
+                        const rel = implied > 0 ? Math.abs((currentPct - implied) / implied) * 100 : (currentPct === 0 ? 0 : Infinity)
+                        return sum + (rel * weight)
+                      }, 0)
+                      : 0
+                    return assetDrift.toFixed(1) + '%'
+                  })()}
+                </p>
               </div>
               <div className="text-center h-full rounded-md border px-3 py-2.5 flex min-h-[96px] flex-col items-center justify-center gap-1.5">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Rebalance Needed</Label>
