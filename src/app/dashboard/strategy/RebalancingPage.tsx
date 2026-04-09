@@ -1149,27 +1149,47 @@ export default function RebalancingPage() {
                 </AccordionTrigger>
                 <AccordionContent className="p-0 bg-background">
                     <div className="md:hidden border-b bg-zinc-50/70 p-3">
-                      <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-summary">
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[auto_repeat(3,minmax(0,1fr))] sm:items-center sm:gap-4">
-                          <div className="flex justify-center sm:justify-start">
+                      <div className="grid grid-cols-2 gap-3 items-stretch">
+                        <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-input grid grid-rows-[auto_repeat(3,minmax(0,1fr))] gap-2">
+                          <div className="flex justify-center">
+                            <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-input">Inputs</div>
+                          </div>
+                          <div className="dashboard-mobile-subpanel-cell-input text-center">
+                            <div className="text-zinc-600 text-center leading-tight">Sub-Portfolio Target %</div>
+                            <Input aria-label={`Sub-portfolio target for ${sp.name}`} defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
+                              const parsed = parsePercentWithTwoDecimals(e.target.value)
+                              if (parsed === null) {
+                                alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
+                                return
+                              }
+                              updateSubPortfolio(sp.id, 'target_allocation', parsed)
+                            }} className="mt-1 h-8 w-full border-amber-300 bg-amber-50 text-center focus-visible:ring-amber-300"/>
+                          </div>
+                          <div className="dashboard-mobile-subpanel-cell-input text-center">
+                            <div className="text-zinc-600 text-center leading-tight">Upside Threshold</div>
+                            <Input aria-label={`Upside threshold for ${sp.name}`} defaultValue={sp.upside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'upside_threshold', parseFloat(e.target.value))} className="mt-1 h-8 w-full border-amber-300 bg-amber-50 text-center focus-visible:ring-amber-300"/>
+                          </div>
+                          <div className="dashboard-mobile-subpanel-cell-input text-center">
+                            <div className="text-zinc-600 text-center leading-tight">Downside Threshold</div>
+                            <Input aria-label={`Downside threshold for ${sp.name}`} defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="mt-1 h-8 w-full border-amber-300 bg-amber-50 text-center focus-visible:ring-amber-300"/>
+                          </div>
+                        </div>
+                        <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-summary grid grid-rows-[auto_auto_1fr_1fr] gap-2">
+                          <div className="flex justify-center">
                             <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-summary">Summary</div>
                           </div>
-                          <div className="rounded-xl border border-white/80 bg-white/72 px-2.5 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.86)]">
-                            <p className="dashboard-metric-label">Target Weight</p>
-                            <p className="mt-1 text-sm font-semibold text-blue-700 tabular-nums">{targetAllocPct.toFixed(1)}%</p>
+                          <div className="dashboard-mobile-subpanel-cell text-center">
+                            <div className="text-zinc-500">Actual Weight</div>
+                            <div className="mt-1 font-semibold tabular-nums text-zinc-900">{allocPct.toFixed(1)}%</div>
                           </div>
-                          <div className="rounded-xl border border-white/80 bg-white/72 px-2.5 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.86)]">
-                            <p className="dashboard-metric-label">Actual Weight</p>
-                            <p className="mt-1 text-sm font-semibold text-zinc-900 tabular-nums">{allocPct.toFixed(1)}%</p>
-                          </div>
-                          <div className="rounded-xl border border-white/80 bg-white/72 px-2.5 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.86)]">
-                            <p className="dashboard-metric-label">Drift</p>
-                            <p className={cn('mt-1 text-sm font-semibold tabular-nums', subDrift > 0 ? 'text-green-600' : (subDrift < 0 ? 'text-red-600' : 'text-zinc-700'))}>{subDrift > 0 ? '+' : ''}{subDrift.toFixed(1)}%</p>
+                          <div className="dashboard-mobile-subpanel-cell row-span-2 flex flex-col items-center justify-center text-center">
+                            <div className="text-zinc-500">Drift</div>
+                            <div className={cn('mt-2 font-semibold tabular-nums', subDrift > 0 ? 'text-green-600' : (subDrift < 0 ? 'text-red-600' : 'text-zinc-700'))}>{subDrift > 0 ? '+' : ''}{subDrift.toFixed(1)}%</div>
                           </div>
                         </div>
                       </div>
                     </div>
-                    <div className="border-b bg-zinc-50/80 p-4">
+                    <div className="hidden md:block border-b bg-zinc-50/80 p-4">
                         <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-input">
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[auto_repeat(3,minmax(0,1fr))] sm:items-end sm:gap-4">
                         <div className="flex justify-center sm:justify-start sm:pb-1">
@@ -1191,19 +1211,17 @@ export default function RebalancingPage() {
                     <div className="md:hidden p-3 space-y-3 bg-zinc-50 border-b">
                       {sortedItems.map((i: any) => (
                         <div key={`mobile-${i.asset_id}`} className="dashboard-mobile-card space-y-4">
-                          <div className="flex items-start justify-between gap-2 min-w-0">
-                            <div className="min-w-0">
-                              <div className="font-semibold leading-tight truncate">{i.ticker}</div>
-                              <div className="text-xs text-muted-foreground truncate">{i.name}</div>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 min-w-0">
+                            <div className="min-w-0 break-words text-sm font-semibold leading-tight text-zinc-950 [overflow-wrap:anywhere]">{i.ticker}</div>
+                            <div className="min-w-0 break-words text-right text-sm font-semibold leading-tight tabular-nums text-zinc-950 [overflow-wrap:anywhere]">{formatUSDWhole(i.current_value)}</div>
+                            <div className="min-w-0 break-words text-xs italic leading-tight text-zinc-500 [overflow-wrap:anywhere]">{i.name}</div>
+                            <div className="min-w-0 break-words text-right text-xs italic leading-tight [overflow-wrap:anywhere]">
+                              <span className={cn("font-semibold uppercase tracking-wide", i.action === 'buy' ? 'text-green-600' : i.action === 'sell' ? 'text-red-600' : 'text-zinc-500')}>
+                                {i.action === 'hold' ? 'Hold' : i.action.toUpperCase()}
+                              </span>
+                              <span className="mx-1 text-zinc-400">/</span>
+                              <span className="font-semibold tabular-nums text-zinc-900">{i.action === 'hold' ? '-' : formatUSDWhole(i.amount)}</span>
                             </div>
-                            <div className="font-semibold leading-tight tabular-nums whitespace-nowrap">{formatUSDWhole(i.current_value)}</div>
-                          </div>
-
-                          <div className="mt-2 flex items-center gap-2 text-sm">
-                            <span className={cn("text-[10px] font-bold uppercase tracking-wide", i.action === 'buy' ? 'text-green-600' : i.action === 'sell' ? 'text-red-600' : 'text-zinc-500')}>
-                              {i.action === 'hold' ? 'Hold' : i.action.toUpperCase()}
-                            </span>
-                            <span className="text-xs font-semibold tabular-nums text-zinc-900">{i.action === 'hold' ? '-' : formatUSDWhole(i.amount)}</span>
                           </div>
 
                           <div className="mt-2 grid grid-cols-2 gap-3">
