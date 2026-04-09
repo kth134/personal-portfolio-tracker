@@ -1245,23 +1245,23 @@ export default function RebalancingPage() {
                                 className="mt-2 h-9 w-full border-amber-300 bg-amber-50 text-center font-semibold tabular-nums text-sm focus-visible:ring-amber-300"
                               />
                             </div>
-                            <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-3 text-center">
+                            <div className="p-1 text-center">
                               <p className="dashboard-metric-label">Sub-Portfolio Weight</p>
                               <p className="mt-2 text-sm font-semibold text-zinc-900 tabular-nums">{Number(i.current_in_sp || 0).toFixed(1)}%</p>
                             </div>
-                            <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-3 text-center">
+                            <div className="p-1 text-center">
                               <p className="dashboard-metric-label">Target</p>
                               <p className="mt-2 text-sm font-semibold text-blue-700 tabular-nums">{Number(i.implied_overall_target || 0).toFixed(1)}%</p>
                             </div>
-                            <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-3 text-center">
+                            <div className="p-1 text-center">
                               <p className="dashboard-metric-label">Current</p>
                               <p className="mt-2 text-sm font-semibold text-zinc-900 tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</p>
                             </div>
-                            <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-3 text-center">
+                            <div className="p-1 text-center">
                               <p className="dashboard-metric-label">Drift</p>
                               <p className={cn("mt-2 text-sm font-semibold tabular-nums", i.drift_percentage > 0 ? "text-green-600" : (i.drift_percentage < 0 ? "text-red-600" : "text-zinc-700"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</p>
                             </div>
-                            <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-3 text-center">
+                            <div className="p-1 text-center">
                               <p className="dashboard-metric-label">Rebalance Mode</p>
                               <div className="mt-2 flex items-center justify-center gap-2">
                                 <span className={cn('text-[9px] uppercase tracking-wide', !i.asset_band_mode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Abs</span>
