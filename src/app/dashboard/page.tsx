@@ -1157,7 +1157,7 @@ export default function DashboardHome() {
   })() : [];
 
   const chartControlsPanel = (
-    <div className="mb-5 flex w-full flex-col gap-3 md:flex-row md:items-end md:gap-4">
+    <div className="mt-2 mb-3 flex w-full flex-col gap-3 md:flex-row md:items-end md:gap-4">
         <div className="w-full max-w-xs md:w-56 md:max-w-none">
           <Label className="text-[10px] font-bold uppercase mb-1 block">Slice by</Label>
           <Select value={lens} onValueChange={setLens}>
