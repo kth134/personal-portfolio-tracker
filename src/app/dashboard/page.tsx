@@ -1276,7 +1276,7 @@ export default function DashboardHome() {
 
   const performanceCard = (
     <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/performance')}>
-      <CardHeader className="space-y-4 p-4 sm:p-5">
+      <CardHeader className="space-y-3 p-4 sm:p-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-lg border bg-white px-3 py-2.5 text-center">
             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Portfolio Value</Label>
@@ -1297,7 +1297,7 @@ export default function DashboardHome() {
             </p>
           </div>
         </div>
-        <div className="rounded-xl border bg-card px-3.5 pt-3.5 pb-2.5 sm:px-4 sm:pt-4 sm:pb-3" onClick={(event) => event.stopPropagation()}>
+        <div className="rounded-xl border bg-card px-3.5 pt-3.5 pb-1.5 sm:px-4 sm:pt-4 sm:pb-2" onClick={(event) => event.stopPropagation()}>
           <div className="mb-3">
             <CardTitle className="text-base">Portfolio Value Bridge</CardTitle>
             <p className="text-sm text-muted-foreground">Starting Value {'->'} Net Contributions {'->'} Income {'->'} Realized {'->'} Unrealized {'->'} Terminal Value</p>
@@ -1305,7 +1305,7 @@ export default function DashboardHome() {
           {performanceBridgeInput ? (
             <PortfolioValueBridge input={performanceBridgeInput} compact />
           ) : (
-            <div className="flex h-[216px] sm:h-[232px] items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-[196px] sm:h-[208px] items-center justify-center text-sm text-muted-foreground">
               Loading performance waterfall...
             </div>
           )}

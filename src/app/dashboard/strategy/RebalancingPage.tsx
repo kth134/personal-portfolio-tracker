@@ -803,10 +803,22 @@ export default function RebalancingPage() {
         </summary>
         <div className="space-y-4 px-4 pb-4 pt-4 sm:px-6 sm:pb-6">
           <div className="dashboard-metric-grid">
-            <div className="dashboard-metric-tile text-center"><Label className="dashboard-metric-label">Value</Label><div className="dashboard-metric-value font-mono">{formatUSDWhole(data.totalValue)}</div></div>
-            <div className="dashboard-metric-tile text-center"><Label className="dashboard-metric-label leading-none">Sub-Portfolio Drift</Label><div className="dashboard-metric-value mt-1 font-mono">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div></div>
-            <div className="dashboard-metric-tile text-center"><Label className="dashboard-metric-label leading-none">Asset Drift</Label><div className="dashboard-metric-value mt-1 font-mono">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div></div>
-            <div className="dashboard-metric-tile text-center"><Label className="dashboard-metric-label leading-none">Rebalance Needed</Label><div className={cn("dashboard-metric-value mt-1 flex items-center justify-center", rebalanceNeeded ? "text-red-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div></div>
+            <div className="dashboard-metric-tile text-center">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Value</Label>
+              <div className="mt-1 text-xl font-bold font-mono tabular-nums">{formatUSDWhole(data.totalValue)}</div>
+            </div>
+            <div className="dashboard-metric-tile text-center">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Sub-Portfolio Drift</Label>
+              <div className="mt-1 text-xl font-bold font-mono tabular-nums">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div>
+            </div>
+            <div className="dashboard-metric-tile text-center">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Asset Drift</Label>
+              <div className="mt-1 text-xl font-bold font-mono tabular-nums">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div>
+            </div>
+            <div className="dashboard-metric-tile text-center">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Rebalance Needed</Label>
+              <div className={cn("mt-1 flex items-center justify-center text-xl font-bold tabular-nums", rebalanceNeeded ? "text-red-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div>
+            </div>
           </div>
         </div>
       </details>

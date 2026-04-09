@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { formatUSD } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
@@ -616,47 +617,47 @@ function PerformanceContent() {
       >
           <div className="dashboard-metric-grid gap-4">
             <div className="dashboard-metric-tile text-center">
-              <p className="dashboard-metric-label">Total Portfolio Value</p>
-              <p className="dashboard-metric-value break-words">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Portfolio Value</Label>
+              <p className="mt-1 text-xl font-bold font-mono tabular-nums break-words">
                 {formatUSDWhole(totals.market_value)}
               </p>
             </div>
             <div className="dashboard-metric-tile text-center">
-              <p className="dashboard-metric-label">Net Gain/Loss</p>
-              <p className={cn("dashboard-metric-value break-words", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Net Gain/Loss</Label>
+              <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totalNet >= 0 ? "text-green-600" : "text-red-600")}>
                 {formatUSDWhole(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
               </p>
             </div>
-            <div className="dashboard-metric-tile text-center space-y-3 text-lg">
+            <div className="dashboard-metric-tile text-center space-y-3">
               <div>
-                <p className="dashboard-metric-label break-words">Unrealized G/L</p>
-                <p className={cn("font-bold break-words", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground break-words">Unrealized G/L</Label>
+                <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totalUnrealized >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSDWhole(totalUnrealized)}
                 </p>
               </div>
               <div>
-                <p className="dashboard-metric-label break-words">Realized G/L</p>
-                <p className={cn("font-bold break-words", totals.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground break-words">Realized G/L</Label>
+                <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totals.realized_gain >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSDWhole(totals.realized_gain)}
                 </p>
               </div>
               <div>
-                <p className="dashboard-metric-label break-words">Income</p>
-                <p className={cn("font-bold break-words", totals.dividends >= 0 ? "text-green-600" : "text-red-600")}>
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground break-words">Income</Label>
+                <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totals.dividends >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatUSDWhole(totals.dividends)}
                 </p>
               </div>
             </div>
-            <div className="dashboard-metric-tile text-center space-y-3 text-lg">
+            <div className="dashboard-metric-tile text-center space-y-3">
               <div>
-                <p className="dashboard-metric-label break-words">Total Return %</p>
-                <p className={cn("font-bold break-words", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground break-words">Total Return %</Label>
+                <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totalReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatPctTenth(totalReturnPct)}
                 </p>
               </div>
               <div>
-                <p className="dashboard-metric-label break-words">Annualized IRR</p>
-                <p className={cn("font-bold break-words", totalAnnualizedReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground break-words">Annualized IRR</Label>
+                <p className={cn("mt-1 text-xl font-bold font-mono tabular-nums break-words", totalAnnualizedReturnPct >= 0 ? "text-green-600" : "text-red-600")}>
                   {formatPctTenth(totalAnnualizedReturnPct)}
                 </p>
               </div>
