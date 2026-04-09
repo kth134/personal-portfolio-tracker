@@ -1338,15 +1338,14 @@ export default function RebalancingPage() {
             {rebalancingPlanRows.length > 0 && (
               <Table className="w-full min-w-[980px] table-fixed">
                 <colgroup>
-                  <col className="w-[14%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[11%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[10%]" />
                   <col className="w-[8%]" />
                   <col className="w-[8%]" />
                   <col className="w-[8%]" />
                   <col className="w-[10%]" />
                   <col className="w-[10%]" />
-                  <col className="w-[22%]" />
+                  <col className="w-[30%]" />
                 </colgroup>
                 <TableHeader
                   className="sticky z-10 bg-background shadow-sm"
@@ -1354,12 +1353,11 @@ export default function RebalancingPage() {
                 >
                   <TableRow>
                     <TableHead>Asset</TableHead>
-                    <TableHead className="text-center">Transaction</TableHead>
-                    <TableHead>Type</TableHead>
                     <TableHead className="text-right text-blue-600">Target %</TableHead>
                     <TableHead className="text-right">Current %</TableHead>
                     <TableHead className="text-right">Drift %</TableHead>
                     <TableHead className="text-center">Rebalance Mode</TableHead>
+                    <TableHead className="text-center">Transaction</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead className="whitespace-normal leading-tight">Account / Tax Consideration</TableHead>
                   </TableRow>
@@ -1367,7 +1365,7 @@ export default function RebalancingPage() {
                 <TableBody>
                   {outOfBandPlanRows.length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="px-3 py-2" style={{ backgroundColor: 'var(--brand-emerald-header)' }}>
+                      <TableCell colSpan={8} className="px-3 py-2" style={{ backgroundColor: 'var(--brand-emerald-header)' }}>
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-bold uppercase tracking-wide text-zinc-950">Out-of-Band Assets</span>
                           <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-wide">
@@ -1385,8 +1383,6 @@ export default function RebalancingPage() {
                         <div className="font-semibold">{row.ticker}</div>
                         <div className="text-xs text-muted-foreground">{row.name}</div>
                       </TableCell>
-                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "value-positive" : "value-negative")}>{row.action.toUpperCase()}</TableCell>
-                      <TableCell className="text-xs tracking-wide text-zinc-500">{row.type}</TableCell>
                       <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
                       <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
                       <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "value-positive" : "value-negative")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
@@ -1403,6 +1399,7 @@ export default function RebalancingPage() {
                           <span className={cn('text-[9px] uppercase tracking-wide', row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Cons</span>
                         </div>
                       </TableCell>
+                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "value-positive" : "value-negative")}>{row.action.toUpperCase()}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
                       <TableCell className="text-xs text-zinc-700 whitespace-normal break-words leading-snug align-top">
                         <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
@@ -1414,7 +1411,7 @@ export default function RebalancingPage() {
                   ))}
                   {supportingPlanRows.length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="px-3 py-2" style={{ backgroundColor: 'var(--brand-emerald-header)' }}>
+                      <TableCell colSpan={8} className="px-3 py-2" style={{ backgroundColor: 'var(--brand-emerald-header)' }}>
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-bold uppercase tracking-wide text-zinc-950">Supporting Transactions</span>
                           <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-wide">
@@ -1432,12 +1429,11 @@ export default function RebalancingPage() {
                         <div className="font-semibold">{row.ticker}</div>
                         <div className="text-xs text-muted-foreground">{row.name}</div>
                       </TableCell>
-                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "value-positive" : "value-negative")}>{row.action.toUpperCase()}</TableCell>
-                      <TableCell className="text-xs tracking-wide text-zinc-500">{row.type}</TableCell>
                       <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
                       <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
                       <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "value-positive" : "value-negative")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
                       <TableCell className="text-center text-xs text-zinc-400">N/A</TableCell>
+                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "value-positive" : "value-negative")}>{row.action.toUpperCase()}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
                       <TableCell className="text-xs text-zinc-700 whitespace-normal break-words leading-snug align-top">
                         <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
