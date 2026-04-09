@@ -1212,8 +1212,8 @@ export default function RebalancingPage() {
                       {sortedItems.map((i: any) => (
                         <div key={`mobile-${i.asset_id}`} className="dashboard-mobile-card space-y-4">
                           <div className="grid grid-cols-2 gap-x-3 gap-y-1 min-w-0">
-                            <div className="min-w-0 break-words text-sm font-semibold leading-tight text-zinc-950 [overflow-wrap:anywhere]">{i.ticker}</div>
-                            <div className="min-w-0 break-words text-right text-sm font-semibold leading-tight tabular-nums text-zinc-950 [overflow-wrap:anywhere]">{formatUSDWhole(i.current_value)}</div>
+                            <div className="min-w-0 break-words text-base font-semibold leading-tight text-zinc-950 [overflow-wrap:anywhere]">{i.ticker}</div>
+                            <div className="min-w-0 break-words text-right text-base font-semibold leading-tight tabular-nums text-zinc-950 [overflow-wrap:anywhere]">{formatUSDWhole(i.current_value)}</div>
                             <div className="min-w-0 break-words text-xs italic leading-tight text-zinc-500 [overflow-wrap:anywhere]">{i.name}</div>
                             <div className="min-w-0 break-words text-right text-xs italic leading-tight [overflow-wrap:anywhere]">
                               <span className={cn("font-semibold uppercase tracking-wide", i.action === 'buy' ? 'text-green-600' : i.action === 'sell' ? 'text-red-600' : 'text-zinc-500')}>
