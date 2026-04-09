@@ -1160,18 +1160,18 @@ export default function RebalancingPage() {
                     </div>
                     <div className="border-b bg-zinc-50/80 p-4">
                         <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-input">
-                      <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-input">Inputs</div>
+                      <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-input mx-auto">Inputs</div>
                         <div className="mt-3 grid grid-cols-3 gap-2 sm:gap-4 items-end">
-                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input aria-label={`Sub-portfolio target for ${sp.name}`} defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
+                        <div className="space-y-1 text-center"><Label className="block text-center text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input aria-label={`Sub-portfolio target for ${sp.name}`} defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
                           const parsed = parsePercentWithTwoDecimals(e.target.value)
                           if (parsed === null) {
                             alert('Target percentage must be between 0 and 100 with up to 2 decimal places.')
                             return
                           }
                           updateSubPortfolio(sp.id, 'target_allocation', parsed)
-                        }} className="h-8 w-full bg-amber-50 border-amber-300 focus-visible:ring-amber-300"/></div>
-                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Upside Threshold %</Label><Input aria-label={`Upside threshold for ${sp.name}`} defaultValue={sp.upside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'upside_threshold', parseFloat(e.target.value))} className="h-8 w-full bg-amber-50 border-amber-300 focus-visible:ring-amber-300"/></div>
-                        <div className="space-y-1"><Label className="text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input aria-label={`Downside threshold for ${sp.name}`} defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 w-full bg-amber-50 border-amber-300 focus-visible:ring-amber-300"/></div>
+                        }} className="h-8 w-full border-amber-300 bg-amber-50 text-center focus-visible:ring-amber-300"/></div>
+                        <div className="space-y-1 text-center"><Label className="block text-center text-[10px] font-bold uppercase text-zinc-500">Upside Threshold %</Label><Input aria-label={`Upside threshold for ${sp.name}`} defaultValue={sp.upside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'upside_threshold', parseFloat(e.target.value))} className="h-8 w-full border-amber-300 bg-amber-50 text-center focus-visible:ring-amber-300"/></div>
+                        <div className="space-y-1 text-center"><Label className="block text-center text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input aria-label={`Downside threshold for ${sp.name}`} defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 w-full border-amber-300 bg-amber-50 text-center focus-visible:ring-amber-300"/></div>
                         </div>
                         </div>
                     </div>
