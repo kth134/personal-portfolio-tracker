@@ -1368,7 +1368,7 @@ export default function RebalancingPage() {
                 <TableBody>
                   {outOfBandPlanRows.length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="bg-[linear-gradient(135deg,rgba(9,9,11,0.96),rgba(39,39,42,0.94))] px-3 py-2">
+                      <TableCell colSpan={9} className="bg-zinc-950 px-3 py-2">
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-semibold uppercase tracking-wide text-white">Out-of-Band Assets</span>
                           <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
@@ -1415,7 +1415,7 @@ export default function RebalancingPage() {
                   ))}
                   {supportingPlanRows.length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="bg-[linear-gradient(135deg,rgba(9,9,11,0.96),rgba(39,39,42,0.94))] px-3 py-2">
+                      <TableCell colSpan={9} className="bg-zinc-950 px-3 py-2">
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-semibold uppercase tracking-wide text-white">Supporting Transactions</span>
                           <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">

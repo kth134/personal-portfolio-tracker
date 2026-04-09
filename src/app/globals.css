@@ -139,7 +139,7 @@
   .dashboard-section-header {
     @apply flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 sm:px-6;
     border-bottom: 1px solid var(--brand-emerald-header-dark);
-    background-color: var(--brand-emerald-header);
+    background-image: linear-gradient(90deg, rgb(9, 9, 11) 0%, var(--brand-emerald-header) 100%);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 40px -34px var(--brand-emerald-header-soft);
   }
 
@@ -198,7 +198,7 @@
   .dashboard-surface-header {
     @apply grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:px-6;
     border-bottom: 1px solid var(--brand-emerald-header-dark);
-    background-color: var(--brand-emerald-header);
+    background-image: linear-gradient(90deg, rgb(9, 9, 11) 0%, var(--brand-emerald-header) 100%);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 40px -34px var(--brand-emerald-header-soft);
   }
 
