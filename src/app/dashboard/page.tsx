@@ -1329,7 +1329,7 @@ export default function DashboardHome() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {driftChartSlices.map((slice, idx) => (
                     <div key={`${slice.key}-${idx}`} className={cn('dashboard-chart-panel space-y-4 p-6', driftChartSlices.length === 1 && 'lg:col-span-2')}>
-                      <h3 className="dashboard-contrast-pill bg-zinc-950 text-center">{driftLens === 'total' ? getDriftLensTitle(driftLens) : driftAggregate && slice.key === 'Aggregated Selection' ? getDriftLensTitle(driftLens) : slice.key} Drift Analysis</h3>
+                      <h3 className="dashboard-contrast-pill text-center">{driftLens === 'total' ? getDriftLensTitle(driftLens) : driftAggregate && slice.key === 'Aggregated Selection' ? getDriftLensTitle(driftLens) : slice.key} Drift Analysis</h3>
                       <div className="h-[380px]">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={slice.data} layout="vertical" margin={{ left: 10, right: 30 }}>

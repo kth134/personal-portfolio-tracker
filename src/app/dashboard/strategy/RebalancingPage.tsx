@@ -891,7 +891,7 @@ export default function RebalancingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {chartSlices.map((slice, idx) => (
           <div key={idx} className={cn("dashboard-chart-panel space-y-4 p-6", chartSlices.length === 1 && "lg:col-span-2")}> 
-            <h3 className="dashboard-contrast-pill bg-zinc-950 text-center">{lens === 'total' ? getLensDriftTitle(lens) : aggregate && slice.key === 'Aggregated Selection' ? getLensDriftTitle(lens) : slice.key} Drift Analysis</h3>
+            <h3 className="dashboard-contrast-pill text-center">{lens === 'total' ? getLensDriftTitle(lens) : aggregate && slice.key === 'Aggregated Selection' ? getLensDriftTitle(lens) : slice.key} Drift Analysis</h3>
             <div className="h-[380px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={slice.data} layout="vertical" margin={{ left: 10, right: 30 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" unit="%" fontSize={10} axisLine={false} tickLine={false} /><YAxis dataKey="ticker" type="category" interval={0} fontSize={9} width={40} /><RechartsTooltip formatter={(v:any) => [`${Number(v).toFixed(1)}%`, 'Drift']} /><Bar dataKey="drift_percentage">{slice.data.map((entry: any, i: number) => (<Cell key={i} fill={getDriftColor(entry.drift_percentage, slice.data)} />))}</Bar></BarChart></ResponsiveContainer></div>
           </div>
         ))}
@@ -1251,7 +1251,7 @@ export default function RebalancingPage() {
                 {outOfBandPlanRows.length > 0 && (
                   <div className="space-y-2">
                     <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
-                      <div className="dashboard-contrast-pill bg-zinc-950 px-2 py-1 text-[11px]">Out-of-Band Assets</div>
+                      <div className="dashboard-contrast-pill px-2 py-1 text-[11px]">Out-of-Band Assets</div>
                       <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
                         <MetricChip label="Gross Buy" value={formatUSDWhole(outOfBandSummary.grossBuy)} valueClassName="text-green-700" />
                         <MetricChip label="Gross Sell" value={formatUSDWhole(outOfBandSummary.grossSell)} valueClassName="text-red-700" />
@@ -1298,7 +1298,7 @@ export default function RebalancingPage() {
                 {supportingPlanRows.length > 0 && (
                   <div className="space-y-2">
                     <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
-                      <div className="dashboard-contrast-pill bg-zinc-950 px-2 py-1 text-[11px]">Supporting Transactions</div>
+                      <div className="dashboard-contrast-pill px-2 py-1 text-[11px]">Supporting Transactions</div>
                       <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
                         <MetricChip label="Gross Buy" value={formatUSDWhole(supportingSummary.grossBuy)} valueClassName="text-green-700" />
                         <MetricChip label="Gross Sell" value={formatUSDWhole(supportingSummary.grossSell)} valueClassName="text-red-700" />
@@ -1368,7 +1368,7 @@ export default function RebalancingPage() {
                 <TableBody>
                   {outOfBandPlanRows.length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="bg-zinc-950 px-3 py-2">
+                      <TableCell colSpan={9} className="px-3 py-2" style={{ backgroundColor: 'var(--brand-emerald-header)' }}>
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-semibold uppercase tracking-wide text-white">Out-of-Band Assets</span>
                           <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
@@ -1415,7 +1415,7 @@ export default function RebalancingPage() {
                   ))}
                   {supportingPlanRows.length > 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="bg-zinc-950 px-3 py-2">
+                      <TableCell colSpan={9} className="px-3 py-2" style={{ backgroundColor: 'var(--brand-emerald-header)' }}>
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-semibold uppercase tracking-wide text-white">Supporting Transactions</span>
                           <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
