@@ -149,6 +149,12 @@ type RecentTransactionRow = {
   account: AccountRelation | null;
 };
 
+type RecentActivityTotals = {
+  buys: number;
+  sells: number;
+  income: number;
+};
+
 type RebalancingSubPortfolio = {
   id: string;
   name: string;
@@ -215,6 +221,28 @@ const normalizeRecentTransaction = (tx: {
   asset: unwrapRelation(tx.asset),
   account: unwrapRelation(tx.account),
 });
+
+const isFilteredRecentTransaction = (tx: {
+  type: string;
+  notes?: string | null;
+}) => !(tx.type === 'Deposit' && tx.notes === 'Auto-deposit for external buy');
+
+const EMPTY_RECENT_ACTIVITY_TOTALS: RecentActivityTotals = {
+  buys: 0,
+  sells: 0,
+  income: 0,
+};
+
+const summarizeRecentActivity = (transactions: Array<{
+  type: string;
+  amount: number | string;
+}>): RecentActivityTotals => transactions.reduce<RecentActivityTotals>((totals, tx) => {
+  const amount = Math.abs(Number(tx.amount) || 0);
+  if (tx.type === 'Buy') totals.buys += amount;
+  if (tx.type === 'Sell') totals.sells += amount;
+  if (tx.type === 'Dividend' || tx.type === 'Interest') totals.income += amount;
+  return totals;
+}, { ...EMPTY_RECENT_ACTIVITY_TOTALS });
 
 const formatUSDWhole = (value: number | null | undefined) => {
   const num = Math.round(Number(value) || 0);
@@ -473,6 +501,7 @@ export default function DashboardHome() {
   const [performanceTotals, setPerformanceTotals] = useState<PerformanceTotals | null>(null);
   const [performanceBridgeInput, setPerformanceBridgeInput] = useState<PortfolioValueBridgeInput | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<RecentTransactionRow[]>([]);
+  const [recentActivityTotals, setRecentActivityTotals] = useState<RecentActivityTotals>(EMPTY_RECENT_ACTIVITY_TOTALS);
   const [rebalancingData, setRebalancingData] = useState<RebalancingData | null>(null);
   const [rebalancingLoading, setRebalancingLoading] = useState(true);
   const [driftLens, setDriftLens] = useState('total');
@@ -723,6 +752,10 @@ export default function DashboardHome() {
           dividends: summaryTotals.dividends,
         });
 
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const cutoffDate = thirtyDaysAgo.toISOString().slice(0, 10);
+
         // Fetch recent transactions
         const { data: recentTransactions } = await supabase
           .from('transactions')
@@ -740,6 +773,12 @@ export default function DashboardHome() {
           .order('date', { ascending: false })
           .limit(20); // Fetch more to account for filtering
 
+        const { data: recentActivityWindow } = await supabase
+          .from('transactions')
+          .select('type, amount, notes')
+          .eq('user_id', userId)
+          .gte('date', cutoffDate);
+
         // Filter out auto-created deposits for external buys
         const filteredTransactions = ((recentTransactions ?? []) as Array<{
           id: string;
@@ -750,11 +789,16 @@ export default function DashboardHome() {
           notes?: string | null;
           asset?: Relation<AssetRelation>;
           account?: Relation<AccountRelation>;
-        }>).filter(tx => 
-          !(tx.type === 'Deposit' && tx.notes === 'Auto-deposit for external buy')
-        ).slice(0, 10).map(normalizeRecentTransaction);
+        }>).filter(isFilteredRecentTransaction).slice(0, 10).map(normalizeRecentTransaction);
+
+        const filteredRecentActivityWindow = ((recentActivityWindow ?? []) as Array<{
+          type: string;
+          amount: number | string;
+          notes?: string | null;
+        }>).filter(isFilteredRecentTransaction);
 
         setRecentTransactions(filteredTransactions);
+        setRecentActivityTotals(summarizeRecentActivity(filteredRecentActivityWindow));
 
         // Fetch rebalancing data
         try {
@@ -938,6 +982,10 @@ export default function DashboardHome() {
           dividends: summaryTotals.dividends,
         });
 
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const cutoffDate = thirtyDaysAgo.toISOString().slice(0, 10);
+
         // Fetch recent transactions
         const { data: recentTransactions } = await supabase
           .from('transactions')
@@ -955,6 +1003,12 @@ export default function DashboardHome() {
           .order('date', { ascending: false })
           .limit(20); // Fetch more to account for filtering
 
+        const { data: recentActivityWindow } = await supabase
+          .from('transactions')
+          .select('type, amount, notes')
+          .eq('user_id', userId)
+          .gte('date', cutoffDate);
+
         // Filter out auto-created deposits for external buys
         const filteredTransactions = ((recentTransactions ?? []) as Array<{
           id: string;
@@ -965,11 +1019,16 @@ export default function DashboardHome() {
           notes?: string | null;
           asset?: Relation<AssetRelation>;
           account?: Relation<AccountRelation>;
-        }>).filter(tx => 
-          !(tx.type === 'Deposit' && tx.notes === 'Auto-deposit for external buy')
-        ).slice(0, 10).map(normalizeRecentTransaction);
+        }>).filter(isFilteredRecentTransaction).slice(0, 10).map(normalizeRecentTransaction);
+
+        const filteredRecentActivityWindow = ((recentActivityWindow ?? []) as Array<{
+          type: string;
+          amount: number | string;
+          notes?: string | null;
+        }>).filter(isFilteredRecentTransaction);
 
         setRecentTransactions(filteredTransactions);
+        setRecentActivityTotals(summarizeRecentActivity(filteredRecentActivityWindow));
       }
     } catch (err) {
       console.error('Dashboard data refresh failed:', err);
@@ -1238,7 +1297,7 @@ export default function DashboardHome() {
             </p>
           </div>
         </div>
-        <div className="rounded-xl border bg-card p-3.5 sm:p-4" onClick={(event) => event.stopPropagation()}>
+        <div className="rounded-xl border bg-card px-3.5 pt-3.5 pb-2.5 sm:px-4 sm:pt-4 sm:pb-3" onClick={(event) => event.stopPropagation()}>
           <div className="mb-3">
             <CardTitle className="text-base">Portfolio Value Bridge</CardTitle>
             <p className="text-sm text-muted-foreground">Starting Value {'->'} Net Contributions {'->'} Income {'->'} Realized {'->'} Unrealized {'->'} Terminal Value</p>
@@ -1246,7 +1305,7 @@ export default function DashboardHome() {
           {performanceBridgeInput ? (
             <PortfolioValueBridge input={performanceBridgeInput} compact />
           ) : (
-            <div className="flex h-[240px] sm:h-[260px] items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-[216px] sm:h-[232px] items-center justify-center text-sm text-muted-foreground">
               Loading performance waterfall...
             </div>
           )}
@@ -1409,6 +1468,30 @@ export default function DashboardHome() {
 
   const recentTable = (
     <>
+      <div className="space-y-2 mb-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border bg-card px-3 py-2.5 text-center">
+            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Buys</Label>
+            <p className="mt-1 text-xl font-bold font-mono tabular-nums text-red-600">
+              {formatUSDWhole(recentActivityTotals.buys)}
+            </p>
+          </div>
+          <div className="rounded-lg border bg-card px-3 py-2.5 text-center">
+            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Sells</Label>
+            <p className="mt-1 text-xl font-bold font-mono tabular-nums text-green-600">
+              {formatUSDWhole(recentActivityTotals.sells)}
+            </p>
+          </div>
+          <div className="rounded-lg border bg-card px-3 py-2.5 text-center">
+            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Income</Label>
+            <p className="mt-1 text-xl font-bold font-mono tabular-nums text-green-600">
+              {formatUSDWhole(recentActivityTotals.income)}
+            </p>
+          </div>
+        </div>
+        <p className="text-xs italic text-muted-foreground">Metrics reflect the last 30 days.</p>
+      </div>
+
       <div className="md:hidden space-y-3">
         {recentTransactions.map((tx) => (
           <div key={tx.id} className="rounded-lg border bg-background p-3 shadow-sm">

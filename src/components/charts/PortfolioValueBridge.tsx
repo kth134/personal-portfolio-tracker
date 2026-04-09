@@ -233,9 +233,9 @@ export default function PortfolioValueBridge({ input, compact = false }: Props) 
           {formatSignedCurrency(netGainLoss)}
         </span>
       </div>
-      <div className={compact ? 'h-[240px] sm:h-[260px] w-full min-w-0' : 'h-[320px] sm:h-[360px] w-full min-w-0'}>
+      <div className={compact ? 'h-[216px] sm:h-[232px] w-full min-w-0' : 'h-[320px] sm:h-[360px] w-full min-w-0'}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: compact ? 8 : 16, right: 14, left: 8, bottom: isMobile ? 20 : compact ? 24 : 36 }} barCategoryGap="2%" barGap={0}>
+          <ComposedChart data={rows} margin={{ top: compact ? 6 : 16, right: 14, left: 8, bottom: isMobile ? 20 : compact ? 18 : 36 }} barCategoryGap="2%" barGap={0}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="name"
@@ -244,7 +244,7 @@ export default function PortfolioValueBridge({ input, compact = false }: Props) 
               tickFormatter={(value: string) => (isMobile ? '' : value)}
               angle={isMobile ? 0 : -18}
               textAnchor={isMobile ? 'middle' : 'end'}
-              height={isMobile ? 28 : compact ? 62 : 78}
+              height={isMobile ? 28 : compact ? 54 : 78}
             />
             <YAxis tickFormatter={formatCompactCurrency} tickMargin={10} width={90} domain={yDomain} />
             <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
