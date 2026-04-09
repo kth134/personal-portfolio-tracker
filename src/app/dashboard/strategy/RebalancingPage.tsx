@@ -929,14 +929,14 @@ export default function RebalancingPage() {
                   <div className="w-full pr-2 sm:pr-6">
                     <div className="flex items-center justify-between gap-3 sm:hidden">
                       <div className="w-1/2 min-w-0">
-                        <span className="block text-sm font-semibold uppercase tracking-wide leading-tight break-words">{sp.name}</span>
+                        <span className="block text-sm font-bold uppercase tracking-wide leading-tight break-words">{sp.name}</span>
                       </div>
                       <div className="w-1/2 text-right">
                         <span className="block text-sm font-semibold font-mono leading-tight">{formatUSDWhole(totalVal)}</span>
                       </div>
                     </div>
                     <div className="hidden sm:flex items-center justify-between gap-4 text-sm font-mono whitespace-nowrap">
-                      <span className="truncate text-sm font-semibold uppercase tracking-wide">{sp.name}</span>
+                      <span className="truncate text-sm font-bold uppercase tracking-wide">{sp.name}</span>
                       <div className="flex items-center gap-3">
                         <span className="text-zinc-950">Value: {formatUSDWhole(totalVal)}</span>
                         <span className="text-zinc-950">Target: {formatPctTenth(targetAllocPct)}</span>
@@ -1250,7 +1250,7 @@ export default function RebalancingPage() {
                 {outOfBandPlanRows.length > 0 && (
                   <div className="space-y-2">
                     <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
-                      <div className="dashboard-contrast-pill px-2 py-1 text-[11px]">Out-of-Band Assets</div>
+                      <div className="dashboard-contrast-pill px-2 py-1 text-[11px] font-bold">Out-of-Band Assets</div>
                       <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
                         <MetricChip label="Gross Buy" value={formatUSDWhole(outOfBandSummary.grossBuy)} valueClassName="value-positive" />
                         <MetricChip label="Gross Sell" value={formatUSDWhole(outOfBandSummary.grossSell)} valueClassName="value-negative" />
@@ -1297,7 +1297,7 @@ export default function RebalancingPage() {
                 {supportingPlanRows.length > 0 && (
                   <div className="space-y-2">
                     <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
-                      <div className="dashboard-contrast-pill px-2 py-1 text-[11px]">Supporting Transactions</div>
+                      <div className="dashboard-contrast-pill px-2 py-1 text-[11px] font-bold">Supporting Transactions</div>
                       <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
                         <MetricChip label="Gross Buy" value={formatUSDWhole(supportingSummary.grossBuy)} valueClassName="value-positive" />
                         <MetricChip label="Gross Sell" value={formatUSDWhole(supportingSummary.grossSell)} valueClassName="value-negative" />
@@ -1369,8 +1369,8 @@ export default function RebalancingPage() {
                     <TableRow>
                       <TableCell colSpan={9} className="px-3 py-2" style={{ backgroundColor: 'var(--brand-emerald-header)' }}>
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-zinc-950">Out-of-Band Assets</span>
-                          <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
+                          <span className="text-xs font-bold uppercase tracking-wide text-zinc-950">Out-of-Band Assets</span>
+                          <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-wide">
                             <span className="text-zinc-950">Gross Buy <span className="font-semibold tabular-nums value-positive">{formatUSDWhole(outOfBandSummary.grossBuy)}</span></span>
                             <span className="text-zinc-950">Gross Sell <span className="font-semibold tabular-nums value-negative">{formatUSDWhole(outOfBandSummary.grossSell)}</span></span>
                             <span className="text-zinc-950">Net Flow <span className={cn('font-semibold tabular-nums', outOfBandSummary.netFlow >= 0 ? 'value-positive' : 'value-negative')}>{formatUSDWhole(outOfBandSummary.netFlow)}</span></span>
@@ -1416,8 +1416,8 @@ export default function RebalancingPage() {
                     <TableRow>
                       <TableCell colSpan={9} className="px-3 py-2" style={{ backgroundColor: 'var(--brand-emerald-header)' }}>
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-zinc-950">Supporting Transactions</span>
-                          <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
+                          <span className="text-xs font-bold uppercase tracking-wide text-zinc-950">Supporting Transactions</span>
+                          <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-wide">
                             <span className="text-zinc-950">Gross Buy <span className="font-semibold tabular-nums value-positive">{formatUSDWhole(supportingSummary.grossBuy)}</span></span>
                             <span className="text-zinc-950">Gross Sell <span className="font-semibold tabular-nums value-negative">{formatUSDWhole(supportingSummary.grossSell)}</span></span>
                             <span className="text-zinc-950">Net Flow <span className={cn('font-semibold tabular-nums', supportingSummary.netFlow >= 0 ? 'value-positive' : 'value-negative')}>{formatUSDWhole(supportingSummary.netFlow)}</span></span>
