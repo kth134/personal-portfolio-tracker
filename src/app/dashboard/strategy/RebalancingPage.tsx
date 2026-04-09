@@ -99,7 +99,6 @@ export default function RebalancingPage() {
       const res = await fetch('/api/rebalancing', { cache: 'no-store' })
       const payload = await res.json()
       setData(payload)
-      // Default to collapsed (do NOT auto-populate openItems)
     } catch (err) { console.error('Fetch error:', err) } finally { setLoading(false) }
   }
 
@@ -900,7 +899,7 @@ export default function RebalancingPage() {
         </details>
       </div>
 
-      <details className="order-2 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
+      <details open className="order-2 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
         <summary className="dashboard-section-header">
           <span className="dashboard-section-header-title">Allocation Strategy</span>
           <span className="dashboard-section-header-meta">
@@ -1234,7 +1233,7 @@ export default function RebalancingPage() {
         </div>
       </details>
 
-      <details className="order-3 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
+      <details open className="order-3 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
       <summary className="dashboard-section-header">
         <span className="dashboard-section-header-title">Rebalancing Recommendations</span>
         <span className="dashboard-section-header-meta">

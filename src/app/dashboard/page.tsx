@@ -154,6 +154,7 @@ type RecentTransactionRow = {
 };
 
 type RecentActivityTotals = {
+  totalTransactions: number;
   buys: number;
   sells: number;
   income: number;
@@ -237,6 +238,7 @@ const isFilteredRecentTransaction = (tx: {
 }) => !(tx.type === 'Deposit' && tx.notes === 'Auto-deposit for external buy');
 
 const EMPTY_RECENT_ACTIVITY_TOTALS: RecentActivityTotals = {
+  totalTransactions: 0,
   buys: 0,
   sells: 0,
   income: 0,
@@ -246,6 +248,7 @@ const summarizeRecentActivity = (transactions: Array<{
   type: string;
   amount: number | string;
 }>): RecentActivityTotals => transactions.reduce<RecentActivityTotals>((totals, tx) => {
+  totals.totalTransactions += 1;
   const amount = Math.abs(Number(tx.amount) || 0);
   if (tx.type === 'Buy') totals.buys += amount;
   if (tx.type === 'Sell') totals.sells += amount;
@@ -513,10 +516,10 @@ export default function DashboardHome() {
   const router = useRouter();
   const [sectionState, setSectionState] = useState<DashboardSectionState>({
     keyKpis: true,
-    performanceSnapshot: false,
-    strategySnapshot: false,
-    portfolioDetails: false,
-    recentActivity: false,
+    performanceSnapshot: true,
+    strategySnapshot: true,
+    portfolioDetails: true,
+    recentActivity: true,
   });
 
   // Core states from original
@@ -1184,29 +1187,12 @@ export default function DashboardHome() {
   const shouldMatchHomepageCardHeights = sectionState.performanceSnapshot && sectionState.portfolioDetails && allocationSliceCount === 1;
 
   const performanceCard = (
-    <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/performance')}>
-      <CardHeader className="space-y-3 p-4 sm:p-5">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="dashboard-metric-tile">
-            <Label className="dashboard-metric-label">Total Portfolio Value</Label>
-            <p className="dashboard-metric-value">
-              {performanceTotals ? formatUSDWhole(performanceTotals.market_value) : 'Loading...'}
-            </p>
-          </div>
-          <div className="dashboard-metric-tile">
-            <Label className="dashboard-metric-label">Total Return %</Label>
-            <p className={cn('dashboard-metric-value', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'value-positive' : 'value-negative')}>
-              {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
-            </p>
-          </div>
-          <div className="dashboard-metric-tile">
-            <Label className="dashboard-metric-label">Annualized IRR</Label>
-            <p className={cn('dashboard-metric-value', Number(performanceTotals?.irr_pct ?? 0) >= 0 ? 'value-positive' : 'value-negative')}>
-              {performanceTotals ? formatPctTenth(performanceTotals.irr_pct) : 'Loading...'}
-            </p>
-          </div>
-        </div>
-        <div className="rounded-xl border bg-card px-3.5 pt-3.5 pb-1.5 sm:px-4 sm:pt-4 sm:pb-2" onClick={(event) => event.stopPropagation()}>
+    <Card
+      className={cn('cursor-pointer rounded-xl border shadow-sm', shouldMatchHomepageCardHeights && 'flex h-full flex-col')}
+      onClick={() => router.push('/dashboard/performance')}
+    >
+      <CardHeader className={cn('p-4 sm:p-5', shouldMatchHomepageCardHeights && 'flex h-full flex-col')}>
+        <div className={cn('rounded-xl border bg-card px-3.5 pt-3.5 pb-1.5 sm:px-4 sm:pt-4 sm:pb-2', shouldMatchHomepageCardHeights && 'flex flex-1 flex-col')}>
           <div className="mb-3">
             <div className="dashboard-contrast-pill text-center">Portfolio Value Bridge</div>
           </div>
@@ -1285,8 +1271,8 @@ export default function DashboardHome() {
               </div>
             </div>
 
-            <div className="rounded-xl border bg-card p-4 sm:p-5" onClick={(event) => event.stopPropagation()}>
-              <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-end md:gap-4">
+            <div className="rounded-xl border bg-card p-4 sm:p-5">
+              <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-end md:gap-4" onClick={(event) => event.stopPropagation()}>
                 <div className="w-full max-w-xs md:w-56 md:max-w-none">
                   <Label className="text-[10px] font-bold uppercase mb-1 block text-left">View Lens</Label>
                   <Select value={driftLens} onValueChange={setDriftLens}>
@@ -1340,7 +1326,11 @@ export default function DashboardHome() {
               {driftChartSlices.length ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {driftChartSlices.map((slice, idx) => (
-                    <div key={`${slice.key}-${idx}`} className={cn('dashboard-chart-panel space-y-4 p-6', driftChartSlices.length === 1 && 'lg:col-span-2')}>
+                    <div
+                      key={`${slice.key}-${idx}`}
+                      className={cn('dashboard-chart-panel space-y-4 p-6 cursor-pointer', driftChartSlices.length === 1 && 'lg:col-span-2')}
+                      onClick={() => router.push('/dashboard/portfolio?tab=rebalancing')}
+                    >
                       <h3 className="dashboard-contrast-pill text-center">{driftLens === 'total' ? getDriftLensTitle(driftLens) : driftAggregate && slice.key === 'Aggregated Selection' ? getDriftLensTitle(driftLens) : slice.key} Drift Analysis</h3>
                       <div className="h-[380px]">
                         <ResponsiveContainer width="100%" height="100%">
@@ -1377,7 +1367,13 @@ export default function DashboardHome() {
   const recentTable = (
     <>
       <div className="space-y-2 mb-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="dashboard-metric-tile">
+            <Label className="dashboard-metric-label">Total Transactions</Label>
+            <p className="dashboard-metric-value">
+              {recentActivityTotals.totalTransactions}
+            </p>
+          </div>
           <div className="dashboard-metric-tile">
             <Label className="dashboard-metric-label">Total Buys</Label>
             <p className="dashboard-metric-value value-negative">
@@ -1570,9 +1566,9 @@ export default function DashboardHome() {
                 </div>
               </div>
               <div className="dashboard-metric-tile">
-                <Label className="dashboard-metric-label">Rebalance Needed</Label>
-                <div className={cn('dashboard-metric-value', rebalanceNeeded ? 'value-negative' : 'value-positive')}>
-                  {rebalanceNeeded ? 'Yes' : 'No'}
+                <Label className="dashboard-metric-label">Annualized IRR</Label>
+                <div className={cn('dashboard-metric-value', Number(performanceTotals?.irr_pct ?? 0) >= 0 ? 'value-positive' : 'value-negative')}>
+                  {formatPctTenth(performanceTotals?.irr_pct)}
                 </div>
               </div>
             </div>
