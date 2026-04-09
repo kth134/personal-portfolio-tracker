@@ -70,6 +70,7 @@ type PerformanceTotals = {
 
 type PerformanceReportPoint = {
   date: string;
+  marketValue?: number;
   portfolioValue?: number;
   netContributions?: number;
   income?: number;
@@ -233,13 +234,19 @@ const getPortfolioValueBridgeInput = (reportData: PerformanceReportsResponse | n
   const firstPoint = aggregatedSeries[0];
   const lastPoint = aggregatedSeries[aggregatedSeries.length - 1];
 
+  const startValue = Number(firstPoint?.marketValue ?? 0);
+  const apiTerminalValue = Number(lastPoint?.marketValue ?? 0);
+  const netContributions = Number(lastPoint?.netContributions ?? 0);
+  const income = Number(lastPoint?.income ?? 0);
+  const realized = Number(lastPoint?.realized ?? 0);
+
   return {
-    startValue: Number(firstPoint?.portfolioValue ?? 0),
-    apiTerminalValue: Number(lastPoint?.portfolioValue ?? 0),
-    netContributions: Number(lastPoint?.netContributions ?? 0),
-    income: Number(lastPoint?.income ?? 0),
-    realized: Number(lastPoint?.realized ?? 0),
-    unrealized: Number(lastPoint?.unrealized ?? 0),
+    startValue,
+    apiTerminalValue,
+    netContributions,
+    income,
+    realized,
+    unrealized: apiTerminalValue - startValue - netContributions - income - realized,
   };
 };
 
@@ -1210,36 +1217,36 @@ export default function DashboardHome() {
 
   const performanceCard = (
     <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/performance')}>
-      <CardHeader>
-        <div className="grid grid-cols-1 gap-4 mt-4 sm:grid-cols-3">
-          <div className="text-center rounded-lg border bg-white p-3">
+      <CardHeader className="space-y-4 p-4 sm:p-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="text-center rounded-lg border bg-white px-3 py-2.5">
             <CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Total Portfolio Value</CardTitle>
-            <p className="text-2xl font-bold mt-2 font-mono tabular-nums">
+            <p className="text-2xl font-bold mt-1.5 font-mono tabular-nums">
               {performanceTotals ? formatUSDWhole(performanceTotals.market_value) : 'Loading...'}
             </p>
           </div>
-          <div className="text-center rounded-lg border bg-card p-3">
+          <div className="text-center rounded-lg border bg-card px-3 py-2.5">
             <CardTitle className="text-sm">Total Return %</CardTitle>
-            <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
+            <p className={cn('text-xl font-bold mt-1.5 tabular-nums', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
               {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
             </p>
           </div>
-          <div className="text-center rounded-lg border bg-card p-3">
+          <div className="text-center rounded-lg border bg-card px-3 py-2.5">
             <CardTitle className="text-sm">Annualized IRR</CardTitle>
-            <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.irr_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
+            <p className={cn('text-xl font-bold mt-1.5 tabular-nums', Number(performanceTotals?.irr_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
               {performanceTotals ? formatPctTenth(performanceTotals.irr_pct) : 'Loading...'}
             </p>
           </div>
         </div>
-        <div className="mt-6 rounded-xl border bg-card p-4 sm:p-5" onClick={(event) => event.stopPropagation()}>
-          <div className="mb-4">
+        <div className="rounded-xl border bg-card p-3.5 sm:p-4" onClick={(event) => event.stopPropagation()}>
+          <div className="mb-3">
             <CardTitle className="text-base">Portfolio Value Bridge</CardTitle>
             <p className="text-sm text-muted-foreground">Starting Value {'->'} Net Contributions {'->'} Income {'->'} Realized {'->'} Unrealized {'->'} Terminal Value</p>
           </div>
           {performanceBridgeInput ? (
-            <PortfolioValueBridge input={performanceBridgeInput} />
+            <PortfolioValueBridge input={performanceBridgeInput} compact />
           ) : (
-            <div className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-[240px] sm:h-[260px] items-center justify-center text-sm text-muted-foreground">
               Loading performance waterfall...
             </div>
           )}

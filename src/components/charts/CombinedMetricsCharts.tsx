@@ -23,6 +23,7 @@ interface MetricsPoint {
   income?: number
   realized?: number
   unrealized?: number
+  marketValue?: number
   portfolioValue?: number
 }
 
@@ -60,18 +61,20 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
       income: number
       realized: number
       unrealized: number
+      marketValue: number
       portfolioValue: number
     }
     const dateAgg = new Map<string, AggregatedPoint>()
     Object.values(data.series).forEach(points => {
       points.forEach(p => {
         const key = p.date
-        const agg = dateAgg.get(key) || { date: key, netGain: 0, netContributions: 0, income: 0, realized: 0, unrealized: 0, portfolioValue: 0 }
+        const agg = dateAgg.get(key) || { date: key, netGain: 0, netContributions: 0, income: 0, realized: 0, unrealized: 0, marketValue: 0, portfolioValue: 0 }
         agg.netGain += p.netGain || 0
         agg.netContributions += p.netContributions || 0
         agg.income += p.income || 0
         agg.realized += p.realized || 0
         agg.unrealized += p.unrealized || 0
+        agg.marketValue = (agg.marketValue || 0) + (p.marketValue || 0)
         agg.portfolioValue = (agg.portfolioValue || 0) + (p.portfolioValue || 0)
         dateAgg.set(key, agg)
       })
@@ -83,12 +86,12 @@ export default function CombinedMetricsCharts({ data, height = 450 }: Props) {
     if (!combinedLineData.length) return null
     const firstPoint = combinedLineData[0]
     const lastPoint = combinedLineData[combinedLineData.length - 1]
-    const startValue = Number(firstPoint?.portfolioValue ?? 0)
-    const apiTerminalValue = Number(lastPoint?.portfolioValue ?? 0)
+    const startValue = Number(firstPoint?.marketValue ?? 0)
+    const apiTerminalValue = Number(lastPoint?.marketValue ?? 0)
     const netContributions = Number(lastPoint?.netContributions ?? 0)
     const income = Number(lastPoint?.income ?? 0)
     const realized = Number(lastPoint?.realized ?? 0)
-    const unrealized = Number(lastPoint?.unrealized ?? 0)
+    const unrealized = apiTerminalValue - startValue - netContributions - income - realized
 
     return { startValue, apiTerminalValue, netContributions, income, realized, unrealized }
   }, [combinedLineData])

@@ -54,6 +54,7 @@ type TaxLotEntry = {
 }
 
 type MetricsCalc = {
+  marketValue: number
   portfolioValue: number
   netGain: number
   netContributions: number
@@ -612,6 +613,7 @@ function calculateGroupMetrics(
     return sum + (Number(tx.amount || 0) - Math.abs(Number(tx.fees || 0)))
   }, 0)
 
+  const marketValue = currentState.marketValue
   const portfolioValue = currentState.portfolioValue
   const valueDelta = portfolioValue - startState.portfolioValue
   const unrealized = valueDelta - netContributions - realized - income
@@ -630,6 +632,7 @@ function calculateGroupMetrics(
   const twr = 0
 
   return {
+    marketValue,
     portfolioValue,
     netGain,
     netContributions,

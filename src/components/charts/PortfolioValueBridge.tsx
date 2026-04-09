@@ -34,6 +34,7 @@ type BridgeRow = {
 
 type Props = {
   input: RawBridgeInput | null
+  compact?: boolean
 }
 
 const COMPACT_CURRENCY = new Intl.NumberFormat('en-US', {
@@ -171,7 +172,7 @@ function buildPortfolioValueBridge(input: RawBridgeInput): BridgeRow[] {
   return rows
 }
 
-export default function PortfolioValueBridge({ input }: Props) {
+export default function PortfolioValueBridge({ input, compact = false }: Props) {
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
@@ -222,8 +223,8 @@ export default function PortfolioValueBridge({ input }: Props) {
   }
 
   return (
-    <div className="space-y-3 h-full">
-      <div className="flex items-center justify-end text-sm">
+    <div className={compact ? 'space-y-2 h-full' : 'space-y-3 h-full'}>
+      <div className={compact ? 'flex items-center justify-end text-xs sm:text-sm' : 'flex items-center justify-end text-sm'}>
         <span className="text-muted-foreground mr-2">Net Gain / Loss</span>
         <span
           className="font-semibold"
@@ -232,9 +233,9 @@ export default function PortfolioValueBridge({ input }: Props) {
           {formatSignedCurrency(netGainLoss)}
         </span>
       </div>
-      <div className="h-[320px] sm:h-[360px] w-full min-w-0">
+      <div className={compact ? 'h-[240px] sm:h-[260px] w-full min-w-0' : 'h-[320px] sm:h-[360px] w-full min-w-0'}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 16, right: 14, left: 8, bottom: isMobile ? 20 : 36 }} barCategoryGap="2%" barGap={0}>
+          <ComposedChart data={rows} margin={{ top: compact ? 8 : 16, right: 14, left: 8, bottom: isMobile ? 20 : compact ? 24 : 36 }} barCategoryGap="2%" barGap={0}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="name"
@@ -243,7 +244,7 @@ export default function PortfolioValueBridge({ input }: Props) {
               tickFormatter={(value: string) => (isMobile ? '' : value)}
               angle={isMobile ? 0 : -18}
               textAnchor={isMobile ? 'middle' : 'end'}
-              height={isMobile ? 28 : 78}
+              height={isMobile ? 28 : compact ? 62 : 78}
             />
             <YAxis tickFormatter={formatCompactCurrency} tickMargin={10} width={90} domain={yDomain} />
             <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
@@ -264,7 +265,7 @@ export default function PortfolioValueBridge({ input }: Props) {
         </ResponsiveContainer>
       </div>
 
-      {isMobile && (
+      {isMobile && !compact && (
         <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5"><span className="inline-block size-2 rounded-full" style={{ backgroundColor: BRIDGE_COLORS.anchor }} />Start/End</div>
           <div className="flex items-center gap-1.5"><span className="inline-block size-2 rounded-full" style={{ backgroundColor: BRIDGE_COLORS.positive }} />Increase</div>

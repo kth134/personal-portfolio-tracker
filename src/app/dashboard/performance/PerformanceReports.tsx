@@ -85,6 +85,7 @@ type ValuesResponse = { values: { value: string, label: string }[] }
 
 type ReportPoint = {
   date: string
+  marketValue?: number
   portfolioValue?: number
   netGain?: number
   netContributions?: number
@@ -390,6 +391,7 @@ export default function PerformanceReports() {
         income: p.income || 0,
         realized: p.realized || 0,
         unrealized: p.unrealized || 0,
+        marketValue: p.marketValue || 0,
         portfolioValue: p.portfolioValue || 0,
       }))
     })
@@ -418,6 +420,7 @@ export default function PerformanceReports() {
           income: p.income || 0,
           realized: p.realized || 0,
           unrealized: p.unrealized || 0,
+          marketValue: p.marketValue || 0,
           portfolioValue: p.portfolioValue || 0,
         }))
       })
