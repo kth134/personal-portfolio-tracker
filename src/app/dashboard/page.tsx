@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { calculateIRR, calculateCashBalances, transactionFlowForIRR, netCashFlowsByDate, fetchAllUserTransactions } from '@/lib/finance';
+import { calculatePortfolioAssetAction } from '@/lib/rebalancing-logic';
 import { DashboardPageShell } from '@/components/dashboard-shell';
 import PortfolioValueBridge from '@/components/charts/PortfolioValueBridge';
 
@@ -159,6 +160,9 @@ type RebalancingSubPortfolio = {
   id: string;
   name: string;
   target_allocation: number;
+  upside_threshold?: number | null;
+  downside_threshold?: number | null;
+  band_mode?: boolean | number | null;
 };
 
 type RebalancingCurrentAllocation = {
@@ -176,6 +180,8 @@ type RebalancingCurrentAllocation = {
   action: string;
   current_percentage?: number | null;
   implied_overall_target?: number | null;
+  sub_portfolio_target_percentage?: number | null;
+  asset_band_mode?: boolean | number | null;
   drift_percentage: number;
 };
 
@@ -1079,17 +1085,49 @@ export default function DashboardHome() {
     setShowMfaSetupPrompt(false);
   };
 
-  const rebalanceNeeded = !!rebalancingData?.currentAllocations?.some((item) => item.action !== 'hold');
+  const normalizedRebalancingAllocations = useMemo(() => {
+    if (!rebalancingData?.currentAllocations?.length) return [] as RebalancingCurrentAllocation[];
+
+    return rebalancingData.currentAllocations.map((item) => {
+      const subPortfolio = rebalancingData.subPortfolios.find((sp) => sp.id === item.sub_portfolio_id);
+      const rawAssetBandMode = item.asset_band_mode;
+      const effectiveBandMode = typeof rawAssetBandMode === 'boolean'
+        ? rawAssetBandMode
+        : rawAssetBandMode === 1
+          ? true
+          : rawAssetBandMode === 0
+            ? false
+            : !!subPortfolio?.band_mode;
+
+      const calculation = calculatePortfolioAssetAction({
+        currentValue: item.current_value,
+        totalPortfolioValue: rebalancingData.totalValue,
+        targetOverallPct: Number(item.implied_overall_target || 0),
+        upsideThreshold: Math.abs(subPortfolio?.upside_threshold ?? 5),
+        downsideThreshold: Math.abs(subPortfolio?.downside_threshold ?? 5),
+        bandMode: effectiveBandMode,
+      });
+
+      return {
+        ...item,
+        current_percentage: calculation.currentOverallPct,
+        drift_percentage: calculation.driftPercentage,
+        action: calculation.action,
+      };
+    });
+  }, [rebalancingData]);
+
+  const rebalanceNeeded = normalizedRebalancingAllocations.some((item) => item.action !== 'hold');
 
   useEffect(() => {
-    if (driftLens === 'total' || !rebalancingData?.currentAllocations?.length) {
+    if (driftLens === 'total' || !normalizedRebalancingAllocations.length) {
       setDriftAvailableValues([]);
       setDriftSelectedValues([]);
       return;
     }
 
     const valuesMap = new Map<string, SelectOption>();
-    rebalancingData.currentAllocations.forEach((item) => {
+    normalizedRebalancingAllocations.forEach((item) => {
       let groupValue = 'Unknown';
       switch (driftLens) {
         case 'sub_portfolio':
@@ -1126,7 +1164,7 @@ export default function DashboardHome() {
       const retained = prev.filter((value) => nextSet.has(value));
       return retained.length ? retained : nextValues.map((item) => item.value);
     });
-  }, [driftLens, rebalancingData]);
+  }, [driftLens, normalizedRebalancingAllocations]);
 
   const toggleDriftValue = (value: string) => {
     setDriftSelectedValues((prev) => (prev.includes(value) ? prev.filter((entry) => entry !== value) : [...prev, value]));
@@ -1152,7 +1190,7 @@ export default function DashboardHome() {
     if (driftLens === 'total') {
       base = [{
         key: 'Portfolio',
-        data: rebalancingData.currentAllocations.map((item) => ({
+        data: normalizedRebalancingAllocations.map((item) => ({
           ticker: item.ticker || item.name || 'Unknown',
           drift_percentage: Number(item.drift_percentage || 0),
           current_pct: Number(item.current_percentage || 0),
@@ -1161,7 +1199,7 @@ export default function DashboardHome() {
       }];
     } else {
       const groupMap = new Map<string, RebalancingCurrentAllocation[]>();
-      rebalancingData.currentAllocations.forEach((item) => {
+      normalizedRebalancingAllocations.forEach((item) => {
         let groupKey = 'Unknown';
         switch (driftLens) {
           case 'sub_portfolio':
@@ -1331,7 +1369,7 @@ export default function DashboardHome() {
                 <p className="mt-1 text-xl font-bold font-mono tabular-nums leading-none">
                   {(() => {
                     const subPortfolioAllocations: { [key: string]: number } = {}
-                    rebalancingData.currentAllocations.forEach((item) => {
+                    normalizedRebalancingAllocations.forEach((item) => {
                       const subId = item.sub_portfolio_id || 'unassigned'
                       subPortfolioAllocations[subId] = (subPortfolioAllocations[subId] || 0) + item.current_value
                     })
@@ -1357,7 +1395,7 @@ export default function DashboardHome() {
                 <p className="mt-1 text-xl font-bold font-mono tabular-nums leading-none">
                   {(() => {
                     const assetDrift = rebalancingData.totalValue > 0
-                      ? rebalancingData.currentAllocations.reduce((sum: number, item) => {
+                      ? normalizedRebalancingAllocations.reduce((sum: number, item) => {
                         const weight = item.current_value / rebalancingData.totalValue
                         const currentPct = item.current_percentage || 0
                         const implied = item.implied_overall_target || 0
@@ -1372,7 +1410,7 @@ export default function DashboardHome() {
               <div className="text-center h-full rounded-md border px-3 py-2.5 flex min-h-[96px] flex-col items-center justify-center gap-1.5">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Rebalance Needed</Label>
                 <p className="mt-1 flex items-center justify-center text-xl font-bold tabular-nums leading-none">
-                  {rebalancingData.currentAllocations.some((item) => item.action !== 'hold') ? (
+                  {normalizedRebalancingAllocations.some((item) => item.action !== 'hold') ? (
                     <span className="text-red-600">Yes</span>
                   ) : (
                     'No'
