@@ -808,21 +808,21 @@ export default function RebalancingPage() {
               <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
             </span>
           </summary>
-          <div className={cn('space-y-4 px-4 pb-4 pt-4 sm:px-6 sm:pb-6', chartSlices.length === 1 && 'md:flex-1')}>
-            <div className="grid grid-cols-1 gap-4 h-full">
-              <div className="dashboard-metric-tile flex min-h-[96px] flex-col items-center justify-center text-center">
+          <div className={cn('flex flex-col px-4 pb-4 pt-4 sm:px-6 sm:pb-6', chartSlices.length === 1 && 'md:flex-1')}>
+            <div className="grid flex-1 grid-cols-1 grid-rows-4 gap-4">
+              <div className="dashboard-metric-tile flex h-full flex-col items-center justify-center text-center">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Value</Label>
                 <div className="mt-1 text-xl font-bold font-mono tabular-nums">{formatUSDWhole(data.totalValue)}</div>
               </div>
-              <div className="dashboard-metric-tile flex min-h-[96px] flex-col items-center justify-center text-center">
+              <div className="dashboard-metric-tile flex h-full flex-col items-center justify-center text-center">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Sub-Portfolio Drift</Label>
                 <div className="mt-1 text-xl font-bold font-mono tabular-nums">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div>
               </div>
-              <div className="dashboard-metric-tile flex min-h-[96px] flex-col items-center justify-center text-center">
+              <div className="dashboard-metric-tile flex h-full flex-col items-center justify-center text-center">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Asset Drift</Label>
                 <div className="mt-1 text-xl font-bold font-mono tabular-nums">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div>
               </div>
-              <div className="dashboard-metric-tile flex min-h-[96px] flex-col items-center justify-center text-center">
+              <div className="dashboard-metric-tile flex h-full flex-col items-center justify-center text-center">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Rebalance Needed</Label>
                 <div className={cn("mt-1 flex items-center justify-center text-xl font-bold tabular-nums", rebalanceNeeded ? "text-red-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div>
               </div>
