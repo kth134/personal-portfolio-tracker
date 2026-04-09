@@ -1150,18 +1150,31 @@ export default function RebalancingPage() {
                 <AccordionContent className="p-0 bg-background">
                     <div className="md:hidden border-b bg-zinc-50/70 p-3">
                       <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-summary">
-                        <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-summary">Summary</div>
-                      <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
-                        <div className="mt-2"><MetricChip label="Target Weight" value={`${targetAllocPct.toFixed(1)}%`} valueClassName="text-blue-700" /></div>
-                        <div className="mt-2"><MetricChip label="Actual Weight" value={`${allocPct.toFixed(1)}%`} /></div>
-                        <div className="mt-2"><MetricChip label="Drift" value={`${subDrift > 0 ? '+' : ''}${subDrift.toFixed(1)}%`} valueClassName={subDrift > 0 ? 'text-green-600' : (subDrift < 0 ? 'text-red-600' : 'text-zinc-700')} /></div>
-                      </div>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[auto_repeat(3,minmax(0,1fr))] sm:items-center sm:gap-4">
+                          <div className="flex justify-center sm:justify-start">
+                            <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-summary">Summary</div>
+                          </div>
+                          <div className="rounded-xl border border-white/80 bg-white/72 px-2.5 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.86)]">
+                            <p className="dashboard-metric-label">Target Weight</p>
+                            <p className="mt-1 text-sm font-semibold text-blue-700 tabular-nums">{targetAllocPct.toFixed(1)}%</p>
+                          </div>
+                          <div className="rounded-xl border border-white/80 bg-white/72 px-2.5 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.86)]">
+                            <p className="dashboard-metric-label">Actual Weight</p>
+                            <p className="mt-1 text-sm font-semibold text-zinc-900 tabular-nums">{allocPct.toFixed(1)}%</p>
+                          </div>
+                          <div className="rounded-xl border border-white/80 bg-white/72 px-2.5 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.86)]">
+                            <p className="dashboard-metric-label">Drift</p>
+                            <p className={cn('mt-1 text-sm font-semibold tabular-nums', subDrift > 0 ? 'text-green-600' : (subDrift < 0 ? 'text-red-600' : 'text-zinc-700'))}>{subDrift > 0 ? '+' : ''}{subDrift.toFixed(1)}%</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <div className="border-b bg-zinc-50/80 p-4">
                         <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-input">
-                      <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-input mx-auto">Inputs</div>
-                        <div className="mt-3 grid grid-cols-3 gap-2 sm:gap-4 items-end">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[auto_repeat(3,minmax(0,1fr))] sm:items-end sm:gap-4">
+                        <div className="flex justify-center sm:justify-start sm:pb-1">
+                          <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-input">Inputs</div>
+                        </div>
                         <div className="space-y-1 text-center"><Label className="block text-center text-[10px] font-bold uppercase text-zinc-500">Sub-Portfolio Target %</Label><Input aria-label={`Sub-portfolio target for ${sp.name}`} defaultValue={sp.target_allocation} type="number" min="0" max="100" step="0.01" onBlur={(e) => {
                           const parsed = parsePercentWithTwoDecimals(e.target.value)
                           if (parsed === null) {
@@ -1170,8 +1183,8 @@ export default function RebalancingPage() {
                           }
                           updateSubPortfolio(sp.id, 'target_allocation', parsed)
                         }} className="h-8 w-full border-amber-300 bg-amber-50 text-center focus-visible:ring-amber-300"/></div>
-                        <div className="space-y-1 text-center"><Label className="block text-center text-[10px] font-bold uppercase text-zinc-500">Upside Threshold %</Label><Input aria-label={`Upside threshold for ${sp.name}`} defaultValue={sp.upside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'upside_threshold', parseFloat(e.target.value))} className="h-8 w-full border-amber-300 bg-amber-50 text-center focus-visible:ring-amber-300"/></div>
-                        <div className="space-y-1 text-center"><Label className="block text-center text-[10px] font-bold uppercase text-zinc-500">Downside Threshold %</Label><Input aria-label={`Downside threshold for ${sp.name}`} defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 w-full border-amber-300 bg-amber-50 text-center focus-visible:ring-amber-300"/></div>
+                        <div className="space-y-1 text-center"><Label className="block text-center text-[10px] font-bold uppercase text-zinc-500">Upside Threshold</Label><Input aria-label={`Upside threshold for ${sp.name}`} defaultValue={sp.upside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'upside_threshold', parseFloat(e.target.value))} className="h-8 w-full border-amber-300 bg-amber-50 text-center focus-visible:ring-amber-300"/></div>
+                        <div className="space-y-1 text-center"><Label className="block text-center text-[10px] font-bold uppercase text-zinc-500">Downside Threshold</Label><Input aria-label={`Downside threshold for ${sp.name}`} defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="h-8 w-full border-amber-300 bg-amber-50 text-center focus-visible:ring-amber-300"/></div>
                         </div>
                         </div>
                     </div>
