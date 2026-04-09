@@ -430,9 +430,11 @@ export default function PortfolioHoldingsWithSlicers({
                         const itemCurrentPrice = itemQuantity > 0 ? itemValue / itemQuantity : 0
                         return (
                           <div key={`${item.ticker ?? item.name ?? idx}-mobile`} className="dashboard-mobile-card space-y-4">
-                            <div>
-                              <p className="text-sm font-semibold text-zinc-950 break-words">{item.ticker}</p>
-                              <p className="mt-1 text-sm text-zinc-500 break-words">{item.name}</p>
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 min-w-0">
+                              <p className="min-w-0 break-words text-lg font-semibold leading-tight text-zinc-950 [overflow-wrap:anywhere]">{item.ticker}</p>
+                              <p className="min-w-0 break-words text-right text-lg font-semibold leading-tight tabular-nums text-zinc-950 [overflow-wrap:anywhere]">{formatUSD(itemValue)}</p>
+                              <p className="min-w-0 break-words text-xs italic leading-tight text-zinc-500 [overflow-wrap:anywhere]">{item.name}</p>
+                              <p className="min-w-0 break-words text-right text-xs italic leading-tight tabular-nums text-zinc-500 [overflow-wrap:anywhere]">{itemWeight.toFixed(2)}%</p>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div>
@@ -442,14 +444,6 @@ export default function PortfolioHoldingsWithSlicers({
                               <div>
                                 <p className="dashboard-metric-label">Current Price</p>
                                 <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(itemCurrentPrice)}</p>
-                              </div>
-                              <div>
-                                <p className="dashboard-metric-label">Current Value</p>
-                                <p className="mt-1 text-sm font-semibold text-zinc-900 tabular-nums">{formatUSD(itemValue)}</p>
-                              </div>
-                              <div>
-                                <p className="dashboard-metric-label">Portfolio Weight</p>
-                                <p className="mt-1 text-sm text-zinc-700 tabular-nums">{itemWeight.toFixed(2)}%</p>
                               </div>
                             </div>
                           </div>
