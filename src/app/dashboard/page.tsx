@@ -403,10 +403,11 @@ function DashboardSection({
 // use centralized calculateIRR and normalizeTransactionToFlow from src/lib/finance
 
 // Portfolio Details Card Component - handles its own loading state
-function PortfolioDetailsCard({ lens, selectedValues, aggregate }: {
+function PortfolioDetailsCard({ lens, selectedValues, aggregate, onSliceCountChange }: {
   lens: string;
   selectedValues: string[];
   aggregate: boolean;
+  onSliceCountChange?: (count: number) => void;
 }) {
   const [allocations, setAllocations] = useState<AllocationSlice[]>([]);
   const [allocationsLoading, setAllocationsLoading] = useState(false);
@@ -449,6 +450,12 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate }: {
     // Handle pie chart clicks for drilling down
   };
 
+  useEffect(() => {
+    onSliceCountChange?.(allocations.length);
+  }, [allocations.length, onSliceCountChange]);
+
+  const shouldMatchPerformanceHeight = allocations.length === 1;
+
   if (allocationsLoading) {
     return (
       <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/portfolio')}>
@@ -460,11 +467,14 @@ function PortfolioDetailsCard({ lens, selectedValues, aggregate }: {
   }
 
   return (
-    <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/portfolio')}>
-      <CardContent>
-        <div className="grid grid-cols-1 gap-8">
+    <Card
+      className={cn('cursor-pointer rounded-xl border shadow-sm', shouldMatchPerformanceHeight && 'flex h-full flex-col')}
+      onClick={() => router.push('/dashboard/portfolio')}
+    >
+      <CardContent className={cn(shouldMatchPerformanceHeight && 'flex h-full flex-col')}>
+        <div className={cn('grid grid-cols-1 gap-8', shouldMatchPerformanceHeight && 'h-full')}>
           {allocations.map((slice, idx) => (
-            <div key={idx} className="space-y-4">
+            <div key={idx} className={cn('space-y-4', shouldMatchPerformanceHeight && 'flex h-full flex-col')}>
               <h4 className="dashboard-contrast-pill text-center">{lens === 'total' ? getAllocationLensTitle(lens) : aggregate && slice.key === 'Aggregated Selection' ? getAllocationLensTitle(lens) : slice.key} Allocation</h4>
               <ResponsiveContainer width="100%" height={360}>
                 <PieChart margin={{ top: 8, right: 34, left: 34, bottom: 58 }}>
@@ -528,6 +538,7 @@ export default function DashboardHome() {
   const [driftAvailableValues, setDriftAvailableValues] = useState<SelectOption[]>([]);
   const [driftSelectedValues, setDriftSelectedValues] = useState<string[]>([]);
   const [driftAggregate, setDriftAggregate] = useState(false);
+  const [allocationSliceCount, setAllocationSliceCount] = useState(0);
 
   // MFA states
   const [mfaStatus, setMfaStatus] = useState<'checking' | 'prompt' | 'verified' | 'none'>('checking');
@@ -1170,6 +1181,8 @@ export default function DashboardHome() {
     </div>
   );
 
+  const shouldMatchHomepageCardHeights = sectionState.performanceSnapshot && sectionState.portfolioDetails && allocationSliceCount === 1;
+
   const performanceCard = (
     <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/performance')}>
       <CardHeader className="space-y-3 p-4 sm:p-5">
@@ -1566,11 +1579,13 @@ export default function DashboardHome() {
           </DashboardSection>
 
           <div className="hidden md:grid gap-4">
-            <div className="grid grid-cols-2 gap-4 items-start">
+            <div className={cn('grid grid-cols-2 gap-4', shouldMatchHomepageCardHeights ? 'items-stretch' : 'items-start')}>
               <DashboardSection
                 title="Performance"
                 isOpen={sectionState.performanceSnapshot}
                 onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, performanceSnapshot: nextOpen }))}
+                className={cn(shouldMatchHomepageCardHeights && 'flex h-full flex-col')}
+                bodyClassName={cn(shouldMatchHomepageCardHeights && 'flex h-full flex-1 flex-col')}
               >
                 {performanceCard}
               </DashboardSection>
@@ -1578,9 +1593,16 @@ export default function DashboardHome() {
                 title="Portfolio Allocation"
                 isOpen={sectionState.portfolioDetails}
                 onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, portfolioDetails: nextOpen }))}
+                className={cn(shouldMatchHomepageCardHeights && 'flex h-full flex-col')}
+                bodyClassName={cn(shouldMatchHomepageCardHeights && 'flex h-full flex-1 flex-col')}
               >
                 {chartControlsPanel}
-                <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} />
+                <PortfolioDetailsCard
+                  lens={lens}
+                  selectedValues={selectedValues}
+                  aggregate={aggregate}
+                  onSliceCountChange={setAllocationSliceCount}
+                />
               </DashboardSection>
             </div>
 
@@ -1626,7 +1648,12 @@ export default function DashboardHome() {
               onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, portfolioDetails: nextOpen }))}
             >
               {chartControlsPanel}
-              <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} />
+              <PortfolioDetailsCard
+                lens={lens}
+                selectedValues={selectedValues}
+                aggregate={aggregate}
+                onSliceCountChange={setAllocationSliceCount}
+              />
             </DashboardSection>
 
             <DashboardSection
