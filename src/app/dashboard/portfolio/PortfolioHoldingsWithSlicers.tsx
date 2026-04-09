@@ -35,6 +35,12 @@ const LENSES = [
   { value: 'factor_tag', label: 'Factor' },
 ]
 
+const getAllocationLensTitle = (lens: string) => {
+  if (lens === 'total') return 'Asset'
+  const lensLabel = LENSES.find((item) => item.value === lens)?.label || 'Selection'
+  return lensLabel.replace(/\s+/g, '-')
+}
+
 const formatUSDWhole = (value: number | null | undefined) => {
   const num = Math.round(Number(value) || 0)
   return new Intl.NumberFormat('en-US', {
@@ -322,7 +328,7 @@ export default function PortfolioHoldingsWithSlicers({
           if (!sliceData || sliceData.length === 0) return null;
           return (
             <div key={idx} className={cn("dashboard-chart-panel space-y-4 min-w-[300px] flex-1", normalizedPieSlices.length === 1 ? "w-full max-w-none" : "max-w-[500px]")}> 
-              <h4 className="rounded-2xl bg-zinc-950 px-4 py-3 text-center text-sm font-semibold uppercase tracking-[0.16em] text-white">{slice.key}</h4>
+              <h4 className="rounded-2xl bg-zinc-950 px-4 py-3 text-center text-sm font-semibold uppercase tracking-[0.16em] text-white">{lens === 'total' ? getAllocationLensTitle(lens) : aggregate && slice.key === 'Aggregated Selection' ? getAllocationLensTitle(lens) : slice.key} Allocation</h4>
               <ResponsiveContainer width="100%" height={360}>
                 <PieChart margin={{ top: 8, right: 34, left: 34, bottom: 58 }}>
                   <Pie data={sliceData} dataKey="value" nameKey="subkey" outerRadius={82} label={renderPiePercentageLabel} labelLine={false}>
