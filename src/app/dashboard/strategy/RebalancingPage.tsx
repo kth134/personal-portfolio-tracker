@@ -793,45 +793,52 @@ export default function RebalancingPage() {
 
   return (
     <div className="flex flex-col gap-6 overflow-x-hidden">
-      <details open className="order-1 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
-        <summary className="dashboard-section-header">
-          <span className="dashboard-section-header-title">Key KPIs</span>
-          <span className="dashboard-section-header-meta">
-            <span className="hidden sm:inline">Expand / Collapse</span>
-            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
-          </span>
-        </summary>
-        <div className="space-y-4 px-4 pb-4 pt-4 sm:px-6 sm:pb-6">
-          <div className="dashboard-metric-grid">
-            <div className="dashboard-metric-tile text-center">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Value</Label>
-              <div className="mt-1 text-xl font-bold font-mono tabular-nums">{formatUSDWhole(data.totalValue)}</div>
-            </div>
-            <div className="dashboard-metric-tile text-center">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Sub-Portfolio Drift</Label>
-              <div className="mt-1 text-xl font-bold font-mono tabular-nums">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div>
-            </div>
-            <div className="dashboard-metric-tile text-center">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Asset Drift</Label>
-              <div className="mt-1 text-xl font-bold font-mono tabular-nums">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div>
-            </div>
-            <div className="dashboard-metric-tile text-center">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Rebalance Needed</Label>
-              <div className={cn("mt-1 flex items-center justify-center text-xl font-bold tabular-nums", rebalanceNeeded ? "text-red-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div>
+      <div className={cn('order-1 grid gap-6 md:grid-cols-3', chartSlices.length === 1 ? 'md:items-stretch' : 'md:items-start')}>
+        <details
+          open
+          className={cn(
+            'group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)] md:col-span-1',
+            chartSlices.length === 1 && 'md:flex md:h-full md:flex-col'
+          )}
+        >
+          <summary className="dashboard-section-header">
+            <span className="dashboard-section-header-title">Key KPIs</span>
+            <span className="dashboard-section-header-meta">
+              <span className="hidden sm:inline">Expand / Collapse</span>
+              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+            </span>
+          </summary>
+          <div className={cn('space-y-4 px-4 pb-4 pt-4 sm:px-6 sm:pb-6', chartSlices.length === 1 && 'md:flex-1')}>
+            <div className="dashboard-metric-grid">
+              <div className="dashboard-metric-tile text-center">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Value</Label>
+                <div className="mt-1 text-xl font-bold font-mono tabular-nums">{formatUSDWhole(data.totalValue)}</div>
+              </div>
+              <div className="dashboard-metric-tile text-center">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Sub-Portfolio Drift</Label>
+                <div className="mt-1 text-xl font-bold font-mono tabular-nums">{calculatedData.totalWeightedSubDrift.toFixed(1)}%</div>
+              </div>
+              <div className="dashboard-metric-tile text-center">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Asset Drift</Label>
+                <div className="mt-1 text-xl font-bold font-mono tabular-nums">{calculatedData.totalWeightedAssetDrift.toFixed(1)}%</div>
+              </div>
+              <div className="dashboard-metric-tile text-center">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Rebalance Needed</Label>
+                <div className={cn("mt-1 flex items-center justify-center text-xl font-bold tabular-nums", rebalanceNeeded ? "text-red-600" : "text-green-600")}>{rebalanceNeeded ? "Yes" : "No"}</div>
+              </div>
             </div>
           </div>
-        </div>
-      </details>
+        </details>
 
-      <details className="order-3 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
-        <summary className="dashboard-section-header">
-            <span className="dashboard-section-header-title">Portfolio Drift Chart</span>
-            <span className="dashboard-section-header-meta">
-            <span className="hidden sm:inline">Expand / Collapse</span>
-            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
-          </span>
-        </summary>
-        <div className="px-4 pb-4 pt-4 sm:px-6 sm:pb-6">
+        <details className="group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)] md:col-span-2">
+          <summary className="dashboard-section-header">
+              <span className="dashboard-section-header-title">Portfolio Drift Chart</span>
+              <span className="dashboard-section-header-meta">
+              <span className="hidden sm:inline">Expand / Collapse</span>
+              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+            </span>
+          </summary>
+          <div className="px-4 pb-4 pt-4 sm:px-6 sm:pb-6">
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-end md:gap-4">
         <div className="w-full max-w-xs md:w-56 md:max-w-none">
           <Label className="text-[10px] font-bold uppercase mb-1 block text-left">View Lens</Label>
@@ -884,233 +891,8 @@ export default function RebalancingPage() {
         ))}
       </div>
       </div>
-      </details>
-
-      <details className="order-4 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
-      <summary className="dashboard-section-header">
-        <span className="dashboard-section-header-title">Rebalancing Recommendations</span>
-        <span className="dashboard-section-header-meta">
-          <span className="hidden sm:inline">Expand / Collapse</span>
-          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
-        </span>
-      </summary>
-      <div className="px-4 pb-4 pt-4 sm:px-6 sm:pb-6">
-      {rebalanceNeeded && rebalancingPlanRows.length > 0 ? (
-      <div className="dashboard-chart-panel p-4">
-          <div className="space-y-4">
-            {rebalancingPlanRows.length > 0 && (
-              <div className="md:hidden space-y-3">
-                {outOfBandPlanRows.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
-                      <div className="dashboard-contrast-pill bg-zinc-950 px-2 py-1 text-[11px]">Out-of-Band Assets</div>
-                      <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
-                        <MetricChip label="Gross Buy" value={formatUSDWhole(outOfBandSummary.grossBuy)} valueClassName="text-green-700" />
-                        <MetricChip label="Gross Sell" value={formatUSDWhole(outOfBandSummary.grossSell)} valueClassName="text-red-700" />
-                        <MetricChip label="Net Flow" value={formatUSDWhole(outOfBandSummary.netFlow)} valueClassName={outOfBandSummary.netFlow >= 0 ? 'text-green-700' : 'text-red-700'} />
-                      </div>
-                    </div>
-                    {outOfBandPlanRows.map((row, idx) => (
-                  <div key={`mobile-plan-out-${idx}`} className="dashboard-mobile-card space-y-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-semibold leading-tight">{row.ticker}</div>
-                        <div className="text-xs text-muted-foreground leading-tight">{row.name}</div>
-                      </div>
-                      <div className="text-right">
-                        <span className={cn("block text-xs font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</span>
-                        <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatUSDWhole(row.amount)}</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-2 flex items-center justify-between gap-2 text-sm">
-                      <div className="flex max-w-full items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1 overflow-hidden">
-                        <span className={cn('text-[9px] uppercase tracking-wide', !row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Abs</span>
-                        <Switch
-                          id={`mobile-plan-mode-out-${idx}`}
-                          checked={row.bandMode}
-                          aria-label={`Set rebalance mode for ${row.ticker}`}
-                          onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct)}
-                          disabled={!row.assetId || !row.subPortfolioId}
-                        />
-                        <span className={cn('text-[9px] uppercase tracking-wide', row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Cons</span>
-                      </div>
-                    </div>
-
-                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                      <MetricChip label="Target" value={formatPctTenth(row.targetPct)} valueClassName="text-blue-700" />
-                      <MetricChip label="Current" value={formatPctTenth(row.currentPct)} />
-                      <MetricChip label="Drift" value={`${row.driftPct > 0 ? '+' : ''}${formatPctTenth(row.driftPct)}`} valueClassName={row.driftPct > 0 ? 'text-green-600' : 'text-red-600'} />
-                    </div>
-
-                  </div>
-                    ))}
-                  </div>
-                )}
-                {supportingPlanRows.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
-                      <div className="dashboard-contrast-pill bg-zinc-950 px-2 py-1 text-[11px]">Supporting Transactions</div>
-                      <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
-                        <MetricChip label="Gross Buy" value={formatUSDWhole(supportingSummary.grossBuy)} valueClassName="text-green-700" />
-                        <MetricChip label="Gross Sell" value={formatUSDWhole(supportingSummary.grossSell)} valueClassName="text-red-700" />
-                        <MetricChip label="Net Flow" value={formatUSDWhole(supportingSummary.netFlow)} valueClassName={supportingSummary.netFlow >= 0 ? 'text-green-700' : 'text-red-700'} />
-                      </div>
-                    </div>
-                    {supportingPlanRows.map((row, idx) => (
-                  <div key={`mobile-plan-${idx}`} className="dashboard-mobile-card space-y-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-semibold leading-tight">{row.ticker}</div>
-                        <div className="text-xs text-muted-foreground leading-tight">{row.name}</div>
-                      </div>
-                      <div className="text-right">
-                        <span className={cn("block text-xs font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</span>
-                        <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatUSDWhole(row.amount)}</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-2 flex items-center justify-between gap-2 text-sm">
-                      <span className="text-[10px] uppercase tracking-wide text-zinc-400">Mode: N/A</span>
-                    </div>
-
-                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                      <MetricChip label="Target" value={formatPctTenth(row.targetPct)} valueClassName="text-blue-700" />
-                      <MetricChip label="Current" value={formatPctTenth(row.currentPct)} />
-                      <MetricChip label="Drift" value={`${row.driftPct > 0 ? '+' : ''}${formatPctTenth(row.driftPct)}`} valueClassName={row.driftPct > 0 ? 'text-green-600' : 'text-red-600'} />
-                    </div>
-
-                  </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="hidden md:block overflow-x-auto space-y-4">
-            {rebalancingPlanRows.length > 0 && (
-              <Table className="w-full min-w-[980px] table-fixed">
-                <colgroup>
-                  <col className="w-[14%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[8%]" />
-                  <col className="w-[8%]" />
-                  <col className="w-[8%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[22%]" />
-                </colgroup>
-                <TableHeader
-                  className="sticky z-10 bg-background shadow-sm"
-                  style={{ top: 'calc(var(--app-header-height, 0px) + env(safe-area-inset-top))' }}
-                >
-                  <TableRow>
-                    <TableHead>Asset</TableHead>
-                    <TableHead className="text-center">Transaction</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right text-blue-600">Target %</TableHead>
-                    <TableHead className="text-right">Current %</TableHead>
-                    <TableHead className="text-right">Drift %</TableHead>
-                    <TableHead className="text-center">Rebalance Mode</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="whitespace-normal leading-tight">Account / Tax Consideration</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {outOfBandPlanRows.length > 0 && (
-                    <TableRow>
-                      <TableCell colSpan={9} className="bg-[linear-gradient(135deg,rgba(9,9,11,0.96),rgba(39,39,42,0.94))] px-3 py-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-white">Out-of-Band Assets</span>
-                          <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
-                            <span className="text-zinc-300">Gross Buy <span className="font-semibold tabular-nums text-green-300">{formatUSDWhole(outOfBandSummary.grossBuy)}</span></span>
-                            <span className="text-zinc-300">Gross Sell <span className="font-semibold tabular-nums text-red-300">{formatUSDWhole(outOfBandSummary.grossSell)}</span></span>
-                            <span className="text-zinc-300">Net Flow <span className={cn("font-semibold tabular-nums", outOfBandSummary.netFlow >= 0 ? "text-green-300" : "text-red-300")}>{formatUSDWhole(outOfBandSummary.netFlow)}</span></span>
-                          </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {outOfBandPlanRows.map((row, idx) => (
-                    <TableRow key={`plan-out-row-${idx}`}>
-                      <TableCell>
-                        <div className="font-semibold">{row.ticker}</div>
-                        <div className="text-xs text-muted-foreground">{row.name}</div>
-                      </TableCell>
-                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</TableCell>
-                      <TableCell className="text-xs tracking-wide text-zinc-500">{row.type}</TableCell>
-                      <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
-                      <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
-                      <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
-                      <TableCell className="text-center text-xs whitespace-nowrap overflow-hidden">
-                        <div className="mx-auto inline-flex max-w-full items-center justify-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1 overflow-hidden">
-                          <span className={cn('text-[9px] uppercase tracking-wide', !row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Abs</span>
-                          <Switch
-                            id={`desktop-plan-mode-out-${idx}`}
-                            checked={row.bandMode}
-                            aria-label={`Set rebalance mode for ${row.ticker}`}
-                            onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct)}
-                            disabled={!row.assetId || !row.subPortfolioId}
-                          />
-                          <span className={cn('text-[9px] uppercase tracking-wide', row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Cons</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
-                      <TableCell className="text-xs text-zinc-700 whitespace-normal break-words leading-snug align-top">
-                        <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
-                        {row.accountLines.map((line: string, lineIdx: number) => (
-                          <div key={`plan-out-line-${idx}-${lineIdx}`}>{line}</div>
-                        ))}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {supportingPlanRows.length > 0 && (
-                    <TableRow>
-                      <TableCell colSpan={9} className="bg-[linear-gradient(135deg,rgba(9,9,11,0.96),rgba(39,39,42,0.94))] px-3 py-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-white">Supporting Transactions</span>
-                          <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
-                            <span className="text-zinc-300">Gross Buy <span className="font-semibold tabular-nums text-green-300">{formatUSDWhole(supportingSummary.grossBuy)}</span></span>
-                            <span className="text-zinc-300">Gross Sell <span className="font-semibold tabular-nums text-red-300">{formatUSDWhole(supportingSummary.grossSell)}</span></span>
-                            <span className="text-zinc-300">Net Flow <span className={cn("font-semibold tabular-nums", supportingSummary.netFlow >= 0 ? "text-green-300" : "text-red-300")}>{formatUSDWhole(supportingSummary.netFlow)}</span></span>
-                          </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {supportingPlanRows.map((row, idx) => (
-                    <TableRow key={`plan-sup-row-${idx}`}>
-                      <TableCell>
-                        <div className="font-semibold">{row.ticker}</div>
-                        <div className="text-xs text-muted-foreground">{row.name}</div>
-                      </TableCell>
-                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</TableCell>
-                      <TableCell className="text-xs tracking-wide text-zinc-500">{row.type}</TableCell>
-                      <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
-                      <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
-                      <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
-                      <TableCell className="text-center text-xs text-zinc-400">N/A</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
-                      <TableCell className="text-xs text-zinc-700 whitespace-normal break-words leading-snug align-top">
-                        <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
-                        {row.accountLines.map((line: string, lineIdx: number) => (
-                          <div key={`plan-sup-line-${idx}-${lineIdx}`}>{line}</div>
-                        ))}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-            </div>
-          </div>
+        </details>
       </div>
-      ) : (
-        <div className="dashboard-mobile-card text-sm text-muted-foreground">No rebalancing recommendations right now. Current allocations are within your configured thresholds.</div>
-      )}
-      </div>
-      </details>
 
       <details className="order-2 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
         <summary className="dashboard-section-header">
@@ -1444,6 +1226,232 @@ export default function RebalancingPage() {
           })}
         </Accordion>
         </div>
+      </details>
+
+      <details className="order-3 group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)]">
+      <summary className="dashboard-section-header">
+        <span className="dashboard-section-header-title">Rebalancing Recommendations</span>
+        <span className="dashboard-section-header-meta">
+          <span className="hidden sm:inline">Expand / Collapse</span>
+          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="px-4 pb-4 pt-4 sm:px-6 sm:pb-6">
+      {rebalanceNeeded && rebalancingPlanRows.length > 0 ? (
+      <div className="dashboard-chart-panel p-4">
+          <div className="space-y-4">
+            {rebalancingPlanRows.length > 0 && (
+              <div className="md:hidden space-y-3">
+                {outOfBandPlanRows.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
+                      <div className="dashboard-contrast-pill bg-zinc-950 px-2 py-1 text-[11px]">Out-of-Band Assets</div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
+                        <MetricChip label="Gross Buy" value={formatUSDWhole(outOfBandSummary.grossBuy)} valueClassName="text-green-700" />
+                        <MetricChip label="Gross Sell" value={formatUSDWhole(outOfBandSummary.grossSell)} valueClassName="text-red-700" />
+                        <MetricChip label="Net Flow" value={formatUSDWhole(outOfBandSummary.netFlow)} valueClassName={outOfBandSummary.netFlow >= 0 ? 'text-green-700' : 'text-red-700'} />
+                      </div>
+                    </div>
+                    {outOfBandPlanRows.map((row, idx) => (
+                  <div key={`mobile-plan-out-${idx}`} className="dashboard-mobile-card space-y-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-semibold leading-tight">{row.ticker}</div>
+                        <div className="text-xs text-muted-foreground leading-tight">{row.name}</div>
+                      </div>
+                      <div className="text-right">
+                        <span className={cn("block text-xs font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</span>
+                        <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatUSDWhole(row.amount)}</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between gap-2 text-sm">
+                      <div className="flex max-w-full items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1 overflow-hidden">
+                        <span className={cn('text-[9px] uppercase tracking-wide', !row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Abs</span>
+                        <Switch
+                          id={`mobile-plan-mode-out-${idx}`}
+                          checked={row.bandMode}
+                          aria-label={`Set rebalance mode for ${row.ticker}`}
+                          onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct)}
+                          disabled={!row.assetId || !row.subPortfolioId}
+                        />
+                        <span className={cn('text-[9px] uppercase tracking-wide', row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Cons</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                      <MetricChip label="Target" value={formatPctTenth(row.targetPct)} valueClassName="text-blue-700" />
+                      <MetricChip label="Current" value={formatPctTenth(row.currentPct)} />
+                      <MetricChip label="Drift" value={`${row.driftPct > 0 ? '+' : ''}${formatPctTenth(row.driftPct)}`} valueClassName={row.driftPct > 0 ? 'text-green-600' : 'text-red-600'} />
+                    </div>
+
+                  </div>
+                    ))}
+                  </div>
+                )}
+                {supportingPlanRows.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="rounded-lg border-2 border-zinc-300 bg-zinc-100/80 p-2">
+                      <div className="dashboard-contrast-pill bg-zinc-950 px-2 py-1 text-[11px]">Supporting Transactions</div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
+                        <MetricChip label="Gross Buy" value={formatUSDWhole(supportingSummary.grossBuy)} valueClassName="text-green-700" />
+                        <MetricChip label="Gross Sell" value={formatUSDWhole(supportingSummary.grossSell)} valueClassName="text-red-700" />
+                        <MetricChip label="Net Flow" value={formatUSDWhole(supportingSummary.netFlow)} valueClassName={supportingSummary.netFlow >= 0 ? 'text-green-700' : 'text-red-700'} />
+                      </div>
+                    </div>
+                    {supportingPlanRows.map((row, idx) => (
+                  <div key={`mobile-plan-${idx}`} className="dashboard-mobile-card space-y-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-semibold leading-tight">{row.ticker}</div>
+                        <div className="text-xs text-muted-foreground leading-tight">{row.name}</div>
+                      </div>
+                      <div className="text-right">
+                        <span className={cn("block text-xs font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</span>
+                        <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatUSDWhole(row.amount)}</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between gap-2 text-sm">
+                      <span className="text-[10px] uppercase tracking-wide text-zinc-400">Mode: N/A</span>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                      <MetricChip label="Target" value={formatPctTenth(row.targetPct)} valueClassName="text-blue-700" />
+                      <MetricChip label="Current" value={formatPctTenth(row.currentPct)} />
+                      <MetricChip label="Drift" value={`${row.driftPct > 0 ? '+' : ''}${formatPctTenth(row.driftPct)}`} valueClassName={row.driftPct > 0 ? 'text-green-600' : 'text-red-600'} />
+                    </div>
+
+                  </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="hidden md:block overflow-x-auto space-y-4">
+            {rebalancingPlanRows.length > 0 && (
+              <Table className="w-full min-w-[980px] table-fixed">
+                <colgroup>
+                  <col className="w-[14%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[22%]" />
+                </colgroup>
+                <TableHeader
+                  className="sticky z-10 bg-background shadow-sm"
+                  style={{ top: 'calc(var(--app-header-height, 0px) + env(safe-area-inset-top))' }}
+                >
+                  <TableRow>
+                    <TableHead>Asset</TableHead>
+                    <TableHead className="text-center">Transaction</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-right text-blue-600">Target %</TableHead>
+                    <TableHead className="text-right">Current %</TableHead>
+                    <TableHead className="text-right">Drift %</TableHead>
+                    <TableHead className="text-center">Rebalance Mode</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="whitespace-normal leading-tight">Account / Tax Consideration</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {outOfBandPlanRows.length > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={9} className="bg-[linear-gradient(135deg,rgba(9,9,11,0.96),rgba(39,39,42,0.94))] px-3 py-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-white">Out-of-Band Assets</span>
+                          <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
+                            <span className="text-zinc-300">Gross Buy <span className="font-semibold tabular-nums text-green-300">{formatUSDWhole(outOfBandSummary.grossBuy)}</span></span>
+                            <span className="text-zinc-300">Gross Sell <span className="font-semibold tabular-nums text-red-300">{formatUSDWhole(outOfBandSummary.grossSell)}</span></span>
+                            <span className="text-zinc-300">Net Flow <span className={cn("font-semibold tabular-nums", outOfBandSummary.netFlow >= 0 ? "text-green-300" : "text-red-300")}>{formatUSDWhole(outOfBandSummary.netFlow)}</span></span>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {outOfBandPlanRows.map((row, idx) => (
+                    <TableRow key={`plan-out-row-${idx}`}>
+                      <TableCell>
+                        <div className="font-semibold">{row.ticker}</div>
+                        <div className="text-xs text-muted-foreground">{row.name}</div>
+                      </TableCell>
+                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</TableCell>
+                      <TableCell className="text-xs tracking-wide text-zinc-500">{row.type}</TableCell>
+                      <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
+                      <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
+                      <TableCell className="text-center text-xs whitespace-nowrap overflow-hidden">
+                        <div className="mx-auto inline-flex max-w-full items-center justify-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1 overflow-hidden">
+                          <span className={cn('text-[9px] uppercase tracking-wide', !row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Abs</span>
+                          <Switch
+                            id={`desktop-plan-mode-out-${idx}`}
+                            checked={row.bandMode}
+                            aria-label={`Set rebalance mode for ${row.ticker}`}
+                            onCheckedChange={(checked) => row.assetId && row.subPortfolioId && updateAssetMode(row.assetId, row.subPortfolioId, checked, row.subPortfolioTargetPct)}
+                            disabled={!row.assetId || !row.subPortfolioId}
+                          />
+                          <span className={cn('text-[9px] uppercase tracking-wide', row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Cons</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
+                      <TableCell className="text-xs text-zinc-700 whitespace-normal break-words leading-snug align-top">
+                        <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
+                        {row.accountLines.map((line: string, lineIdx: number) => (
+                          <div key={`plan-out-line-${idx}-${lineIdx}`}>{line}</div>
+                        ))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {supportingPlanRows.length > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={9} className="bg-[linear-gradient(135deg,rgba(9,9,11,0.96),rgba(39,39,42,0.94))] px-3 py-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-white">Supporting Transactions</span>
+                          <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
+                            <span className="text-zinc-300">Gross Buy <span className="font-semibold tabular-nums text-green-300">{formatUSDWhole(supportingSummary.grossBuy)}</span></span>
+                            <span className="text-zinc-300">Gross Sell <span className="font-semibold tabular-nums text-red-300">{formatUSDWhole(supportingSummary.grossSell)}</span></span>
+                            <span className="text-zinc-300">Net Flow <span className={cn("font-semibold tabular-nums", supportingSummary.netFlow >= 0 ? "text-green-300" : "text-red-300")}>{formatUSDWhole(supportingSummary.netFlow)}</span></span>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {supportingPlanRows.map((row, idx) => (
+                    <TableRow key={`plan-sup-row-${idx}`}>
+                      <TableCell>
+                        <div className="font-semibold">{row.ticker}</div>
+                        <div className="text-xs text-muted-foreground">{row.name}</div>
+                      </TableCell>
+                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</TableCell>
+                      <TableCell className="text-xs tracking-wide text-zinc-500">{row.type}</TableCell>
+                      <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
+                      <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
+                      <TableCell className="text-center text-xs text-zinc-400">N/A</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
+                      <TableCell className="text-xs text-zinc-700 whitespace-normal break-words leading-snug align-top">
+                        <div className="font-medium text-zinc-800">{row.accountGuidance}</div>
+                        {row.accountLines.map((line: string, lineIdx: number) => (
+                          <div key={`plan-sup-line-${idx}-${lineIdx}`}>{line}</div>
+                        ))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            </div>
+          </div>
+      </div>
+      ) : (
+        <div className="dashboard-mobile-card text-sm text-muted-foreground">No rebalancing recommendations right now. Current allocations are within your configured thresholds.</div>
+      )}
+      </div>
       </details>
     </div>
   )

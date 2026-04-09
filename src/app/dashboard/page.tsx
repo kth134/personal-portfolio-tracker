@@ -355,18 +355,22 @@ function DashboardSection({
   title,
   isOpen,
   onOpenChange,
+  className,
+  bodyClassName,
   children,
 }: {
   title: string;
   isOpen: boolean;
   onOpenChange: (nextOpen: boolean) => void;
+  className?: string;
+  bodyClassName?: string;
   children: ReactNode;
 }) {
   return (
     <details
       open={isOpen}
       onToggle={(event) => onOpenChange(event.currentTarget.open)}
-      className="group rounded-xl border bg-background shadow-sm overflow-hidden"
+      className={cn('group overflow-hidden rounded-xl border bg-background shadow-sm', className)}
     >
       <summary className="dashboard-section-header">
         <span className="dashboard-section-header-title">{title}</span>
@@ -375,7 +379,7 @@ function DashboardSection({
           <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
         </span>
       </summary>
-      <div className="px-4 pb-4 space-y-4">{children}</div>
+      <div className={cn('space-y-4 px-4 pb-4', bodyClassName)}>{children}</div>
     </details>
   );
 }
@@ -1670,8 +1674,8 @@ export default function DashboardHome() {
             </div>
           </DashboardSection>
 
-          <div className="hidden md:grid md:grid-cols-2 gap-4">
-            <div className="space-y-4">
+          <div className="hidden md:grid gap-4">
+            <div className="grid grid-cols-2 gap-4 items-start">
               <DashboardSection
                 title="Performance"
                 isOpen={sectionState.performanceSnapshot}
@@ -1680,24 +1684,31 @@ export default function DashboardHome() {
                 {performanceCard}
               </DashboardSection>
               <DashboardSection
-                title="Recent Activity"
-                isOpen={sectionState.recentActivity}
-                onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, recentActivity: nextOpen }))}
-              >
-                <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/activity?tab=transactions')}>
-                  <CardContent>{recentTable}</CardContent>
-                </Card>
-              </DashboardSection>
-            </div>
-
-            <div className="space-y-4">
-              <DashboardSection
                 title="Portfolio Allocation"
                 isOpen={sectionState.portfolioDetails}
                 onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, portfolioDetails: nextOpen }))}
               >
                 {chartControlsPanel}
                 <PortfolioDetailsCard lens={lens} selectedValues={selectedValues} aggregate={aggregate} />
+              </DashboardSection>
+            </div>
+
+            <div className={cn('grid grid-cols-2 gap-4', driftChartSlices.length === 1 ? 'items-stretch' : 'items-start')}>
+              <DashboardSection
+                title="Recent Activity"
+                isOpen={sectionState.recentActivity}
+                onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, recentActivity: nextOpen }))}
+                className={cn(driftChartSlices.length === 1 && 'flex flex-col')}
+                bodyClassName={cn(driftChartSlices.length === 1 && 'flex-1')}
+              >
+                <Card
+                  className={cn('cursor-pointer rounded-xl border shadow-sm', driftChartSlices.length === 1 && 'flex h-full flex-col')}
+                  onClick={() => router.push('/dashboard/activity?tab=transactions')}
+                >
+                  <CardContent className={cn(driftChartSlices.length === 1 && 'flex h-full flex-col')}>
+                    {recentTable}
+                  </CardContent>
+                </Card>
               </DashboardSection>
               <DashboardSection
                 title="Portfolio Drift"
