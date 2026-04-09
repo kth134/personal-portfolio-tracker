@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -21,6 +21,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { calculateIRR, calculateCashBalances, transactionFlowForIRR, netCashFlowsByDate, fetchAllUserTransactions } from '@/lib/finance';
 import { DashboardPageShell } from '@/components/dashboard-shell';
+import PortfolioValueBridge from '@/components/charts/PortfolioValueBridge';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#a855f7'];
 
@@ -32,6 +33,16 @@ const LENSES = [
   { value: 'asset_subtype', label: 'Asset Sub-Type' },
   { value: 'geography', label: 'Geography' },
   { value: 'size_tag', label: 'Size' },
+  { value: 'factor_tag', label: 'Factor' },
+];
+
+const DRIFT_LENSES = [
+  { value: 'total', label: 'Assets' },
+  { value: 'sub_portfolio', label: 'Sub-Portfolio' },
+  { value: 'asset_type', label: 'Asset Type' },
+  { value: 'asset_subtype', label: 'Asset Sub-Type' },
+  { value: 'size_tag', label: 'Size' },
+  { value: 'geography', label: 'Geography' },
   { value: 'factor_tag', label: 'Factor' },
 ];
 
@@ -55,6 +66,28 @@ type PerformanceTotals = {
   unrealized_gain: number;
   realized_gain: number;
   dividends: number;
+};
+
+type PerformanceReportPoint = {
+  date: string;
+  portfolioValue?: number;
+  netContributions?: number;
+  income?: number;
+  realized?: number;
+  unrealized?: number;
+};
+
+type PerformanceReportsResponse = {
+  series?: Record<string, PerformanceReportPoint[]>;
+};
+
+type PortfolioValueBridgeInput = {
+  startValue: number;
+  apiTerminalValue: number;
+  netContributions: number;
+  income: number;
+  realized: number;
+  unrealized: number;
 };
 
 type PerformanceSummaryTotals = {
@@ -122,12 +155,33 @@ type RebalancingSubPortfolio = {
 };
 
 type RebalancingCurrentAllocation = {
+  asset_id?: string;
+  ticker?: string;
+  name?: string;
   sub_portfolio_id: string | null;
+  sub_portfolio_name?: string | null;
+  asset_type?: string | null;
+  asset_subtype?: string | null;
+  geography?: string | null;
+  size_tag?: string | null;
+  factor_tag?: string | null;
   current_value: number;
   action: string;
   current_percentage?: number | null;
   implied_overall_target?: number | null;
   drift_percentage: number;
+};
+
+type DriftChartPoint = {
+  ticker: string;
+  drift_percentage: number;
+  current_pct?: number;
+  target_pct?: number;
+};
+
+type DriftChartSlice = {
+  key: string;
+  data: DriftChartPoint[];
 };
 
 type RebalancingData = {
@@ -171,6 +225,23 @@ const formatUSDWhole = (value: number | null | undefined) => {
   }).format(num);
 };
 const formatPctTenth = (value: number | null | undefined) => `${(Number(value) || 0).toFixed(1)}%`;
+
+const getPortfolioValueBridgeInput = (reportData: PerformanceReportsResponse | null): PortfolioValueBridgeInput | null => {
+  const aggregatedSeries = reportData?.series?.aggregated;
+  if (!aggregatedSeries?.length) return null;
+
+  const firstPoint = aggregatedSeries[0];
+  const lastPoint = aggregatedSeries[aggregatedSeries.length - 1];
+
+  return {
+    startValue: Number(firstPoint?.portfolioValue ?? 0),
+    apiTerminalValue: Number(lastPoint?.portfolioValue ?? 0),
+    netContributions: Number(lastPoint?.netContributions ?? 0),
+    income: Number(lastPoint?.income ?? 0),
+    realized: Number(lastPoint?.realized ?? 0),
+    unrealized: Number(lastPoint?.unrealized ?? 0),
+  };
+};
 
 const RADIAN = Math.PI / 180;
 
@@ -393,9 +464,14 @@ export default function DashboardHome() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [performanceTotals, setPerformanceTotals] = useState<PerformanceTotals | null>(null);
+  const [performanceBridgeInput, setPerformanceBridgeInput] = useState<PortfolioValueBridgeInput | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<RecentTransactionRow[]>([]);
   const [rebalancingData, setRebalancingData] = useState<RebalancingData | null>(null);
   const [rebalancingLoading, setRebalancingLoading] = useState(true);
+  const [driftLens, setDriftLens] = useState('total');
+  const [driftAvailableValues, setDriftAvailableValues] = useState<SelectOption[]>([]);
+  const [driftSelectedValues, setDriftSelectedValues] = useState<string[]>([]);
+  const [driftAggregate, setDriftAggregate] = useState(false);
 
   // MFA states
   const [mfaStatus, setMfaStatus] = useState<'checking' | 'prompt' | 'verified' | 'none'>('checking');
@@ -470,10 +546,41 @@ export default function DashboardHome() {
     checkMfa();
   }, [supabase]);
 
+  const loadPerformanceBridgeData = useCallback(async () => {
+    try {
+      const response = await fetch('/api/performance/reports', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          lens: 'total',
+          selectedValues: [],
+          aggregate: true,
+          period: 'inception',
+          granularity: 'monthly',
+          benchmarks: [],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Performance reports fetch failed: ${response.status}`);
+      }
+
+      const reports = await response.json() as PerformanceReportsResponse;
+      setPerformanceBridgeInput(getPortfolioValueBridgeInput(reports));
+    } catch (err) {
+      console.error('Performance bridge fetch failed:', err);
+      setPerformanceBridgeInput(null);
+    }
+  }, []);
+
   const loadDashboardData = useCallback(async () => {
     setLoading(true);
 
     try {
+      await loadPerformanceBridgeData();
+
       // Fetch performance totals
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
@@ -659,7 +766,7 @@ export default function DashboardHome() {
       setLoading(false);
       setRebalancingLoading(false);
     }
-  }, [supabase]);
+  }, [loadPerformanceBridgeData, supabase]);
 
   // Load data when MFA verified
   useEffect(() => {
@@ -686,6 +793,8 @@ export default function DashboardHome() {
 
   const loadDashboardDataForRefresh = useCallback(async () => {
     try {
+      await loadPerformanceBridgeData();
+
       // Fetch performance totals
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
@@ -858,7 +967,7 @@ export default function DashboardHome() {
     } catch (err) {
       console.error('Dashboard data refresh failed:', err);
     }
-  }, [supabase]);
+  }, [loadPerformanceBridgeData, supabase]);
 
   const toggleValue = (value: string) => {
     setSelectedValues(prev =>
@@ -901,25 +1010,143 @@ export default function DashboardHome() {
   };
 
   const rebalanceNeeded = !!rebalancingData?.currentAllocations?.some((item) => item.action !== 'hold');
-  const strategySubPortfolios = rebalancingData ? (() => {
-    const grouped = new Map<string, RebalancingCurrentAllocation[]>();
 
+  useEffect(() => {
+    if (driftLens === 'total' || !rebalancingData?.currentAllocations?.length) {
+      setDriftAvailableValues([]);
+      setDriftSelectedValues([]);
+      return;
+    }
+
+    const valuesMap = new Map<string, SelectOption>();
     rebalancingData.currentAllocations.forEach((item) => {
-      const key = item.sub_portfolio_id || 'unassigned';
-      if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key)?.push(item);
+      let groupValue = 'Unknown';
+      switch (driftLens) {
+        case 'sub_portfolio':
+          groupValue = item.sub_portfolio_name || 'Unassigned';
+          break;
+        case 'asset_type':
+          groupValue = item.asset_type || 'Unknown';
+          break;
+        case 'asset_subtype':
+          groupValue = item.asset_subtype || 'Unknown';
+          break;
+        case 'geography':
+          groupValue = item.geography || 'Unknown';
+          break;
+        case 'size_tag':
+          groupValue = item.size_tag || 'Unknown';
+          break;
+        case 'factor_tag':
+          groupValue = item.factor_tag || 'Unknown';
+          break;
+        default:
+          groupValue = 'Unknown';
+      }
+
+      if (!valuesMap.has(groupValue)) {
+        valuesMap.set(groupValue, { value: groupValue, label: groupValue });
+      }
     });
 
-    return Array.from(grouped.entries()).map(([id, allocations]) => {
-      const subPortfolio = rebalancingData.subPortfolios.find((sp) => sp.id === id);
-      const name = subPortfolio?.name || 'Unassigned';
-      const currentValue = allocations.reduce((sum: number, item) => sum + item.current_value, 0);
-      const currentPct = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0;
-      const targetAllocPct = allocations.reduce((sum: number, item) => sum + Number(item.implied_overall_target || 0), 0);
-      const subPortfolioDrift = targetAllocPct > 0 ? ((currentPct - targetAllocPct) / targetAllocPct) * 100 : 0;
+    const nextValues = Array.from(valuesMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+    setDriftAvailableValues(nextValues);
+    setDriftSelectedValues((prev) => {
+      const nextSet = new Set(nextValues.map((item) => item.value));
+      const retained = prev.filter((value) => nextSet.has(value));
+      return retained.length ? retained : nextValues.map((item) => item.value);
+    });
+  }, [driftLens, rebalancingData]);
 
-      return { id, name, targetAllocPct, currentValue, currentPct, subPortfolioDrift };
-    }).sort((a, b) => b.currentValue - a.currentValue);
+  const toggleDriftValue = (value: string) => {
+    setDriftSelectedValues((prev) => (prev.includes(value) ? prev.filter((entry) => entry !== value) : [...prev, value]));
+  };
+
+  const getDriftColor = (drift: number, sliceData: DriftChartPoint[]) => {
+    const maxAbs = Math.max(...sliceData.map((entry) => Math.abs(entry.drift_percentage)), 1);
+    const ratio = Math.abs(drift) / maxAbs;
+    if (drift >= 0) {
+      if (ratio > 0.8) return '#064e3b';
+      if (ratio > 0.5) return '#059669';
+      if (ratio > 0.2) return '#34d399';
+      return '#bbf7d0';
+    }
+    if (ratio > 0.8) return '#7f1d1d';
+    if (ratio > 0.5) return '#dc2626';
+    if (ratio > 0.2) return '#f87171';
+    return '#fecaca';
+  };
+
+  const driftChartSlices = rebalancingData ? (() => {
+    let base: DriftChartSlice[] = [];
+    if (driftLens === 'total') {
+      base = [{
+        key: 'Portfolio',
+        data: rebalancingData.currentAllocations.map((item) => ({
+          ticker: item.ticker || item.name || 'Unknown',
+          drift_percentage: Number(item.drift_percentage || 0),
+          current_pct: Number(item.current_percentage || 0),
+          target_pct: Number(item.implied_overall_target || 0),
+        })),
+      }];
+    } else {
+      const groupMap = new Map<string, RebalancingCurrentAllocation[]>();
+      rebalancingData.currentAllocations.forEach((item) => {
+        let groupKey = 'Unknown';
+        switch (driftLens) {
+          case 'sub_portfolio':
+            groupKey = item.sub_portfolio_name || 'Unassigned';
+            break;
+          case 'asset_type':
+            groupKey = item.asset_type || 'Unknown';
+            break;
+          case 'asset_subtype':
+            groupKey = item.asset_subtype || 'Unknown';
+            break;
+          case 'geography':
+            groupKey = item.geography || 'Unknown';
+            break;
+          case 'size_tag':
+            groupKey = item.size_tag || 'Unknown';
+            break;
+          case 'factor_tag':
+            groupKey = item.factor_tag || 'Unknown';
+            break;
+          default:
+            groupKey = 'Unknown';
+        }
+        if (!groupMap.has(groupKey)) groupMap.set(groupKey, []);
+        groupMap.get(groupKey)?.push(item);
+      });
+
+      base = Array.from(groupMap.entries())
+        .filter(([groupKey]) => driftSelectedValues.length === 0 || driftSelectedValues.includes(groupKey))
+        .map(([groupKey, items]) => ({
+          key: groupKey,
+          data: items.map((item) => ({
+            ticker: item.ticker || item.name || 'Unknown',
+            drift_percentage: Number(item.drift_percentage || 0),
+            current_pct: Number(item.current_percentage || 0),
+            target_pct: Number(item.implied_overall_target || 0),
+          })),
+        }));
+    }
+
+    if (driftAggregate && base.length > 1) {
+      const points = base.map((group) => {
+        const currentValue = group.data.reduce((sum, item) => sum + ((item.current_pct || 0) * rebalancingData.totalValue) / 100, 0);
+        const currentPct = rebalancingData.totalValue > 0 ? (currentValue / rebalancingData.totalValue) * 100 : 0;
+        const targetPct = group.data.reduce((sum, item) => sum + Number(item.target_pct || 0), 0);
+        const drift = targetPct > 0 ? ((currentPct - targetPct) / targetPct) * 100 : 0;
+        return { ticker: group.key, drift_percentage: drift, current_pct: currentPct, target_pct: targetPct };
+      });
+      base = [{ key: 'Aggregated Selection', data: points }];
+    }
+
+    return base.map((slice) => ({
+      ...slice,
+      data: [...slice.data].sort((a, b) => b.drift_percentage - a.drift_percentage),
+    }));
   })() : [];
 
   const chartControlsPanel = (
@@ -984,53 +1211,38 @@ export default function DashboardHome() {
   const performanceCard = (
     <Card className="cursor-pointer rounded-xl border shadow-sm" onClick={() => router.push('/dashboard/performance')}>
       <CardHeader>
-        <div className="text-center mt-4 rounded-lg border bg-white p-3">
-          <CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Total Portfolio Value</CardTitle>
-          <p className="text-2xl font-bold mt-2 font-mono tabular-nums">
-            {performanceTotals ? formatUSDWhole(performanceTotals.market_value) : 'Loading...'}
-          </p>
+        <div className="grid grid-cols-1 gap-4 mt-4 sm:grid-cols-3">
+          <div className="text-center rounded-lg border bg-white p-3">
+            <CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">Total Portfolio Value</CardTitle>
+            <p className="text-2xl font-bold mt-2 font-mono tabular-nums">
+              {performanceTotals ? formatUSDWhole(performanceTotals.market_value) : 'Loading...'}
+            </p>
+          </div>
+          <div className="text-center rounded-lg border bg-card p-3">
+            <CardTitle className="text-sm">Total Return %</CardTitle>
+            <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
+              {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
+            </p>
+          </div>
+          <div className="text-center rounded-lg border bg-card p-3">
+            <CardTitle className="text-sm">Annualized IRR</CardTitle>
+            <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.irr_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
+              {performanceTotals ? formatPctTenth(performanceTotals.irr_pct) : 'Loading...'}
+            </p>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-4 mt-6">
-          <div className="space-y-4">
-            <div className="text-center rounded-lg border bg-card p-3">
-              <CardTitle className="text-sm">Net Gain/Loss</CardTitle>
-              <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.net_gain ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
-                {performanceTotals ? formatUSDWhole(performanceTotals.net_gain) : 'Loading...'}
-              </p>
-            </div>
-            <div className="text-center rounded-lg border bg-card p-3">
-              <CardTitle className="text-sm">Total Return %</CardTitle>
-              <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.total_return_pct ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
-                {performanceTotals ? formatPctTenth(performanceTotals.total_return_pct) : 'Loading...'}
-              </p>
-            </div>
-            <div className="text-center rounded-lg border bg-card p-3">
-              <CardTitle className="text-sm">Annualized IRR</CardTitle>
-              <p className={cn('text-xl font-bold mt-2 tabular-nums', (performanceTotals?.irr_pct || 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
-                {performanceTotals ? formatPctTenth(performanceTotals.irr_pct || 0) : 'Loading...'}
-              </p>
-            </div>
+        <div className="mt-6 rounded-xl border bg-card p-4 sm:p-5" onClick={(event) => event.stopPropagation()}>
+          <div className="mb-4">
+            <CardTitle className="text-base">Portfolio Value Bridge</CardTitle>
+            <p className="text-sm text-muted-foreground">Starting Value {'->'} Net Contributions {'->'} Income {'->'} Realized {'->'} Unrealized {'->'} Terminal Value</p>
           </div>
-          <div className="space-y-4">
-            <div className="text-center rounded-lg border bg-card p-3">
-              <CardTitle className="text-sm">Unrealized G/L</CardTitle>
-              <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.unrealized_gain ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
-                {performanceTotals ? formatUSDWhole(performanceTotals.unrealized_gain) : 'Loading...'}
-              </p>
+          {performanceBridgeInput ? (
+            <PortfolioValueBridge input={performanceBridgeInput} />
+          ) : (
+            <div className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
+              Loading performance waterfall...
             </div>
-            <div className="text-center rounded-lg border bg-card p-3">
-              <CardTitle className="text-sm">Realized G/L</CardTitle>
-              <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.realized_gain ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
-                {performanceTotals ? formatUSDWhole(performanceTotals.realized_gain) : 'Loading...'}
-              </p>
-            </div>
-            <div className="text-center rounded-lg border bg-card p-3">
-              <CardTitle className="text-sm">Income</CardTitle>
-              <p className={cn('text-xl font-bold mt-2 tabular-nums', Number(performanceTotals?.dividends ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}>
-                {performanceTotals ? formatUSDWhole(performanceTotals.dividends) : 'Loading...'}
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       </CardHeader>
     </Card>
@@ -1104,59 +1316,86 @@ export default function DashboardHome() {
               </div>
             </div>
 
-            <div>
-              <div className="md:hidden space-y-3">
-                {strategySubPortfolios.map((sp) => (
-                  <div key={sp.id} className="rounded-lg border bg-background p-3 shadow-sm">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="font-semibold leading-tight break-words">{sp.name}</div>
-                        <div className="text-xs text-muted-foreground">Current Value</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-semibold tabular-nums">{formatUSDWhole(sp.currentValue)}</div>
-                      </div>
-                    </div>
-                    <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                      <MetricChip label="Target" value={`${sp.targetAllocPct.toFixed(1)}%`} valueClassName="text-blue-700" />
-                      <MetricChip label="Actual" value={`${sp.currentPct.toFixed(1)}%`} />
-                      <MetricChip label="Drift" value={`${sp.subPortfolioDrift > 0 ? '+' : ''}${sp.subPortfolioDrift.toFixed(1)}%`} valueClassName={sp.subPortfolioDrift > 0 ? 'text-green-600' : (sp.subPortfolioDrift < 0 ? 'text-red-600' : 'text-zinc-700')} />
-                    </div>
+            <div className="rounded-xl border bg-card p-4 sm:p-5" onClick={(event) => event.stopPropagation()}>
+              <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-end md:gap-4">
+                <div className="w-full max-w-xs md:w-56 md:max-w-none">
+                  <Label className="text-[10px] font-bold uppercase mb-1 block text-left">View Lens</Label>
+                  <Select value={driftLens} onValueChange={setDriftLens}>
+                    <SelectTrigger className="bg-background focus:ring-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DRIFT_LENSES.map((lensOption) => (
+                        <SelectItem key={lensOption.value} value={lensOption.value}>{lensOption.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {driftLens !== 'total' && (
+                  <div className="w-full max-w-sm md:w-64 md:max-w-none">
+                    <Label className="text-[10px] font-bold uppercase mb-1 block text-left">Filter Selection</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-between bg-background">
+                          {driftSelectedValues.length} selected
+                          <ChevronsUpDown className="w-4 h-4 ml-2 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-0">
+                        <Command>
+                          <CommandInput placeholder="Search..." />
+                          <CommandList>
+                            <CommandEmpty>No values found.</CommandEmpty>
+                            <CommandGroup className="max-h-64 overflow-y-auto">
+                              {driftAvailableValues.map((value) => (
+                                <CommandItem key={value.value} onSelect={() => toggleDriftValue(value.value)}>
+                                  <Check className={cn('w-4 h-4 mr-2', driftSelectedValues.includes(value.value) ? 'opacity-100' : 'opacity-0')} />
+                                  {value.label}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
-                ))}
+                )}
+                {driftLens !== 'total' && driftSelectedValues.length > 1 && (
+                  <div className="flex items-center gap-2 rounded-md border bg-background p-2">
+                    <Switch checked={driftAggregate} onCheckedChange={setDriftAggregate} id="homepage-drift-aggregate" />
+                    <Label htmlFor="homepage-drift-aggregate" className="text-xs cursor-pointer">Aggregate</Label>
+                  </div>
+                )}
               </div>
 
-              <div className="hidden md:block max-h-48 overflow-y-auto overflow-x-hidden">
-                <Table className="w-full table-fixed">
-                  <colgroup>
-                    <col className="w-[34%]" />
-                    <col className="w-[18%]" />
-                    <col className="w-[16%]" />
-                    <col className="w-[16%]" />
-                    <col className="w-[16%]" />
-                  </colgroup>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="px-3 sm:px-4 text-left">Sub-Portfolio</TableHead>
-                      <TableHead className="px-3 sm:px-4 text-right whitespace-normal leading-tight">Current Value</TableHead>
-                      <TableHead className="px-3 sm:px-4 text-right whitespace-normal leading-tight">Target Allocation</TableHead>
-                      <TableHead className="px-3 sm:px-4 text-right whitespace-normal leading-tight">Actual Allocation</TableHead>
-                      <TableHead className="px-3 sm:px-4 text-right whitespace-normal leading-tight">Drift</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {strategySubPortfolios.map((sp, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="px-3 sm:px-4 text-left font-medium whitespace-normal break-words leading-snug">{sp.name}</TableCell>
-                          <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSDWhole(sp.currentValue)}</TableCell>
-                          <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.targetAllocPct.toFixed(1)}%</TableCell>
-                          <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{sp.currentPct.toFixed(1)}%</TableCell>
-                          <TableCell className={cn('px-3 sm:px-4 text-right tabular-nums whitespace-nowrap', sp.subPortfolioDrift > 0 ? 'text-green-600' : (sp.subPortfolioDrift < 0 ? 'text-red-600' : 'text-zinc-700'))}>{sp.subPortfolioDrift > 0 ? '+' : ''}{sp.subPortfolioDrift.toFixed(1)}%</TableCell>
-                        </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              {driftChartSlices.length ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {driftChartSlices.map((slice, idx) => (
+                    <div key={`${slice.key}-${idx}`} className={cn('dashboard-chart-panel space-y-4 p-6', driftChartSlices.length === 1 && 'lg:col-span-2')}>
+                      <h3 className="dashboard-contrast-pill bg-zinc-950 text-center">{slice.key} Drift Analysis</h3>
+                      <div className="h-[380px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={slice.data} layout="vertical" margin={{ left: 10, right: 30 }}>
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                            <XAxis type="number" unit="%" fontSize={10} axisLine={false} tickLine={false} />
+                            <YAxis dataKey="ticker" type="category" interval={0} fontSize={9} width={56} />
+                            <Tooltip formatter={(value: number | string) => [`${Number(value).toFixed(1)}%`, 'Drift']} />
+                            <Bar dataKey="drift_percentage">
+                              {slice.data.map((entry, entryIndex) => (
+                                <Cell key={`${slice.key}-${entry.ticker}-${entryIndex}`} fill={getDriftColor(entry.drift_percentage, slice.data)} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex h-[220px] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+                  No drift data available for the current selection.
+                </div>
+              )}
             </div>
           </div>
         ) : (
