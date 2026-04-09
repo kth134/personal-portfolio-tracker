@@ -41,6 +41,8 @@ const formatUSDWhole = (value: number | null | undefined) => {
   }).format(num)
 }
 
+const formatPctTenth = (value: number | null | undefined) => `${(Number(value) || 0).toFixed(1)}%`
+
 const parsePercentWithTwoDecimals = (rawValue: string): number | null => {
   const trimmed = rawValue.trim()
   if (trimmed === '') return null
@@ -924,9 +926,9 @@ export default function RebalancingPage() {
                     </div>
 
                     <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                      <MetricChip label="Target" value={`${row.targetPct.toFixed(1)}%`} valueClassName="text-blue-700" />
-                      <MetricChip label="Current" value={`${row.currentPct.toFixed(1)}%`} />
-                      <MetricChip label="Drift" value={`${row.driftPct > 0 ? '+' : ''}${row.driftPct.toFixed(1)}%`} valueClassName={row.driftPct > 0 ? 'text-green-600' : 'text-red-600'} />
+                      <MetricChip label="Target" value={formatPctTenth(row.targetPct)} valueClassName="text-blue-700" />
+                      <MetricChip label="Current" value={formatPctTenth(row.currentPct)} />
+                      <MetricChip label="Drift" value={`${row.driftPct > 0 ? '+' : ''}${formatPctTenth(row.driftPct)}`} valueClassName={row.driftPct > 0 ? 'text-green-600' : 'text-red-600'} />
                     </div>
 
                   </div>
@@ -961,9 +963,9 @@ export default function RebalancingPage() {
                     </div>
 
                     <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                      <MetricChip label="Target" value={`${row.targetPct.toFixed(1)}%`} valueClassName="text-blue-700" />
-                      <MetricChip label="Current" value={`${row.currentPct.toFixed(1)}%`} />
-                      <MetricChip label="Drift" value={`${row.driftPct > 0 ? '+' : ''}${row.driftPct.toFixed(1)}%`} valueClassName={row.driftPct > 0 ? 'text-green-600' : 'text-red-600'} />
+                      <MetricChip label="Target" value={formatPctTenth(row.targetPct)} valueClassName="text-blue-700" />
+                      <MetricChip label="Current" value={formatPctTenth(row.currentPct)} />
+                      <MetricChip label="Drift" value={`${row.driftPct > 0 ? '+' : ''}${formatPctTenth(row.driftPct)}`} valueClassName={row.driftPct > 0 ? 'text-green-600' : 'text-red-600'} />
                     </div>
 
                   </div>
@@ -1138,10 +1140,10 @@ export default function RebalancingPage() {
                       <span className="truncate text-sm font-semibold uppercase tracking-wide">{sp.name}</span>
                       <div className="flex items-center gap-3">
                         <span className="text-white">Value: {formatUSDWhole(totalVal)}</span>
-                        <span className="text-blue-200">Target: {targetAllocPct.toFixed(1)}%</span>
-                        <span className="text-zinc-200">Actual: {allocPct.toFixed(1)}%</span>
+                        <span className="text-blue-200">Target: {formatPctTenth(targetAllocPct)}</span>
+                        <span className="text-zinc-200">Actual: {formatPctTenth(allocPct)}</span>
                         <span className={cn(subDrift > 0 ? "text-green-400" : (subDrift < 0 ? "text-red-400" : "text-zinc-300"))}>
-                          Drift: {subDrift > 0 ? '+' : ''}{subDrift.toFixed(1)}%
+                          Drift: {subDrift > 0 ? '+' : ''}{formatPctTenth(subDrift)}
                         </span>
                       </div>
                     </div>
@@ -1180,11 +1182,11 @@ export default function RebalancingPage() {
                           </div>
                           <div className="dashboard-mobile-subpanel-cell row-start-2 flex h-full flex-col items-center justify-center text-center">
                             <div className="text-zinc-500">Actual Weight</div>
-                            <div className="mt-1 font-semibold tabular-nums text-zinc-900">{allocPct.toFixed(1)}%</div>
+                            <div className="mt-1 font-semibold tabular-nums text-zinc-900">{formatPctTenth(allocPct)}</div>
                           </div>
                           <div className="dashboard-mobile-subpanel-cell row-start-3 row-span-2 flex h-full flex-col items-center justify-center text-center">
                             <div className="text-zinc-500">Drift</div>
-                            <div className={cn('mt-2 font-semibold tabular-nums', subDrift > 0 ? 'text-green-600' : (subDrift < 0 ? 'text-red-600' : 'text-zinc-700'))}>{subDrift > 0 ? '+' : ''}{subDrift.toFixed(1)}%</div>
+                            <div className={cn('mt-2 font-semibold tabular-nums', subDrift > 0 ? 'text-green-600' : (subDrift < 0 ? 'text-red-600' : 'text-zinc-700'))}>{subDrift > 0 ? '+' : ''}{formatPctTenth(subDrift)}</div>
                           </div>
                         </div>
                       </div>
@@ -1247,19 +1249,19 @@ export default function RebalancingPage() {
                             </div>
                             <div className="p-1 text-center">
                               <p className="dashboard-metric-label">Sub-Portfolio Weight</p>
-                              <p className="mt-2 text-sm font-semibold text-zinc-900 tabular-nums">{Number(i.current_in_sp || 0).toFixed(1)}%</p>
+                              <p className="mt-2 text-sm font-semibold text-zinc-900 tabular-nums">{formatPctTenth(Number(i.current_in_sp || 0))}</p>
                             </div>
                             <div className="p-1 text-center">
                               <p className="dashboard-metric-label">Target</p>
-                              <p className="mt-2 text-sm font-semibold text-blue-700 tabular-nums">{Number(i.implied_overall_target || 0).toFixed(1)}%</p>
+                              <p className="mt-2 text-sm font-semibold text-blue-700 tabular-nums">{formatPctTenth(Number(i.implied_overall_target || 0))}</p>
                             </div>
                             <div className="p-1 text-center">
                               <p className="dashboard-metric-label">Current</p>
-                              <p className="mt-2 text-sm font-semibold text-zinc-900 tabular-nums">{Number(i.current_percentage || 0).toFixed(1)}%</p>
+                              <p className="mt-2 text-sm font-semibold text-zinc-900 tabular-nums">{formatPctTenth(Number(i.current_percentage || 0))}</p>
                             </div>
                             <div className="p-1 text-center">
                               <p className="dashboard-metric-label">Drift</p>
-                              <p className={cn("mt-2 text-sm font-semibold tabular-nums", i.drift_percentage > 0 ? "text-green-600" : (i.drift_percentage < 0 ? "text-red-600" : "text-zinc-700"))}>{i.drift_percentage > 0 ? '+' : ''}{i.drift_percentage.toFixed(1)}%</p>
+                              <p className={cn("mt-2 text-sm font-semibold tabular-nums", i.drift_percentage > 0 ? "text-green-600" : (i.drift_percentage < 0 ? "text-red-600" : "text-zinc-700"))}>{i.drift_percentage > 0 ? '+' : ''}{formatPctTenth(i.drift_percentage)}</p>
                             </div>
                             <div className="p-1 text-center">
                               <p className="dashboard-metric-label">Rebalance Mode</p>

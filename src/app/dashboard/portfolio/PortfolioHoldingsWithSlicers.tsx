@@ -45,6 +45,8 @@ const formatUSDWhole = (value: number | null | undefined) => {
   }).format(num)
 }
 
+const formatPctTenth = (value: number | null | undefined) => `${(Number(value) || 0).toFixed(1)}%`
+
 const RADIAN = Math.PI / 180
 
 type PiePercentageLabelProps = {
@@ -371,9 +373,9 @@ export default function PortfolioHoldingsWithSlicers({
                 <div className="mr-4 flex w-full items-center justify-between gap-3 text-left">
                   <span className="flex items-center font-bold uppercase text-white">{group.key}</span>
                   <div className="flex items-center gap-3 text-xs font-bold leading-none text-white sm:text-sm">
-                    <span className="flex items-center">Value: {formatUSD(group.totalGroupVal)}</span>
+                    <span className="flex items-center">Value: {formatUSDWhole(group.totalGroupVal)}</span>
                     <span className="flex items-center opacity-60">|</span>
-                    <span className="flex items-center">{groupWeight.toFixed(2)}%</span>
+                    <span className="flex items-center">{formatPctTenth(groupWeight)}</span>
                   </div>
                 </div>
               </AccordionTrigger>
@@ -430,9 +432,9 @@ export default function PortfolioHoldingsWithSlicers({
                           <div key={`${item.ticker ?? item.name ?? idx}-mobile`} className="dashboard-mobile-card space-y-4">
                             <div className="grid grid-cols-2 gap-x-3 gap-y-1 min-w-0">
                               <p className="min-w-0 break-words text-lg font-semibold leading-tight text-zinc-950 [overflow-wrap:anywhere]">{item.ticker}</p>
-                              <p className="min-w-0 break-words text-right text-lg font-semibold leading-tight tabular-nums text-zinc-950 [overflow-wrap:anywhere]">{formatUSD(itemValue)}</p>
+                              <p className="min-w-0 break-words text-right text-lg font-semibold leading-tight tabular-nums text-zinc-950 [overflow-wrap:anywhere]">{formatUSDWhole(itemValue)}</p>
                               <p className="min-w-0 break-words text-xs italic leading-tight text-zinc-500 [overflow-wrap:anywhere]">{item.name}</p>
-                              <p className="min-w-0 break-words text-right text-xs italic leading-tight tabular-nums text-zinc-500 [overflow-wrap:anywhere]">{itemWeight.toFixed(2)}%</p>
+                              <p className="min-w-0 break-words text-right text-xs italic leading-tight tabular-nums text-zinc-500 [overflow-wrap:anywhere]">{formatPctTenth(itemWeight)}</p>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="text-center">
@@ -441,7 +443,7 @@ export default function PortfolioHoldingsWithSlicers({
                               </div>
                               <div className="text-center">
                                 <p className="dashboard-metric-label text-center">Current Price</p>
-                                <p className="mt-1 text-center text-sm text-zinc-700 tabular-nums">{formatUSD(itemCurrentPrice)}</p>
+                                <p className="mt-1 text-center text-sm text-zinc-700 tabular-nums">{formatUSDWhole(itemCurrentPrice)}</p>
                               </div>
                             </div>
                           </div>

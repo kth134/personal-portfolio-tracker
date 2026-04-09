@@ -21,6 +21,16 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DashboardSurface } from '@/components/dashboard-shell'
 
+const formatUSDWhole = (value: number | null | undefined) => {
+  const num = Math.round(Number(value) || 0)
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num)
+}
+
 type Account = { id: string; name: string; type: string }
 type Asset = { id: string; ticker: string; name?: string }
 
@@ -631,7 +641,7 @@ const handleSort = (key: SortKey) => {
                   </div>
                   <div>
                     <p className="dashboard-metric-label">Basis / Unit</p>
-                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(Number(lot.cost_basis_per_unit))}</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSDWhole(Number(lot.cost_basis_per_unit))}</p>
                   </div>
                   <div>
                     <p className="dashboard-metric-label">Remaining Qty</p>
@@ -639,7 +649,7 @@ const handleSort = (key: SortKey) => {
                   </div>
                   <div>
                     <p className="dashboard-metric-label">Remaining Basis</p>
-                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(Number(lot.remaining_quantity) * Number(lot.cost_basis_per_unit))}</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSDWhole(Number(lot.remaining_quantity) * Number(lot.cost_basis_per_unit))}</p>
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-2">

@@ -699,7 +699,7 @@ function PerformanceContent() {
                   <p className="min-w-0 break-words text-lg font-semibold leading-tight text-zinc-950 [overflow-wrap:anywhere]">
                     {lens === 'asset' ? row.display_name.split(' - ')[0] : row.display_name}
                   </p>
-                  <p className="min-w-0 break-words text-right text-lg font-semibold leading-tight tabular-nums text-zinc-950 [overflow-wrap:anywhere]">{formatUSD(row.market_value)}</p>
+                  <p className="min-w-0 break-words text-right text-lg font-semibold leading-tight tabular-nums text-zinc-950 [overflow-wrap:anywhere]">{formatUSDWhole(row.market_value)}</p>
                   {lens === 'asset' && row.display_name.includes(' - ') ? (
                     <p className="col-span-2 min-w-0 break-words text-xs italic leading-tight text-zinc-500 [overflow-wrap:anywhere]">{row.display_name.split(' - ')[1]}</p>
                   ) : null}
@@ -710,7 +710,7 @@ function PerformanceContent() {
                       Net G/ L
                     </p>
                     <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', row.net_gain > 0 ? 'text-green-600' : row.net_gain < 0 ? 'text-red-600' : 'text-zinc-700')}>
-                      {formatUSD(row.net_gain)}
+                      {formatUSDWhole(row.net_gain)}
                     </p>
                   </div>
                   <div className="flex h-full flex-col items-center text-center">
@@ -718,7 +718,7 @@ function PerformanceContent() {
                       Total Return
                     </p>
                     <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', row.total_return_pct > 0 ? 'text-green-600' : row.total_return_pct < 0 ? 'text-red-600' : 'text-zinc-700')}>
-                      {row.total_return_pct.toFixed(2)}%
+                      {formatPctTenth(row.total_return_pct)}
                     </p>
                   </div>
                   <div className="flex h-full flex-col items-center text-center">
@@ -726,7 +726,7 @@ function PerformanceContent() {
                       Annual IRR
                     </p>
                     <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', row.annualized_return_pct > 0 ? 'text-green-600' : row.annualized_return_pct < 0 ? 'text-red-600' : 'text-zinc-700')}>
-                      {row.irrSkipped ? 'N/A' : `${row.annualized_return_pct.toFixed(2)}%`}
+                      {row.irrSkipped ? 'N/A' : formatPctTenth(row.annualized_return_pct)}
                     </p>
                     {row.irrSkipped && <p className="mt-1 text-center text-xs text-zinc-500">Insufficient cash flows to calculate IRR.</p>}
                   </div>
@@ -736,25 +736,25 @@ function PerformanceContent() {
             <div className="dashboard-mobile-card space-y-4 border-zinc-300 bg-zinc-50/80">
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 min-w-0">
                 <p className="min-w-0 break-words text-lg font-semibold leading-tight text-zinc-950 [overflow-wrap:anywhere]">Total</p>
-                <p className="min-w-0 break-words text-right text-lg font-semibold leading-tight tabular-nums text-zinc-950 [overflow-wrap:anywhere]">{formatUSD(totals.market_value)}</p>
+                <p className="min-w-0 break-words text-right text-lg font-semibold leading-tight tabular-nums text-zinc-950 [overflow-wrap:anywhere]">{formatUSDWhole(totals.market_value)}</p>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="flex h-full flex-col items-center text-center">
                   <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">Net G/ L</p>
                   <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', totals.net_gain > 0 ? 'text-green-600' : totals.net_gain < 0 ? 'text-red-600' : 'text-zinc-900')}>
-                    {formatUSD(totals.net_gain)}
+                    {formatUSDWhole(totals.net_gain)}
                   </p>
                 </div>
                 <div className="flex h-full flex-col items-center text-center">
                   <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">Total Return</p>
                   <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', totalReturnPct > 0 ? 'text-green-600' : totalReturnPct < 0 ? 'text-red-600' : 'text-zinc-900')}>
-                    {totalReturnPct.toFixed(2)}%
+                    {formatPctTenth(totalReturnPct)}
                   </p>
                 </div>
                 <div className="flex h-full flex-col items-center text-center">
                   <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">Annual IRR</p>
                   <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', totalAnnualizedReturnPct > 0 ? 'text-green-600' : totalAnnualizedReturnPct < 0 ? 'text-red-600' : 'text-zinc-900')}>
-                    {totalAnnualizedReturnPct.toFixed(2)}%
+                    {formatPctTenth(totalAnnualizedReturnPct)}
                   </p>
                 </div>
               </div>

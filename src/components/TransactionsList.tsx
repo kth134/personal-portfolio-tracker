@@ -22,6 +22,16 @@ import Papa from 'papaparse'
 import { serverCreateBuyWithLot, serverProcessSellFifo, serverBulkImportTransactions } from '@/app/actions/transactionactions'
 import { DashboardSurface } from '@/components/dashboard-shell'
 
+const formatUSDWhole = (value: number | null | undefined) => {
+  const num = Math.round(Number(value) || 0)
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num)
+}
+
 type Account = { id: string; name: string; type: string }
 type Asset = { id: string; ticker: string; name?: string }
 type Transaction = {
@@ -1344,15 +1354,15 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                   </div>
                   <div>
                     <p className="dashboard-metric-label">Price / Unit</p>
-                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.price_per_unit != null ? formatUSD(tx.price_per_unit) : '-'}</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.price_per_unit != null ? formatUSDWhole(tx.price_per_unit) : '-'}</p>
                   </div>
                   <div>
                     <p className="dashboard-metric-label">Amount</p>
-                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.amount != null ? formatUSD(tx.amount) : '-'}</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.amount != null ? formatUSDWhole(tx.amount) : '-'}</p>
                   </div>
                   <div>
                     <p className="dashboard-metric-label">Fees</p>
-                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.fees != null ? formatUSD(tx.fees) : '-'}</p>
+                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.fees != null ? formatUSDWhole(tx.fees) : '-'}</p>
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-2">
