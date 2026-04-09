@@ -437,13 +437,13 @@ export default function PortfolioHoldingsWithSlicers({
                               <p className="min-w-0 break-words text-right text-xs italic leading-tight tabular-nums text-zinc-500 [overflow-wrap:anywhere]">{itemWeight.toFixed(2)}%</p>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <p className="dashboard-metric-label">Quantity</p>
-                                <p className="mt-1 text-sm text-zinc-700 tabular-nums">{itemQuantity.toLocaleString(undefined, { maximumFractionDigits: 6 })}</p>
+                              <div className="text-center">
+                                <p className="dashboard-metric-label text-center">Quantity</p>
+                                <p className="mt-1 text-center text-sm text-zinc-700 tabular-nums">{itemQuantity.toLocaleString(undefined, { maximumFractionDigits: 6 })}</p>
                               </div>
-                              <div>
-                                <p className="dashboard-metric-label">Current Price</p>
-                                <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSD(itemCurrentPrice)}</p>
+                              <div className="text-center">
+                                <p className="dashboard-metric-label text-center">Current Price</p>
+                                <p className="mt-1 text-center text-sm text-zinc-700 tabular-nums">{formatUSD(itemCurrentPrice)}</p>
                               </div>
                             </div>
                           </div>

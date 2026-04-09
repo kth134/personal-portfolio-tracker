@@ -1174,15 +1174,15 @@ export default function RebalancingPage() {
                             <Input aria-label={`Downside threshold for ${sp.name}`} defaultValue={sp.downside_threshold || 5} type="number" step="1" onBlur={(e) => updateSubPortfolio(sp.id, 'downside_threshold', parseFloat(e.target.value))} className="mt-1 h-8 w-full border-amber-300 bg-amber-50 text-center focus-visible:ring-amber-300"/>
                           </div>
                         </div>
-                        <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-summary grid grid-rows-[auto_auto_1fr_1fr] gap-2">
+                        <div className="dashboard-mobile-subpanel dashboard-mobile-subpanel-summary grid grid-rows-[auto_repeat(3,minmax(0,1fr))] gap-2">
                           <div className="flex justify-center">
                             <div className="dashboard-mobile-subpanel-title dashboard-mobile-subpanel-title-summary">Summary</div>
                           </div>
-                          <div className="dashboard-mobile-subpanel-cell text-center">
+                          <div className="dashboard-mobile-subpanel-cell row-start-2 flex h-full flex-col items-center justify-center text-center">
                             <div className="text-zinc-500">Actual Weight</div>
                             <div className="mt-1 font-semibold tabular-nums text-zinc-900">{allocPct.toFixed(1)}%</div>
                           </div>
-                          <div className="dashboard-mobile-subpanel-cell row-span-2 flex flex-col items-center justify-center text-center">
+                          <div className="dashboard-mobile-subpanel-cell row-start-3 row-span-2 flex h-full flex-col items-center justify-center text-center">
                             <div className="text-zinc-500">Drift</div>
                             <div className={cn('mt-2 font-semibold tabular-nums', subDrift > 0 ? 'text-green-600' : (subDrift < 0 ? 'text-red-600' : 'text-zinc-700'))}>{subDrift > 0 ? '+' : ''}{subDrift.toFixed(1)}%</div>
                           </div>
