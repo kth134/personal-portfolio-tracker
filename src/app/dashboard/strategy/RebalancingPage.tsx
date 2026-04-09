@@ -830,7 +830,7 @@ export default function RebalancingPage() {
           </div>
         </details>
 
-        <details className="group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)] md:col-span-2">
+        <details open className="group overflow-hidden rounded-[26px] border border-zinc-200/80 bg-white shadow-[0_20px_70px_-36px_rgba(15,23,42,0.35)] md:col-span-2">
           <summary className="dashboard-section-header">
               <span className="dashboard-section-header-title">Portfolio Drift Chart</span>
               <span className="dashboard-section-header-meta">
