@@ -301,7 +301,7 @@
 
   .dashboard-mobile-subpanel-title-summary {
     background-color: var(--brand-emerald-header);
-    color: #ffffff;
+    color: rgb(24 24 27);
   }
 
   .dashboard-mobile-subpanel-title-input {
@@ -309,7 +309,7 @@
   }
 
   .dashboard-mobile-subpanel-cell {
-    @apply rounded-xl border border-white/80 bg-white/72 px-2.5 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.86)];
+    @apply rounded-xl border border-zinc-300 bg-white/72 px-2.5 py-2 text-center text-zinc-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.86)];
   }
 
   .dashboard-mobile-subpanel-cell-input {
