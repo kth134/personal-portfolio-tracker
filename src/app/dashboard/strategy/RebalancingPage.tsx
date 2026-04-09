@@ -939,10 +939,10 @@ export default function RebalancingPage() {
                     <div className="hidden sm:flex items-center justify-between gap-4 text-sm font-mono whitespace-nowrap">
                       <span className="truncate text-sm font-semibold uppercase tracking-wide">{sp.name}</span>
                       <div className="flex items-center gap-3">
-                        <span className="text-white">Value: {formatUSDWhole(totalVal)}</span>
-                        <span className="text-white">Target: {formatPctTenth(targetAllocPct)}</span>
-                        <span className="text-zinc-200">Actual: {formatPctTenth(allocPct)}</span>
-                        <span className={cn(subDrift > 0 ? 'value-positive' : (subDrift < 0 ? 'value-negative' : 'text-zinc-300'))}>
+                        <span className="text-zinc-950">Value: {formatUSDWhole(totalVal)}</span>
+                        <span className="text-zinc-950">Target: {formatPctTenth(targetAllocPct)}</span>
+                        <span className="text-zinc-800">Actual: {formatPctTenth(allocPct)}</span>
+                        <span className={cn(subDrift > 0 ? 'value-positive' : (subDrift < 0 ? 'value-negative' : 'text-zinc-700'))}>
                           Drift: {subDrift > 0 ? '+' : ''}{formatPctTenth(subDrift)}
                         </span>
                       </div>
@@ -1210,18 +1210,18 @@ export default function RebalancingPage() {
                               </TableCell>
                             </TableRow>
                           ))}
-                          <TableRow className="bg-zinc-900 text-white font-bold h-12 shadow-inner">
-                            <TableCell className="px-3 sm:px-4 uppercase tracking-tighter text-white">Total</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">-</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{formatUSDWhole(totalVal)}</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalTarget.toFixed(1)}%</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalWeight.toFixed(1)}%</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{totalImplied.toFixed(1)}%</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{allocPct.toFixed(1)}%</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{absDriftWtd.toFixed(1)}%</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-center text-white text-xs">Mixed</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-center text-white">N/A</TableCell>
-                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-white">{formatUSDWhole(totalActionAmount)}</TableCell>
+                          <TableRow className="font-bold h-12 shadow-inner" style={{ backgroundColor: 'var(--brand-emerald-header)', color: 'rgb(24 24 27)' }}>
+                            <TableCell className="px-3 sm:px-4 uppercase tracking-tighter text-zinc-950">Total</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-zinc-950">-</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-zinc-950">{formatUSDWhole(totalVal)}</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-zinc-950">{totalTarget.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-zinc-950">{totalWeight.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-zinc-950">{totalImplied.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-zinc-950">{allocPct.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-zinc-950">{absDriftWtd.toFixed(1)}%</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-center text-zinc-950 text-xs">Mixed</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-center text-zinc-950">N/A</TableCell>
+                            <TableCell className="px-3 sm:px-4 text-right tabular-nums text-zinc-950">{formatUSDWhole(totalActionAmount)}</TableCell>
                           </TableRow>
                         </TableBody>
                       </Table>
@@ -1370,11 +1370,11 @@ export default function RebalancingPage() {
                     <TableRow>
                       <TableCell colSpan={9} className="px-3 py-2" style={{ backgroundColor: 'var(--brand-emerald-header)' }}>
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-white">Out-of-Band Assets</span>
+                          <span className="text-xs font-semibold uppercase tracking-wide text-zinc-950">Out-of-Band Assets</span>
                           <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
-                            <span className="text-white">Gross Buy <span className="font-semibold tabular-nums value-positive">{formatUSDWhole(outOfBandSummary.grossBuy)}</span></span>
-                            <span className="text-white">Gross Sell <span className="font-semibold tabular-nums value-negative">{formatUSDWhole(outOfBandSummary.grossSell)}</span></span>
-                            <span className="text-white">Net Flow <span className={cn('font-semibold tabular-nums', outOfBandSummary.netFlow >= 0 ? 'value-positive' : 'value-negative')}>{formatUSDWhole(outOfBandSummary.netFlow)}</span></span>
+                            <span className="text-zinc-950">Gross Buy <span className="font-semibold tabular-nums value-positive">{formatUSDWhole(outOfBandSummary.grossBuy)}</span></span>
+                            <span className="text-zinc-950">Gross Sell <span className="font-semibold tabular-nums value-negative">{formatUSDWhole(outOfBandSummary.grossSell)}</span></span>
+                            <span className="text-zinc-950">Net Flow <span className={cn('font-semibold tabular-nums', outOfBandSummary.netFlow >= 0 ? 'value-positive' : 'value-negative')}>{formatUSDWhole(outOfBandSummary.netFlow)}</span></span>
                           </div>
                         </div>
                       </TableCell>
@@ -1417,11 +1417,11 @@ export default function RebalancingPage() {
                     <TableRow>
                       <TableCell colSpan={9} className="px-3 py-2" style={{ backgroundColor: 'var(--brand-emerald-header)' }}>
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-white">Supporting Transactions</span>
+                          <span className="text-xs font-semibold uppercase tracking-wide text-zinc-950">Supporting Transactions</span>
                           <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
-                            <span className="text-white">Gross Buy <span className="font-semibold tabular-nums value-positive">{formatUSDWhole(supportingSummary.grossBuy)}</span></span>
-                            <span className="text-white">Gross Sell <span className="font-semibold tabular-nums value-negative">{formatUSDWhole(supportingSummary.grossSell)}</span></span>
-                            <span className="text-white">Net Flow <span className={cn('font-semibold tabular-nums', supportingSummary.netFlow >= 0 ? 'value-positive' : 'value-negative')}>{formatUSDWhole(supportingSummary.netFlow)}</span></span>
+                            <span className="text-zinc-950">Gross Buy <span className="font-semibold tabular-nums value-positive">{formatUSDWhole(supportingSummary.grossBuy)}</span></span>
+                            <span className="text-zinc-950">Gross Sell <span className="font-semibold tabular-nums value-negative">{formatUSDWhole(supportingSummary.grossSell)}</span></span>
+                            <span className="text-zinc-950">Net Flow <span className={cn('font-semibold tabular-nums', supportingSummary.netFlow >= 0 ? 'value-positive' : 'value-negative')}>{formatUSDWhole(supportingSummary.netFlow)}</span></span>
                           </div>
                         </div>
                       </TableCell>

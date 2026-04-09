@@ -377,10 +377,10 @@ export default function PortfolioHoldingsWithSlicers({
             <AccordionItem key={String(group.key)} value={String(group.key)} className="overflow-hidden rounded-[24px] border border-zinc-200/80 bg-white shadow-sm">
               <AccordionTrigger className="dashboard-contrast-header px-4 py-4">
                 <div className="mr-4 flex w-full items-center justify-between gap-3 text-left">
-                  <span className="flex items-center font-bold uppercase text-white">{group.key}</span>
-                  <div className="flex items-center gap-3 text-xs font-bold leading-none text-white sm:text-sm">
+                  <span className="flex items-center font-bold uppercase text-zinc-950">{group.key}</span>
+                  <div className="flex items-center gap-3 text-xs font-bold leading-none text-zinc-950 sm:text-sm">
                     <span className="flex items-center">Value: {formatUSDWhole(group.totalGroupVal)}</span>
-                    <span className="flex items-center opacity-60">|</span>
+                    <span className="flex items-center opacity-60 text-zinc-700">|</span>
                     <span className="flex items-center">{formatPctTenth(groupWeight)}</span>
                   </div>
                 </div>
