@@ -1192,7 +1192,7 @@ export default function DashboardHome() {
       onClick={() => router.push('/dashboard/performance')}
     >
       <CardHeader className={cn('p-4 sm:p-5', shouldMatchHomepageCardHeights && 'flex h-full flex-col')}>
-        <div className={cn('rounded-xl border bg-card px-3.5 pt-3.5 pb-1.5 sm:px-4 sm:pt-4 sm:pb-2', shouldMatchHomepageCardHeights && 'flex flex-1 flex-col')}>
+        <div className={cn('w-full rounded-xl border bg-card px-3.5 pt-3.5 pb-1.5 sm:px-4 sm:pt-4 sm:pb-2', shouldMatchHomepageCardHeights && 'flex flex-1 flex-col')}>
           <div className="mb-3">
             <div className="dashboard-contrast-pill text-center">Portfolio Value Bridge</div>
           </div>
@@ -1369,7 +1369,7 @@ export default function DashboardHome() {
       <div className="space-y-2 mb-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="dashboard-metric-tile">
-            <Label className="dashboard-metric-label">Total Transactions</Label>
+            <Label className="dashboard-metric-label self-start text-left whitespace-nowrap">Transaction Count</Label>
             <p className="dashboard-metric-value">
               {recentActivityTotals.totalTransactions}
             </p>

@@ -223,7 +223,7 @@ export default function PortfolioValueBridge({ input, compact = false }: Props) 
   }
 
   return (
-    <div className={compact ? 'space-y-2 h-full' : 'space-y-3 h-full'}>
+    <div className={compact ? 'flex h-full w-full min-w-0 flex-col gap-2' : 'space-y-3 h-full w-full min-w-0'}>
       <div className={compact ? 'flex items-center justify-end text-xs sm:text-sm' : 'flex items-center justify-end text-sm'}>
         <span className="text-muted-foreground mr-2">Net Gain / Loss</span>
         <span
@@ -233,20 +233,20 @@ export default function PortfolioValueBridge({ input, compact = false }: Props) 
           {formatSignedCurrency(netGainLoss)}
         </span>
       </div>
-      <div className={compact ? 'h-[196px] sm:h-[208px] w-full min-w-0' : 'h-[320px] sm:h-[360px] w-full min-w-0'}>
+      <div className={compact ? 'h-full min-h-[300px] w-full min-w-0 flex-1 sm:min-h-[360px]' : 'h-[320px] sm:h-[360px] w-full min-w-0'}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: compact ? 4 : 16, right: 14, left: 8, bottom: isMobile ? 20 : compact ? 12 : 36 }} barCategoryGap="2%" barGap={0}>
+          <ComposedChart data={rows} margin={{ top: compact ? 8 : 16, right: compact ? 24 : 14, left: compact ? 18 : 8, bottom: isMobile ? 20 : compact ? 24 : 36 }} barCategoryGap={compact ? '10%' : '2%'} barGap={0}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="name"
               interval={0}
-              tick={isMobile ? false : { fontSize: 11 }}
+              tick={isMobile ? false : { fontSize: compact ? 12 : 11 }}
               tickFormatter={(value: string) => (isMobile ? '' : value)}
-              angle={isMobile ? 0 : -18}
+              angle={isMobile ? 0 : compact ? -12 : -18}
               textAnchor={isMobile ? 'middle' : 'end'}
-              height={isMobile ? 28 : compact ? 46 : 78}
+              height={isMobile ? 28 : compact ? 56 : 78}
             />
-            <YAxis tickFormatter={formatCompactCurrency} tickMargin={10} width={90} domain={yDomain} />
+            <YAxis tickFormatter={formatCompactCurrency} tickMargin={10} width={compact ? 108 : 90} domain={yDomain} />
             <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
             <Tooltip content={tooltipContent} />
             <Line type="linear" dataKey="runningTotal" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 4" dot={false} activeDot={false} isAnimationActive={false} />
