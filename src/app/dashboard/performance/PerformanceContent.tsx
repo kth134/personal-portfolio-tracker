@@ -625,37 +625,37 @@ function PerformanceContent() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="dashboard-metric-tile order-1 min-w-0 lg:order-1">
                 <Label className="dashboard-metric-label break-words">Net Gain / Loss</Label>
-                <p className={cn('dashboard-metric-value break-words', totalNet >= 0 ? 'text-green-600' : 'text-red-600')}>
+                <p className={cn('dashboard-metric-value break-words', totalNet >= 0 ? 'text-green-500' : 'text-red-500')}>
                   {formatUSDWhole(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
                 </p>
               </div>
               <div className="dashboard-metric-tile order-2 min-w-0 lg:order-2">
                 <Label className="dashboard-metric-label break-words">Realized Gain / Loss</Label>
-                <p className={cn('dashboard-metric-value break-words', totals.realized_gain >= 0 ? 'text-green-600' : 'text-red-600')}>
+                <p className={cn('dashboard-metric-value break-words', totals.realized_gain >= 0 ? 'text-green-500' : 'text-red-500')}>
                   {formatUSDWhole(totals.realized_gain)}
                 </p>
               </div>
               <div className="dashboard-metric-tile order-4 min-w-0 lg:order-4">
                 <Label className="dashboard-metric-label break-words">Income</Label>
-                <p className={cn('dashboard-metric-value break-words', totals.dividends >= 0 ? 'text-green-600' : 'text-red-600')}>
+                <p className={cn('dashboard-metric-value break-words', totals.dividends >= 0 ? 'text-green-500' : 'text-red-500')}>
                   {formatUSDWhole(totals.dividends)}
                 </p>
               </div>
               <div className="dashboard-metric-tile order-3 min-w-0 lg:order-5">
                 <Label className="dashboard-metric-label break-words">Unrealized Gain / Loss</Label>
-                <p className={cn('dashboard-metric-value break-words', totalUnrealized >= 0 ? 'text-green-600' : 'text-red-600')}>
+                <p className={cn('dashboard-metric-value break-words', totalUnrealized >= 0 ? 'text-green-500' : 'text-red-500')}>
                   {formatUSDWhole(totalUnrealized)}
                 </p>
               </div>
               <div className="dashboard-metric-tile order-5 min-w-0 lg:order-3">
                 <Label className="dashboard-metric-label break-words">Total Return</Label>
-                <p className={cn('dashboard-metric-value break-words', totalReturnPct >= 0 ? 'text-green-600' : 'text-red-600')}>
+                <p className={cn('dashboard-metric-value break-words', totalReturnPct >= 0 ? 'text-green-500' : 'text-red-500')}>
                   {formatPctTenth(totalReturnPct)}
                 </p>
               </div>
               <div className="dashboard-metric-tile order-6 min-w-0 lg:order-6">
                 <Label className="dashboard-metric-label break-words">Annualized IRR</Label>
-                <p className={cn('dashboard-metric-value break-words', totalAnnualizedReturnPct >= 0 ? 'text-green-600' : 'text-red-600')}>
+                <p className={cn('dashboard-metric-value break-words', totalAnnualizedReturnPct >= 0 ? 'text-green-500' : 'text-red-500')}>
                   {formatPctTenth(totalAnnualizedReturnPct)}
                 </p>
               </div>
@@ -680,7 +680,7 @@ function PerformanceContent() {
           </Select>
         </div>
         {refreshMessage && (
-          <span className={cn("text-sm", refreshMessage.includes('failed') ? "text-red-600" : "text-green-600")}>
+          <span className={cn("text-sm", refreshMessage.includes('failed') ? "text-red-500" : "text-green-500")}>
             {refreshMessage}
           </span>
         )}
@@ -708,7 +708,7 @@ function PerformanceContent() {
                     <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">
                       Net G/ L
                     </p>
-                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', row.net_gain > 0 ? 'text-green-600' : row.net_gain < 0 ? 'text-red-600' : 'text-zinc-700')}>
+                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', row.net_gain > 0 ? 'text-green-500' : row.net_gain < 0 ? 'text-red-500' : 'text-zinc-700')}>
                       {formatUSDWhole(row.net_gain)}
                     </p>
                   </div>
@@ -716,7 +716,7 @@ function PerformanceContent() {
                     <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">
                       Total Return
                     </p>
-                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', row.total_return_pct > 0 ? 'text-green-600' : row.total_return_pct < 0 ? 'text-red-600' : 'text-zinc-700')}>
+                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', row.total_return_pct > 0 ? 'text-green-500' : row.total_return_pct < 0 ? 'text-red-500' : 'text-zinc-700')}>
                       {formatPctTenth(row.total_return_pct)}
                     </p>
                   </div>
@@ -724,7 +724,7 @@ function PerformanceContent() {
                     <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">
                       Annual IRR
                     </p>
-                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', row.annualized_return_pct > 0 ? 'text-green-600' : row.annualized_return_pct < 0 ? 'text-red-600' : 'text-zinc-700')}>
+                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', row.annualized_return_pct > 0 ? 'text-green-500' : row.annualized_return_pct < 0 ? 'text-red-500' : 'text-zinc-700')}>
                       {row.irrSkipped ? 'N/A' : formatPctTenth(row.annualized_return_pct)}
                     </p>
                     {row.irrSkipped && <p className="mt-1 text-center text-xs text-zinc-500">Insufficient cash flows to calculate IRR.</p>}
@@ -740,19 +740,19 @@ function PerformanceContent() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="flex h-full flex-col items-center text-center">
                   <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">Net G/ L</p>
-                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', totals.net_gain > 0 ? 'text-green-600' : totals.net_gain < 0 ? 'text-red-600' : 'text-zinc-900')}>
+                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', totals.net_gain > 0 ? 'text-green-500' : totals.net_gain < 0 ? 'text-red-500' : 'text-zinc-900')}>
                     {formatUSDWhole(totals.net_gain)}
                   </p>
                 </div>
                 <div className="flex h-full flex-col items-center text-center">
                   <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">Total Return</p>
-                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', totalReturnPct > 0 ? 'text-green-600' : totalReturnPct < 0 ? 'text-red-600' : 'text-zinc-900')}>
+                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', totalReturnPct > 0 ? 'text-green-500' : totalReturnPct < 0 ? 'text-red-500' : 'text-zinc-900')}>
                     {formatPctTenth(totalReturnPct)}
                   </p>
                 </div>
                 <div className="flex h-full flex-col items-center text-center">
                   <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">Annual IRR</p>
-                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', totalAnnualizedReturnPct > 0 ? 'text-green-600' : totalAnnualizedReturnPct < 0 ? 'text-red-600' : 'text-zinc-900')}>
+                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', totalAnnualizedReturnPct > 0 ? 'text-green-500' : totalAnnualizedReturnPct < 0 ? 'text-red-500' : 'text-zinc-900')}>
                     {formatPctTenth(totalAnnualizedReturnPct)}
                   </p>
                 </div>
@@ -942,7 +942,7 @@ function PerformanceContent() {
                     <TableCell
                       className={cn(
                         "px-3 sm:px-4 text-right tabular-nums whitespace-nowrap",
-                        row.unrealized_gain > 0 ? "text-green-600" : row.unrealized_gain < 0 ? "text-red-600" : ""
+                        row.unrealized_gain > 0 ? "text-green-500" : row.unrealized_gain < 0 ? "text-red-500" : ""
                       )}
                     >
                       {formatUSD(row.unrealized_gain)}
@@ -950,7 +950,7 @@ function PerformanceContent() {
                     <TableCell
                       className={cn(
                         "px-3 sm:px-4 text-right tabular-nums whitespace-nowrap",
-                        row.realized_gain > 0 ? "text-green-600" : row.realized_gain < 0 ? "text-red-600" : ""
+                        row.realized_gain > 0 ? "text-green-500" : row.realized_gain < 0 ? "text-red-500" : ""
                       )}
                     >
                       {formatUSD(row.realized_gain)}
@@ -959,7 +959,7 @@ function PerformanceContent() {
                     <TableCell
                       className={cn(
                         "px-3 sm:px-4 text-right font-medium tabular-nums whitespace-nowrap",
-                        row.net_gain > 0 ? "text-green-600" : row.net_gain < 0 ? "text-red-600" : ""
+                        row.net_gain > 0 ? "text-green-500" : row.net_gain < 0 ? "text-red-500" : ""
                       )}
                     >
                       {formatUSD(row.net_gain)}
@@ -967,7 +967,7 @@ function PerformanceContent() {
                     <TableCell
                       className={cn(
                         "px-3 sm:px-4 text-right font-medium tabular-nums whitespace-nowrap",
-                        row.total_return_pct > 0 ? "text-green-600" : row.total_return_pct < 0 ? "text-red-600" : ""
+                        row.total_return_pct > 0 ? "text-green-500" : row.total_return_pct < 0 ? "text-red-500" : ""
                       )}
                     >
                       {row.total_return_pct.toFixed(2)}%
@@ -975,7 +975,7 @@ function PerformanceContent() {
                     <TableCell
                       className={cn(
                         "px-3 sm:px-4 text-right font-medium tabular-nums whitespace-nowrap",
-                        row.annualized_return_pct > 0 ? "text-green-600" : row.annualized_return_pct < 0 ? "text-red-600" : ""
+                        row.annualized_return_pct > 0 ? "text-green-500" : row.annualized_return_pct < 0 ? "text-red-500" : ""
                       )}
                     >
                       {row.irrSkipped ? (
@@ -1002,7 +1002,7 @@ function PerformanceContent() {
                   <TableCell 
                     className={cn(
                       "px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap",
-                      totals.unrealized_gain > 0 ? "text-green-600" : totals.unrealized_gain < 0 ? "text-red-600" : ""
+                      totals.unrealized_gain > 0 ? "text-green-500" : totals.unrealized_gain < 0 ? "text-red-500" : ""
                     )}
                   >
                     {formatUSD(totals.unrealized_gain)}
@@ -1012,7 +1012,7 @@ function PerformanceContent() {
                   <TableCell 
                     className={cn(
                       "px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap",
-                      totals.net_gain > 0 ? "text-green-600" : totals.net_gain < 0 ? "text-red-600" : ""
+                      totals.net_gain > 0 ? "text-green-500" : totals.net_gain < 0 ? "text-red-500" : ""
                     )}
                   >
                     {formatUSD(totals.net_gain)}
@@ -1020,7 +1020,7 @@ function PerformanceContent() {
                   <TableCell 
                     className={cn(
                       "px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap",
-                      totalReturnPct > 0 ? "text-green-600" : totalReturnPct < 0 ? "text-red-600" : ""
+                      totalReturnPct > 0 ? "text-green-500" : totalReturnPct < 0 ? "text-red-500" : ""
                     )}
                   >
                     {totalReturnPct.toFixed(2)}%
@@ -1028,7 +1028,7 @@ function PerformanceContent() {
                   <TableCell 
                     className={cn(
                       "px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap",
-                      totalAnnualizedReturnPct > 0 ? "text-green-600" : totalAnnualizedReturnPct < 0 ? "text-red-600" : ""
+                      totalAnnualizedReturnPct > 0 ? "text-green-500" : totalAnnualizedReturnPct < 0 ? "text-red-500" : ""
                     )}
                   >
                     {totalAnnualizedReturnPct.toFixed(2)}%

@@ -830,7 +830,7 @@ export default function RebalancingPage() {
               </div>
               <div className="dashboard-metric-tile md:h-full">
                 <Label className="dashboard-metric-label">Rebalance Needed</Label>
-                <div className={cn('dashboard-metric-value', rebalanceNeeded ? 'text-red-600' : 'text-green-600')}>{rebalanceNeeded ? 'Yes' : 'No'}</div>
+                <div className={cn('dashboard-metric-value', rebalanceNeeded ? 'text-red-500' : 'text-green-500')}>{rebalanceNeeded ? 'Yes' : 'No'}</div>
               </div>
             </div>
           </div>
@@ -940,9 +940,9 @@ export default function RebalancingPage() {
                       <span className="truncate text-sm font-semibold uppercase tracking-wide">{sp.name}</span>
                       <div className="flex items-center gap-3">
                         <span className="text-white">Value: {formatUSDWhole(totalVal)}</span>
-                        <span className="text-blue-200">Target: {formatPctTenth(targetAllocPct)}</span>
+                        <span className="text-white">Target: {formatPctTenth(targetAllocPct)}</span>
                         <span className="text-zinc-200">Actual: {formatPctTenth(allocPct)}</span>
-                        <span className={cn(subDrift > 0 ? "text-green-400" : (subDrift < 0 ? "text-red-400" : "text-zinc-300"))}>
+                        <span className={cn(subDrift > 0 ? 'text-green-500' : (subDrift < 0 ? 'text-red-500' : 'text-zinc-300'))}>
                           Drift: {subDrift > 0 ? '+' : ''}{formatPctTenth(subDrift)}
                         </span>
                       </div>
@@ -986,7 +986,7 @@ export default function RebalancingPage() {
                           </div>
                           <div className="dashboard-mobile-subpanel-cell row-start-3 row-span-2 flex h-full flex-col items-center justify-center text-center">
                             <div className="text-zinc-500">Drift</div>
-                            <div className={cn('mt-2 font-semibold tabular-nums', subDrift > 0 ? 'text-green-600' : (subDrift < 0 ? 'text-red-600' : 'text-zinc-700'))}>{subDrift > 0 ? '+' : ''}{formatPctTenth(subDrift)}</div>
+                            <div className={cn('mt-2 font-semibold tabular-nums', subDrift > 0 ? 'text-green-500' : (subDrift < 0 ? 'text-red-500' : 'text-zinc-700'))}>{subDrift > 0 ? '+' : ''}{formatPctTenth(subDrift)}</div>
                           </div>
                         </div>
                       </div>
@@ -1018,7 +1018,7 @@ export default function RebalancingPage() {
                             <div className="min-w-0 break-words text-right text-base font-semibold leading-tight tabular-nums text-zinc-950 [overflow-wrap:anywhere]">{formatUSDWhole(i.current_value)}</div>
                             <div className="min-w-0 break-words text-xs italic leading-tight text-zinc-500 [overflow-wrap:anywhere]">{i.name}</div>
                             <div className="min-w-0 break-words text-right text-xs italic leading-tight [overflow-wrap:anywhere]">
-                              <span className={cn("font-semibold uppercase tracking-wide", i.action === 'buy' ? 'text-green-600' : i.action === 'sell' ? 'text-red-600' : 'text-zinc-500')}>
+                              <span className={cn("font-semibold uppercase tracking-wide", i.action === 'buy' ? 'text-green-500' : i.action === 'sell' ? 'text-red-500' : 'text-zinc-500')}>
                                 {i.action === 'hold' ? 'Hold' : i.action.toUpperCase()}
                               </span>
                               <span className="mx-1 text-zinc-400">/</span>
@@ -1061,7 +1061,7 @@ export default function RebalancingPage() {
                             </div>
                             <div className="p-1 text-center">
                               <p className="dashboard-metric-label">Drift</p>
-                              <p className={cn("mt-2 text-sm font-semibold tabular-nums", i.drift_percentage > 0 ? "text-green-600" : (i.drift_percentage < 0 ? "text-red-600" : "text-zinc-700"))}>{i.drift_percentage > 0 ? '+' : ''}{formatPctTenth(i.drift_percentage)}</p>
+                              <p className={cn("mt-2 text-sm font-semibold tabular-nums", i.drift_percentage > 0 ? "text-green-500" : (i.drift_percentage < 0 ? "text-red-500" : "text-zinc-700"))}>{i.drift_percentage > 0 ? '+' : ''}{formatPctTenth(i.drift_percentage)}</p>
                             </div>
                             <div className="p-1 text-center">
                               <p className="dashboard-metric-label">Rebalance Mode</p>
@@ -1185,7 +1185,7 @@ export default function RebalancingPage() {
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.current_in_sp.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{i.implied_overall_target.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(i.current_percentage || 0).toFixed(1)}%</TableCell>
-                              <TableCell className={cn("px-3 sm:px-4 text-right tabular-nums font-bold whitespace-nowrap", i.drift_percentage > 0.1 ? "text-green-600" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell>
+                              <TableCell className={cn("px-3 sm:px-4 text-right tabular-nums font-bold whitespace-nowrap", i.drift_percentage > 0.1 ? "text-green-500" : (i.drift_percentage < -0.1 ? "text-red-500" : "text-black"))}>{i.drift_percentage > 0 ? "+" : ""}{i.drift_percentage.toFixed(1)}%</TableCell>
                               <TableCell className="px-3 sm:px-4 text-center whitespace-nowrap overflow-hidden">
                                 <div className="inline-flex max-w-full items-center justify-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1 overflow-hidden">
                                   <span className={cn('text-[9px] uppercase tracking-wide', !i.asset_band_mode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Abs</span>
@@ -1202,7 +1202,7 @@ export default function RebalancingPage() {
                                 {i.action === 'hold' ? (
                                   <span className="text-zinc-300">-</span>
                                 ) : (
-                                  <span className={cn(i.action === 'buy' ? "text-green-600" : "text-red-600")}>{i.action.toUpperCase()}</span>
+                                  <span className={cn(i.action === 'buy' ? "text-green-500" : "text-red-500")}>{i.action.toUpperCase()}</span>
                                 )}
                               </TableCell>
                               <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">
@@ -1266,7 +1266,7 @@ export default function RebalancingPage() {
                         <div className="text-xs text-muted-foreground leading-tight">{row.name}</div>
                       </div>
                       <div className="text-right">
-                        <span className={cn("block text-xs font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</span>
+                        <span className={cn("block text-xs font-bold", row.action === 'buy' ? "text-green-500" : "text-red-500")}>{row.action.toUpperCase()}</span>
                         <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatUSDWhole(row.amount)}</div>
                       </div>
                     </div>
@@ -1288,7 +1288,7 @@ export default function RebalancingPage() {
                     <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
                       <MetricChip label="Target" value={formatPctTenth(row.targetPct)} valueClassName="text-blue-700" />
                       <MetricChip label="Current" value={formatPctTenth(row.currentPct)} />
-                      <MetricChip label="Drift" value={`${row.driftPct > 0 ? '+' : ''}${formatPctTenth(row.driftPct)}`} valueClassName={row.driftPct > 0 ? 'text-green-600' : 'text-red-600'} />
+                      <MetricChip label="Drift" value={`${row.driftPct > 0 ? '+' : ''}${formatPctTenth(row.driftPct)}`} valueClassName={row.driftPct > 0 ? 'text-green-500' : 'text-red-500'} />
                     </div>
 
                   </div>
@@ -1313,7 +1313,7 @@ export default function RebalancingPage() {
                         <div className="text-xs text-muted-foreground leading-tight">{row.name}</div>
                       </div>
                       <div className="text-right">
-                        <span className={cn("block text-xs font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</span>
+                        <span className={cn("block text-xs font-bold", row.action === 'buy' ? "text-green-500" : "text-red-500")}>{row.action.toUpperCase()}</span>
                         <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatUSDWhole(row.amount)}</div>
                       </div>
                     </div>
@@ -1325,7 +1325,7 @@ export default function RebalancingPage() {
                     <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
                       <MetricChip label="Target" value={formatPctTenth(row.targetPct)} valueClassName="text-blue-700" />
                       <MetricChip label="Current" value={formatPctTenth(row.currentPct)} />
-                      <MetricChip label="Drift" value={`${row.driftPct > 0 ? '+' : ''}${formatPctTenth(row.driftPct)}`} valueClassName={row.driftPct > 0 ? 'text-green-600' : 'text-red-600'} />
+                      <MetricChip label="Drift" value={`${row.driftPct > 0 ? '+' : ''}${formatPctTenth(row.driftPct)}`} valueClassName={row.driftPct > 0 ? 'text-green-500' : 'text-red-500'} />
                     </div>
 
                   </div>
@@ -1372,9 +1372,9 @@ export default function RebalancingPage() {
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-semibold uppercase tracking-wide text-white">Out-of-Band Assets</span>
                           <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
-                            <span className="text-zinc-300">Gross Buy <span className="font-semibold tabular-nums text-green-300">{formatUSDWhole(outOfBandSummary.grossBuy)}</span></span>
-                            <span className="text-zinc-300">Gross Sell <span className="font-semibold tabular-nums text-red-300">{formatUSDWhole(outOfBandSummary.grossSell)}</span></span>
-                            <span className="text-zinc-300">Net Flow <span className={cn("font-semibold tabular-nums", outOfBandSummary.netFlow >= 0 ? "text-green-300" : "text-red-300")}>{formatUSDWhole(outOfBandSummary.netFlow)}</span></span>
+                            <span className="text-white">Gross Buy <span className="font-semibold tabular-nums text-green-500">{formatUSDWhole(outOfBandSummary.grossBuy)}</span></span>
+                            <span className="text-white">Gross Sell <span className="font-semibold tabular-nums text-red-500">{formatUSDWhole(outOfBandSummary.grossSell)}</span></span>
+                            <span className="text-white">Net Flow <span className={cn('font-semibold tabular-nums', outOfBandSummary.netFlow >= 0 ? 'text-green-500' : 'text-red-500')}>{formatUSDWhole(outOfBandSummary.netFlow)}</span></span>
                           </div>
                         </div>
                       </TableCell>
@@ -1386,11 +1386,11 @@ export default function RebalancingPage() {
                         <div className="font-semibold">{row.ticker}</div>
                         <div className="text-xs text-muted-foreground">{row.name}</div>
                       </TableCell>
-                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</TableCell>
+                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "text-green-500" : "text-red-500")}>{row.action.toUpperCase()}</TableCell>
                       <TableCell className="text-xs tracking-wide text-zinc-500">{row.type}</TableCell>
                       <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
                       <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
-                      <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
+                      <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-500" : "text-red-500")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
                       <TableCell className="text-center text-xs whitespace-nowrap overflow-hidden">
                         <div className="mx-auto inline-flex max-w-full items-center justify-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1 overflow-hidden">
                           <span className={cn('text-[9px] uppercase tracking-wide', !row.bandMode ? 'text-zinc-900 font-semibold' : 'text-zinc-400')}>Abs</span>
@@ -1419,9 +1419,9 @@ export default function RebalancingPage() {
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-semibold uppercase tracking-wide text-white">Supporting Transactions</span>
                           <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide">
-                            <span className="text-zinc-300">Gross Buy <span className="font-semibold tabular-nums text-green-300">{formatUSDWhole(supportingSummary.grossBuy)}</span></span>
-                            <span className="text-zinc-300">Gross Sell <span className="font-semibold tabular-nums text-red-300">{formatUSDWhole(supportingSummary.grossSell)}</span></span>
-                            <span className="text-zinc-300">Net Flow <span className={cn("font-semibold tabular-nums", supportingSummary.netFlow >= 0 ? "text-green-300" : "text-red-300")}>{formatUSDWhole(supportingSummary.netFlow)}</span></span>
+                            <span className="text-white">Gross Buy <span className="font-semibold tabular-nums text-green-500">{formatUSDWhole(supportingSummary.grossBuy)}</span></span>
+                            <span className="text-white">Gross Sell <span className="font-semibold tabular-nums text-red-500">{formatUSDWhole(supportingSummary.grossSell)}</span></span>
+                            <span className="text-white">Net Flow <span className={cn('font-semibold tabular-nums', supportingSummary.netFlow >= 0 ? 'text-green-500' : 'text-red-500')}>{formatUSDWhole(supportingSummary.netFlow)}</span></span>
                           </div>
                         </div>
                       </TableCell>
@@ -1433,11 +1433,11 @@ export default function RebalancingPage() {
                         <div className="font-semibold">{row.ticker}</div>
                         <div className="text-xs text-muted-foreground">{row.name}</div>
                       </TableCell>
-                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "text-green-600" : "text-red-600")}>{row.action.toUpperCase()}</TableCell>
+                      <TableCell className={cn("text-center font-bold", row.action === 'buy' ? "text-green-500" : "text-red-500")}>{row.action.toUpperCase()}</TableCell>
                       <TableCell className="text-xs tracking-wide text-zinc-500">{row.type}</TableCell>
                       <TableCell className="text-right tabular-nums text-blue-700">{row.targetPct.toFixed(1)}%</TableCell>
                       <TableCell className="text-right tabular-nums">{row.currentPct.toFixed(1)}%</TableCell>
-                      <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-600" : "text-red-600")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
+                      <TableCell className={cn("text-right tabular-nums font-semibold", row.driftPct > 0 ? "text-green-500" : "text-red-500")}>{row.driftPct > 0 ? '+' : ''}{row.driftPct.toFixed(1)}%</TableCell>
                       <TableCell className="text-center text-xs text-zinc-400">N/A</TableCell>
                       <TableCell className="text-right tabular-nums">{formatUSDWhole(row.amount)}</TableCell>
                       <TableCell className="text-xs text-zinc-700 whitespace-normal break-words leading-snug align-top">
