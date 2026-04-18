@@ -358,15 +358,6 @@ const renderPiePercentageLabel = ({
   );
 };
 
-function MetricChip({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {
-  return (
-    <div className="rounded border border-zinc-300 bg-white px-2 py-1 text-center">
-      <div className="text-zinc-500">{label}</div>
-      <div className={cn('font-semibold tabular-nums leading-tight', valueClassName)}>{value}</div>
-    </div>
-  );
-}
-
 type DashboardSectionState = {
   keyKpis: boolean;
   performanceSnapshot: boolean;
@@ -1404,19 +1395,18 @@ export default function DashboardHome() {
       <div className="md:hidden space-y-3">
         {recentTransactions.map((tx) => (
           <div key={tx.id} className="rounded-lg border bg-background p-3 shadow-sm">
-            <div className="flex items-start justify-between gap-2">
+            <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.85fr)_auto] items-start gap-3">
               <div className="min-w-0">
-                <div className="font-semibold leading-tight">{tx.asset?.ticker || tx.type}</div>
-                <div className="text-xs text-muted-foreground truncate">{tx.account?.name || 'External / Cash Flow'}</div>
+                <div className="truncate font-semibold leading-tight">{tx.asset?.ticker || tx.type}</div>
+                <div className="truncate text-xs text-muted-foreground">{tx.account?.name || 'External / Cash Flow'}</div>
+              </div>
+              <div className="min-w-0 pt-0.5 text-center text-xs font-medium text-muted-foreground">
+                <div className="truncate">{tx.type}</div>
               </div>
               <div className="text-right">
                 <div className="text-sm font-semibold tabular-nums">{formatUSDWhole(Number(tx.amount))}</div>
                 <div className="text-[11px] text-muted-foreground">{tx.date}</div>
               </div>
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-              <MetricChip label="Type" value={tx.type} valueClassName="text-xs leading-tight break-words" />
-              <MetricChip label="Date" value={tx.date} valueClassName="text-xs" />
             </div>
           </div>
         ))}
