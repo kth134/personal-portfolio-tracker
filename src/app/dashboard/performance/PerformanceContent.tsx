@@ -64,9 +64,9 @@ const formatPctTenth = (value: number | null | undefined) => `${(Number(value) |
 const valueColorClass = (value: number | null | undefined) => {
   const numericValue = Number(value) || 0
 
-  if (numericValue > 0) return 'value-positive'
-  if (numericValue < 0) return 'value-negative'
-  return 'text-zinc-950'
+  if (numericValue > 0) return '!text-green-600'
+  if (numericValue < 0) return '!text-red-600'
+  return '!text-zinc-950'
 }
 
 const valueTrendIndicator = (value: number | null | undefined) => {
