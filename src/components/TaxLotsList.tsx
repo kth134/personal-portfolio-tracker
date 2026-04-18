@@ -611,7 +611,7 @@ const handleSort = (key: SortKey) => {
           <div className="space-y-3 md:hidden">
             {paginatedTaxLots.map((lot) => (
               <div key={lot.id} className={cn('dashboard-mobile-card space-y-3 px-4 py-3', lot.remaining_quantity === 0 && 'opacity-60 bg-muted/20')}>
-                <div className="flex items-start justify-between gap-3">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                   <div className="flex min-w-0 items-center gap-3">
                     <Checkbox
                       checked={selectedLots.includes(lot.id)}
@@ -620,28 +620,30 @@ const handleSort = (key: SortKey) => {
                     />
                     <p className="min-w-0 text-sm font-semibold leading-tight text-zinc-950 break-words">{lot.asset?.ticker || '-'}</p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1 pl-2">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-zinc-500 whitespace-nowrap">{lot.purchase_date}</p>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(lot)}>
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Tax Lot?</AlertDialogTitle>
-                          <AlertDialogDescription>This permanently removes the lot.</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => setDeleteId(lot.id)}>Delete</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <p className="min-w-0 text-[11px] uppercase tracking-[0.14em] text-zinc-500 whitespace-nowrap">{lot.purchase_date}</p>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(lot)}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Tax Lot?</AlertDialogTitle>
+                            <AlertDialogDescription>This permanently removes the lot.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => setDeleteId(lot.id)}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2">
@@ -684,7 +686,7 @@ const handleSort = (key: SortKey) => {
               return `Total: ${totalCount}`
             })()}
           </div>
-          <Table className="hidden min-w-[1220px] table-fixed md:table xl:min-w-full">
+          <Table className="hidden min-w-[1240px] table-fixed md:table xl:min-w-full">
           <colgroup>
             <col className="w-11" />
             <col className="w-[220px]" />
@@ -693,7 +695,7 @@ const handleSort = (key: SortKey) => {
             <col className="w-[140px]" />
             <col className="w-[112px]" />
             <col className="w-[140px]" />
-            <col className="w-[164px]" />
+            <col className="w-[184px]" />
             <col className="w-[112px]" />
             <col className="w-[96px]" />
           </colgroup>
@@ -711,7 +713,7 @@ const handleSort = (key: SortKey) => {
               <TableHead className="text-right cursor-pointer px-3 whitespace-nowrap" onClick={() => handleSort('origQty')}>Original Qty <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
               <TableHead className="text-right cursor-pointer px-3 whitespace-nowrap" onClick={() => handleSort('basisUnit')}>Basis/Unit <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
               <TableHead className="text-right cursor-pointer px-3 whitespace-nowrap" onClick={() => handleSort('remainQty')}>Remaining Qty <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
-              <TableHead className="text-right cursor-pointer px-3 whitespace-nowrap" onClick={() => handleSort('totalBasis')}>Total Remaining Basis <ArrowUpDown className="ml-2 h-4 w-4 inline" /></TableHead>
+              <TableHead className="text-right cursor-pointer px-3 whitespace-nowrap" onClick={() => handleSort('totalBasis')}>Total Remaining Basis <ArrowUpDown className="ml-1 h-4 w-4 inline" /></TableHead>
               <TableHead className="px-3 whitespace-nowrap">Status</TableHead>
               <TableHead className="px-3 text-right whitespace-nowrap">Actions</TableHead>
             </TableRow>

@@ -1329,7 +1329,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
           <div className="space-y-3 md:hidden">
             {paginatedTransactions.map((tx) => (
               <div key={tx.id} className="dashboard-mobile-card space-y-3 px-4 py-3">
-                <div className="flex items-start justify-between gap-3">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                   <div className="flex min-w-0 items-center gap-3">
                     <Checkbox
                       checked={selectedTransactions.includes(tx.id)}
@@ -1338,14 +1338,16 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                     />
                     <p className="min-w-0 text-sm font-semibold leading-tight text-zinc-950">{tx.type}</p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1 pl-2">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-zinc-500 whitespace-nowrap">{tx.date}</p>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(tx)}>
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setDeletingTx(tx)}>
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <p className="min-w-0 text-[11px] uppercase tracking-[0.14em] text-zinc-500 whitespace-nowrap">{tx.date}</p>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(tx)}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setDeletingTx(tx)}>
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2">
