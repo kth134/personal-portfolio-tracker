@@ -19,7 +19,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import { formatUSD } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { refreshAssetPrices } from '../portfolio/actions';
@@ -30,7 +29,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { calculateIRR, normalizeTransactionToFlow, calculateCashBalances, formatCashFlowsDebug, netCashFlowsByDate, transactionFlowForIRR, fetchAllUserTransactions } from '@/lib/finance';
+import { calculateIRR, calculateCashBalances, netCashFlowsByDate, transactionFlowForIRR, fetchAllUserTransactions } from '@/lib/finance';
 import { DashboardSurface } from '@/components/dashboard-shell';
 
 type RefreshEventDetail = {
@@ -62,6 +61,22 @@ const formatUSDWhole = (value: number | null | undefined) => {
 
 const formatPctTenth = (value: number | null | undefined) => `${(Number(value) || 0).toFixed(1)}%`
 
+const valueColorClass = (value: number | null | undefined) => {
+  const numericValue = Number(value) || 0
+
+  if (numericValue > 0) return 'value-positive'
+  if (numericValue < 0) return 'value-negative'
+  return 'text-zinc-950'
+}
+
+const valueTrendIndicator = (value: number | null | undefined) => {
+  const numericValue = Number(value) || 0
+
+  if (numericValue > 0) return '▲'
+  if (numericValue < 0) return '▼'
+  return ''
+}
+
 function PerformanceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -72,7 +87,6 @@ function PerformanceContent() {
   const [summaries, setSummaries] = useState<any[]>([]);
   const [totalOriginalInvestment, setTotalOriginalInvestment] = useState<number>(0);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [totalAnnualizedReturnPct, setTotalAnnualizedReturnPct] = useState<number>(0);
   const [refreshCounter, setRefreshCounter] = useState(0);
@@ -132,15 +146,14 @@ function PerformanceContent() {
         market_value: acc.market_value + (row.market_value || 0),
         unrealized_gain: acc.unrealized_gain + (row.unrealized_gain || 0),
         realized_gain: acc.realized_gain + (row.realized_gain || 0),
-        dividends: acc.dividends + (row.dividends || 0),
+        income: acc.income + (row.income || 0),
         net_gain: acc.net_gain + (row.net_gain || 0),
       }),
-      { market_value: 0, unrealized_gain: 0, realized_gain: 0, dividends: 0, net_gain: 0 }
+      { market_value: 0, unrealized_gain: 0, realized_gain: 0, income: 0, net_gain: 0 }
     );
   }, [summaries]);
 
   const handleRefreshPrices = async () => {
-    setRefreshing(true);
     setRefreshMessage(null);
     try {
       const result = await refreshAssetPrices();
@@ -150,8 +163,6 @@ function PerformanceContent() {
     } catch (err) {
       setRefreshMessage('Refresh failed – check console');
       console.error(err);
-    } finally {
-      setRefreshing(false);
     }
   };
 
@@ -365,10 +376,17 @@ function PerformanceContent() {
             },
             { realized_gain: 0, dividends: 0, interest: 0, fees: 0 }
           );
+          const income = lens === 'account'
+            ? (summary.dividends || 0) + (summary.interest || 0)
+            : (summary.dividends || 0);
+
           return {
             grouping_id: groupId,
             display_name: group.displayName,
-            summary
+            summary: {
+              ...summary,
+              income,
+            }
           };
         });
 
@@ -599,8 +617,8 @@ function PerformanceContent() {
 
   const totalNet = summaries.reduce((sum, r) => sum + r.net_gain, 0);
   const totalUnrealized = summaries.reduce((sum, r) => sum + r.unrealized_gain, 0);
-  const totalCostBasis = summaries.reduce((sum, r) => sum + (r.market_value - r.unrealized_gain), 0);
   const totalReturnPct = totalOriginalInvestment > 0 ? (totalNet / totalOriginalInvestment) * 100 : 0;
+  const totalNetTrend = valueTrendIndicator(totalNet);
 
   return (
     <TooltipProvider>
@@ -618,44 +636,44 @@ function PerformanceContent() {
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:items-stretch">
             <div className="dashboard-metric-tile min-w-0 md:h-full">
               <Label className="dashboard-metric-label break-words">Total Portfolio Value</Label>
-              <p className="dashboard-metric-value break-words">
+              <p className="dashboard-metric-value break-words text-zinc-950">
                 {formatUSDWhole(totals.market_value)}
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="dashboard-metric-tile order-1 min-w-0 lg:order-1">
                 <Label className="dashboard-metric-label break-words">Net Gain / Loss</Label>
-                <p className={cn('dashboard-metric-value break-words', totalNet >= 0 ? 'value-positive' : 'value-negative')}>
-                  {formatUSDWhole(totalNet)} {totalNet >= 0 ? '▲' : '▼'}
+                <p className={cn('dashboard-metric-value break-words', valueColorClass(totalNet))}>
+                  {formatUSDWhole(totalNet)} {totalNetTrend ? totalNetTrend : null}
                 </p>
               </div>
               <div className="dashboard-metric-tile order-2 min-w-0 lg:order-2">
                 <Label className="dashboard-metric-label break-words">Realized Gain / Loss</Label>
-                <p className={cn('dashboard-metric-value break-words', totals.realized_gain >= 0 ? 'value-positive' : 'value-negative')}>
+                <p className={cn('dashboard-metric-value break-words', valueColorClass(totals.realized_gain))}>
                   {formatUSDWhole(totals.realized_gain)}
                 </p>
               </div>
               <div className="dashboard-metric-tile order-4 min-w-0 lg:order-4">
                 <Label className="dashboard-metric-label break-words">Income</Label>
-                <p className={cn('dashboard-metric-value break-words', totals.dividends >= 0 ? 'value-positive' : 'value-negative')}>
-                  {formatUSDWhole(totals.dividends)}
+                <p className={cn('dashboard-metric-value break-words', valueColorClass(totals.income))}>
+                  {formatUSDWhole(totals.income)}
                 </p>
               </div>
               <div className="dashboard-metric-tile order-3 min-w-0 lg:order-5">
                 <Label className="dashboard-metric-label break-words">Unrealized Gain / Loss</Label>
-                <p className={cn('dashboard-metric-value break-words', totalUnrealized >= 0 ? 'value-positive' : 'value-negative')}>
+                <p className={cn('dashboard-metric-value break-words', valueColorClass(totalUnrealized))}>
                   {formatUSDWhole(totalUnrealized)}
                 </p>
               </div>
               <div className="dashboard-metric-tile order-5 min-w-0 lg:order-3">
                 <Label className="dashboard-metric-label break-words">Total Return</Label>
-                <p className={cn('dashboard-metric-value break-words', totalReturnPct >= 0 ? 'value-positive' : 'value-negative')}>
+                <p className={cn('dashboard-metric-value break-words', valueColorClass(totalReturnPct))}>
                   {formatPctTenth(totalReturnPct)}
                 </p>
               </div>
               <div className="dashboard-metric-tile order-6 min-w-0 lg:order-6">
                 <Label className="dashboard-metric-label break-words">Annualized IRR</Label>
-                <p className={cn('dashboard-metric-value break-words', totalAnnualizedReturnPct >= 0 ? 'value-positive' : 'value-negative')}>
+                <p className={cn('dashboard-metric-value break-words', valueColorClass(totalAnnualizedReturnPct))}>
                   {formatPctTenth(totalAnnualizedReturnPct)}
                 </p>
               </div>
@@ -703,20 +721,28 @@ function PerformanceContent() {
                     <p className="col-span-2 min-w-0 break-words text-xs italic leading-tight text-zinc-500 [overflow-wrap:anywhere]">{row.display_name.split(' - ')[1]}</p>
                   ) : null}
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="flex h-full flex-col items-center text-center">
                     <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">
                       Net G/ L
                     </p>
-                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', row.net_gain > 0 ? 'value-positive' : row.net_gain < 0 ? 'value-negative' : 'text-zinc-700')}>
+                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', valueColorClass(row.net_gain))}>
                       {formatUSDWhole(row.net_gain)}
+                    </p>
+                  </div>
+                  <div className="flex h-full flex-col items-center text-center">
+                    <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">
+                      Income
+                    </p>
+                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', valueColorClass(row.income))}>
+                      {formatUSDWhole(row.income)}
                     </p>
                   </div>
                   <div className="flex h-full flex-col items-center text-center">
                     <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">
                       Total Return
                     </p>
-                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', row.total_return_pct > 0 ? 'value-positive' : row.total_return_pct < 0 ? 'value-negative' : 'text-zinc-700')}>
+                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', valueColorClass(row.total_return_pct))}>
                       {formatPctTenth(row.total_return_pct)}
                     </p>
                   </div>
@@ -724,7 +750,7 @@ function PerformanceContent() {
                     <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">
                       Annual IRR
                     </p>
-                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', row.annualized_return_pct > 0 ? 'value-positive' : row.annualized_return_pct < 0 ? 'value-negative' : 'text-zinc-700')}>
+                    <p className={cn('mt-1 text-sm font-medium text-center tabular-nums', valueColorClass(row.annualized_return_pct))}>
                       {row.irrSkipped ? 'N/A' : formatPctTenth(row.annualized_return_pct)}
                     </p>
                     {row.irrSkipped && <p className="mt-1 text-center text-xs text-zinc-500">Insufficient cash flows to calculate IRR.</p>}
@@ -737,22 +763,28 @@ function PerformanceContent() {
                 <p className="min-w-0 break-words text-lg font-semibold leading-tight text-zinc-950 [overflow-wrap:anywhere]">Total</p>
                 <p className="min-w-0 break-words text-right text-lg font-semibold leading-tight tabular-nums text-zinc-950 [overflow-wrap:anywhere]">{formatUSDWhole(totals.market_value)}</p>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="flex h-full flex-col items-center text-center">
                   <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">Net G/ L</p>
-                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', totals.net_gain > 0 ? 'value-positive' : totals.net_gain < 0 ? 'value-negative' : 'text-zinc-900')}>
+                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', valueColorClass(totals.net_gain))}>
                     {formatUSDWhole(totals.net_gain)}
                   </p>
                 </div>
                 <div className="flex h-full flex-col items-center text-center">
                   <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">Total Return</p>
-                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', totalReturnPct > 0 ? 'value-positive' : totalReturnPct < 0 ? 'value-negative' : 'text-zinc-900')}>
+                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', valueColorClass(totalReturnPct))}>
                     {formatPctTenth(totalReturnPct)}
                   </p>
                 </div>
                 <div className="flex h-full flex-col items-center text-center">
+                  <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">Income</p>
+                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', valueColorClass(totals.income))}>
+                    {formatUSDWhole(totals.income)}
+                  </p>
+                </div>
+                <div className="flex h-full flex-col items-center text-center">
                   <p className="dashboard-metric-label flex min-h-[2.5rem] items-center justify-center text-center">Annual IRR</p>
-                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', totalAnnualizedReturnPct > 0 ? 'value-positive' : totalAnnualizedReturnPct < 0 ? 'value-negative' : 'text-zinc-900')}>
+                  <p className={cn('mt-1 text-sm font-semibold text-center tabular-nums', valueColorClass(totalAnnualizedReturnPct))}>
                     {formatPctTenth(totalAnnualizedReturnPct)}
                   </p>
                 </div>
@@ -760,28 +792,28 @@ function PerformanceContent() {
             </div>
           </div>
         )}
-        <Table className="hidden w-full min-w-[1080px] table-fixed md:table">
+        <Table className="hidden w-full table-fixed md:table">
           {lens === 'asset' ? (
             <colgroup>
-              <col className="w-[22%]" />
-              <col className="w-[10%]" />
-              <col className="w-[10%]" />
+              <col className="w-[21%]" />
+              <col className="w-[8%]" />
+              <col className="w-[9%]" />
               <col className="w-[11%]" />
               <col className="w-[11%]" />
               <col className="w-[10%]" />
               <col className="w-[10%]" />
+              <col className="w-[11%]" />
+              <col className="w-[9%]" />
               <col className="w-[10%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
             </colgroup>
           ) : (
             <colgroup>
-              <col className="w-[26%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
+              <col className="w-[24%]" />
+              <col className="w-[13%]" />
+              <col className="w-[13%]" />
               <col className="w-[10%]" />
               <col className="w-[10%]" />
+              <col className="w-[12%]" />
               <col className="w-[9%]" />
               <col className="w-[9%]" />
             </colgroup>
@@ -792,8 +824,8 @@ function PerformanceContent() {
                 className="cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
                 onClick={() => handleSort('display_name')}
               >
-                <div className="flex items-center">
-                  <span className="truncate">{lens.replace('_', ' ').toUpperCase()}</span>
+                <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+                  <span className="min-w-0 break-words">{lens.replace('_', ' ').toUpperCase()}</span>
                   {getSortIcon('display_name')}
                 </div>
               </TableHead>
@@ -802,8 +834,8 @@ function PerformanceContent() {
                   className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
                   onClick={() => handleSort('quantity')}
                 >
-                  <div className="flex items-center justify-end whitespace-nowrap">
-                    Quantity
+                  <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-1 text-right">
+                    <span>Quantity</span>
                     {getSortIcon('quantity')}
                   </div>
                 </TableHead>
@@ -813,8 +845,8 @@ function PerformanceContent() {
                   className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
                   onClick={() => handleSort('current_price')}
                 >
-                  <div className="flex items-center justify-end whitespace-nowrap">
-                    Current Price
+                  <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-1 text-right">
+                    <span>Current Price</span>
                     {getSortIcon('current_price')}
                   </div>
                 </TableHead>
@@ -823,8 +855,8 @@ function PerformanceContent() {
                 className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
                 onClick={() => handleSort('market_value')}
               >
-                <div className="flex items-center justify-end whitespace-nowrap">
-                  Market Value
+                <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-1 text-right">
+                  <span>Market Value</span>
                   {getSortIcon('market_value')}
                 </div>
               </TableHead>
@@ -832,7 +864,7 @@ function PerformanceContent() {
                 className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
                 onClick={() => handleSort('unrealized_gain')}
               >
-                <div className="flex items-center justify-end whitespace-nowrap">
+                <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-1 text-right">
                   <span>Unrealized G/L</span>
                   {getSortIcon('unrealized_gain')}
                 </div>
@@ -841,18 +873,18 @@ function PerformanceContent() {
                 className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
                 onClick={() => handleSort('realized_gain')}
               >
-                <div className="flex items-center justify-end whitespace-nowrap">
+                <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-1 text-right">
                   <span>Realized G/L</span>
                   {getSortIcon('realized_gain')}
                 </div>
               </TableHead>
               <TableHead 
                 className="text-right cursor-pointer hover:bg-muted/50 select-none px-3 sm:px-4"
-                onClick={() => handleSort('dividends')}
+                onClick={() => handleSort('income')}
               >
-                <div className="flex items-center justify-end whitespace-nowrap">
-                  Dividends
-                  {getSortIcon('dividends')}
+                <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-1 text-right">
+                  <span>Income</span>
+                  {getSortIcon('income')}
                 </div>
               </TableHead>
               <TableHead 
@@ -861,7 +893,7 @@ function PerformanceContent() {
               >
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center justify-end whitespace-nowrap">
+                    <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-1 text-right">
                       <span>Net Gain/Loss</span>
                       {getSortIcon('net_gain')}
                     </div>
@@ -877,7 +909,7 @@ function PerformanceContent() {
               >
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center justify-end whitespace-nowrap">
+                    <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-1 text-right">
                       <span>Total Return %</span>
                       {getSortIcon('total_return_pct')}
                     </div>
@@ -893,7 +925,7 @@ function PerformanceContent() {
               >
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center justify-end whitespace-nowrap">
+                    <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-1 text-right">
                       <span>Annualized IRR</span>
                       {getSortIcon('annualized_return_pct')}
                     </div>
@@ -924,58 +956,58 @@ function PerformanceContent() {
                   <TableRow key={row.grouping_id} className={lens === 'asset' && row.market_value === 0 ? "opacity-50" : ""}>
                     <TableCell className="font-medium px-3 sm:px-4 align-top">
                       {lens === 'asset' ? (
-                        <div className="flex flex-col">
-                          <span className="font-bold truncate">{row.display_name.split(' - ')[0]}</span>
-                          {row.display_name.includes(' - ') && <span className="text-muted-foreground truncate">{row.display_name.split(' - ')[1]}</span>}
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <span className="font-bold break-words [overflow-wrap:anywhere]">{row.display_name.split(' - ')[0]}</span>
+                          {row.display_name.includes(' - ') && <span className="text-muted-foreground break-words [overflow-wrap:anywhere]">{row.display_name.split(' - ')[1]}</span>}
                         </div>
-                      ) : <span className="truncate block">{row.display_name}</span>}
+                      ) : <span className="block break-words [overflow-wrap:anywhere]">{row.display_name}</span>}
                     </TableCell>
                     {lens === 'asset' && (
-                      <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{Number(row.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
+                      <TableCell className="px-3 sm:px-4 text-right tabular-nums">{Number(row.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
                     )}
                     {lens === 'asset' && (
-                      <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">
+                      <TableCell className="px-3 sm:px-4 text-right tabular-nums">
                         {row.current_price != null ? formatUSD(row.current_price) : '-'}
                       </TableCell>
                     )}
-                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(row.market_value)}</TableCell>
+                    <TableCell className="px-3 sm:px-4 text-right tabular-nums">{formatUSD(row.market_value)}</TableCell>
                     <TableCell
                       className={cn(
-                        "px-3 sm:px-4 text-right tabular-nums whitespace-nowrap",
-                        row.unrealized_gain > 0 ? "value-positive" : row.unrealized_gain < 0 ? "value-negative" : ""
+                        "px-3 sm:px-4 text-right tabular-nums",
+                        valueColorClass(row.unrealized_gain)
                       )}
                     >
                       {formatUSD(row.unrealized_gain)}
                     </TableCell>
                     <TableCell
                       className={cn(
-                        "px-3 sm:px-4 text-right tabular-nums whitespace-nowrap",
-                        row.realized_gain > 0 ? "value-positive" : row.realized_gain < 0 ? "value-negative" : ""
+                        "px-3 sm:px-4 text-right tabular-nums",
+                        valueColorClass(row.realized_gain)
                       )}
                     >
                       {formatUSD(row.realized_gain)}
                     </TableCell>
-                    <TableCell className="px-3 sm:px-4 text-right tabular-nums whitespace-nowrap">{formatUSD(row.dividends)}</TableCell>
+                    <TableCell className={cn("px-3 sm:px-4 text-right tabular-nums", valueColorClass(row.income))}>{formatUSD(row.income)}</TableCell>
                     <TableCell
                       className={cn(
-                        "px-3 sm:px-4 text-right font-medium tabular-nums whitespace-nowrap",
-                        row.net_gain > 0 ? "value-positive" : row.net_gain < 0 ? "value-negative" : ""
+                        "px-3 sm:px-4 text-right font-medium tabular-nums",
+                        valueColorClass(row.net_gain)
                       )}
                     >
                       {formatUSD(row.net_gain)}
                     </TableCell>
                     <TableCell
                       className={cn(
-                        "px-3 sm:px-4 text-right font-medium tabular-nums whitespace-nowrap",
-                        row.total_return_pct > 0 ? "value-positive" : row.total_return_pct < 0 ? "value-negative" : ""
+                        "px-3 sm:px-4 text-right font-medium tabular-nums",
+                        valueColorClass(row.total_return_pct)
                       )}
                     >
                       {row.total_return_pct.toFixed(2)}%
                     </TableCell>
                     <TableCell
                       className={cn(
-                        "px-3 sm:px-4 text-right font-medium tabular-nums whitespace-nowrap",
-                        row.annualized_return_pct > 0 ? "value-positive" : row.annualized_return_pct < 0 ? "value-negative" : ""
+                        "px-3 sm:px-4 text-right font-medium tabular-nums",
+                        valueColorClass(row.annualized_return_pct)
                       )}
                     >
                       {row.irrSkipped ? (
@@ -998,37 +1030,37 @@ function PerformanceContent() {
                   <TableCell className="px-3 sm:px-4 font-bold">Total</TableCell>
                   {lens === 'asset' && <TableCell className="px-3 sm:px-4 text-right">-</TableCell>}
                   {lens === 'asset' && <TableCell className="px-3 sm:px-4 text-right">-</TableCell>}
-                  <TableCell className="px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap">{formatUSD(totals.market_value)}</TableCell>
+                  <TableCell className="px-3 sm:px-4 text-right font-bold tabular-nums text-zinc-950">{formatUSD(totals.market_value)}</TableCell>
                   <TableCell 
                     className={cn(
-                      "px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap",
-                      totals.unrealized_gain > 0 ? "value-positive" : totals.unrealized_gain < 0 ? "value-negative" : ""
+                      "px-3 sm:px-4 text-right font-bold tabular-nums",
+                      valueColorClass(totals.unrealized_gain)
                     )}
                   >
                     {formatUSD(totals.unrealized_gain)}
                   </TableCell>
-                  <TableCell className="px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap">{formatUSD(totals.realized_gain)}</TableCell>
-                  <TableCell className="px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap">{formatUSD(totals.dividends)}</TableCell>
+                  <TableCell className={cn("px-3 sm:px-4 text-right font-bold tabular-nums", valueColorClass(totals.realized_gain))}>{formatUSD(totals.realized_gain)}</TableCell>
+                  <TableCell className={cn("px-3 sm:px-4 text-right font-bold tabular-nums", valueColorClass(totals.income))}>{formatUSD(totals.income)}</TableCell>
                   <TableCell 
                     className={cn(
-                      "px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap",
-                      totals.net_gain > 0 ? "value-positive" : totals.net_gain < 0 ? "value-negative" : ""
+                      "px-3 sm:px-4 text-right font-bold tabular-nums",
+                      valueColorClass(totals.net_gain)
                     )}
                   >
                     {formatUSD(totals.net_gain)}
                   </TableCell>
                   <TableCell 
                     className={cn(
-                      "px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap",
-                      totalReturnPct > 0 ? "value-positive" : totalReturnPct < 0 ? "value-negative" : ""
+                      "px-3 sm:px-4 text-right font-bold tabular-nums",
+                      valueColorClass(totalReturnPct)
                     )}
                   >
                     {totalReturnPct.toFixed(2)}%
                   </TableCell>
                   <TableCell 
                     className={cn(
-                      "px-3 sm:px-4 text-right font-bold tabular-nums whitespace-nowrap",
-                      totalAnnualizedReturnPct > 0 ? "value-positive" : totalAnnualizedReturnPct < 0 ? "value-negative" : ""
+                      "px-3 sm:px-4 text-right font-bold tabular-nums",
+                      valueColorClass(totalAnnualizedReturnPct)
                     )}
                   >
                     {totalAnnualizedReturnPct.toFixed(2)}%
