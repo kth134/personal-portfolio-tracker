@@ -232,10 +232,15 @@ const normalizeRecentTransaction = (tx: {
   account: unwrapRelation(tx.account),
 });
 
-const isFilteredRecentTransaction = (tx: {
+const isVisibleRecentTransaction = (tx: {
   type: string;
   notes?: string | null;
-}) => !(tx.type === 'Deposit' && tx.notes === 'Auto-deposit for external buy');
+}) => tx.type !== 'Deposit' && tx.type !== 'Withdrawal';
+
+const shouldIncludeRecentActivityKpiTransaction = (tx: {
+  type: string;
+  notes?: string | null;
+}) => tx.type !== 'Deposit' && tx.type !== 'Withdrawal';
 
 const EMPTY_RECENT_ACTIVITY_TOTALS: RecentActivityTotals = {
   totalTransactions: 0,
@@ -798,13 +803,13 @@ export default function DashboardHome() {
           notes?: string | null;
           asset?: Relation<AssetRelation>;
           account?: Relation<AccountRelation>;
-        }>).filter(isFilteredRecentTransaction).slice(0, 10).map(normalizeRecentTransaction);
+        }>).filter(isVisibleRecentTransaction).slice(0, 10).map(normalizeRecentTransaction);
 
         const filteredRecentActivityWindow = ((recentActivityWindow ?? []) as Array<{
           type: string;
           amount: number | string;
           notes?: string | null;
-        }>).filter(isFilteredRecentTransaction);
+        }>).filter(shouldIncludeRecentActivityKpiTransaction);
 
         setRecentTransactions(filteredTransactions);
         setRecentActivityTotals(summarizeRecentActivity(filteredRecentActivityWindow));
@@ -897,13 +902,13 @@ export default function DashboardHome() {
           notes?: string | null;
           asset?: Relation<AssetRelation>;
           account?: Relation<AccountRelation>;
-        }>).filter(isFilteredRecentTransaction).slice(0, 10).map(normalizeRecentTransaction);
+        }>).filter(isVisibleRecentTransaction).slice(0, 10).map(normalizeRecentTransaction);
 
         const filteredRecentActivityWindow = ((recentActivityWindow ?? []) as Array<{
           type: string;
           amount: number | string;
           notes?: string | null;
-        }>).filter(isFilteredRecentTransaction);
+        }>).filter(shouldIncludeRecentActivityKpiTransaction);
 
         setRecentTransactions(filteredTransactions);
         setRecentActivityTotals(summarizeRecentActivity(filteredRecentActivityWindow));
