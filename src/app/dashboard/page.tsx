@@ -1397,14 +1397,14 @@ export default function DashboardHome() {
           <div key={tx.id} className="rounded-lg border bg-background p-3 shadow-sm">
             <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.85fr)_auto] items-start gap-3">
               <div className="min-w-0">
-                <div className="truncate font-semibold leading-tight">{tx.asset?.ticker || tx.type}</div>
+                <div className="truncate text-sm font-semibold leading-tight">{tx.asset?.ticker || tx.type}</div>
                 <div className="truncate text-xs text-muted-foreground">{tx.account?.name || 'External / Cash Flow'}</div>
               </div>
-              <div className="min-w-0 pt-0.5 text-center text-xs font-medium text-muted-foreground">
-                <div className="truncate">{tx.type}</div>
+              <div className="min-w-0 text-center">
+                <div className="truncate text-sm font-semibold leading-tight text-muted-foreground">{tx.type}</div>
               </div>
               <div className="text-right">
-                <div className="text-sm font-semibold tabular-nums">{formatUSDWhole(Number(tx.amount))}</div>
+                <div className="text-sm font-semibold leading-tight tabular-nums">{formatUSDWhole(Number(tx.amount))}</div>
                 <div className="text-[11px] text-muted-foreground">{tx.date}</div>
               </div>
             </div>
