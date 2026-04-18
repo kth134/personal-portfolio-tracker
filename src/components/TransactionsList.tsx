@@ -1329,19 +1329,21 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
           <div className="space-y-3 md:hidden">
             {paginatedTransactions.map((tx) => (
               <div key={tx.id} className="dashboard-mobile-card space-y-3 px-4 py-3">
-                <div className="grid grid-cols-[auto,minmax(0,1fr),auto,auto] items-start gap-2">
-                  <Checkbox
-                    checked={selectedTransactions.includes(tx.id)}
-                    onCheckedChange={(checked) => handleSelectTransaction(tx.id, checked as boolean)}
-                    className="mt-0.5"
-                  />
-                  <p className="min-w-0 text-sm font-semibold text-zinc-950">{tx.type}</p>
-                  <p className="shrink-0 text-right text-xs uppercase tracking-[0.16em] text-zinc-500">{tx.date}</p>
-                  <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(tx)}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Checkbox
+                      checked={selectedTransactions.includes(tx.id)}
+                      onCheckedChange={(checked) => handleSelectTransaction(tx.id, checked as boolean)}
+                      className="shrink-0"
+                    />
+                    <p className="min-w-0 text-sm font-semibold leading-tight text-zinc-950">{tx.type}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1 pl-2">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-zinc-500 whitespace-nowrap">{tx.date}</p>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(tx)}>
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => setDeletingTx(tx)}>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setDeletingTx(tx)}>
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </Button>
                   </div>
@@ -1375,21 +1377,20 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
               </div>
             ))}
           </div>
-          <Table className="hidden min-w-[1520px] table-fixed md:table xl:min-w-full">
+          <Table className="hidden min-w-[1270px] table-fixed md:table xl:min-w-full">
           <colgroup>
             <col className="w-11" />
-            <col className="w-[116px]" />
-            <col className="w-[184px]" />
+            <col className="w-[108px]" />
+            <col className="w-[168px]" />
+            <col className="w-[76px]" />
             <col className="w-[88px]" />
-            <col className="w-[104px]" />
-            <col className="w-[128px]" />
-            <col className="w-[120px]" />
-            <col className="w-[120px]" />
-            <col className="w-[120px]" />
-            <col className="w-[96px]" />
-            <col className="w-[128px]" />
-            <col className="w-[220px]" />
-            <col className="w-[96px]" />
+            <col className="w-[112px]" />
+            <col className="w-[108px]" />
+            <col className="w-[112px]" />
+            <col className="w-[80px]" />
+            <col className="w-[116px]" />
+            <col className="w-[180px]" />
+            <col className="w-[84px]" />
           </colgroup>
           <TableHeader>
             <TableRow>
@@ -1411,7 +1412,6 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
               <TableHead className="cursor-pointer px-3 whitespace-nowrap" onClick={() => toggleSort('type')}>
                 Type <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="px-3 whitespace-nowrap">Funding Source</TableHead>
               <TableHead className="text-right cursor-pointer px-3 whitespace-nowrap" onClick={() => toggleSort('quantity')}>
                 Quantity <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
@@ -1446,7 +1446,6 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                 </TableCell>
                 <TableCell className="px-3 whitespace-nowrap">{tx.asset?.ticker || '-'}</TableCell>
                 <TableCell className="px-3 whitespace-nowrap">{tx.type}</TableCell>
-                <TableCell className="px-3 whitespace-nowrap">{tx.funding_source || '-'}</TableCell>
                 <TableCell className="px-3 text-right tabular-nums whitespace-nowrap">
                   {tx.quantity != null ? Number(tx.quantity).toFixed(8) : '-'}
                 </TableCell>
