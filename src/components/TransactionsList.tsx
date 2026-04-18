@@ -1328,18 +1328,12 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
           </div>
           <div className="space-y-3 md:hidden">
             {paginatedTransactions.map((tx) => (
-              <div key={tx.id} className="dashboard-mobile-card space-y-4">
+              <div key={tx.id} className="dashboard-mobile-card space-y-3 px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-zinc-950">{tx.type}</p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.16em] text-zinc-500">{tx.date}</p>
-                  </div>
-                  <Checkbox
-                    checked={selectedTransactions.includes(tx.id)}
-                    onCheckedChange={(checked) => handleSelectTransaction(tx.id, checked as boolean)}
-                  />
+                  <p className="min-w-0 text-sm font-semibold text-zinc-950">{tx.type}</p>
+                  <p className="shrink-0 text-right text-xs uppercase tracking-[0.16em] text-zinc-500">{tx.date}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
                   <div>
                     <p className="dashboard-metric-label">Account</p>
                     <p className="mt-1 text-sm text-zinc-700 break-words">{tx.account?.name || '-'}</p>
@@ -1365,13 +1359,19 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                     <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.fees != null ? formatUSDWhole(tx.fees) : '-'}</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Checkbox
+                    checked={selectedTransactions.includes(tx.id)}
+                    onCheckedChange={(checked) => handleSelectTransaction(tx.id, checked as boolean)}
+                  />
+                  <div className="flex items-center justify-end gap-2">
                   <Button variant="ghost" size="sm" onClick={() => openEdit(tx)}>
                     <Edit2 className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => setDeletingTx(tx)}>
                     <Trash2 className="h-4 w-4 text-red-600" />
                   </Button>
+                  </div>
                 </div>
               </div>
             ))}

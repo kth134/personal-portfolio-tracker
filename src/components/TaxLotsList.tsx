@@ -610,18 +610,12 @@ const handleSort = (key: SortKey) => {
         <div className="dashboard-table-shell">
           <div className="space-y-3 md:hidden">
             {paginatedTaxLots.map((lot) => (
-              <div key={lot.id} className={cn('dashboard-mobile-card space-y-4', lot.remaining_quantity === 0 && 'opacity-60 bg-muted/20')}>
+              <div key={lot.id} className={cn('dashboard-mobile-card space-y-3 px-4 py-3', lot.remaining_quantity === 0 && 'opacity-60 bg-muted/20')}>
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-zinc-950 break-words">{lot.asset?.ticker || '-'}</p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.16em] text-zinc-500">{lot.purchase_date}</p>
-                  </div>
-                  <Checkbox
-                    checked={selectedLots.includes(lot.id)}
-                    onCheckedChange={(checked) => handleSelectLot(lot.id, checked as boolean)}
-                  />
+                  <p className="min-w-0 text-sm font-semibold text-zinc-950 break-words">{lot.asset?.ticker || '-'}</p>
+                  <p className="shrink-0 text-right text-xs uppercase tracking-[0.16em] text-zinc-500">{lot.purchase_date}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
                   <div>
                     <p className="dashboard-metric-label">Account</p>
                     <p className="mt-1 text-sm text-zinc-700 break-words">{lot.account?.name || '-'}</p>
@@ -652,7 +646,12 @@ const handleSort = (key: SortKey) => {
                     <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSDWhole(Number(lot.remaining_quantity) * Number(lot.cost_basis_per_unit))}</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Checkbox
+                    checked={selectedLots.includes(lot.id)}
+                    onCheckedChange={(checked) => handleSelectLot(lot.id, checked as boolean)}
+                  />
+                  <div className="flex items-center justify-end gap-2">
                   <Button variant="ghost" size="sm" onClick={() => openEdit(lot)}>
                     <Edit2 className="h-4 w-4" />
                   </Button>
@@ -673,6 +672,7 @@ const handleSort = (key: SortKey) => {
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+                  </div>
                 </div>
               </div>
             ))}
