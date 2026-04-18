@@ -1320,7 +1320,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
 
       {displayTransactions.length > 0 ? (
         <div className="dashboard-table-shell">
-          <div className="flex justify-end text-sm text-muted-foreground mb-2">
+          <div className="px-4 pb-2 pt-3 text-right text-sm text-muted-foreground sm:px-5">
             {(() => {
               const totalCount = isSearchMode ? displayTransactions.length : (total || 0)
               return `Total: ${totalCount}`
@@ -1329,11 +1329,24 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
           <div className="space-y-3 md:hidden">
             {paginatedTransactions.map((tx) => (
               <div key={tx.id} className="dashboard-mobile-card space-y-3 px-4 py-3">
-                <div className="flex items-start justify-between gap-3">
+                <div className="grid grid-cols-[auto,minmax(0,1fr),auto,auto] items-start gap-2">
+                  <Checkbox
+                    checked={selectedTransactions.includes(tx.id)}
+                    onCheckedChange={(checked) => handleSelectTransaction(tx.id, checked as boolean)}
+                    className="mt-0.5"
+                  />
                   <p className="min-w-0 text-sm font-semibold text-zinc-950">{tx.type}</p>
                   <p className="shrink-0 text-right text-xs uppercase tracking-[0.16em] text-zinc-500">{tx.date}</p>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(tx)}>
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setDeletingTx(tx)}>
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                   <div>
                     <p className="dashboard-metric-label">Account</p>
                     <p className="mt-1 text-sm text-zinc-700 break-words">{tx.account?.name || '-'}</p>
@@ -1359,38 +1372,24 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                     <p className="mt-1 text-sm text-zinc-700 tabular-nums">{tx.fees != null ? formatUSDWhole(tx.fees) : '-'}</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-between gap-3">
-                  <Checkbox
-                    checked={selectedTransactions.includes(tx.id)}
-                    onCheckedChange={(checked) => handleSelectTransaction(tx.id, checked as boolean)}
-                  />
-                  <div className="flex items-center justify-end gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(tx)}>
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setDeletingTx(tx)}>
-                    <Trash2 className="h-4 w-4 text-red-600" />
-                  </Button>
-                  </div>
-                </div>
               </div>
             ))}
           </div>
-          <Table className="hidden min-w-[1700px] table-fixed md:table">
+          <Table className="hidden min-w-[1520px] table-fixed md:table xl:min-w-full">
           <colgroup>
-            <col className="w-12" />
-            <col className="w-[10%]" />
-            <col className="w-[12%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
-            <col className="w-[10%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
-            <col className="w-[12%]" />
-            <col className="w-[8%]" />
+            <col className="w-11" />
+            <col className="w-[116px]" />
+            <col className="w-[184px]" />
+            <col className="w-[88px]" />
+            <col className="w-[104px]" />
+            <col className="w-[128px]" />
+            <col className="w-[120px]" />
+            <col className="w-[120px]" />
+            <col className="w-[120px]" />
+            <col className="w-[96px]" />
+            <col className="w-[128px]" />
+            <col className="w-[220px]" />
+            <col className="w-[96px]" />
           </colgroup>
           <TableHeader>
             <TableRow>
@@ -1400,36 +1399,36 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                   onCheckedChange={handleSelectAll}
                 />
               </TableHead>
-              <TableHead className="cursor-pointer px-3" onClick={() => toggleSort('date')}>
+              <TableHead className="cursor-pointer px-3 whitespace-nowrap" onClick={() => toggleSort('date')}>
                 Date <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="cursor-pointer px-3" onClick={() => toggleSort('account_name')}>
+              <TableHead className="cursor-pointer px-3 whitespace-nowrap" onClick={() => toggleSort('account_name')}>
                 Account <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="cursor-pointer px-3" onClick={() => toggleSort('asset_ticker')}>
+              <TableHead className="cursor-pointer px-3 whitespace-nowrap" onClick={() => toggleSort('asset_ticker')}>
                 Asset <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="cursor-pointer px-3" onClick={() => toggleSort('type')}>
+              <TableHead className="cursor-pointer px-3 whitespace-nowrap" onClick={() => toggleSort('type')}>
                 Type <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="px-3">Funding Source</TableHead>
-              <TableHead className="text-right cursor-pointer px-3" onClick={() => toggleSort('quantity')}>
+              <TableHead className="px-3 whitespace-nowrap">Funding Source</TableHead>
+              <TableHead className="text-right cursor-pointer px-3 whitespace-nowrap" onClick={() => toggleSort('quantity')}>
                 Quantity <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="text-right cursor-pointer px-3" onClick={() => toggleSort('price_per_unit')}>
+              <TableHead className="text-right cursor-pointer px-3 whitespace-nowrap" onClick={() => toggleSort('price_per_unit')}>
                 Price/Unit <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="text-right cursor-pointer px-3" onClick={() => toggleSort('amount')}>
+              <TableHead className="text-right cursor-pointer px-3 whitespace-nowrap" onClick={() => toggleSort('amount')}>
                 Amount <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="text-right cursor-pointer px-3" onClick={() => toggleSort('fees')}>
+              <TableHead className="text-right cursor-pointer px-3 whitespace-nowrap" onClick={() => toggleSort('fees')}>
                 Fees <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="text-right cursor-pointer px-3" onClick={() => toggleSort('realized_gain')}>
+              <TableHead className="text-right cursor-pointer px-3 whitespace-nowrap" onClick={() => toggleSort('realized_gain')}>
                 Realized G/L <ArrowUpDown className="inline h-4 w-4" />
               </TableHead>
-              <TableHead className="px-3">Notes</TableHead>
-              <TableHead className="px-3 text-right">Actions</TableHead>
+              <TableHead className="px-3 whitespace-nowrap">Notes</TableHead>
+              <TableHead className="px-3 text-right whitespace-nowrap">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1470,7 +1469,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                 <TableCell className="px-3">
                   <span className="block truncate" title={tx.notes || '-'}>{tx.notes || '-'}</span>
                 </TableCell>
-                <TableCell className="px-3">
+                <TableCell className="px-3 pr-4">
                   <div className="flex items-center justify-end gap-2">
                   <Button variant="ghost" size="sm" onClick={() => openEdit(tx)}>
                     <Edit2 className="h-4 w-4" />
