@@ -814,10 +814,14 @@ export default function RebalancingPage() {
             </span>
           </summary>
           <div className={cn('flex flex-col px-4 pb-4 pt-4 sm:px-6 sm:pb-6', chartSlices.length === 1 && 'md:flex-1 md:min-h-0')}>
-            <div className="flex flex-col gap-4 md:grid md:h-full md:min-h-0 md:flex-1 md:grid-cols-1 md:grid-rows-4 md:gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <div className="dashboard-metric-tile md:h-full">
-                <Label className="dashboard-metric-label">Value</Label>
+                <Label className="dashboard-metric-label">Total Investment Value</Label>
                 <div className="dashboard-metric-value">{formatUSDWhole(data.totalValue)}</div>
+              </div>
+              <div className="dashboard-metric-tile md:h-full">
+                <Label className="dashboard-metric-label">Total Cash Value</Label>
+                <div className="dashboard-metric-value">{formatUSDWhole(data.totalCash)}</div>
               </div>
               <div className="dashboard-metric-tile md:h-full">
                 <Label className="dashboard-metric-label">Sub-Portfolio Drift</Label>

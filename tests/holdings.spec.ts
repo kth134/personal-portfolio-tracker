@@ -7,4 +7,6 @@ test('Portfolio Holdings: page structure loads', async ({ page }) => {
   await ensureAuth(page);
   await page.waitForLoadState('networkidle');
   await expect(await page.locator('input[type="email"]').count()).toBe(0);
+  await expect(page.getByText(/total investment value/i).first()).toBeVisible();
+  await expect(page.getByText(/total cash value/i).first()).toBeVisible();
 });

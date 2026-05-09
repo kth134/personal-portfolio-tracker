@@ -29,7 +29,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { calculateIRR, calculateCashBalances, netCashFlowsByDate, transactionFlowForIRR, fetchAllUserTransactions } from '@/lib/finance';
+import { calculateIRR, calculateEffectiveCashBalances, netCashFlowsByDate, transactionFlowForIRR, fetchAllUserTransactions, type CashAnchor } from '@/lib/finance';
 import { DashboardSurface } from '@/components/dashboard-shell';
 
 type RefreshEventDetail = {
@@ -89,6 +89,7 @@ function PerformanceContent() {
   const [loading, setLoading] = useState(true);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [totalAnnualizedReturnPct, setTotalAnnualizedReturnPct] = useState<number>(0);
+  const [totalCashValue, setTotalCashValue] = useState<number>(0);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const requestIdRef = useRef(0);
 
@@ -221,15 +222,24 @@ function PerformanceContent() {
         // fetched transactions for IRR calculations
 
         // Fetch accounts for cash calculation
-        const { data: accountsData, error: accountsError } = await supabase
+        const [{ data: accountsData, error: accountsError }, { data: anchorsData, error: anchorsError }] = await Promise.all([
+          supabase
           .from('accounts')
           .select('id, name')
-          .eq('user_id', userId);
+          .eq('user_id', userId),
+          supabase
+            .from('account_cash_anchors')
+            .select('id, account_id, effective_date, balance, created_at, note')
+        ]);
 
         if (accountsError) throw accountsError;
+        if (anchorsError) throw anchorsError;
 
-        // Compute cash balances using centralized helper (portfolio canonical logic)
-        const { balances: cashBalances, totalCash } = calculateCashBalances(transactionsData || []);
+        const { balances: cashBalances, totalCash } = calculateEffectiveCashBalances(
+          transactionsData || [],
+          (anchorsData || []) as CashAnchor[]
+        );
+        setTotalCashValue(totalCash)
 
         // Map cash by account name
         const cashByAccountName = new Map<string, number>()
@@ -633,12 +643,21 @@ function PerformanceContent() {
         description="Review the portfolio-wide totals for value, realized and unrealized gains, income, and overall return in the same shared section frame used across the dashboard."
         contentClassName="space-y-0"
       >
-          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:items-stretch">
+          <div className="grid gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="dashboard-metric-tile min-w-0 md:h-full">
-              <Label className="dashboard-metric-label break-words">Total Portfolio Value</Label>
+              <Label className="dashboard-metric-label break-words">Total Investment Value</Label>
               <p className="dashboard-metric-value break-words text-zinc-950">
                 {formatUSDWhole(totals.market_value)}
               </p>
+            </div>
+            <div className="dashboard-metric-tile min-w-0 md:h-full">
+              <Label className="dashboard-metric-label break-words">Total Cash Value</Label>
+              <p className="dashboard-metric-value break-words text-zinc-950">
+                {formatUSDWhole(totalCashValue)}
+              </p>
+              <p className="mt-2 text-xs text-zinc-500">Cash is included in return calculations.</p>
+            </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="dashboard-metric-tile order-1 min-w-0 lg:order-1">

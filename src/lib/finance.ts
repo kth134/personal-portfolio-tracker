@@ -187,6 +187,162 @@ export function normalizeTransactionToFlow(tx: { type?: string; amount?: any; fe
   }
 }
 
+export type CashAnchor = {
+  id?: string
+  account_id: string
+  effective_date: string
+  balance: number | string
+  created_at?: string | null
+  note?: string | null
+}
+
+export type CashBalanceBreakdown = {
+  accountId: string
+  autoCash: number
+  effectiveCash: number
+  hasManualAnchor: boolean
+  anchorBalance: number | null
+  anchorEffectiveDate: string | null
+  anchorNote: string | null
+  driftFromAuto: number
+}
+
+export type EffectiveCashBalancesResult = {
+  balances: Map<string, number>
+  totalCash: number
+  autoBalances: Map<string, number>
+  totalAutoCash: number
+  latestAnchors: Map<string, CashAnchor>
+  breakdownByAccount: Map<string, CashBalanceBreakdown>
+}
+
+type CashTransactionLike = {
+  id?: string
+  date?: string
+  account_id?: string | null
+  account?: { id?: string | null } | null
+  type?: string
+  amount?: any
+  fees?: any
+}
+
+function getTransactionAccountId(tx: CashTransactionLike): string {
+  return tx?.account_id || tx?.account?.id || ''
+}
+
+function compareTransactionsAscending(a: CashTransactionLike, b: CashTransactionLike): number {
+  const dateCompare = (a?.date || '').localeCompare(b?.date || '')
+  if (dateCompare !== 0) return dateCompare
+  return (a?.id || '').localeCompare(b?.id || '')
+}
+
+function compareAnchorsDescending(a: CashAnchor, b: CashAnchor): number {
+  const dateCompare = (b?.effective_date || '').localeCompare(a?.effective_date || '')
+  if (dateCompare !== 0) return dateCompare
+
+  const createdAtCompare = (b?.created_at || '').localeCompare(a?.created_at || '')
+  if (createdAtCompare !== 0) return createdAtCompare
+
+  return (b?.id || '').localeCompare(a?.id || '')
+}
+
+function getLatestAnchorForDate(anchors: CashAnchor[], asOfDate: string): CashAnchor | null {
+  return anchors
+    .filter((anchor) => (anchor?.effective_date || '') <= asOfDate)
+    .sort(compareAnchorsDescending)[0] || null
+}
+
+function buildAutoCashBalances(transactions: CashTransactionLike[], asOfDate?: string): Map<string, number> {
+  const balances = new Map<string, number>()
+
+  ;(transactions || []).forEach((tx) => {
+    const accountId = getTransactionAccountId(tx)
+    if (!accountId) return
+    if (asOfDate && (tx?.date || '') > asOfDate) return
+
+    balances.set(accountId, (balances.get(accountId) || 0) + normalizeTransactionToFlow(tx))
+  })
+
+  return balances
+}
+
+export function calculateEffectiveCashBalances(
+  transactions: CashTransactionLike[],
+  anchors: CashAnchor[] = [],
+  asOfDate?: string,
+): EffectiveCashBalancesResult {
+  const resolvedAsOfDate = asOfDate || new Date().toISOString().slice(0, 10)
+  const sortedTransactions = [...(transactions || [])].sort(compareTransactionsAscending)
+  const autoBalances = buildAutoCashBalances(sortedTransactions, resolvedAsOfDate)
+  const latestAnchors = new Map<string, CashAnchor>()
+  const breakdownByAccount = new Map<string, CashBalanceBreakdown>()
+  const effectiveBalances = new Map<string, number>()
+  const transactionsByAccount = new Map<string, CashTransactionLike[]>()
+
+  sortedTransactions.forEach((tx) => {
+    const accountId = getTransactionAccountId(tx)
+    if (!accountId) return
+    if (!transactionsByAccount.has(accountId)) transactionsByAccount.set(accountId, [])
+    transactionsByAccount.get(accountId)!.push(tx)
+  })
+
+  const anchorsByAccount = new Map<string, CashAnchor[]>()
+  ;(anchors || []).forEach((anchor) => {
+    if (!anchor?.account_id) return
+    if (!anchorsByAccount.has(anchor.account_id)) anchorsByAccount.set(anchor.account_id, [])
+    anchorsByAccount.get(anchor.account_id)!.push(anchor)
+  })
+
+  const accountIds = new Set<string>([
+    ...Array.from(autoBalances.keys()),
+    ...Array.from(anchorsByAccount.keys()),
+  ])
+
+  accountIds.forEach((accountId) => {
+    const accountAnchors = anchorsByAccount.get(accountId) || []
+    const latestAnchor = getLatestAnchorForDate(accountAnchors, resolvedAsOfDate)
+    const accountAutoCash = autoBalances.get(accountId) || 0
+    const accountTransactions = transactionsByAccount.get(accountId) || []
+
+    let effectiveCash = accountAutoCash
+    if (latestAnchor) {
+      latestAnchors.set(accountId, latestAnchor)
+      effectiveCash = Number(latestAnchor.balance || 0)
+
+      accountTransactions.forEach((tx) => {
+        const txDate = tx?.date || ''
+        if (!txDate || txDate > resolvedAsOfDate) return
+        if (txDate <= latestAnchor.effective_date) return
+        effectiveCash += normalizeTransactionToFlow(tx)
+      })
+    }
+
+    effectiveBalances.set(accountId, effectiveCash)
+    breakdownByAccount.set(accountId, {
+      accountId,
+      autoCash: accountAutoCash,
+      effectiveCash,
+      hasManualAnchor: !!latestAnchor,
+      anchorBalance: latestAnchor ? Number(latestAnchor.balance || 0) : null,
+      anchorEffectiveDate: latestAnchor?.effective_date || null,
+      anchorNote: latestAnchor?.note || null,
+      driftFromAuto: effectiveCash - accountAutoCash,
+    })
+  })
+
+  const totalAutoCash = Array.from(autoBalances.values()).reduce((sum, value) => sum + value, 0)
+  const totalCash = Array.from(effectiveBalances.values()).reduce((sum, value) => sum + value, 0)
+
+  return {
+    balances: effectiveBalances,
+    totalCash,
+    autoBalances,
+    totalAutoCash,
+    latestAnchors,
+    breakdownByAccount,
+  }
+}
+
 /**
  * Compute per-account cash balances and total cash from a transaction list.
  * Returns an object with `balances` (Map<accountId, balance>) and `totalCash`.
@@ -195,35 +351,9 @@ export function normalizeTransactionToFlow(tx: { type?: string; amount?: any; fe
  * cash management logic so callers across the app remain consistent.
  */
 export function calculateCashBalances(transactions: any[]): { balances: Map<string, number>; totalCash: number } {
-  const cashBalances = new Map<string, number>();
-  (transactions || []).forEach((tx: any) => {
-    const acc = tx?.account_id || tx?.account?.id;
-    if (!acc) return;
-    const current = cashBalances.get(acc) || 0;
-    let delta = 0;
-    const amt = Number(tx.amount || 0);
-    const fee = Math.abs(Number(tx.fees || 0));
-    // Match portfolio page canonical logic:
-    // - Buys/Sells: `amount` is already the net cash delta (may include fees), so use as-is
-    // - Dividends/Interest/Deposits/Withdrawals: stored as gross, subtract fees
-    switch ((tx.type || '').toString()) {
-      case 'Buy':
-      case 'Sell':
-        delta = amt;
-        break;
-      case 'Dividend':
-      case 'Interest':
-      case 'Deposit':
-      case 'Withdrawal':
-        delta = amt - fee;
-        break;
-      default:
-        delta = amt - fee;
-    }
-    cashBalances.set(acc, current + delta);
-  });
-  const totalCash = Array.from(cashBalances.values()).reduce((s, v) => s + v, 0);
-  return { balances: cashBalances, totalCash };
+  const autoBalances = buildAutoCashBalances(transactions || [])
+  const totalCash = Array.from(autoBalances.values()).reduce((sum, value) => sum + value, 0)
+  return { balances: autoBalances, totalCash };
 }
 
 /**

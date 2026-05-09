@@ -19,7 +19,7 @@ import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { calculateIRR, calculateCashBalances, transactionFlowForIRR, netCashFlowsByDate, fetchAllUserTransactions } from '@/lib/finance';
+import { calculateIRR, calculateEffectiveCashBalances, transactionFlowForIRR, netCashFlowsByDate, fetchAllUserTransactions, type CashAnchor } from '@/lib/finance';
 import { calculatePortfolioAssetAction } from '@/lib/rebalancing-logic';
 import { DashboardPageShell } from '@/components/dashboard-shell';
 import PortfolioValueBridge from '@/components/charts/PortfolioValueBridge';
@@ -73,6 +73,7 @@ type AllocationSlice = {
 
 type PerformanceTotals = {
   market_value: number;
+  total_cash: number;
   net_gain: number;
   total_return_pct: number;
   irr_pct: number;
@@ -698,10 +699,13 @@ export default function DashboardHome() {
     const totalReturnPct = totalOriginalInvestment > 0 ? (net / totalOriginalInvestment) * 100 : 0;
 
     let totalIrrPct = 0;
-    const transactionsData = await fetchAllUserTransactions() as IrrTransaction[] | null;
+    const [transactionsData, anchorsResponse] = await Promise.all([
+      fetchAllUserTransactions() as Promise<IrrTransaction[] | null>,
+      supabase.from('account_cash_anchors').select('id, account_id, effective_date, balance, created_at, note'),
+    ]);
 
     if (transactionsData && transactionsData.length > 0) {
-      const { totalCash } = calculateCashBalances(transactionsData);
+      const { totalCash } = calculateEffectiveCashBalances(transactionsData, (anchorsResponse.data || []) as CashAnchor[]);
       const externalTypes = ['Deposit', 'Withdrawal', 'Dividend', 'Interest'];
       const txFlows: number[] = [];
       const txDates: Date[] = [];
@@ -730,6 +734,9 @@ export default function DashboardHome() {
     return {
       totals: {
         market_value: marketValue,
+        total_cash: transactionsData && transactionsData.length > 0
+          ? calculateEffectiveCashBalances(transactionsData, (anchorsResponse.data || []) as CashAnchor[]).totalCash
+          : 0,
         net_gain: net,
         total_return_pct: totalReturnPct,
         irr_pct: totalIrrPct,
@@ -1543,10 +1550,14 @@ export default function DashboardHome() {
             isOpen={sectionState.keyKpis}
             onOpenChange={(nextOpen) => setSectionState((prev) => ({ ...prev, keyKpis: nextOpen }))}
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <div className="dashboard-metric-tile">
-                <Label className="dashboard-metric-label">Portfolio Value</Label>
+                <Label className="dashboard-metric-label">Total Investment Value</Label>
                 <div className="dashboard-metric-value">{formatUSDWhole(performanceTotals?.market_value)}</div>
+              </div>
+              <div className="dashboard-metric-tile">
+                <Label className="dashboard-metric-label">Total Cash Value</Label>
+                <div className="dashboard-metric-value">{formatUSDWhole(performanceTotals?.total_cash)}</div>
               </div>
               <div className="dashboard-metric-tile">
                 <Label className="dashboard-metric-label">Net Gain/Loss</Label>

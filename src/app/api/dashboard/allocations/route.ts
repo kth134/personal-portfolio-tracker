@@ -46,30 +46,39 @@ export async function POST(req: Request) {
 
     processedLots.forEach((lot: any) => {
       let key = 'Other';
+      let groupId = key;
       if (lens === 'total') {
         key = 'Total Portfolio';
+        groupId = 'total';
       } else {
         switch (lens) {
           case 'sub_portfolio':
             const sp = subPortfolios?.find(p => p.id === lot.asset?.sub_portfolio_id);
             key = sp?.name || 'Unassigned';
+            groupId = lot.asset?.sub_portfolio_id || 'unassigned';
             break;
-          case 'account': key = lot.account?.name || 'Unknown'; break;
+          case 'account':
+            key = lot.account?.name || 'Unknown';
+            groupId = lot.account?.id || key;
+            break;
           case 'asset_type': key = lot.asset?.asset_type || 'Unknown'; break;
           case 'asset_subtype': key = lot.asset?.asset_subtype || 'Unknown'; break;
           case 'geography': key = lot.asset?.geography || 'Unknown'; break;
           case 'size_tag': key = lot.asset?.size_tag || 'Unknown'; break;
           case 'factor_tag': key = lot.asset?.factor_tag || 'Unknown'; break;
-          default: key = lot.asset?.ticker || 'Unknown';
+          default:
+            key = lot.asset?.ticker || 'Unknown';
+            groupId = lot.asset?.id || key;
         }
       }
 
-      if (lens !== 'total' && selectedValues?.length > 0 && !selectedValues.includes(key)) return;
+      const filterValue = lens === 'account' || lens === 'sub_portfolio' || lens === 'asset' ? groupId : key
+      if (lens !== 'total' && selectedValues?.length > 0 && !selectedValues.includes(filterValue)) return;
 
-      if (!groups.has(key)) {
-        groups.set(key, { value: 0, target_pct: 0, cost_basis: 0, items: [] });
+      if (!groups.has(groupId)) {
+        groups.set(groupId, { key, groupId, value: 0, target_pct: 0, cost_basis: 0, items: [] });
       }
-      const g = groups.get(key)!;
+      const g = groups.get(groupId)!;
       g.value += lot.value;
 
       const sp = subPortfolios?.find(p => p.id === lot.asset?.sub_portfolio_id);
@@ -98,8 +107,9 @@ export async function POST(req: Request) {
       }
     });
 
-    let allocations = Array.from(groups.entries()).map(([key, g]) => ({
-      key,
+    let allocations = Array.from(groups.values()).map((g) => ({
+      key: g.key,
+      groupId: g.groupId,
       value: g.value,
       cost_basis: g.cost_basis,
       percentage: totalPortfolioValue > 0 ? (g.value / totalPortfolioValue) * 100 : 0,

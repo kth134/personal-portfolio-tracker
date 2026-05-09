@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
 } from 'recharts'
@@ -12,6 +13,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Check, ChevronsUpDown, ArrowUpDown, RefreshCw } from 'lucide-react'
 import { formatUSD } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
@@ -110,11 +114,23 @@ const renderPiePercentageLabel = ({
 
 export default function PortfolioHoldingsWithSlicers({
   cash,
-  cashByAccountName,
+  cashByAccountId,
+  accountCashDetails,
 }: {
   cash: number
-  cashByAccountName: Map<string, number>
+  cashByAccountId: Record<string, number>
+  accountCashDetails: Record<string, {
+    accountId: string
+    accountName: string
+    autoCash: number
+    effectiveCash: number
+    hasManualAnchor: boolean
+    anchorId: string | null
+    anchorEffectiveDate: string | null
+    anchorNote: string | null
+  }>
 }) {
+  const router = useRouter()
   const [lens, setLens] = useState('total')
   const [availableValues, setAvailableValues] = useState<{value: string, label: string}[]>([])
   const [selectedValues, setSelectedValues] = useState<string[]>([])
@@ -126,6 +142,12 @@ export default function PortfolioHoldingsWithSlicers({
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [openItems, setOpenItems] = useState<string[]>([])
   const [itemSorts, setItemSorts] = useState<Record<string, { key: string; dir: 'asc' | 'desc' }>>({})
+  const [cashDialogAccountId, setCashDialogAccountId] = useState<string | null>(null)
+  const [cashFormDate, setCashFormDate] = useState(new Date().toISOString().slice(0, 10))
+  const [cashFormBalance, setCashFormBalance] = useState('')
+  const [cashFormNote, setCashFormNote] = useState('')
+  const [cashDialogError, setCashDialogError] = useState<string | null>(null)
+  const [cashSaving, setCashSaving] = useState(false)
 
   const handleRefreshPrices = async () => {
     setRefreshing(true)
@@ -243,15 +265,29 @@ export default function PortfolioHoldingsWithSlicers({
         const data = await res.json()
         const vals = data.values || []
         setAvailableValues(vals)
-        // `allocations` groups `account` and `sub_portfolio` by display name,
-        // while `values` returns ids for those lenses. Use labels to match.
         setSelectedValues(
-          vals.map((v: any) => (lens === 'account' || lens === 'sub_portfolio') ? (v.label ?? v.value) : v.value)
+            vals.map((v: any) => lens === 'sub_portfolio' ? (v.label ?? v.value) : v.value)
         )
       } catch (err) { console.error(err) }
     }
     fetchValues()
   }, [lens])
+
+    useEffect(() => {
+      if (!cashDialogAccountId) {
+        setCashFormDate(new Date().toISOString().slice(0, 10))
+        setCashFormBalance('')
+        setCashFormNote('')
+        setCashDialogError(null)
+        return
+      }
+
+      const account = accountCashDetails[cashDialogAccountId]
+      setCashFormDate(new Date().toISOString().slice(0, 10))
+      setCashFormBalance(String((account?.effectiveCash ?? 0).toFixed(2)))
+      setCashFormNote('')
+      setCashDialogError(null)
+    }, [cashDialogAccountId, accountCashDetails])
 
   useEffect(() => {
     const loadData = async () => {
@@ -274,6 +310,98 @@ export default function PortfolioHoldingsWithSlicers({
   const totalValueAcrossSelection = useMemo(() => {
     return allocations.reduce((sum, a) => sum + (Number(a.value) || 0), 0) + cash
   }, [allocations, cash])
+
+  const totalInvestmentValue = useMemo(() => {
+    return allocations.reduce((sum, allocation) => sum + (Number(allocation.value) || 0), 0)
+  }, [allocations])
+
+  const selectedCashAccount = cashDialogAccountId ? accountCashDetails[cashDialogAccountId] : null
+
+  const handleOpenCashDialog = (accountId: string) => {
+    setCashDialogAccountId(accountId)
+  }
+
+  const handleSaveCashBalance = async () => {
+    if (!cashDialogAccountId) return
+
+    const parsedBalance = Number(cashFormBalance)
+    if (!cashFormDate) {
+      setCashDialogError('Effective date is required.')
+      return
+    }
+
+    if (cashFormDate > new Date().toISOString().slice(0, 10)) {
+      setCashDialogError('Effective date cannot be in the future.')
+      return
+    }
+
+    if (!Number.isFinite(parsedBalance)) {
+      setCashDialogError('Enter a valid cash balance.')
+      return
+    }
+
+    if (!/^[-+]?\d+(\.\d{1,2})?$/.test(cashFormBalance.trim())) {
+      setCashDialogError('Cash balance can include at most 2 decimal places.')
+      return
+    }
+
+    setCashSaving(true)
+    setCashDialogError(null)
+    try {
+      const res = await fetch('/api/accounts/cash-anchors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: cashDialogAccountId,
+          effective_date: cashFormDate,
+          balance: parsedBalance,
+          note: cashFormNote.trim() || null,
+        }),
+      })
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({ error: 'Failed to save cash balance.' }))
+        throw new Error(payload.error || 'Failed to save cash balance.')
+      }
+
+      setCashDialogAccountId(null)
+      router.refresh()
+      setRefreshTrigger((value) => value + 1)
+    } catch (error) {
+      setCashDialogError(error instanceof Error ? error.message : 'Failed to save cash balance.')
+    } finally {
+      setCashSaving(false)
+    }
+  }
+
+  const handleRemoveLatestManualBalance = async () => {
+    if (!selectedCashAccount?.anchorId) return
+    const confirmed = window.confirm('Remove the latest manual cash balance for this account? Cash will revert to the previous manual balance or the automatic transaction-based calculation.')
+    if (!confirmed) return
+
+    setCashSaving(true)
+    setCashDialogError(null)
+    try {
+      const res = await fetch('/api/accounts/cash-anchors', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedCashAccount.anchorId }),
+      })
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({ error: 'Failed to remove manual cash balance.' }))
+        throw new Error(payload.error || 'Failed to remove manual cash balance.')
+      }
+
+      setCashDialogAccountId(null)
+      router.refresh()
+      setRefreshTrigger((value) => value + 1)
+    } catch (error) {
+      setCashDialogError(error instanceof Error ? error.message : 'Failed to remove manual cash balance.')
+    } finally {
+      setCashSaving(false)
+    }
+  }
 
   const normalizedPieSlices = useMemo(() => {
     const source = (Array.isArray(pieAllocations) && pieAllocations.length > 0) ? pieAllocations : allocations;
@@ -302,6 +430,17 @@ export default function PortfolioHoldingsWithSlicers({
         description="Slice holdings by portfolio dimension, refresh prices, and compare how value is distributed across the current portfolio."
         contentClassName="space-y-6"
       >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="dashboard-metric-tile min-w-0">
+          <Label className="dashboard-metric-label break-words">Total Investment Value</Label>
+          <p className="dashboard-metric-value break-words text-zinc-950">{formatUSDWhole(totalInvestmentValue)}</p>
+        </div>
+        <div className="dashboard-metric-tile min-w-0">
+          <Label className="dashboard-metric-label break-words">Total Cash Value</Label>
+          <p className="dashboard-metric-value break-words text-zinc-950">{formatUSDWhole(cash)}</p>
+        </div>
+      </div>
+
       <div className="dashboard-toolbar">
         <div className="flex-1 min-w-[200px]">
           <Label className="dashboard-metric-label mb-2 block">Slice by</Label>
@@ -359,26 +498,48 @@ export default function PortfolioHoldingsWithSlicers({
            .map(g => {
              let cashVal = 0
              if (lens === 'account') {
-               // `cashByAccountName` may be a Map on the server, but serialized
-               // props can arrive as plain objects in the client. Support both.
-               if (cashByAccountName instanceof Map) {
-                 cashVal = cashByAccountName.get(g.key) || 0
-               } else if (cashByAccountName && typeof cashByAccountName === 'object') {
-                 cashVal = (cashByAccountName as any)[g.key] || 0
-               }
+               cashVal = cashByAccountId[g.groupId] || 0
              }
-             return { ...g, totalGroupVal: Number(g.value) + cashVal };
+             return { ...g, totalGroupVal: Number(g.value) + cashVal, cashVal };
            })
            .sort((a,b) => b.totalGroupVal - a.totalGroupVal)
            .map((group) => {
           const groupWeight = totalValueAcrossSelection > 0 ? (group.totalGroupVal / totalValueAcrossSelection) * 100 : 0
+          const accountDetails = lens === 'account' ? accountCashDetails[group.groupId] : null
 
           return (
             <AccordionItem key={String(group.key)} value={String(group.key)} className="overflow-hidden rounded-[24px] border border-zinc-200/80 bg-white shadow-sm">
               <AccordionTrigger className="dashboard-contrast-header px-4 py-4">
                 <div className="mr-4 flex w-full items-center justify-between gap-3 text-left">
-                  <span className="flex items-center font-bold uppercase text-zinc-950">{group.key}</span>
+                  <div className="space-y-2">
+                    <span className="flex items-center font-bold uppercase text-zinc-950">{group.key}</span>
+                    {lens === 'account' ? (
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-700 sm:text-xs">
+                        <span>Investments {formatUSDWhole(group.value)}</span>
+                        <span className="opacity-50">|</span>
+                        <span>Cash {formatUSDWhole(group.cashVal)}</span>
+                        <span className="opacity-50">|</span>
+                        <span>Total {formatUSDWhole(group.totalGroupVal)}</span>
+                        <span className="opacity-50">|</span>
+                        <span>{accountDetails?.hasManualAnchor ? `Manual as of ${accountDetails.anchorEffectiveDate}` : 'Auto'}</span>
+                      </div>
+                    ) : null}
+                  </div>
                   <div className="flex items-center gap-3 text-xs font-bold leading-none text-zinc-950 sm:text-sm">
+                    {lens === 'account' && accountDetails ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 rounded-xl bg-white text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-900"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          handleOpenCashDialog(accountDetails.accountId)
+                        }}
+                      >
+                        {accountDetails.hasManualAnchor ? 'Update Cash Balance' : 'Set Cash Balance'}
+                      </Button>
+                    ) : null}
                     <span className="flex items-center">Value: {formatUSDWhole(group.totalGroupVal)}</span>
                     <span className="flex items-center opacity-60 text-zinc-700">|</span>
                     <span className="flex items-center">{formatPctTenth(groupWeight)}</span>
@@ -593,6 +754,77 @@ export default function PortfolioHoldingsWithSlicers({
         })}
       </Accordion>
       </DashboardSurface>
+
+      <Dialog open={!!cashDialogAccountId} onOpenChange={(open) => setCashDialogAccountId(open ? cashDialogAccountId : null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Account Cash Balance</DialogTitle>
+            <DialogDescription>
+              Create a manual end-of-day cash balance for this account. Future cash values will be recalculated from this balance plus later transactions.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedCashAccount ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                  <p className="dashboard-metric-label">Account</p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-950">{selectedCashAccount.accountName}</p>
+                </div>
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                  <p className="dashboard-metric-label">Current Manual Anchor</p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-950">{selectedCashAccount.hasManualAnchor ? `As of ${selectedCashAccount.anchorEffectiveDate}` : 'None'}</p>
+                </div>
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                  <p className="dashboard-metric-label">Current Auto Cash</p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-950">{formatUSD(selectedCashAccount.autoCash)}</p>
+                </div>
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                  <p className="dashboard-metric-label">Current Effective Cash</p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-950">{formatUSD(selectedCashAccount.effectiveCash)}</p>
+                </div>
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 sm:col-span-2">
+                  <p className="dashboard-metric-label">Difference</p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-950">{formatUSD(selectedCashAccount.effectiveCash - selectedCashAccount.autoCash)}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cash-effective-date">Effective Date</Label>
+                <Input id="cash-effective-date" type="date" value={cashFormDate} onChange={(event) => setCashFormDate(event.target.value)} max={new Date().toISOString().slice(0, 10)} />
+                <p className="text-xs text-zinc-500">This is an end-of-day balance. Transactions on this date are treated as already included.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cash-balance">Cash Balance</Label>
+                <Input id="cash-balance" inputMode="decimal" value={cashFormBalance} onChange={(event) => setCashFormBalance(event.target.value)} placeholder="0.00" />
+                <p className="text-xs text-zinc-500">Enter the account cash balance as of the effective date.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cash-note">Note</Label>
+                <Textarea id="cash-note" value={cashFormNote} onChange={(event) => setCashFormNote(event.target.value)} maxLength={500} placeholder="Optional note, such as statement balance or reconciliation reason" />
+              </div>
+
+              {cashDialogError ? <p className="text-sm text-red-600">{cashDialogError}</p> : null}
+            </div>
+          ) : null}
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <div>
+              {selectedCashAccount?.hasManualAnchor && selectedCashAccount.anchorId ? (
+                <Button type="button" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={handleRemoveLatestManualBalance} disabled={cashSaving}>
+                  Remove Latest Manual Balance
+                </Button>
+              ) : null}
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setCashDialogAccountId(null)} disabled={cashSaving}>Cancel</Button>
+              <Button type="button" onClick={handleSaveCashBalance} disabled={cashSaving}>{cashSaving ? 'Saving...' : 'Save Cash Balance'}</Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

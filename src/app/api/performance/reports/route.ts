@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { addDays, addMonths, endOfMonth, format, formatISO, isAfter, parseISO, startOfMonth, subMonths, subYears } from 'date-fns'
-import { calculateCashBalances, fetchAllUserTransactionsServer, transactionFlowForIRR, calculateIRR, netCashFlowsByDate } from '@/lib/finance'
+import { calculateEffectiveCashBalances, fetchAllUserTransactionsServer, transactionFlowForIRR, calculateIRR, netCashFlowsByDate, type CashAnchor } from '@/lib/finance'
 import { buildTotalsFromSeries } from '@/lib/performance-reports'
 
 export const dynamic = 'force-dynamic'
@@ -138,9 +138,13 @@ export async function POST(req: Request) {
       .from('accounts')
       .select('id, name')
       .eq('user_id', user.id)
+    const { data: anchors } = await supabase
+      .from('account_cash_anchors')
+      .select('id, account_id, effective_date, balance, created_at, note')
     logPhase('fetched-lookups', {
       subPortfolioCount: subPortfolios?.length || 0,
       accountCount: accounts?.length || 0,
+      cashAnchorCount: anchors?.length || 0,
     })
     
     const subPortfolioNames = new Map(subPortfolios?.map(sp => [sp.id, sp.name]) || [])
@@ -290,7 +294,8 @@ export async function POST(req: Request) {
           lastDateStr,
           d,
           start,
-          lens,
+            lens,
+            (anchors || []) as CashAnchor[]
         )
         series['aggregated'].push({ date: d, ...calc })
 
@@ -579,7 +584,8 @@ function calculateGroupMetrics(
   lastDateStr: string,
   d: string,
   rangeStartDate: string,
-  lens: string = 'total'
+  lens: string = 'total',
+  anchors: CashAnchor[] = []
 ): MetricsCalc {
   const groupOriginalInvestment = groupLots.reduce((sum, lot) => sum + (Number(lot.cost_basis_per_unit) * Number(lot.quantity)), 0)
 
@@ -591,6 +597,7 @@ function calculateGroupMetrics(
     currentPrices,
     lastDateStr,
     d,
+    anchors,
   )
   const startState = calculatePortfolioStateAtDate(
     groupStartStateTxs,
@@ -600,6 +607,7 @@ function calculateGroupMetrics(
     currentPrices,
     lastDateStr,
     rangeStartDate,
+    anchors,
   )
 
   // Match performance page semantics: realized/income/contributions come from transactions in selected period.
@@ -655,10 +663,11 @@ function calculatePortfolioStateAtDate(
   currentPrices: Record<string, number>,
   lastDateStr: string,
   asOfDate: string,
+  anchors: CashAnchor[] = [],
 ) {
   // For current-day snapshots, prefer tax_lots state directly (matches Performance tab semantics).
   if (stateLots && asOfDate === lastDateStr) {
-    const { totalCash } = calculateCashBalances(stateTxs)
+    const { totalCash } = calculateEffectiveCashBalances(stateTxs, anchors, asOfDate)
     let totalBasis = 0
     let marketValue = 0
 
@@ -686,7 +695,7 @@ function calculatePortfolioStateAtDate(
     }
   }
 
-  const { totalCash } = calculateCashBalances(stateTxs)
+  const { totalCash } = calculateEffectiveCashBalances(stateTxs, anchors, asOfDate)
 
   // Historical valuation should be transaction-driven for consistency across
   // all chart points (preset and custom ranges).

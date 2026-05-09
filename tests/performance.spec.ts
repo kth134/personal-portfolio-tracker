@@ -7,7 +7,9 @@ test('Performance: page structure loads', async ({ page }) => {
 
   await expect(page.getByRole('heading', { name: /performance/i })).toBeVisible();
   await expect(page.getByText(/portfolio performance summary/i)).toBeVisible();
+  await expect(page.getByText(/total investment value/i).first()).toBeVisible();
+  await expect(page.getByText(/total cash value/i).first()).toBeVisible();
   await expect(page.getByText(/net gain\/loss/i).first()).toBeVisible();
-  await expect(page.getByText(/total return %/i).first()).toBeVisible();
+  await expect(page.getByText(/total return/i).first()).toBeVisible();
   await expect(page.getByText(/annualized irr/i).first()).toBeVisible();
 });

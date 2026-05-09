@@ -8,6 +8,8 @@ test('Rebalancing: page structure loads', async ({ page }) => {
   await page.waitForLoadState('networkidle');
 
   await expect(page.getByText(/tactical execution dashboard/i)).toBeVisible();
+  await expect(page.getByText(/total investment value/i).first()).toBeVisible();
+  await expect(page.getByText(/total cash value/i).first()).toBeVisible();
   await expect(page.getByText(/sub-portfolio drift/i)).toBeVisible();
   await expect(page.getByText(/asset drift/i)).toBeVisible();
 });

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { calculateCashBalances, fetchAllUserTransactionsServer } from '@/lib/finance'
+import { calculateEffectiveCashBalances, fetchAllUserTransactionsServer, type CashAnchor } from '@/lib/finance'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(req: NextRequest) {
@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
       { data: assetTargets },
       { data: accounts },
       { data: detailedTaxLots },
-      transactions
+      transactions,
+      { data: anchors }
     ] = await Promise.all([
       supabase.from('sub_portfolios').select('*').eq('user_id', user.id).order('name'),
       supabase.from('asset_targets').select('*').eq('user_id', user.id),
@@ -23,11 +24,12 @@ export async function GET(req: NextRequest) {
         id, asset_id, remaining_quantity, cost_basis_per_unit, purchase_date, account_id,
         asset:assets (ticker, name, sub_portfolio_id, asset_type, asset_subtype, geography, size_tag, factor_tag)
       `).gt('remaining_quantity', 0).eq('user_id', user.id),
-      fetchAllUserTransactionsServer(supabase, user.id)
+      fetchAllUserTransactionsServer(supabase, user.id),
+      supabase.from('account_cash_anchors').select('id, account_id, effective_date, balance, created_at, note')
     ])
 
     // 2. Initial Setup
-    const { totalCash } = calculateCashBalances(transactions || [])
+    const { totalCash } = calculateEffectiveCashBalances(transactions || [], (anchors || []) as CashAnchor[])
     
     // Normalize asset data (Supabase joins can return arrays or objects)
     const normalizeAsset = (assetData: any) => Array.isArray(assetData) ? assetData[0] : assetData;

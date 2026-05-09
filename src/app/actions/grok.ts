@@ -3,7 +3,7 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { refreshAssetPrices } from '@/app/dashboard/portfolio/actions';
-import { calculateCashBalances, fetchAllUserTransactionsServer } from '@/lib/finance';
+import { calculateEffectiveCashBalances, fetchAllUserTransactionsServer, type CashAnchor } from '@/lib/finance';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -236,6 +236,10 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
 
   // Fetch transactions (full history using server-side pagination for comprehensive cash calculations)
   const transactions = await fetchAllUserTransactionsServer(supabase, userId);
+  const { data: anchors, error: anchorsError } = await supabase
+    .from('account_cash_anchors')
+    .select('id, account_id, effective_date, balance, created_at, note')
+  if (anchorsError) throw anchorsError;
 
   // Fetch glide_path (full)
   let glidePath: GlidePathItem[] = [];
@@ -382,7 +386,7 @@ export async function getPortfolioSummary(isSandbox: boolean, sandboxChanges?: a
     .map(tx => ({ type: tx.type, date: tx.date }));
 
   // Compute cash balances using centralized helper
-  const { balances: cashBalances, totalCash } = calculateCashBalances(transactions);
+  const { balances: cashBalances, totalCash } = calculateEffectiveCashBalances(transactions, (anchors || []) as CashAnchor[]);
 
   // Compute balances for accounts and currentValues for assets
   const accountBalances = new Map<string, number>();

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { endOfMonth, startOfMonth, addMonths, parseISO, isAfter, format, formatISO } from 'date-fns'
-import { calculateCashBalances, fetchAllUserTransactionsServer } from '@/lib/finance'
+import { calculateEffectiveCashBalances, fetchAllUserTransactionsServer, type CashAnchor } from '@/lib/finance'
 
 type AssetMeta = {
   id?: string
@@ -71,6 +71,9 @@ export async function POST(req: Request) {
 
     // Fetch all transactions using centralized pagination
     const allTx = (await fetchAllUserTransactionsServer(supabase, user.id)) as TransactionEntry[]
+    const { data: anchors } = await supabase
+      .from('account_cash_anchors')
+      .select('id, account_id, effective_date, balance, created_at, note')
 
     const lotsQuery = supabase.from('tax_lots').select(`
       asset_id, account_id, purchase_date, remaining_quantity, cost_basis_per_unit, quantity,
@@ -177,7 +180,7 @@ export async function POST(req: Request) {
         if (!series[groupKey]) series[groupKey] = []
 
         // Cash balances using centralized helper
-        const { totalCash: groupCash } = calculateCashBalances(groupTxs)
+        const { totalCash: groupCash } = calculateEffectiveCashBalances(groupTxs, (anchors || []) as CashAnchor[], d)
 
         // Total original investment (sum cost from all lots <= d)
         const groupOriginalInvestment = groupLots.reduce((sum, lot) => 

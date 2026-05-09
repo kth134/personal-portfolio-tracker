@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { calculateCashBalances, fetchAllUserTransactionsServer } from '@/lib/finance'
+import { calculateEffectiveCashBalances, fetchAllUserTransactionsServer, type CashAnchor } from '@/lib/finance'
 import { redirect } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import PortfolioHoldingsWithSlicers from './PortfolioHoldingsWithSlicers'
@@ -22,6 +22,17 @@ type TaxLot = {
   }
 }
 
+type AccountCashDetails = {
+  accountId: string
+  accountName: string
+  autoCash: number
+  effectiveCash: number
+  hasManualAnchor: boolean
+  anchorId: string | null
+  anchorEffectiveDate: string | null
+  anchorNote: string | null
+}
+
 export default async function PortfolioPage({
   searchParams,
 }: {
@@ -34,7 +45,7 @@ export default async function PortfolioPage({
   const resolvedSearchParams = await Promise.resolve(searchParams)
 
   // Fetch data
-  const [lotsRes, accountsRes, transactionsRes] = await Promise.all([
+  const [lotsRes, accountsRes, transactionsRes, anchorsRes] = await Promise.all([
     supabase
       .from('tax_lots')
       .select(`
@@ -54,23 +65,40 @@ export default async function PortfolioPage({
       .eq('user_id', user.id),
     supabase.from('accounts').select('*').eq('user_id', user.id),
     // Fetch all transactions using server-side pagination for comprehensive cash calculations
-    fetchAllUserTransactionsServer(supabase, user.id)
+    fetchAllUserTransactionsServer(supabase, user.id),
+    supabase
+      .from('account_cash_anchors')
+      .select('id, account_id, effective_date, balance, created_at, note')
   ])
 
   const lots = lotsRes.data as TaxLot[] | null
   const initialAccounts = accountsRes.data || []
   const transactions = transactionsRes
+  const anchors = (anchorsRes.data || []) as CashAnchor[]
   const tabParam = Array.isArray(resolvedSearchParams?.tab) ? resolvedSearchParams.tab[0] : resolvedSearchParams?.tab
   const initialTab = tabParam === 'rebalancing' ? 'rebalancing' : 'holdings'
 
-  // Compute cash balances using centralized helper to ensure canonical behavior
-  const { balances: cashBalances, totalCash } = calculateCashBalances(transactions || [])
+  const effectiveCash = calculateEffectiveCashBalances(transactions || [], anchors)
+  const { balances: cashBalances, autoBalances, totalCash, latestAnchors, breakdownByAccount } = effectiveCash
 
-  // Map cash by account name for account-specific display
-  const cashByAccountName = new Map<string, number>()
+  const cashByAccountId: Record<string, number> = {}
+  const accountCashDetails: Record<string, AccountCashDetails> = {}
   initialAccounts.forEach(account => {
     const balance = cashBalances.get(account.id) || 0
-    cashByAccountName.set(account.name.trim(), balance)
+    const breakdown = breakdownByAccount.get(account.id)
+    const latestAnchor = latestAnchors.get(account.id)
+
+    cashByAccountId[account.id] = balance
+    accountCashDetails[account.id] = {
+      accountId: account.id,
+      accountName: account.name.trim(),
+      autoCash: breakdown?.autoCash ?? (autoBalances.get(account.id) || 0),
+      effectiveCash: breakdown?.effectiveCash ?? balance,
+      hasManualAnchor: breakdown?.hasManualAnchor ?? false,
+      anchorId: latestAnchor?.id || null,
+      anchorEffectiveDate: latestAnchor?.effective_date || null,
+      anchorNote: latestAnchor?.note || null,
+    }
   })
 
   return (
@@ -90,7 +118,8 @@ export default async function PortfolioPage({
           {lots?.length ? (
             <PortfolioHoldingsWithSlicers
               cash={totalCash}
-              cashByAccountName={cashByAccountName}
+              cashByAccountId={cashByAccountId}
+              accountCashDetails={accountCashDetails}
             />
           ) : (
             <div className="rounded-[26px] border border-zinc-200/80 bg-white px-6 py-12 text-center text-muted-foreground shadow-sm">
