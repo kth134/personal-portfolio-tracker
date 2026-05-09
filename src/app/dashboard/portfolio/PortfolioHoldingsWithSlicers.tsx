@@ -540,7 +540,7 @@ export default function PortfolioHoldingsWithSlicers({
                         <span className="opacity-50">|</span>
                         <span>Total {formatUSDWhole(group.totalGroupVal)}</span>
                         <span className="opacity-50">|</span>
-                        <span>{manualCashLabel ?? 'Auto'}</span>
+                        <span>{manualCashLabel ?? 'Auto cash tracking'}</span>
                       </div>
                     ) : null}
                   </div>
