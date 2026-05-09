@@ -661,15 +661,9 @@ export default function PortfolioHoldingsWithSlicers({
                                 <p className={cn('mt-1 text-sm text-zinc-700 tabular-nums', lens !== 'account' && 'text-center')}>{formatUSDWhole(itemCurrentPrice)}</p>
                               </div>
                               {lens === 'account' ? (
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-3">
-                                    <p className="dashboard-metric-label">Cost Basis</p>
-                                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSDWhole(itemRemainingCostBasis)}</p>
-                                  </div>
-                                  <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-3">
-                                    <p className="dashboard-metric-label">Weight</p>
-                                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatPctTenth(itemWeight)}</p>
-                                  </div>
+                                <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-3">
+                                  <p className="dashboard-metric-label">Cost Basis</p>
+                                  <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSDWhole(itemRemainingCostBasis)}</p>
                                 </div>
                               ) : null}
                             </div>
