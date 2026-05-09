@@ -219,6 +219,7 @@ export type EffectiveCashBalancesResult = {
 type CashTransactionLike = {
   id?: string
   date?: string
+  created_at?: string | null
   account_id?: string | null
   account?: { id?: string | null } | null
   type?: string
@@ -250,6 +251,25 @@ function getLatestAnchorForDate(anchors: CashAnchor[], asOfDate: string): CashAn
   return anchors
     .filter((anchor) => (anchor?.effective_date || '') <= asOfDate)
     .sort(compareAnchorsDescending)[0] || null
+}
+
+function shouldIncludeTransactionAfterAnchor(tx: CashTransactionLike, anchor: CashAnchor, asOfDate: string): boolean {
+  const txDate = tx?.date || ''
+  if (!txDate || txDate > asOfDate) return false
+  if (txDate > anchor.effective_date) return true
+  if (txDate < anchor.effective_date) return false
+
+  const txCreatedAt = tx?.created_at || ''
+  const anchorCreatedAt = anchor?.created_at || ''
+
+  // If we have insert timestamps, same-day transactions created after the
+  // anchor should increment cash from the anchor baseline.
+  if (txCreatedAt && anchorCreatedAt) {
+    return txCreatedAt > anchorCreatedAt
+  }
+
+  // Fall back to the legacy end-of-day interpretation when created_at is unavailable.
+  return false
 }
 
 function buildAutoCashBalances(transactions: CashTransactionLike[], asOfDate?: string): Map<string, number> {
@@ -310,9 +330,7 @@ export function calculateEffectiveCashBalances(
       effectiveCash = Number(latestAnchor.balance || 0)
 
       accountTransactions.forEach((tx) => {
-        const txDate = tx?.date || ''
-        if (!txDate || txDate > resolvedAsOfDate) return
-        if (txDate <= latestAnchor.effective_date) return
+        if (!shouldIncludeTransactionAfterAnchor(tx, latestAnchor, resolvedAsOfDate)) return
         effectiveCash += normalizeTransactionToFlow(tx)
       })
     }
@@ -392,6 +410,7 @@ export async function fetchAllUserTransactionsServer(supabase: any, userId: stri
       .select(`
         id,
         date,
+        created_at,
         type,
         amount,
         quantity,

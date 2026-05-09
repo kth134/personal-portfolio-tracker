@@ -21,6 +21,7 @@ export async function GET(req: Request) {
         .select(`
           id,
           date,
+          created_at,
           type,
           quantity,
           price_per_unit,
@@ -58,6 +59,7 @@ export async function GET(req: Request) {
         .select(`
           id,
           date,
+          created_at,
           type,
           quantity,
           price_per_unit,
