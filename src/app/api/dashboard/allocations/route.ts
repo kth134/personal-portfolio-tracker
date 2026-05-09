@@ -130,6 +130,7 @@ export async function POST(req: Request) {
        const combinedBasis = allocations.reduce((s, a) => s + (a.cost_basis || 0), 0);
        allocations = [{
          key: 'Aggregated Selection',
+         groupId: 'aggregated-selection',
          value: combinedValue,
          cost_basis: combinedBasis,
          percentage: 100,
