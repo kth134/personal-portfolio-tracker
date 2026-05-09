@@ -510,7 +510,7 @@ export default function PortfolioHoldingsWithSlicers({
           return (
             <AccordionItem key={String(group.key)} value={String(group.key)} className="overflow-hidden rounded-[24px] border border-zinc-200/80 bg-white shadow-sm">
               <AccordionTrigger className="dashboard-contrast-header px-4 py-4">
-                <div className="mr-4 flex w-full items-center justify-between gap-3 text-left">
+                <div className="mr-4 hidden w-full items-center justify-between gap-3 text-left sm:flex">
                   <div className="space-y-2">
                     <span className="flex items-center font-bold uppercase text-zinc-950">{group.key}</span>
                     {lens === 'account' ? (
@@ -544,6 +544,54 @@ export default function PortfolioHoldingsWithSlicers({
                     <span className="flex items-center opacity-60 text-zinc-700">|</span>
                     <span className="flex items-center">{formatPctTenth(groupWeight)}</span>
                   </div>
+                </div>
+
+                <div className="mr-4 flex w-full flex-col gap-3 text-left sm:hidden">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="block truncate font-bold uppercase text-zinc-950">{group.key}</span>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-700">
+                        {accountDetails?.hasManualAnchor ? `Manual as of ${accountDetails.anchorEffectiveDate}` : 'Auto cash tracking'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-base font-bold leading-tight text-zinc-950">{formatUSDWhole(group.totalGroupVal)}</p>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-700">{formatPctTenth(groupWeight)}</p>
+                    </div>
+                  </div>
+
+                  {lens === 'account' ? (
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="grid grid-cols-3 gap-2 rounded-2xl border border-zinc-200/80 bg-white/80 p-3">
+                        <div>
+                          <p className="dashboard-metric-label">Investments</p>
+                          <p className="mt-1 text-sm font-semibold tabular-nums text-zinc-950">{formatUSDWhole(group.value)}</p>
+                        </div>
+                        <div>
+                          <p className="dashboard-metric-label">Cash</p>
+                          <p className="mt-1 text-sm font-semibold tabular-nums text-zinc-950">{formatUSDWhole(group.cashVal)}</p>
+                        </div>
+                        <div>
+                          <p className="dashboard-metric-label">Total</p>
+                          <p className="mt-1 text-sm font-semibold tabular-nums text-zinc-950">{formatUSDWhole(group.totalGroupVal)}</p>
+                        </div>
+                      </div>
+                      {accountDetails ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-10 w-full rounded-2xl bg-white text-xs font-semibold uppercase tracking-[0.12em] text-zinc-900"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            handleOpenCashDialog(accountDetails.accountId)
+                          }}
+                        >
+                          {accountDetails.hasManualAnchor ? 'Update Cash Balance' : 'Set Cash Balance'}
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </AccordionTrigger>
               <AccordionContent className="border-t border-zinc-200/70 bg-white p-0">
@@ -603,15 +651,27 @@ export default function PortfolioHoldingsWithSlicers({
                               <p className="min-w-0 break-words text-xs italic leading-tight text-zinc-500 [overflow-wrap:anywhere]">{item.name}</p>
                               <p className="min-w-0 break-words text-right text-xs italic leading-tight tabular-nums text-zinc-500 [overflow-wrap:anywhere]">{formatPctTenth(itemWeight)}</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="text-center">
-                                <p className="dashboard-metric-label text-center">Quantity</p>
-                                <p className="mt-1 text-center text-sm text-zinc-700 tabular-nums">{itemQuantity.toLocaleString(undefined, { maximumFractionDigits: 6 })}</p>
+                            <div className={cn('grid gap-3', lens === 'account' ? 'grid-cols-1' : 'grid-cols-2')}>
+                              <div className={cn('rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-3', lens !== 'account' && 'text-center')}>
+                                <p className={cn('dashboard-metric-label', lens !== 'account' && 'text-center')}>Quantity</p>
+                                <p className={cn('mt-1 text-sm text-zinc-700 tabular-nums', lens !== 'account' && 'text-center')}>{itemQuantity.toLocaleString(undefined, { maximumFractionDigits: 6 })}</p>
                               </div>
-                              <div className="text-center">
-                                <p className="dashboard-metric-label text-center">Current Price</p>
-                                <p className="mt-1 text-center text-sm text-zinc-700 tabular-nums">{formatUSDWhole(itemCurrentPrice)}</p>
+                              <div className={cn('rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-3', lens !== 'account' && 'text-center')}>
+                                <p className={cn('dashboard-metric-label', lens !== 'account' && 'text-center')}>Current Price</p>
+                                <p className={cn('mt-1 text-sm text-zinc-700 tabular-nums', lens !== 'account' && 'text-center')}>{formatUSDWhole(itemCurrentPrice)}</p>
                               </div>
+                              {lens === 'account' ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-3">
+                                    <p className="dashboard-metric-label">Cost Basis</p>
+                                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatUSDWhole(itemRemainingCostBasis)}</p>
+                                  </div>
+                                  <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-3">
+                                    <p className="dashboard-metric-label">Weight</p>
+                                    <p className="mt-1 text-sm text-zinc-700 tabular-nums">{formatPctTenth(itemWeight)}</p>
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         )
