@@ -57,6 +57,24 @@ const formatUSDWhole = (value: number | null | undefined) => {
 
 const formatPctTenth = (value: number | null | undefined) => `${(Number(value) || 0).toFixed(1)}%`
 
+const formatCashAnchorDate = (value: string | null | undefined) => {
+  if (!value) return ''
+
+  const [year, month, day] = value.split('-')
+  if (year && month && day) {
+    return `${month}/${day}/${year}`
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  }).format(parsed)
+}
+
 const RADIAN = Math.PI / 180
 
 type PiePercentageLabelProps = {
@@ -265,9 +283,7 @@ export default function PortfolioHoldingsWithSlicers({
         const data = await res.json()
         const vals = data.values || []
         setAvailableValues(vals)
-        setSelectedValues(
-            vals.map((v: any) => lens === 'sub_portfolio' ? (v.label ?? v.value) : v.value)
-        )
+        setSelectedValues(vals.map((v: any) => v.value))
       } catch (err) { console.error(err) }
     }
     fetchValues()
@@ -506,6 +522,9 @@ export default function PortfolioHoldingsWithSlicers({
            .map((group) => {
           const groupWeight = totalValueAcrossSelection > 0 ? (group.totalGroupVal / totalValueAcrossSelection) * 100 : 0
           const accountDetails = lens === 'account' ? accountCashDetails[group.groupId] : null
+          const manualCashLabel = accountDetails?.hasManualAnchor
+            ? `Cash Set Manually on ${formatCashAnchorDate(accountDetails.anchorEffectiveDate)}`
+            : null
 
           return (
             <AccordionItem key={String(group.key)} value={String(group.key)} className="overflow-hidden rounded-[24px] border border-zinc-200/80 bg-white shadow-sm">
@@ -521,7 +540,7 @@ export default function PortfolioHoldingsWithSlicers({
                         <span className="opacity-50">|</span>
                         <span>Total {formatUSDWhole(group.totalGroupVal)}</span>
                         <span className="opacity-50">|</span>
-                        <span>{accountDetails?.hasManualAnchor ? `Manual as of ${accountDetails.anchorEffectiveDate}` : 'Auto'}</span>
+                        <span>{manualCashLabel ?? 'Auto'}</span>
                       </div>
                     ) : null}
                   </div>
@@ -550,9 +569,11 @@ export default function PortfolioHoldingsWithSlicers({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <span className="block truncate font-bold uppercase text-zinc-950">{group.key}</span>
-                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-700">
-                        {accountDetails?.hasManualAnchor ? `Manual as of ${accountDetails.anchorEffectiveDate}` : 'Auto cash tracking'}
-                      </p>
+                      {lens === 'account' ? (
+                        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-700">
+                          {manualCashLabel ?? 'Auto cash tracking'}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="text-right">
                       <p className="text-base font-bold leading-tight text-zinc-950">{formatUSDWhole(group.totalGroupVal)}</p>
