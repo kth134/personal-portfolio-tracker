@@ -1,5 +1,5 @@
 import { parseISO, differenceInDays } from 'date-fns';
-import { calculateIRR, transactionFlowForIRR, netCashFlowsByDate } from './finance';
+import { calculateIRR, transactionFlowForIRR, netCashFlowsByDate } from './finance.ts';
 
 export interface GroupedAllocation {
   key: string;
@@ -26,11 +26,14 @@ export async function computePerformanceForGroup(
 ): Promise<any> {
   const start = parseISO(startDate);
   const end = parseISO(endDate);
-  const years = (differenceInDays(end, start) + 1) / 365.25;
+  const years = differenceInDays(end, start) / 365.25;
 
   // 1. Filter and Normalize Cash Flows
-  // External flows (Money Entering/Leaving the system)
-  const externalTypes = ['Deposit', 'Withdrawal', 'Dividend', 'Interest'];
+  // External flows (Money Entering/Leaving the system). Dividends and
+  // Interest are INTERNAL returns — they already flow into the terminal
+  // cashBalance (see calculateEffectiveCashBalances), so listing them here
+  // would double-count them in IRR.
+  const externalTypes = ['Deposit', 'Withdrawal'];
   
   const flows: number[] = [];
   const dates: Date[] = [];
