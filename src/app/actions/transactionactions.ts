@@ -116,6 +116,51 @@ export async function serverProcessSellFifo(input: SellInput, _userId: string) {
   }
 }
 
+type UpdateInput = {
+  account_id: string
+  asset_id: string | null
+  date: string
+  type: 'Buy' | 'Sell' | 'Dividend' | 'Deposit' | 'Withdrawal' | 'Interest'
+  quantity: number | null
+  price_per_unit: number | null
+  amount: number
+  fees: number
+  notes: string | null
+  funding_source: 'cash' | 'external' | null
+}
+
+// Update: atomic edit. For Buy edits, also mirrors the change onto the
+// linked tax_lot (account/asset/date/quantity/basis) and recomputes FIFO
+// on both old and new (account, asset) pairs. Type changes are rejected
+// by the RPC.
+export async function serverUpdateTransaction(
+  transactionId: string,
+  input: UpdateInput,
+  _userId: string,
+) {
+  const supabase = await createClient()
+
+  const { error } = await supabase.rpc('update_transaction', {
+    p_tx_id: transactionId,
+    p_account_id: input.account_id,
+    p_asset_id: input.asset_id,
+    p_date: input.date,
+    p_type: input.type,
+    p_quantity: input.quantity,
+    p_price_per_unit: input.price_per_unit,
+    p_amount: input.amount,
+    p_fees: input.fees,
+    p_notes: input.notes,
+    p_funding_source: input.funding_source,
+  })
+
+  if (error) throw new Error(error.message)
+
+  const row = await fetchTransactionRow(supabase, transactionId)
+
+  return { success: true, transaction_id: transactionId, row }
+}
+
 // Delete: cascades to the matching tax_lot (for Buys) and re-derives FIFO
 // across remaining sells for (account, asset). Replaces the previous client-
 // side `delete()` + warning-alert approach.

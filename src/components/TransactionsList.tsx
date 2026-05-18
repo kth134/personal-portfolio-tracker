@@ -19,7 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatUSD } from '@/lib/formatters'
 import Papa from 'papaparse'
-import { serverCreateBuyWithLot, serverProcessSellFifo, serverBulkImportTransactions, serverDeleteTransaction } from '@/app/actions/transactionactions'
+import { serverCreateBuyWithLot, serverProcessSellFifo, serverBulkImportTransactions, serverDeleteTransaction, serverUpdateTransaction } from '@/app/actions/transactionactions'
 import { DashboardSurface } from '@/components/dashboard-shell'
 
 const formatUSDWhole = (value: number | null | undefined) => {
@@ -136,9 +136,13 @@ export default function TransactionsList({ initialTransactions, total, currentPa
   const [helpOpen, setHelpOpen] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
 
-  const isBuyOrSellEdit = !!editingTx && (editingTx.type === 'Buy' || editingTx.type === 'Sell')
-  const disableSelects = !!editingTx
-  const disableCriticalFields = isBuyOrSellEdit
+  // Type changes aren't supported on edit (the RPC rejects them — different
+  // types have different lot semantics). All other fields are editable;
+  // serverUpdateTransaction propagates Buy edits to the linked tax_lot and
+  // recomputes FIFO across the affected (account, asset) pairs.
+  const disableSelects = false
+  const disableTypeOnEdit = !!editingTx
+  const disableCriticalFields = false
 
   // Load help-seen flag
   useEffect(() => {
@@ -550,19 +554,25 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
       let updatedTx: Transaction
 
       if (editingTx) {
-        // Edit: only simple fields (no lot changes)
-        const { data, error } = await supabase
-          .from('transactions')
-          .update(txData)
-          .eq('id', editingTx.id)
-          .select(`
-            *,
-            account:accounts (name, type),
-            asset:assets (ticker, name)
-          `)
-          .single()
-        if (error) throw error
-        updatedTx = data
+        // Edit via RPC: keeps the linked tax_lot and downstream realized
+        // gains consistent. Type changes are rejected by the RPC.
+        const { row } = await serverUpdateTransaction(
+          editingTx.id,
+          {
+            account_id: selectedAccount.id,
+            asset_id: selectedAsset?.id ?? null,
+            date: txData.date,
+            type,
+            quantity: qty,
+            price_per_unit: prc,
+            amount: amt,
+            fees: fs,
+            notes: notes || null,
+            funding_source: type === 'Buy' ? fundingSource : null,
+          },
+          user.id,
+        )
+        updatedTx = row as Transaction
       } else {
         // New transaction. For Buy/Sell, the server action owns the INSERT
         // (it runs an atomic RPC that also writes the tax lot / FIFO) and
@@ -892,17 +902,16 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
                 <DialogTitle>{editingTx ? 'Edit' : 'Add'} Transaction</DialogTitle>
               </DialogHeader>
 
-              {isBuyOrSellEdit && (
-                <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-900 p-4 mb-6 rounded">
-                  <p className="font-medium">Important</p>
-                  <p className="text-sm">Editing quantity, price, fees, date, account, asset, or type on Buy/Sell transactions is disabled to preserve tax lot accuracy. Delete and re-add if needed.</p>
+              {editingTx && (
+                <div className="bg-blue-50 border-l-4 border-blue-500 text-blue-900 p-4 mb-6 rounded">
+                  <p className="text-sm">Editing a Buy or Sell will update the linked tax lot and recompute realized gain across affected positions automatically. Type changes are not supported — delete and re-create instead.</p>
                 </div>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
                   <Label>Type <span className="text-red-500">*</span></Label>
-                  <Select value={type} onValueChange={(v) => setType(v as typeof type)} disabled={disableSelects}>
+                  <Select value={type} onValueChange={(v) => setType(v as typeof type)} disabled={disableTypeOnEdit}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
