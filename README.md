@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RAINvest
 
-## Getting Started
+Personal investment portfolio tracker. Tracks holdings, cost basis (FIFO tax lots), realized and unrealized P&L, IRR/TWR performance, drift-based rebalancing across sub-portfolios, and a glide-path-aware Grok chat for what-if analysis.
 
-First, run the development server:
+Live at [rainvest.xyz](https://rainvest.xyz).
+
+## Stack
+
+- **App:** Next.js 16 (App Router), React 19, TypeScript (strict), Tailwind 4, shadcn/ui
+- **Data:** Supabase (Postgres + Auth + RLS), Vercel KV / Upstash Redis _(planned)_
+- **Charts:** Recharts
+- **Chat:** xAI Grok with web-search tool via Serper
+- **Price feeds:** Finnhub (primary stocks) → Alpha Vantage (mutual-fund fallback), CoinGecko (crypto), Polygon _(unused — slated for consolidation)_
+- **Tests:** Playwright
+- **Deploy:** Vercel
+
+## Local development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.local.example .env.local  # populate from your Supabase/Vercel envs
+npm run dev                       # http://localhost:3000
+npm run lint
+npx playwright test               # full regression
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Required env vars
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Set in `.env.local` for dev and in Vercel for deploys:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client-side anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only; for cron + privileged writes |
+| `GROK_API_KEY` | xAI Grok API key |
+| `GROK_MODEL` | Defaults to `grok-4.20-0309-reasoning`; also pinned in `vercel.json` |
+| `FINNHUB_API_KEY` | Primary stock price feed |
+| `ALPHA_VANTAGE_API_KEY` | Mutual-fund / fallback feed |
+| `SERPER_API_KEY` | Grok web-search tool |
+| `RAINVEST_EMAIL` / `RAINVEST_PASSWORD` | Test account for the Playwright suite |
+| `CRON_SECRET` _(planned)_ | Lets the daily price-fetch cron bypass `proxy.ts` auth |
 
-## Learn More
+## Architecture notes
 
-To learn more about Next.js, take a look at the following resources:
+- `src/proxy.ts` is the auth gate on `/api/*` (Next 16 renamed `middleware.ts` → `proxy.ts`).
+- Server Supabase client lives in `src/lib/supabase/server.ts`; browser client in `src/lib/supabase/client.ts`.
+- Multi-step financial mutations (Buy + tax_lot, Sell + FIFO depletion + realized_gain) live in `src/app/actions/transactionactions.ts`. **Planned move to Postgres RPCs for atomicity** — see the audit report.
+- Cash balances are computed in `src/lib/finance.ts:calculateEffectiveCashBalances`, which combines transaction flows with `account_cash_anchors` (manual end-of-day balances).
+- Grok integration in `src/app/actions/grok.ts` does a server-only deep-analysis pass on tax-lot data before sending only aggregated, rounded data to xAI.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for the canonical runbook (pre-build checks → Playwright → deploy → post-deploy regression).
 
-## Deploy on Vercel
+## Audit & roadmap
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+A full code/security/accuracy audit is captured in [`../RAINvest-audit-report.md`](../RAINvest-audit-report.md) (workspace root, not committed). Open issues are tracked in the project's backlog spreadsheet.
