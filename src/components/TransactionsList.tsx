@@ -564,24 +564,11 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         if (error) throw error
         updatedTx = data
       } else {
-        // New transaction: insert first
-        const { data: newTx, error: txErr } = await supabase
-          .from('transactions')
-          .insert(txData)
-          .select(`
-            *,
-            account:accounts (name, type),
-            asset:assets (ticker, name)
-          `)
-          .single()
-        if (txErr) throw txErr
-        updatedTx = newTx!
-
-        // Then handle tax-sensitive logic on server
+        // New transaction. For Buy/Sell, the server action owns the INSERT
+        // (it runs an atomic RPC that also writes the tax lot / FIFO). For
+        // other types, do a direct client INSERT — they have no lot logic.
         if (type === 'Buy' && qty && prc && selectedAsset) {
-          const { data: { user } } = await supabase.auth.getUser()
-          if (!user) throw new Error('Not authenticated')
-          await serverCreateBuyWithLot(
+          const { transaction_id } = await serverCreateBuyWithLot(
             {
               account_id: selectedAccount.id,
               asset_id: selectedAsset.id,
@@ -593,12 +580,21 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
               notes: notes || null,
               funding_source: fundingSource,
             },
-            user.id
+            user.id,
           )
+          const { data: refetched, error: refErr } = await supabase
+            .from('transactions')
+            .select(`
+              *,
+              account:accounts (name, type),
+              asset:assets (ticker, name)
+            `)
+            .eq('id', transaction_id)
+            .single()
+          if (refErr) throw refErr
+          updatedTx = refetched!
         } else if (type === 'Sell' && qty && prc && selectedAsset) {
-          const { data: { user } } = await supabase.auth.getUser()
-          if (!user) throw new Error('Not authenticated')
-          await serverProcessSellFifo(
+          const { transaction_id } = await serverProcessSellFifo(
             {
               account_id: selectedAccount.id,
               asset_id: selectedAsset.id,
@@ -607,10 +603,32 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
               price_per_unit: prc,
               fees: fs,
               notes: notes || null,
-              transaction_id: updatedTx.id,
             },
-            user.id
+            user.id,
           )
+          const { data: refetched, error: refErr } = await supabase
+            .from('transactions')
+            .select(`
+              *,
+              account:accounts (name, type),
+              asset:assets (ticker, name)
+            `)
+            .eq('id', transaction_id)
+            .single()
+          if (refErr) throw refErr
+          updatedTx = refetched!
+        } else {
+          const { data: newTx, error: txErr } = await supabase
+            .from('transactions')
+            .insert(txData)
+            .select(`
+              *,
+              account:accounts (name, type),
+              asset:assets (ticker, name)
+            `)
+            .single()
+          if (txErr) throw txErr
+          updatedTx = newTx!
         }
       }
 
