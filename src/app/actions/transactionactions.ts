@@ -38,6 +38,24 @@ type ValidatedRow = {
   funding_source?: 'cash' | 'external'
 }
 
+// Shared SELECT used by Buy/Sell post-RPC fetch so the client doesn't have
+// to make a separate round trip (which was the source of intermittent
+// "error popup but data saved" reports — the network/PostgREST refetch
+// occasionally failed while the RPC itself had already committed).
+async function fetchTransactionRow(supabase: Awaited<ReturnType<typeof createClient>>, txId: string) {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(`
+      *,
+      account:accounts (name, type),
+      asset:assets (ticker, name)
+    `)
+    .eq('id', txId)
+    .single()
+  if (error) throw new Error(`Saved successfully, but failed to fetch new row: ${error.message}`)
+  return data
+}
+
 // Buy: delegates the Deposit + Buy + tax_lot inserts to a single Postgres
 // transaction (RPC create_buy_with_lot), and triggers a FIFO recompute so any
 // prior back-dated sells reconcile against the new lot.
@@ -58,10 +76,14 @@ export async function serverCreateBuyWithLot(input: BuyInput, _userId: string) {
 
   if (error) throw new Error(error.message)
 
+  const txId = (data as { transaction_id: string }).transaction_id
+  const row = await fetchTransactionRow(supabase, txId)
+
   return {
     success: true,
-    transaction_id: (data as { transaction_id: string }).transaction_id,
+    transaction_id: txId,
     deposit_id: (data as { deposit_id: string | null }).deposit_id,
+    row,
   }
 }
 
@@ -83,10 +105,33 @@ export async function serverProcessSellFifo(input: SellInput, _userId: string) {
 
   if (error) throw new Error(error.message)
 
+  const txId = (data as { transaction_id: string }).transaction_id
+  const row = await fetchTransactionRow(supabase, txId)
+
   return {
     success: true,
-    transaction_id: (data as { transaction_id: string }).transaction_id,
+    transaction_id: txId,
     realized_gain: (data as { realized_gain: number }).realized_gain,
+    row,
+  }
+}
+
+// Delete: cascades to the matching tax_lot (for Buys) and re-derives FIFO
+// across remaining sells for (account, asset). Replaces the previous client-
+// side `delete()` + warning-alert approach.
+export async function serverDeleteTransaction(transactionId: string, _userId: string) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.rpc('delete_transaction', {
+    p_tx_id: transactionId,
+  })
+
+  if (error) throw new Error(error.message)
+
+  return {
+    success: true,
+    deleted_transaction_id: (data as { deleted_transaction_id: string }).deleted_transaction_id,
+    lots_deleted: (data as { lots_deleted: number }).lots_deleted,
   }
 }
 

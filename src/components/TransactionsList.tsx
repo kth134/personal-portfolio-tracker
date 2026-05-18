@@ -19,7 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatUSD } from '@/lib/formatters'
 import Papa from 'papaparse'
-import { serverCreateBuyWithLot, serverProcessSellFifo, serverBulkImportTransactions } from '@/app/actions/transactionactions'
+import { serverCreateBuyWithLot, serverProcessSellFifo, serverBulkImportTransactions, serverDeleteTransaction } from '@/app/actions/transactionactions'
 import { DashboardSurface } from '@/components/dashboard-shell'
 
 const formatUSDWhole = (value: number | null | undefined) => {
@@ -565,10 +565,11 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
         updatedTx = data
       } else {
         // New transaction. For Buy/Sell, the server action owns the INSERT
-        // (it runs an atomic RPC that also writes the tax lot / FIFO). For
-        // other types, do a direct client INSERT — they have no lot logic.
+        // (it runs an atomic RPC that also writes the tax lot / FIFO) and
+        // returns the full joined row, so the client never needs a second
+        // round-trip to read the new state.
         if (type === 'Buy' && qty && prc && selectedAsset) {
-          const { transaction_id } = await serverCreateBuyWithLot(
+          const { row } = await serverCreateBuyWithLot(
             {
               account_id: selectedAccount.id,
               asset_id: selectedAsset.id,
@@ -582,19 +583,9 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             },
             user.id,
           )
-          const { data: refetched, error: refErr } = await supabase
-            .from('transactions')
-            .select(`
-              *,
-              account:accounts (name, type),
-              asset:assets (ticker, name)
-            `)
-            .eq('id', transaction_id)
-            .single()
-          if (refErr) throw refErr
-          updatedTx = refetched!
+          updatedTx = row as Transaction
         } else if (type === 'Sell' && qty && prc && selectedAsset) {
-          const { transaction_id } = await serverProcessSellFifo(
+          const { row } = await serverProcessSellFifo(
             {
               account_id: selectedAccount.id,
               asset_id: selectedAsset.id,
@@ -606,17 +597,7 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
             },
             user.id,
           )
-          const { data: refetched, error: refErr } = await supabase
-            .from('transactions')
-            .select(`
-              *,
-              account:accounts (name, type),
-              asset:assets (ticker, name)
-            `)
-            .eq('id', transaction_id)
-            .single()
-          if (refErr) throw refErr
-          updatedTx = refetched!
+          updatedTx = row as Transaction
         } else {
           const { data: newTx, error: txErr } = await supabase
             .from('transactions')
@@ -803,13 +784,15 @@ Date,Account,Asset,Type,Quantity,PricePerUnit,Amount,Fees,Notes,FundingSource
     if (!deletingTx) return
     const supabase = createClient()
     try {
-      if (deletingTx.type === 'Buy') {
-        alert('Buy deleted. Tax lot cleanup is not automatic if shares were partially sold. Review Tax Lots page manually if needed.')
-      } else if (deletingTx.type === 'Sell') {
-        alert('Sell deleted. Sold shares are not automatically restored. Manually adjust remaining_quantity on oldest tax lots if needed.')
-      }
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
 
-      await supabase.from('transactions').delete().eq('id', deletingTx.id)
+      // Atomic delete: removes the originating tax_lot (for Buys) and
+      // recomputes FIFO across remaining sells for (account, asset). If the
+      // resulting state can't cover the user's sells, the RPC raises and
+      // the entire delete rolls back.
+      await serverDeleteTransaction(deletingTx.id, user.id)
+
       setTransactions(transactions.filter(t => t.id !== deletingTx.id))
       router.refresh()
       setDeletingTx(null)
