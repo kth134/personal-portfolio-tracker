@@ -1,97 +1,30 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
+import { refreshPrices } from '@/lib/price-service'
 
+// Thin wrapper around the shared price-refresh function. Used by the
+// `Refresh prices` button on the portfolio dashboard. Cron callers hit
+// /api/fetch-prices directly.
 export async function refreshAssetPrices() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
-  const userId = user.id
 
-  // Step 1: Get unique tickers from assets
-  const { data: assets, error: assetsError } = await supabase
-    .from('assets')
-    .select('ticker, asset_subtype')
-    .eq('user_id', userId)
+  const result = await refreshPrices(user.id)
 
-  if (assetsError) throw assetsError
-
-  const uniqueTickers = [...new Set(assets?.map((a: any) => a.ticker) || [])]
-  if (!uniqueTickers.length) {
-    return { success: true, message: 'No assets found; skipping price fetch' }
-  }
-
-  const cryptoAssets = assets?.filter((a: any) => a.asset_subtype?.toLowerCase() === 'crypto') || []
-  const cryptoTickers = cryptoAssets.map((a: any) => a.ticker.toUpperCase())
-
-  const stockAssets = assets?.filter((a: any) => a.asset_subtype?.toLowerCase() !== 'crypto') || []
-  const stockTickers = stockAssets.map((a: any) => a.ticker.toUpperCase())
-
-  const idMap: Record<string, string> = {
-    BTC: 'bitcoin',
-    BITCOIN: 'bitcoin',
-    ETH: 'ethereum',
-    ETHEREUM: 'ethereum',
-  }
-
-  // CoinGecko for crypto
-  if (cryptoTickers.length) {
-    const cgIds = cryptoTickers.map((t: any) => idMap[t] || t.toLowerCase())
-    const cgUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd`
-    const cgResponse = await fetch(cgUrl)
-    if (cgResponse.ok) {
-      const cgPrices = await cgResponse.json()
-      for (let i = 0; i < cryptoTickers.length; i++) {
-        const originalTicker = cryptoTickers[i]
-        const cgId = cgIds[i]
-        const price = cgPrices[cgId]?.usd
-        if (price) {
-          await supabase.from('asset_prices').insert({ ticker: originalTicker, price, source: 'coingecko' })
-        }
-      }
-    } else {
-      console.error(`CoinGecko error: ${cgResponse.statusText}`)
+  if (result.inserted.crypto + result.inserted.stocks === 0) {
+    return {
+      success: true,
+      message:
+        result.failed.length > 0
+          ? `No prices refreshed (${result.failed.length} tickers failed).`
+          : 'No assets found; skipping price fetch.',
     }
   }
 
-  // Finnhub primary + Alpha Vantage fallback for stocks
-  if (stockTickers.length) {
-    const finnhubKey = process.env.FINNHUB_API_KEY
-    const alphaKey = process.env.ALPHA_VANTAGE_API_KEY
-    if (!finnhubKey || !alphaKey) throw new Error('Missing API keys')
-
-    for (const ticker of stockTickers) {
-      let price: number | undefined
-      let source = 'finnhub'
-
-      // Finnhub
-      const finnhubUrl = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${finnhubKey}`
-      const finnhubResponse = await fetch(finnhubUrl)
-      if (finnhubResponse.ok) {
-        const finnhubData = await finnhubResponse.json()
-        price = finnhubData.c || finnhubData.pc
-      }
-
-      // Alpha Vantage fallback
-      if (!price || price <= 0) {
-        source = 'alphavantage'
-        const alphaUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${alphaKey}`
-        const alphaResponse = await fetch(alphaUrl)
-        if (alphaResponse.ok) {
-          const alphaData = await alphaResponse.json()
-          const quote = alphaData['Global Quote']
-          if (quote && quote['05. price']) {
-            price = parseFloat(quote['05. price'])
-          }
-        }
-      }
-
-      if (price && price > 0) {
-        await supabase.from('asset_prices').insert({ ticker, price, source })
-      }
-    }
+  return {
+    success: true,
+    message: `Refreshed ${result.inserted.crypto + result.inserted.stocks} prices${result.failed.length ? ` (${result.failed.length} failed)` : ''}.`,
   }
-
-  return { success: true, message: 'Prices refreshed successfully.' }
 }
