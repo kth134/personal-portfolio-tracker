@@ -9,7 +9,7 @@ type BuyInput = {
   date: string
   quantity: number
   price_per_unit: number
-  amount: number          // negative for buy
+  amount: number          // negative for buy (signed)
   fees?: number | null
   notes?: string | null
   funding_source?: 'cash' | 'external'
@@ -23,7 +23,6 @@ type SellInput = {
   price_per_unit: number
   fees?: number | null
   notes?: string | null
-  transaction_id: string   // the sell tx we just inserted
 }
 
 type ValidatedRow = {
@@ -39,266 +38,148 @@ type ValidatedRow = {
   funding_source?: 'cash' | 'external'
 }
 
-export async function serverCreateBuyWithLot(input: BuyInput, userId: string) {
+// Buy: delegates the Deposit + Buy + tax_lot inserts to a single Postgres
+// transaction (RPC create_buy_with_lot), and triggers a FIFO recompute so any
+// prior back-dated sells reconcile against the new lot.
+export async function serverCreateBuyWithLot(input: BuyInput, _userId: string) {
   const supabase = await createClient()
 
-  // Verify user owns the account
-  const { data: acc, error: accErr } = await supabase
-    .from('accounts')
-    .select('user_id')
-    .eq('id', input.account_id)
-    .single()
-
-  if (accErr || acc?.user_id !== userId) {
-    throw new Error('Unauthorized: account access denied')
-  }
-
-  // Auto-deposit if external
-  if (input.funding_source === 'external') {
-    const depositAmt = Math.abs(input.amount)
-    const { error: depErr } = await supabase
-      .from('transactions')
-      .insert({
-        account_id: input.account_id,
-        asset_id: null,
-        date: input.date,
-        type: 'Deposit',
-        amount: depositAmt,
-        notes: `Auto-deposit for external buy`,
-        user_id: userId,
-      })
-
-    if (depErr) throw depErr
-  }
-
-  // Create tax lot
-  // `input.amount` from the transaction already includes fees (UI and bulk import store net amount),
-  // so compute basis using the absolute transaction amount only (consistent with bulk import logic).
-  const basis_per_unit = Math.abs(input.amount) / input.quantity
-
-  const { error: lotErr } = await supabase.from('tax_lots').insert({
-    account_id: input.account_id,
-    asset_id: input.asset_id,
-    purchase_date: input.date,
-    quantity: input.quantity,
-    cost_basis_per_unit: basis_per_unit,
-    remaining_quantity: input.quantity,
-    user_id: userId,
+  const { data, error } = await supabase.rpc('create_buy_with_lot', {
+    p_account_id: input.account_id,
+    p_asset_id: input.asset_id,
+    p_date: input.date,
+    p_quantity: input.quantity,
+    p_price_per_unit: input.price_per_unit,
+    p_amount: input.amount,
+    p_fees: input.fees ?? 0,
+    p_funding_source: input.funding_source ?? 'cash',
+    p_notes: input.notes ?? null,
   })
 
-  if (lotErr) throw lotErr
+  if (error) throw new Error(error.message)
 
-  return { success: true }
+  return {
+    success: true,
+    transaction_id: (data as { transaction_id: string }).transaction_id,
+    deposit_id: (data as { deposit_id: string | null }).deposit_id,
+  }
 }
 
-export async function serverProcessSellFifo(input: SellInput, userId: string) {
+// Sell: the RPC inserts the Sell row AND runs the FIFO recompute. The caller
+// must NOT pre-insert a sell transaction (contract change from the previous
+// version, which required the caller to pass an already-created transaction_id).
+export async function serverProcessSellFifo(input: SellInput, _userId: string) {
   const supabase = await createClient()
 
-  // Verify ownership of account
-  const { data: acc, error: accErr } = await supabase
-    .from('accounts')
-    .select('user_id')
-    .eq('id', input.account_id)
-    .single()
+  const { data, error } = await supabase.rpc('process_sell_fifo', {
+    p_account_id: input.account_id,
+    p_asset_id: input.asset_id,
+    p_date: input.date,
+    p_quantity: input.quantity,
+    p_price_per_unit: input.price_per_unit,
+    p_fees: input.fees ?? 0,
+    p_notes: input.notes ?? null,
+  })
 
-  if (accErr || acc?.user_id !== userId) {
-    throw new Error('Unauthorized: account access denied')
+  if (error) throw new Error(error.message)
+
+  return {
+    success: true,
+    transaction_id: (data as { transaction_id: string }).transaction_id,
+    realized_gain: (data as { realized_gain: number }).realized_gain,
   }
-
-  // Fetch open lots (FIFO order)
-  const { data: lots, error: lotsErr } = await supabase
-    .from('tax_lots')
-    .select('*')
-    .eq('account_id', input.account_id)
-    .eq('asset_id', input.asset_id)
-    .gt('remaining_quantity', 0)
-    .order('purchase_date', { ascending: true })
-
-  if (lotsErr) throw lotsErr
-  if (!lots?.length) throw new Error('No open tax lots for this sell')
-
-  let remainingToSell = input.quantity
-  let basisSold = 0
-
-  for (const lot of lots) {
-    if (remainingToSell <= 0) break
-    const deplete = Math.min(remainingToSell, lot.remaining_quantity)
-    basisSold += deplete * lot.cost_basis_per_unit
-    remainingToSell -= deplete
-
-    if (lot.remaining_quantity - deplete > 0) {
-      const { error: upErr } = await supabase
-        .from('tax_lots')
-        .update({ remaining_quantity: lot.remaining_quantity - deplete })
-        .eq('id', lot.id)
-      if (upErr) throw upErr
-    } else {
-      const { error: upErr } = await supabase
-        .from('tax_lots')
-        .update({ remaining_quantity: 0 })
-        .eq('id', lot.id)
-      if (upErr) throw upErr
-    }
-  }
-
-  if (remainingToSell > 0) throw new Error('Insufficient shares in tax lots')
-
-  // Calculate realized gain
-  const proceeds = input.quantity * input.price_per_unit - (input.fees || 0)
-  const realized_gain = proceeds - basisSold
-
-  // Update the sell transaction
-  const { error: txErr } = await supabase
-    .from('transactions')
-    .update({ realized_gain })
-    .eq('id', input.transaction_id)
-
-  if (txErr) throw txErr
-
-  return { success: true, realized_gain }
 }
 
-export async function serverBulkImportTransactions(rows: ValidatedRow[], userId: string) {
+// Bulk import:
+// 1. H3: validate that any provided `amount` agrees with quantity*price ± fees
+//    to within $0.01. Reject the row otherwise. Currently the prior code
+//    silently overwrote conflicting amounts.
+// 2. Sort rows chronologically for FIFO determinism (the RPC does its own
+//    recompute, but sorting still helps when the input is reviewed).
+// 3. If any row fails JS validation we return errors WITHOUT touching the
+//    database. If JS validation passes, the entire batch is inserted in a
+//    single Postgres transaction via the RPC — any DB error rolls back all
+//    rows.
+export async function serverBulkImportTransactions(rows: ValidatedRow[], _userId: string) {
   const supabase = await createClient()
-
-  // Enforce chronological order for FIFO accuracy
-  rows.sort((a, b) => a.date.localeCompare(b.date))
 
   const errors: string[] = []
-  let successCount = 0
+  const cleaned: ValidatedRow[] = []
 
-  for (const [index, row] of rows.entries()) {
-    try {
-      // Verify account ownership (every row)
-      const { data: acc, error: accErr } = await supabase
-        .from('accounts')
-        .select('user_id')
-        .eq('id', row.account_id)
-        .single()
-      if (accErr || acc?.user_id !== userId) {
-        throw new Error(`Unauthorized access to account`)
+  // chronological order
+  const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date))
+
+  sorted.forEach((row, index) => {
+    const rowNum = index + 2 // header is row 1
+
+    if (row.type === 'Buy' || row.type === 'Sell') {
+      if (!row.quantity || !row.price_per_unit) {
+        errors.push(`Row ${rowNum}: ${row.type} requires quantity and price_per_unit`)
+        return
+      }
+      const fees = row.fees ?? 0
+      const gross = row.quantity * row.price_per_unit
+      const computed = row.type === 'Buy' ? -(gross + fees) : gross - fees
+
+      // H3: only flag a mismatch when the user provided an `amount` AND it
+      // disagrees with the computed value by more than a cent. If `amount`
+      // wasn't provided, the computed value is authoritative.
+      if (row.amount != null && Math.abs(row.amount - computed) > 0.01) {
+        errors.push(
+          `Row ${rowNum}: amount ${row.amount} does not match ${row.type === 'Buy' ? '-(qty*price+fees)' : '(qty*price-fees)'} = ${computed.toFixed(2)}`,
+        )
+        return
       }
 
-      let amt = row.amount ?? 0
-      const fs = row.fees ?? 0
-      if (row.type === 'Withdrawal') amt = -Math.abs(amt)
+      cleaned.push({ ...row, amount: computed })
+    } else if (row.type === 'Withdrawal') {
+      const amt = row.amount != null ? -Math.abs(row.amount) : 0
+      cleaned.push({ ...row, amount: amt })
+    } else {
+      cleaned.push(row)
+    }
+  })
 
-      // Calculate amount for Buy/Sell if not provided
-      if (['Buy', 'Sell'].includes(row.type) && row.quantity && row.price_per_unit) {
-        const gross = row.quantity * row.price_per_unit
-        amt = row.type === 'Buy' ? -(gross + fs) : (gross - fs)
-      }
-
-      // Insert the transaction
-      const { data: newTx, error: txErr } = await supabase
-        .from('transactions')
-        .insert({
-          account_id: row.account_id,
-          asset_id: row.asset_id,
-          date: row.date,
-          type: row.type,
-          quantity: row.quantity ?? null,
-          price_per_unit: row.price_per_unit ?? null,
-          amount: amt,
-          fees: fs || null,
-          notes: row.notes || null,
-          funding_source: row.type === 'Buy' ? row.funding_source : null,
-          user_id: userId,
-        })
-        .select('id')
-        .single()
-
-      if (txErr) throw txErr
-      const txId = newTx.id
-
-      // Handle Buy
-      if (row.type === 'Buy' && row.quantity && row.price_per_unit && row.asset_id) {
-        if (row.funding_source === 'external') {
-          const depositAmt = Math.abs(amt)
-          const { error: depErr } = await supabase.from('transactions').insert({
-            account_id: row.account_id,
-            asset_id: null,
-            date: row.date,
-            type: 'Deposit',
-            amount: depositAmt,
-            notes: `Auto-deposit for external buy`,
-            user_id: userId,
-          })
-          if (depErr) throw depErr
-        }
-
-        const basis_per_unit = Math.abs(amt) / row.quantity
-        const { error: lotErr } = await supabase.from('tax_lots').insert({
-          account_id: row.account_id,
-          asset_id: row.asset_id,
-          purchase_date: row.date,
-          quantity: row.quantity,
-          cost_basis_per_unit: basis_per_unit,
-          remaining_quantity: row.quantity,
-          user_id: userId,
-        })
-        if (lotErr) throw lotErr
-      }
-
-      // Handle Sell
-      else if (row.type === 'Sell' && row.quantity && row.price_per_unit && row.asset_id) {
-        const { data: lots, error: lotsErr } = await supabase
-          .from('tax_lots')
-          .select('*')
-          .eq('account_id', row.account_id)
-          .eq('asset_id', row.asset_id)
-          .gt('remaining_quantity', 0)
-          .order('purchase_date', { ascending: true })
-
-        if (lotsErr) throw lotsErr
-        if (!lots?.length) throw new Error('No open tax lots for this sell')
-
-        let remainingToSell = row.quantity
-        let basisSold = 0
-
-        for (const lot of lots) {
-          if (remainingToSell <= 0) break
-          const deplete = Math.min(remainingToSell, lot.remaining_quantity)
-          basisSold += deplete * lot.cost_basis_per_unit
-          remainingToSell -= deplete
-
-          if (lot.remaining_quantity - deplete > 0) {
-            const { error: upErr } = await supabase
-              .from('tax_lots')
-              .update({ remaining_quantity: lot.remaining_quantity - deplete })
-              .eq('id', lot.id)
-            if (upErr) throw upErr
-          } else {
-            const { error: upErr } = await supabase
-              .from('tax_lots')
-              .update({ remaining_quantity: 0 })
-              .eq('id', lot.id)
-            if (upErr) throw upErr
-          }
-        }
-
-        if (remainingToSell > 0) throw new Error('Insufficient shares in tax lots')
-
-        const proceeds = row.quantity * row.price_per_unit - fs
-        const realized_gain = proceeds - basisSold
-
-        const { error: gainErr } = await supabase
-          .from('transactions')
-          .update({ realized_gain })
-          .eq('id', txId)
-        if (gainErr) throw gainErr
-      }
-
-      successCount++
-    } catch (err: any) {
-      errors.push(`Row ${index + 2}: ${err.message || 'Unknown error'}`)
+  if (errors.length > 0) {
+    return {
+      success: false,
+      imported: 0,
+      errors,
+      total: rows.length,
     }
   }
 
-  return { 
-    success: successCount > 0, 
-    imported: successCount, 
-    errors: errors.length > 0 ? errors : null,
-    total: rows.length
+  const payload = cleaned.map((row) => ({
+    date: row.date,
+    account_id: row.account_id,
+    asset_id: row.asset_id,
+    type: row.type,
+    quantity: row.quantity ?? null,
+    price_per_unit: row.price_per_unit ?? null,
+    amount: row.amount ?? null,
+    fees: row.fees ?? null,
+    notes: row.notes ?? null,
+    funding_source: row.type === 'Buy' ? (row.funding_source ?? 'cash') : null,
+  }))
+
+  const { data, error } = await supabase.rpc('bulk_import_transactions', {
+    p_rows: payload,
+  })
+
+  if (error) {
+    return {
+      success: false,
+      imported: 0,
+      errors: [error.message],
+      total: rows.length,
+    }
+  }
+
+  const imported = (data as { imported: number }).imported ?? 0
+  return {
+    success: imported > 0,
+    imported,
+    errors: null,
+    total: rows.length,
   }
 }
