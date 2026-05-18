@@ -18,10 +18,11 @@ export default function LoginForm() {
   const [loginAttempts, setLoginAttempts] = useState(0)
   const [lastLoginAttempt, setLastLoginAttempt] = useState(0)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSocialLogin = async () => {
     setError('')
+    // Lazy-init: keeps prerender (where env vars aren't loaded) from throwing.
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -59,6 +60,8 @@ export default function LoginForm() {
 
     setLoginAttempts(prev => prev + 1)
     setLastLoginAttempt(now)
+
+    const supabase = createClient()
 
     if (isSignUp) {
       const { data, error } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password })
@@ -111,6 +114,7 @@ export default function LoginForm() {
       return
     }
 
+    const supabase = createClient()
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
       redirectTo: `${window.location.origin}/reset-password`,
     })
