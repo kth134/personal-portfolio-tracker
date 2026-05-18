@@ -18,10 +18,12 @@ import { useRouter } from 'next/navigation'
 
 export function LogoutButton() {
   const [open, setOpen] = useState(false)
-  const supabase = createClient()
   const router = useRouter()
 
   const handleLogout = async () => {
+    // Lazy-init so the Supabase client isn't constructed during prerender
+    // (env vars aren't loaded then; build-time `next build` would throw).
+    const supabase = createClient()
     await supabase.auth.signOut({ scope: 'global' }) // invalidate all sessions
     router.replace('/') // hard redirect to login form
     router.refresh() // clear any stale data
