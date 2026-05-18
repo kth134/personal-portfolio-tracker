@@ -9,6 +9,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Cron bypass (audit ref H6). Vercel cron invocations have no user
+  // session; let them through if they present the shared secret. The
+  // route handler still validates the same secret before doing any work.
+  const cronSecret = process.env.CRON_SECRET
+  if (cronSecret && request.headers.get('authorization') === `Bearer ${cronSecret}`) {
+    return NextResponse.next()
+  }
+
   // Create response object early so we can modify cookies
   const response = NextResponse.next()
 

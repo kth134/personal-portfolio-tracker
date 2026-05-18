@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service';
 import { NextResponse } from 'next/server';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import { calculateIRR, normalizeTransactionToFlow, logCashFlows, netCashFlowsByDate, transactionFlowForIRR } from '@/lib/finance';
@@ -170,8 +171,9 @@ export async function POST(req: Request) {
 
       if (prices.length > 0) {
         historicalData[ticker] = prices;
-        // Cache
-        await supabase.from('asset_prices').insert(
+        // Cache. asset_prices is service_role-write only (audit C1).
+        const admin = createServiceRoleClient();
+        await admin.from('asset_prices').insert(
           prices.map(p => ({
             ticker,
             price: p.close,
